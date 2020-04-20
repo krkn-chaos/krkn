@@ -1,0 +1,9 @@
+kraken:
+    kubeconfig_path: /root/.kube/config                    # Path to kubeconfig
+    scenarios:                                             # List of policies/chaos scenarios to load
+        -    scenarios/etcd.yml
+        -    scenarios/openshift-kube-apiserver.yml                           
+        -    scenarios/openshift-apiserver.yml
+
+tunings:
+    wait_duration: 60                                      # Duration to wait between each chaos scenario 

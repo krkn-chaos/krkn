@@ -1,0 +1,23 @@
+config:
+  loopsNumber: 1
+  minSecondsBetweenRuns: 1
+  maxSecondsBetweenRuns: 30
+
+# the scenarios describing actions on kubernetes pods
+podScenarios:
+  - name: "delete etcd pods"
+
+    match:
+      - labels:
+          namespace: "openshift-etcd"
+          selector: "k8s-app=etcd"
+
+    filters:
+      - randomSample:
+          size: 1
+
+    # The actions will be executed in the order specified
+    actions:
+      - kill:
+          probability: 1
+          force: true
