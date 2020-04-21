@@ -6,6 +6,7 @@ import time
 import optparse
 import logging
 import yaml
+import requests
 import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 import pyfiglet
@@ -23,6 +24,7 @@ def main(cfg):
             config = yaml.full_load(f)
         kubeconfig_path = config["kraken"]["kubeconfig_path"]
         scenarios = config["kraken"]["scenarios"]
+        cerberus_enabled = config["cerberus"]["cerberus_enabled"]
         wait_duration = config["tunings"]["wait_duration"]
 
         # Initialize clients
@@ -46,8 +48,18 @@ def main(cfg):
                 logging.info("Scenario: %s has been successfully injected!" %(scenario))
                 logging.info("Waiting for the specified duration: %s" %(wait_duration))
                 time.sleep(wait_duration) 
-        except:
-            logging.error("Failed to run scenario: %s, please check" %(scenario))
+                if cerberus_enabled:
+                    cerberus_url = config["cerberus"]["cerberus_url"]
+                    if not cerberus_url:
+                        logging.error("url where Cerberus publishes True/False signal is not provided.")
+                        sys.exit(1)
+                    cerberus_status = requests.get(cerberus_url).content
+                    cerberus_status = True if cerberus_status == b'True' else False
+                    if not cerberus_status:
+                        logging.error("Received a no-go signal from Cerberus, looks like the cluster is unhealthy. Please check the Cerberus report for more details. Test failed.")
+                        sys.exit(1)
+        except Exception as e:
+            logging.error("Failed to run scenario: %s. Encountered the following exception: %s" %(scenario, e))
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         sys.exit(1)

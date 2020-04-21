@@ -5,5 +5,9 @@ kraken:
         -    scenarios/openshift-kube-apiserver.yml                           
         -    scenarios/openshift-apiserver.yml
 
+cerberus:
+    cerberus_enabled: False                                # Enable it when cerberus is previously installed
+    cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
+
 tunings:
-    wait_duration: 60                                      # Duration to wait between each chaos scenario 
+    wait_duration: 60                                      # Duration to wait between each chaos scenario
