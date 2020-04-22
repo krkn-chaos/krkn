@@ -63,3 +63,5 @@ Component                | Description                                          
 ------------------------ | ---------------------------------------------------------------------------------------------------| ------------------------- |
 Etcd                     | Kills a single/multiple etcd replicas for the specified number of times in a loop                  | :heavy_check_mark:        |
 Kube ApiServer           | Kills a single/multiple kube-apiserver replicas for the specified number of times in a loop        | :heavy_check_mark:        |
+ApiServer                | Kills a single/multiple apiserver replicas for the specified number of times in a loop             | :heavy_check_mark:        |
+Prometheus               | Kills a single/multiple prometheus replicas for the specified number of times in a loop            | :heavy_check_mark:        |
