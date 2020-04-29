@@ -1,0 +1,17 @@
+node_scenarios:
+  - actions:                                                        # node chaos scenarios to be injected
+    - node_stop_start_scenario
+    - stop_start_kubelet_scenario
+    - node_crash_scenario
+    node_name:                                                      # node on which scenario has to be injected
+    label_selector: node-role.kubernetes.io/worker                  # when node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection
+    instance_kill_count: 1                                          # number of times to inject each scenario under actions
+    timeout: 120                                                    # duration to wait for completion of node scenario injection
+    cloud_type: aws                                                 # cloud type on which Kubernetes/OpenShift runs
+  - actions:
+    - node_reboot_scenario
+    node_name:
+    label_selector: node-role.kubernetes.io/infra
+    instance_kill_count: 1
+    timeout: 120
+    cloud_type: aws
