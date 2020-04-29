@@ -10,6 +10,9 @@ kraken:
           -    scenarios/post_action_openshift-apiserver.yml
         - -    scenarios/regex_openshift_pod_kill.yml
           -    scenarios/post_action_regex.py
+    node_scenarios:                                        # List of chaos node scenarios to load
+        -   scenarios/node_scenarios_example.yml
+
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal

@@ -2,3 +2,4 @@ datetime
 pyfiglet
 powerfulseal==3.0.0rc11
 requests
+boto3

@@ -12,3 +12,10 @@ def invoke(command):
     except Exception as e:
         logging.error("Failed to run %s, error: %s" % (command, e))
     return out
+
+
+def run(command):
+    try:
+        subprocess.run(command, shell=True, universal_newlines=True, timeout=45)
+    except Exception:
+        pass

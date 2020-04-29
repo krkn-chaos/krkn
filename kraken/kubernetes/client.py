@@ -16,10 +16,13 @@ def initialize_clients(kubeconfig_path):
 
 
 # List nodes in the cluster
-def list_nodes():
+def list_nodes(label_selector=None):
     nodes = []
     try:
-        ret = cli.list_node(pretty=True)
+        if label_selector:
+            ret = cli.list_node(pretty=True, label_selector=label_selector)
+        else:
+            ret = cli.list_node(pretty=True)
     except ApiException as e:
         logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
     for node in ret.items:
@@ -28,10 +31,13 @@ def list_nodes():
 
 
 # List nodes in the cluster that can be killed
-def list_killable_nodes():
+def list_killable_nodes(label_selector=None):
     nodes = []
     try:
-        ret = cli.list_node(pretty=True)
+        if label_selector:
+            ret = cli.list_node(pretty=True, label_selector=label_selector)
+        else:
+            ret = cli.list_node(pretty=True)
     except ApiException as e:
         logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
     for node in ret.items:
@@ -61,6 +67,18 @@ def get_all_pods():
     for pod in ret.items:
         pods.append([pod.metadata.name, pod.metadata.namespace])
     return pods
+
+
+# Obtain node status
+def get_node_status(node):
+    try:
+        node_info = cli.read_node_status(node, pretty=True)
+    except ApiException as e:
+        logging.error("Exception when calling \
+                       CoreV1Api->read_node_status: %s\n" % e)
+    for condition in node_info.status.conditions:
+        if condition.type == "Ready":
+            return condition.status
 
 
 # Monitor the status of the cluster nodes and set the status to true or false
