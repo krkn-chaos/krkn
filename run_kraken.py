@@ -58,6 +58,8 @@ def main(cfg):
                     if not cerberus_status:
                         logging.error("Received a no-go signal from Cerberus, looks like the cluster is unhealthy. Please check the Cerberus report for more details. Test failed.")
                         sys.exit(1)
+                    else:
+                        logging.info("Received a go signal from Ceberus, the cluster is healthy. Test passed.")
         except Exception as e:
             logging.error("Failed to run scenario: %s. Encountered the following exception: %s" %(scenario, e))
     else:
