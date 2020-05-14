@@ -43,25 +43,32 @@ def main(cfg):
         # Inject chaos scenarios specified in the config
         try:
             for scenario in scenarios:
-                logging.info("Injecting scenario: %s" %(scenario))
-                runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill --policy-file %s --kubeconfig %s --no-cloud --inventory-kubernetes --headless" % (scenario,kubeconfig_path))
-                logging.info("Scenario: %s has been successfully injected!" %(scenario))
-                logging.info("Waiting for the specified duration: %s" %(wait_duration))
-                time.sleep(wait_duration) 
+                logging.info("Injecting scenario: %s" % (scenario))
+                runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill "
+                                  "--policy-file %s --kubeconfig %s --no-cloud "
+                                  "--inventory-kubernetes --headless" % (scenario, kubeconfig_path))
+                logging.info("Scenario: %s has been successfully injected!" % (scenario))
+                logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                time.sleep(wait_duration)
                 if cerberus_enabled:
                     cerberus_url = config["cerberus"]["cerberus_url"]
                     if not cerberus_url:
-                        logging.error("url where Cerberus publishes True/False signal is not provided.")
+                        logging.error("url where Cerberus publishes True/False signal "
+                                      "is not provided.")
                         sys.exit(1)
                     cerberus_status = requests.get(cerberus_url).content
                     cerberus_status = True if cerberus_status == b'True' else False
                     if not cerberus_status:
-                        logging.error("Received a no-go signal from Cerberus, looks like the cluster is unhealthy. Please check the Cerberus report for more details. Test failed.")
+                        logging.error("Received a no-go signal from Cerberus, looks like the "
+                                      "cluster is unhealthy. Please check the Cerberus report "
+                                      "for more details. Test failed.")
                         sys.exit(1)
                     else:
-                        logging.info("Received a go signal from Ceberus, the cluster is healthy. Test passed.")
+                        logging.info("Received a go signal from Ceberus, the cluster is healthy. "
+                                     "Test passed.")
         except Exception as e:
-            logging.error("Failed to run scenario: %s. Encountered the following exception: %s" %(scenario, e))
+            logging.error("Failed to run scenario: %s. Encountered the following exception: %s"
+                          % (scenario, e))
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         sys.exit(1)
