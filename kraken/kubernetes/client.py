@@ -2,6 +2,7 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 import logging
 
+
 # Load kubeconfig and initialize kubernetes python client
 def initialize_clients(kubeconfig_path):
     global cli
