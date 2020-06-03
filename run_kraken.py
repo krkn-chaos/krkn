@@ -26,6 +26,8 @@ def main(cfg):
         scenarios = config["kraken"]["scenarios"]
         cerberus_enabled = config["cerberus"]["cerberus_enabled"]
         wait_duration = config["tunings"]["wait_duration"]
+        iterations = config["tunings"]["iterations"]
+        daemon_mode = config["tunings"]['daemon_mode']
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
@@ -37,38 +39,58 @@ def main(cfg):
         logging.info("Fetching cluster info")
         cluster_version = runcommand.invoke("kubectl get clusterversion")
         cluster_info = runcommand.invoke("kubectl cluster-info | awk 'NR==1' | sed -r "
-                                         "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'") # noqa
+                                         "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'")  # noqa
         logging.info("\n%s%s" % (cluster_version, cluster_info))
 
-        # Inject chaos scenarios specified in the config
-        try:
-            for scenario in scenarios:
-                logging.info("Injecting scenario: %s" % (scenario))
-                runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill "
-                                  "--policy-file %s --kubeconfig %s --no-cloud "
-                                  "--inventory-kubernetes --headless" % (scenario, kubeconfig_path))
-                logging.info("Scenario: %s has been successfully injected!" % (scenario))
-                logging.info("Waiting for the specified duration: %s" % (wait_duration))
-                time.sleep(wait_duration)
-                if cerberus_enabled:
-                    cerberus_url = config["cerberus"]["cerberus_url"]
-                    if not cerberus_url:
-                        logging.error("url where Cerberus publishes True/False signal "
-                                      "is not provided.")
-                        sys.exit(1)
-                    cerberus_status = requests.get(cerberus_url).content
-                    cerberus_status = True if cerberus_status == b'True' else False
-                    if not cerberus_status:
-                        logging.error("Received a no-go signal from Cerberus, looks like the "
-                                      "cluster is unhealthy. Please check the Cerberus report "
-                                      "for more details. Test failed.")
-                        sys.exit(1)
-                    else:
-                        logging.info("Received a go signal from Ceberus, the cluster is healthy. "
-                                     "Test passed.")
-        except Exception as e:
-            logging.error("Failed to run scenario: %s. Encountered the following exception: %s"
-                          % (scenario, e))
+        # Initialize the start iteration to 0
+        iteration = 0
+
+        # Set the number of iterations to loop to infinity if daemon mode is
+        # enabled or else set it to the provided iterations count in the config
+        if daemon_mode:
+            logging.info("Daemon mode enabled, kraken will cause chaos forever")
+            logging.info("Ignoring the iterations set")
+            iterations = float('inf')
+        else:
+            logging.info("Daemon mode not enabled, will run through %s iterations"
+                         % str(iterations))
+            iterations = int(iterations)
+
+        # Loop to run the chaos starts here
+        while (int(iteration) < iterations):
+            # Inject chaos scenarios specified in the config
+            try:
+                # Loop to run the scenarios starts here
+                for scenario in scenarios:
+                    logging.info("Injecting scenario: %s" % (scenario))
+                    runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill"
+                                      " --policy-file %s --kubeconfig %s --no-cloud"
+                                      " --inventory-kubernetes --headless"
+                                      % (scenario, kubeconfig_path))
+                    logging.info("Scenario: %s has been successfully injected!" % (scenario))
+
+                    if cerberus_enabled:
+                        cerberus_url = config["cerberus"]["cerberus_url"]
+                        if not cerberus_url:
+                            logging.error("url where Cerberus publishes True/False signal "
+                                          "is not provided.")
+                            sys.exit(1)
+                        cerberus_status = requests.get(cerberus_url).content
+                        cerberus_status = True if cerberus_status == b'True' else False
+                        if not cerberus_status:
+                            logging.error("Received a no-go signal from Cerberus, looks like the"
+                                          " cluster is unhealthy. Please check the Cerberus report"
+                                          " for more details. Test failed.")
+                            sys.exit(1)
+                        else:
+                            logging.info("Received a go signal from Ceberus, the cluster is "
+                                         "healthy. Test passed.")
+                    logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                    time.sleep(wait_duration)
+            except Exception as e:
+                logging.error("Failed to run scenario: %s. Encountered the following exception: %s"
+                              % (scenario, e))
+            iteration += 1
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         sys.exit(1)
