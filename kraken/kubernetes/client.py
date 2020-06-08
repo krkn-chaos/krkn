@@ -11,10 +11,13 @@ def initialize_clients(kubeconfig_path):
 
 
 # List nodes in the cluster
-def list_nodes():
+def list_nodes(label_selector=None):
     nodes = []
     try:
-        ret = cli.list_node(pretty=True)
+        if label_selector:
+            ret = cli.list_node(pretty=True, label_selector=label_selector)
+        else:
+            ret = cli.list_node(pretty=True)
     except ApiException as e:
         logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
     for node in ret.items:
