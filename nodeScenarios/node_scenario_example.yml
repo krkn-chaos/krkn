@@ -1,0 +1,16 @@
+node_scenarios:
+- name: stop and then start again
+  actions:
+    - node_stop_scenario
+    - node_start_scenario
+  label_selector: node-role.kubernetes.io/worker
+  instance_kill_count: 1
+  timeout: 3
+  cloud_type: aws
+- name: Reboot scenario
+  actions:
+    - node_reboot_scenario
+  label_selector: node-role.kubernetes.io/infra
+  instance_kill_count: 1
+  timeout: 4
+  cloud_type: aws
