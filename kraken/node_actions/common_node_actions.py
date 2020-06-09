@@ -32,12 +32,11 @@ def run_and_select_node(scenario_yaml):
 
 # Stop the kubelet on one of the nodes
 def stop_kubelet(node_name):
-    #
     stop_kubelet_response = command.invoke_debug_helper(node_name, "systemctl is-active kubelet")
-    logging.info("Response from invoke " + str("stop_kubelet_response"))
+    logging.info("Response from invoke " + str(stop_kubelet_response))
 
 
 # Crash specific node
 def crash_node(node_name):
     crash_node_response = command.invoke_debug_helper(node_name, "echo c > /proc/sysrq-trigger")
-    logging.info("Crash node " + str("crash_node_response"))
+    logging.info("Crash node " + str(crash_node_response))

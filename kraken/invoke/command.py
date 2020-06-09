@@ -18,5 +18,5 @@ def invoke(command):
 # Invoke oc debug with command
 def invoke_debug_helper(node_name, command):
 
-    return invoke("oc debug node/" + node_name + ' -- "chroot /host; ' + command + '"')
+    return invoke("oc debug node/" + node_name + ' -- chroot /host ' + command)
 

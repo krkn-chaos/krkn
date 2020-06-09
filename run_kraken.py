@@ -124,6 +124,7 @@ def main(cfg):
                             else:
                                 logging.info("Received a go signal from Ceberus, the cluster is healthy. "
                                              "Test passed.")
+
                 except Exception as e:
                     logging.error("Failed to run scenario: %s. Encountered the following exception: %s"
                                   % (node_scenario, e))
