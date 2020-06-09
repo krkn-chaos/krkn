@@ -11,3 +11,5 @@ cerberus:
 
 tunings:
     wait_duration: 60                                      # Duration to wait between each chaos scenario
+    iterations: 1                                          # Number of times to execute the scenarios
+    daemon_mode: False                                     # Iterations are set to infinity which means that the cerberus will monitor the resources forever
