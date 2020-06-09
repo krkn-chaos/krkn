@@ -2,6 +2,8 @@ node_scenarios:
 - name: stop and then start again
   actions:
     - stop_kubelet
+    #- kubelet_status
+    #- node_crash
   label_selector: node-role.kubernetes.io/worker
   instance_kill_count: 1
   timeout: 20
