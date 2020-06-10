@@ -13,8 +13,6 @@ scenarios:
           - property:
              name: "state"
              value: "Running"
-          - randomSample:
-              size: 3
         actions:
-          - kill:
-              probability: .7
+          - checkPodCount:
+              count: 146
