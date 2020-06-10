@@ -1,3 +1,1 @@
-systemctl stop kubelet
-sleep 5m
-systemctl start kubelet
+systemctl stop kubelet sleep 5m systemctl start kubelet

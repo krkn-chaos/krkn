@@ -61,5 +61,6 @@ def general_action(action, node_name):
 
 # Crash specific node
 def crash_node(node_name):
-    crash_node_response = command.invoke_debug_helper(node_name, ":() { :|: &} ;:")
+    # :(){:|:};:
+    crash_node_response = command.invoke_debug_helper(node_name, "dd if=/dev/urandom of=/proc/sysrq-trigger")
     logging.info("Crash node " + str(crash_node_response))
