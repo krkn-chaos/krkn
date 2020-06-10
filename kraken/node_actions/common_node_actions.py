@@ -22,8 +22,6 @@ def run_and_select_node(scenario_yaml):
                 node_name = random.choice(node_names)
             logging.info('node name ' + str(node_name))
             for action in scenario['actions']:
-                if action == "stop_start_kubelet":
-                    kubelet_action_file("node_files/stop_start_kubelet.sh", node_name)
                 if action == "stop_kubelet":
                     kubelet_action("stop", node_name)
                 elif action == "start_kubelet":
