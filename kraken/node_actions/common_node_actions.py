@@ -22,6 +22,8 @@ def run_and_select_node(scenario_yaml):
                 node_name = random.choice(node_names)
             logging.info('node name ' + str(node_name))
             for action in scenario['actions']:
+                if action == "stop_start_kubelet":
+                    kubelet_action_file("node_files/stop_start_kubelet.sh", node_name)
                 if action == "stop_kubelet":
                     kubelet_action("stop", node_name)
                 elif action =="start_kubelet":
@@ -30,6 +32,8 @@ def run_and_select_node(scenario_yaml):
                     kubelet_action("is-active", node_name)
                 elif action == "node_crash":
                     crash_node(node_name)
+                elif action == "restart_node":
+                    general_action("reboot", node_name)
                 else:
                     logging.info("cloud type " + str(scenario['cloud_type']))
             timeout = int(scenario['timeout'])
@@ -39,7 +43,19 @@ def run_and_select_node(scenario_yaml):
 
 # Stop the kubelet on one of the nodes
 def kubelet_action(action, node_name):
-    stop_kubelet_response = command.invoke_debug_helper(node_name, "systemctl " + action + " kubelet.service")
+    stop_kubelet_response = command.invoke_debug_helper(node_name, "systemctl " + action + " kubelet")
+    logging.info("Response from invoke " + str(stop_kubelet_response))
+
+
+# Stop the kubelet on one of the nodes
+def kubelet_action_file(action, node_name):
+    stop_kubelet_response = command.invoke_debug_helper(node_name, "nohup ./" + action + "&")
+    logging.info("Response from invoke " + str(stop_kubelet_response))
+
+
+# Perform systemctl action on node
+def general_action(action, node_name):
+    stop_kubelet_response = command.invoke_debug_helper(node_name, "systemctl " + action)
     logging.info("Response from invoke " + str(stop_kubelet_response))
 
 
