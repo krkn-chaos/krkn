@@ -26,13 +26,13 @@ def run_and_select_node(scenario_yaml):
                     kubelet_action_file("node_files/stop_start_kubelet.sh", node_name)
                 if action == "stop_kubelet":
                     kubelet_action("stop", node_name)
-                elif action =="start_kubelet":
+                elif action == "start_kubelet":
                     kubelet_action("start", node_name)
                 elif action == "kubelet_status":
                     kubelet_action("is-active", node_name)
                 elif action == "node_crash":
                     crash_node(node_name)
-                elif action == "restart_node":
+                elif action == "restart_node" or action == "reboot_node":
                     general_action("reboot", node_name)
                 else:
                     logging.info("cloud type " + str(scenario['cloud_type']))
@@ -61,5 +61,5 @@ def general_action(action, node_name):
 
 # Crash specific node
 def crash_node(node_name):
-    crash_node_response = command.invoke_debug_helper(node_name, ":(){ :|:& };:")
+    crash_node_response = command.invoke_debug_helper(node_name, ":() { :|: &} ;:")
     logging.info("Crash node " + str(crash_node_response))
