@@ -2,14 +2,15 @@ node_scenarios:
 - name: Stop kubelet
   actions:
     - stop_kubelet
-  label_selector: node-role.kubernetes.io/worker
+  label_selector: node-role.kubernetes.io/master
   instance_kill_count: 1
   timeout: 20
   cloud_type: aws
 - name: Fork bomb the node
   actions:
     - node_crash
-  label_selector: node-role.kubernetes.io/worker
-  instance_kill_count: 1
+  node_name:
+    - ip-10-0-139-241.us-east-2.compute.internal
+  instance_kill_count: 2
   timeout: 20
   cloud_type: aws

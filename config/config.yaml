@@ -5,7 +5,7 @@ kraken:
         -    scenarios/openshift-kube-apiserver.yml
         -    scenarios/openshift-apiserver.yml
     node_scenarios:
-        -     nodeScenarios/node_scenario_example2.yml
+        -     stop_kubelet_and_crash.yml
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal

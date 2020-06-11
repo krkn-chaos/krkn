@@ -6,11 +6,9 @@ import kraken.invoke.command as command
 
 
 def run_and_select_node(scenario_yaml):
-
     for scenario in scenario_yaml['node_scenarios']:
-        logging.info('\n\n\n1 scenario ' + str(scenario))
         if "node_name" in scenario.keys():
-            node_name = scenario['node_name']
+            node_names = scenario['node_name']
         else:
             node_names = kubecli.list_nodes(scenario['label_selector'])
         kill_count = 1
@@ -20,7 +18,8 @@ def run_and_select_node(scenario_yaml):
             # randomly pick node from node names
             if "label_selector" in scenario.keys():
                 node_name = random.choice(node_names)
-            logging.info('node name ' + str(node_name))
+            else:
+                node_name = node_names[i]
             for action in scenario['actions']:
                 if action == "stop_kubelet":
                     kubelet_action("stop", node_name)
