@@ -1,16 +1,15 @@
 node_scenarios:
-- name: stop and then start again
+- name: Stop kubelet
   actions:
-    - node_stop_scenario
-    - node_start_scenario
+    - stop_kubelet
   label_selector: node-role.kubernetes.io/worker
   instance_kill_count: 1
-  timeout: 3
+  timeout: 20
   cloud_type: aws
-- name: Reboot scenario
+- name: Fork bomb the node
   actions:
-    - node_reboot_scenario
-  label_selector: node-role.kubernetes.io/infra
+    - node_crash
+  label_selector: node-role.kubernetes.io/worker
   instance_kill_count: 1
-  timeout: 4
+  timeout: 20
   cloud_type: aws
