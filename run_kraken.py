@@ -25,12 +25,12 @@ def main(cfg):
         with open(cfg, 'r') as f:
             config = yaml.full_load(f)
         kubeconfig_path = config["kraken"]["kubeconfig_path"]
-        scenarios = config["kraken"]["scenarios"]
-        node_scenario_files = config['kraken']['node_scenarios']
-        cerberus_enabled = config["cerberus"]["cerberus_enabled"]
-        wait_duration = config["tunings"]["wait_duration"]
-        iterations = config["tunings"]["iterations"]
-        daemon_mode = config["tunings"]['daemon_mode']
+        scenarios = config["kraken"].get("scenarios", [])
+        node_scenario_files = config['kraken'].get("node_scenarios", [])
+        cerberus_enabled = config["cerberus"].get("cerberus_enabled", False)
+        wait_duration = config["tunings"].get("wait_duration", 60)
+        iterations = config["tunings"].get("iterations", 1)
+        daemon_mode = config["tunings"].get('daemon_mode', False)
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
