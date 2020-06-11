@@ -11,4 +11,3 @@ def read_file_return_json(node_scenario_files):
             node_scenarios.append(scenario_config)
     logging.info('node scenarios ' + str(node_scenarios))
     return node_scenarios
-

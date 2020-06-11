@@ -34,12 +34,14 @@ def run_and_select_node(scenario_yaml):
 
 # Stop the kubelet on one of the nodes
 def kubelet_action(action, node_name):
-    stop_kubelet_response = command.invoke_debug_helper(node_name, "systemctl " + action + " kubelet")
+    stop_kubelet_response = command.invoke_debug_helper(node_name, "systemctl " + action + ""
+                                                        " kubelet")
     logging.info("Response from invoke " + str(stop_kubelet_response))
 
 
 # Crash specific node
 def crash_node(node_name):
     # found for fork bomb -> :(){:|:};:
-    crash_node_response = command.invoke_debug_helper(node_name, "dd if=/dev/urandom of=/proc/sysrq-trigger")
+    crash_node_response = command.invoke_debug_helper(node_name,
+                                                      "dd if=/dev/urandom of=/proc/sysrq-trigger")
     logging.info("Crash node " + str(crash_node_response))
