@@ -1,23 +1,23 @@
 config:
-  loopsNumber: 1
-  minSecondsBetweenRuns: 1
-  maxSecondsBetweenRuns: 30
-
-# the scenarios describing actions on kubernetes pods
-podScenarios:
+  runStrategy:
+    runs: 1
+    maxSecondsBetweenRuns: 30
+    minSecondsBetweenRuns: 1
+scenarios:
   - name: "delete openshift-kube-apiserver pods"
+    steps:
+    - podAction:
+        matches:
+          - labels:
+              namespace: "openshift-kube-apiserver"
+              selector: "app=openshift-kube-apiserver"
 
-    match:
-      - labels:
-          namespace: "openshift-kube-apiserver"
-          selector: "app=openshift-kube-apiserver" 
+        filters:
+          - randomSample:
+              size: 1
 
-    filters:
-      - randomSample:
-          size: 1
-
-    # The actions will be executed in the order specified
-    actions:
-      - kill:
-          probability: 1
-          force: true
+        # The actions will be executed in the order specified
+        actions:
+          - kill:
+              probability: 1
+              force: true
