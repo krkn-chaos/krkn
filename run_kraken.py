@@ -35,6 +35,9 @@ def main(cfg):
         logging.info("Initializing client to talk to the Kubernetes cluster")
         kubecli.initialize_clients(kubeconfig_path)
 
+        # find node kraken might be running on
+        kubecli.find_kraken_node()
+
         # Cluster info
         logging.info("Fetching cluster info")
         cluster_version = runcommand.invoke("kubectl get clusterversion")

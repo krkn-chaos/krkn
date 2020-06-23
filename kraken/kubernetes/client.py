@@ -1,6 +1,10 @@
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 import logging
+import kraken.invoke.command as runcommand
+import json
+
+kraken_node_name = ""
 
 
 # Load kubeconfig and initialize kubernetes python client
@@ -22,6 +26,21 @@ def list_nodes():
     return nodes
 
 
+# List nodes in the cluster that can be killed
+def list_killable_nodes():
+    nodes = []
+    try:
+        ret = cli.list_node(pretty=True)
+    except ApiException as e:
+        logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
+    for node in ret.items:
+        if kraken_node_name != node.metadata.name:
+            for cond in node.status.conditions:
+                if str(cond.type) == "Ready" and str(cond.status) == "True":
+                    nodes.append(node.metadata.name)
+    return nodes
+
+
 # List pods in the given namespace
 def list_pods(namespace):
     pods = []
@@ -32,6 +51,14 @@ def list_pods(namespace):
                        CoreV1Api->list_namespaced_pod: %s\n" % e)
     for pod in ret.items:
         pods.append(pod.metadata.name)
+    return pods
+
+
+def get_all_pods():
+    pods = []
+    ret = cli.list_pod_for_all_namespaces(pretty=True)
+    for pod in ret.items:
+        pods.append([pod.metadata.name, pod.metadata.namespace])
     return pods
 
 
@@ -96,3 +123,29 @@ def monitor_component(iteration, component_namespace):
     logging.info("Iteration %s: %s: %s"
                  % (iteration, component_namespace, watch_component_status))
     return watch_component_status, failed_component_pods
+
+
+# Find the node kraken is deployed on
+# Set global kraken node to not delete
+def find_kraken_node():
+    pods = get_all_pods()
+    kraken_pod_name = None
+    for pod in pods:
+        if "kraken-deployment" in pod[0]:
+            kraken_pod_name = pod[0]
+            kraken_project = pod[1]
+            break
+    # have to switch to proper project
+
+    if kraken_pod_name:
+        # get kraken-deployment pod, find node name
+        runcommand.invoke("kubectl config set-context --current --namespace=" + str(kraken_project))
+        pod_json_str = runcommand.invoke("kubectl get pods/" + str(kraken_pod_name) + " -o json")
+        pod_json = json.loads(pod_json_str)
+        node_name = pod_json['spec']['nodeName']
+
+        # Reset to the default project
+        runcommand.invoke("kubectl config set-context --current --namespace=default")
+
+        global kraken_node_name
+        kraken_node_name = node_name
