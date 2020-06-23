@@ -1,0 +1,42 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kraken-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      tool: Kraken
+  template:
+    metadata:
+      labels:
+        tool: Kraken
+    spec:
+      serviceAccountName: useroot
+      containers:
+        - name: kraken
+          securityContext:
+            privileged: true
+          image: quay.io/openshift-scale/kraken
+          command: ["/bin/sh", "-c"]
+          args: ["python3 run_kraken.py -c config/config.yaml"]
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - mountPath: "/root/.kube"
+              name: config
+            - mountPath: "/root/kraken/config"
+              name: kraken-config
+            - mountPath: "/root/kraken/scenarios"
+              name: scenarios-config
+      volumes:
+        - name: config
+          configMap:
+            name: kube-config
+        - name: kraken-config
+          configMap:
+            name: kraken-config
+        - name: scenarios-config
+          configMap:
+            name: scenarios-config
