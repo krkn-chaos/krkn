@@ -12,7 +12,7 @@ import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 import kraken.litmus.common_litmus as common_litmus
 import kraken.node_actions.common_node_functions as nodeaction
-from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
+from kraken.node_actions.aws_node_scenarios import AWS, aws_node_scenarios
 from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
 from kraken.node_actions.gcp_node_scenarios import gcp_node_scenarios
 import kraken.time_actions.common_time_functions as time_actions
@@ -277,6 +277,57 @@ def litmus_scenarios(scenarios_list, config, litmus_namespaces, litmus_uninstall
     return litmus_namespaces
 
 
+# Inject the cluster shut down scenario
+def cluster_shut_down(shut_down_config, config):
+    runs = shut_down_config["runs"]
+    shut_down_duration = shut_down_config["shut_down_duration"]
+    cloud_type = shut_down_config["cloud_type"]
+    if cloud_type == "aws":
+        cloud_object = AWS()
+
+    nodes = set(kubecli.list_nodes())
+    node_id = {}
+    for node in nodes:
+        node_id[node] = cloud_object.get_instance_id(node)
+
+    for _ in range(runs):
+        logging.info("Starting cluster_shut_down scenario injection")
+        for node in nodes:
+            cloud_object.stop_instances(node_id[node])
+        logging.info("Waiting for 250s to shut down all the nodes")
+        time.sleep(250)
+        logging.info("Shutting down the cluster for the specified duration: %s"
+                     % (shut_down_duration))
+        time.sleep(shut_down_duration)
+        logging.info("Restarting the nodes")
+        restarted_nodes = set()
+        stopped_nodes = nodes
+        while restarted_nodes != nodes:
+            for node in stopped_nodes:
+                try:
+                    cloud_object.start_instances(node_id[node])
+                    restarted_nodes.add(node)
+                except Exception:
+                    time.sleep(10)
+                    continue
+            stopped_nodes = nodes - restarted_nodes
+        logging.info("Waiting for 250s to allow cluster component initilization")
+        time.sleep(250)
+        logging.info("Successfully injected cluster_shut_down scenario!")
+        cerberus_integration(config)
+        logging.info("")
+
+
+def cluster_shut_down_scenarios(scenarios_list, config):
+    for shut_down_config in scenarios_list:
+        with open(shut_down_config, 'r') as f:
+            shut_down_config = yaml.full_load(f)
+            shut_down_config = shut_down_config["cluster_shut_down_scenario"]
+            cluster_shut_down(shut_down_config, config)
+            logging.info("Waiting for the specified duration: %s" % (wait_duration))
+            time.sleep(wait_duration)
+
+
 # Main function
 def main(cfg):
     # Start kraken
@@ -329,6 +380,7 @@ def main(cfg):
         failed_post_scenarios = []
         litmus_namespaces = []
         litmus_installed = False
+        
         # Loop to run the chaos starts here
         while (int(iteration) < iterations):
             # Inject chaos scenarios specified in the config
@@ -350,6 +402,7 @@ def main(cfg):
                         # Inject time skew chaos scenarios specified in the config
                         elif scenario_type == "time_scenarios":
                             time_scenarios(scenarios_list, config)
+
                         elif scenario_type == "litmus_scenarios":
                             if not litmus_installed:
                                 common_litmus.install_litmus(litmus_version)
@@ -359,8 +412,13 @@ def main(cfg):
                                                                  litmus_namespaces,
                                                                  litmus_uninstall)
 
+                        # Inject cluster shut down scenario specified in the config
+                        elif scenario_type == "cluster_shut_down_scenarios":
+                            cluster_shut_down_scenarios(scenarios_list, config)
+
             iteration += 1
             logging.info("")
+
         if litmus_uninstall and litmus_installed:
             for namespace in litmus_namespaces:
                 common_litmus.delete_chaos(namespace)

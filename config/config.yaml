@@ -18,6 +18,8 @@ kraken:
         -   litmus_scenarios:                              # List of litmus scenarios to load
             - - https://hub.litmuschaos.io/api/chaos/1.10.0?file=charts/generic/node-cpu-hog/rbac.yaml
               - scenarios/node_hog_engine.yaml
+        -   cluster_shut_down_scenario:
+            -   scenarios/cluster_shut_down_scenario.yml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed

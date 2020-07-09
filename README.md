@@ -24,6 +24,8 @@ Kraken supports pod, node and time/date based scenarios.
 
 - [Time Scenarios](docs/time_scenarios.md)
 
+- [Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md)
+
 ### Kraken scenario pass/fail criteria and report
 It's important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
 - Having built in checks for pod and node based scenarios to ensure the expected number of replicas and nodes are up. It also supports running custom scripts with the checks.
