@@ -1,4 +1,4 @@
 datetime
 pyfiglet
-git+https://github.com/bloomberg/powerfulseal.git@master
+powerfulseal==3.0.0rc11
 requests
