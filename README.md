@@ -48,6 +48,8 @@ $ podman run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config
 $ podman logs -f kraken
 ```
 
+If you want to build your own kraken image see [here](https://github.com/openshift-scale/kraken/tree/master/containers/build_own_image-README.md)
+
 #### Report
 The report is generated in the run directory and it contains the information about each chaos scenario injection along with timestamps.
 
