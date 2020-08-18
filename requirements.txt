@@ -1,5 +1,5 @@
 datetime
 pyfiglet
-powerfulseal==3.0.0rc11
+git+https://github.com/powerfulseal/powerfulseal.git
 requests
 boto3

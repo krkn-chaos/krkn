@@ -119,7 +119,7 @@ def run_post_action(kubeconfig_path, scenario, pre_action_output=""):
             else:
                 logging.info(scenario + ' post action response did not match pre check output')
                 return False
-    else:
+    elif scenario != "":
         # invoke custom bash script
         action_output = runcommand.invoke(scenario).strip()
         if pre_action_output:
@@ -208,7 +208,11 @@ def main(cfg):
                 try:
                     # Loop to run the scenarios starts here
                     for scenario in scenarios:
-                        pre_action_output = run_post_action(kubeconfig_path, scenario[1])
+
+                        if len(scenario) > 1:
+                            pre_action_output = run_post_action(kubeconfig_path, scenario[1])
+                        else:
+                            pre_action_output = ''
                         runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill"  # noqa
                                           " --policy-file %s --kubeconfig %s --no-cloud"
                                           " --inventory-kubernetes --headless"
@@ -217,6 +221,7 @@ def main(cfg):
                         logging.info("Scenario: %s has been successfully injected!" % (scenario[0]))
                         logging.info("Waiting for the specified duration: %s" % (wait_duration))
                         time.sleep(wait_duration)
+
                         failed_post_scenarios = post_actions(kubeconfig_path, scenario,
                                                              failed_post_scenarios,
                                                              pre_action_output)

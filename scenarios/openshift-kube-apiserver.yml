@@ -20,3 +20,14 @@ scenarios:
           - kill:
               probability: 1
               force: true
+    - podAction:
+        matches:
+          - labels:
+              namespace: "openshift-kube-apiserver"
+              selector: "app=openshift-kube-apiserver"
+        retries:
+          retriesTimeout:
+            timeout: 180
+        actions:
+          - checkPodCount:
+              count: 3
