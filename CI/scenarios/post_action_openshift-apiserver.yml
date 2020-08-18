@@ -1,0 +1,23 @@
+config:
+  runStrategy:
+    runs: 1
+    maxSecondsBetweenRuns: 30
+    minSecondsBetweenRuns: 1
+scenarios:
+  - name: "check 3 pods are in namespace with selector: openshift-apiserver"
+    steps:
+    - podAction:
+        matches:
+          - labels:
+              namespace: "openshift-apiserver"
+              selector: "app=openshift-apiserver"
+
+        filters:
+          - property:
+              name: "state"
+              value: "Running"
+
+        # The actions will be executed in the order specified
+        actions:
+          - checkPodCount:
+              count: 3

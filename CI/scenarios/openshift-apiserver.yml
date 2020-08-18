@@ -1,0 +1,23 @@
+config:
+  runStrategy:
+    runs: 1
+    maxSecondsBetweenRuns: 30
+    minSecondsBetweenRuns: 1
+scenarios:
+  - name: "delete openshift-apiserver pods"
+    steps:
+    - podAction:
+        matches:
+          - labels:
+              namespace: "openshift-apiserver"
+              selector: "app=openshift-apiserver"
+
+        filters:
+          - randomSample:
+              size: 1
+
+        # The actions will be executed in the order specified
+        actions:
+          - kill:
+              probability: 1
+              force: true

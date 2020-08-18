@@ -1,0 +1,18 @@
+config:
+  runStrategy:
+    runs: 1
+    maxSecondsBetweenRuns: 30
+    minSecondsBetweenRuns: 1
+scenarios:
+  - name: kill up to 3 pods in any openshift namespace
+    steps:
+    - podAction:
+        matches:
+          - namespace: "openshift-.*"
+        filters:
+          - property:
+             name: "state"
+             value: "Running"
+        actions:
+          - checkPodCount:
+              count: 146

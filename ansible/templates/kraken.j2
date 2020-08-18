@@ -1,0 +1,13 @@
+kraken:
+    kubeconfig_path: {{ kubeconfig_path }}                 # Path to kubeconfig
+    exit_on_failure: {{ exit_on_failure }}                 # Exit when a post action scenario fails
+    scenarios: {{ scenarios }}                             # List of policies/chaos scenarios to load
+
+cerberus:
+    cerberus_enabled: {{ cerberus_enabled }}               # Enable it when cerberus is previously installed
+    cerberus_url: {{ cerberus_url }}                       # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
+
+tunings:
+    wait_duration: {{ wait_duration }}                     # Duration to wait between each chaos scenario
+    iterations: {{ iterations }}                           # Number of times to execute the scenarios
+    daemon_mode: {{ daemon_mode }}                         # Iterations are set to infinity which means that the cerberus will monitor the resources forever
