@@ -11,12 +11,9 @@ scenarios:
           - labels:
               namespace: "openshift-etcd"
               selector: "k8s-app=etcd"
-
         filters:
           - randomSample:
               size: 1
-
-        # The actions will be executed in the order specified
         actions:
           - kill:
               probability: 1

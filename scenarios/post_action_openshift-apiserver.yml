@@ -4,7 +4,7 @@ config:
     maxSecondsBetweenRuns: 30
     minSecondsBetweenRuns: 1
 scenarios:
-  - name: "delete openshift-apiserver pods"
+  - name: "check 3 pods are in namespace with selector: openshift-apiserver"
     steps:
     - podAction:
         matches:
@@ -13,11 +13,11 @@ scenarios:
               selector: "app=openshift-apiserver"
 
         filters:
-          - randomSample:
-              size: 1
+          - property:
+              name: "state"
+              value: "Running"
 
         # The actions will be executed in the order specified
         actions:
-          - kill:
-              probability: 1
-              force: true
+          - checkPodCount:
+              count: 3
