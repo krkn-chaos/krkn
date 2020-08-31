@@ -22,6 +22,8 @@ kraken_repository: "{{ lookup('env', 'KRAKEN_REPOSITORY')|default('https://githu
 # scenarios to inject
 scenarios_folder_path: "{{ lookup('env', 'SCENARIOS_FOLDER_PATH')|default('CI/scenarios/', true) }}"
 scenarios: "{{ lookup('env', 'SCENARIOS')|default('[[scenarios/etcd.yml, scenarios/post_action_etcd_example.sh], [scenarios/openshift-apiserver.yml, scenarios/post_action_openshift-kube-apiserver.yml], [scenarios/openshift-kube-apiserver.yml, scenarios/post_action_openshift-apiserver.yml], [scenarios/regex_openshift_pod_kill.yml, scenarios/post_action_regex.py]]', true) }}"
+node_scenarios: "{{ lookup('env', 'NODE_SCENARIOS')|default('[scenarios/node_scenarios_example.yml]', true) }}"
+cluster_shut_down_scenario: "{{ lookup('env', 'CLUSTER_SHUT_DOWN_SCENARIO')|default('[scenarios/cluster_shut_down_scenario.yml]', true) }}"
 
 exit_on_failure: "{{ lookup('env', 'EXIT_ON_FAILURE')|default(false, true) }}"
 

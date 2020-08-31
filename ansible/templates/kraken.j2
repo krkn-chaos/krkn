@@ -2,6 +2,8 @@ kraken:
     kubeconfig_path: {{ kubeconfig_path }}                 # Path to kubeconfig
     exit_on_failure: {{ exit_on_failure }}                 # Exit when a post action scenario fails
     scenarios: {{ scenarios }}                             # List of policies/chaos scenarios to load
+    node_scenarios: {{ node_scenarios }}                   # List of chaos node scenarios to load
+    cluster_shut_down_scenario: {{ cluster_shut_down_scenario }}
 
 cerberus:
     cerberus_enabled: {{ cerberus_enabled }}               # Enable it when cerberus is previously installed
