@@ -21,3 +21,15 @@ scenarios:
           - kill:
               probability: 1
               force: true
+    - podAction:
+        matches:
+          - labels:
+              namespace: "openshift-monitoring"
+              selector: "app=prometheus"
+        retries:
+          retriesTimeout:
+            timeout: 180
+
+        actions:
+          - checkPodCount:
+              count: 2
