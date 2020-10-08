@@ -16,12 +16,13 @@ Instructions on how to setup the config and the options supported can be found a
 
 
 ### Kubernetes/OpenShift chaos scenarios supported
-Kraken supports pod and node based scenarios.
+Kraken supports pod, node and time/date based scenarios.
 
 - [Pod Scenarios](docs/pod_scenarios.md)
 
 - [Node Scenarios](docs/node_scenarios.md)
 
+- [Time Scenarios](docs/time_scenarios.md)
 
 ### Kraken scenario pass/fail criteria and report
 It's important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:

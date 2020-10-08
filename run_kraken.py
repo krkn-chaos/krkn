@@ -12,6 +12,7 @@ import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
+import kraken.time_actions.common_time_functions as time_actions
 
 
 # Get the node scenarios object of specfied cloud type
@@ -83,7 +84,6 @@ def publish_kraken_status(config, failed_post_scenarios):
                 logging.info("Cerberus status is not healthy and post action scenarios "
                              "are still failing")
     else:
-
         if failed_post_scenarios:
             if config['kraken']['exit_on_failure']:
                 logging.info("Cerberus status is healthy but post action scenarios "
@@ -165,6 +165,7 @@ def main(cfg):
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
         scenarios = config["kraken"].get("scenarios", [])
         node_scenarios = config["kraken"].get("node_scenarios", [])
+        time_scenarios = config['kraken'].get("time_scenarios", [])
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
@@ -246,6 +247,21 @@ def main(cfg):
                                     time.sleep(wait_duration)
                                     cerberus_integration(config)
                                     logging.info("")
+
+            # Inject time skew chaos scenarios specified in the config
+            if time_scenarios:
+                for time_scenario_config in time_scenarios:
+                    with open(time_scenario_config, 'r') as f:
+                        scenario_config = yaml.full_load(f)
+                        for time_scenario in scenario_config['time_scenarios']:
+                            object_type, object_names = time_actions.skew_time(time_scenario)
+                            not_reset = time_actions.check_date_time(object_type, object_names)
+                            if len(not_reset) > 0:
+                                logging.info('Object times were not reset')
+                            logging.info("Waiting for the specified duration: %s"
+                                         % wait_duration)
+                            time.sleep(wait_duration)
+                            publish_kraken_status(config, not_reset)
 
             iteration += 1
             logging.info("")
