@@ -61,9 +61,12 @@ def list_pods(namespace):
     return pods
 
 
-def get_all_pods():
+def get_all_pods(label_selector=None):
     pods = []
-    ret = cli.list_pod_for_all_namespaces(pretty=True)
+    if label_selector:
+        ret = cli.list_pod_for_all_namespaces(pretty=True, label_selector=label_selector)
+    else:
+        ret = cli.list_pod_for_all_namespaces(pretty=True)
     for pod in ret.items:
         pods.append([pod.metadata.name, pod.metadata.namespace])
     return pods

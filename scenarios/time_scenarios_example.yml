@@ -1,0 +1,7 @@
+time_scenarios:
+  - action: skew_time
+    object_type: pod
+    label_selector: app=multus
+  - action: skew_date
+    object_type: node
+    label_selector: node-role.kubernetes.io/worker
