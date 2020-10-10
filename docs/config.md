@@ -1,14 +1,15 @@
+### Config
+Set the scenarios to inject and the tunings like duration to wait between each scenario in the config file located at config/config.yaml. A sample config looks like:
+
+```
 kraken:
     kubeconfig_path: /root/.kube/config                    # Path to kubeconfig
-    exit_on_failure: False                                 # Exit when a post action scenario fails
     scenarios:                                             # List of policies/chaos scenarios to load
-        - -    scenarios/etcd.yml
-        - -    scenarios/openshift-kube-apiserver.yml
-        - -    scenarios/openshift-apiserver.yml
-        - -    scenarios/regex_openshift_pod_kill.yml
-          -    scenarios/post_action_regex.py
+        -    scenarios/etcd.yml
+        -    scenarios/openshift-kube-apiserver.yml
+        -    scenarios/openshift-apiserver.yml
     node_scenarios:                                        # List of chaos node scenarios to load
-        -   scenarios/node_scenarios_example.yml
+        -    scenarios/node_scenarios_example.yml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
