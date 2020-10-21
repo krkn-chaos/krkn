@@ -152,6 +152,61 @@ def post_actions(kubeconfig_path, scenario, failed_post_scenarios, pre_action_ou
     return failed_post_scenarios
 
 
+def pod_scenarios(scenarios_list, config, failed_post_scenarios):
+    try:
+        # Loop to run the scenarios starts here
+        for pod_scenario in scenarios_list:
+            if len(pod_scenario) > 1:
+                pre_action_output = run_post_action(kubeconfig_path, pod_scenario[1])
+            else:
+                pre_action_output = ''
+            runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill"
+                              " --policy-file %s --kubeconfig %s --no-cloud"
+                              " --inventory-kubernetes --headless"
+                              % (pod_scenario[0], kubeconfig_path))
+
+            logging.info("Scenario: %s has been successfully injected!" % (pod_scenario[0]))
+            logging.info("Waiting for the specified duration: %s" % (wait_duration))
+            time.sleep(wait_duration)
+
+            failed_post_scenarios = post_actions(kubeconfig_path, pod_scenario,
+                                                 failed_post_scenarios, pre_action_output)
+            publish_kraken_status(config, failed_post_scenarios)
+    except Exception as e:
+        logging.error("Failed to run scenario: %s. Encountered the following "
+                      "exception: %s" % (pod_scenario[0], e))
+    return failed_post_scenarios
+
+
+def node_scenarios(scenarios_list, config):
+    for node_scenario_config in scenarios_list:
+        with open(node_scenario_config, 'r') as f:
+            node_scenario_config = yaml.full_load(f)
+            for node_scenario in node_scenario_config['node_scenarios']:
+                node_scenario_object = get_node_scenario_object(node_scenario)
+                if node_scenario['actions']:
+                    for action in node_scenario['actions']:
+                        inject_node_scenario(action, node_scenario, node_scenario_object)
+                        logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                        time.sleep(wait_duration)
+                        cerberus_integration(config)
+                        logging.info("")
+
+
+def time_scenarios(scenarios_list, config):
+    for time_scenario_config in scenarios_list:
+        with open(time_scenario_config, 'r') as f:
+            scenario_config = yaml.full_load(f)
+            for time_scenario in scenario_config['time_scenarios']:
+                object_type, object_names = time_actions.skew_time(time_scenario)
+                not_reset = time_actions.check_date_time(object_type, object_names)
+                if len(not_reset) > 0:
+                    logging.info('Object times were not reset')
+                logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                time.sleep(wait_duration)
+                publish_kraken_status(config, not_reset)
+
+
 # Main function
 def main(cfg):
     # Start kraken
@@ -162,10 +217,9 @@ def main(cfg):
     if os.path.isfile(cfg):
         with open(cfg, 'r') as f:
             config = yaml.full_load(f)
+        global kubeconfig_path, wait_duration
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
-        scenarios = config["kraken"].get("scenarios", [])
-        node_scenarios = config["kraken"].get("node_scenarios", [])
-        time_scenarios = config['kraken'].get("time_scenarios", [])
+        chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
@@ -205,63 +259,23 @@ def main(cfg):
         while (int(iteration) < iterations):
             # Inject chaos scenarios specified in the config
             logging.info("Executing scenarios for iteration " + str(iteration))
-            if scenarios:
-                try:
-                    # Loop to run the scenarios starts here
-                    for scenario in scenarios:
+            if chaos_scenarios:
+                for scenario in chaos_scenarios:
+                    scenario_type = list(scenario.keys())[0]
+                    scenarios_list = scenario[scenario_type]
+                    if scenarios_list:
+                        # Inject pod chaos scenarios specified in the config
+                        if scenario_type == "pod_scenarios":
+                            failed_post_scenarios = pod_scenarios(scenarios_list, config,
+                                                                  failed_post_scenarios)
 
-                        if len(scenario) > 1:
-                            pre_action_output = run_post_action(kubeconfig_path, scenario[1])
-                        else:
-                            pre_action_output = ''
-                        runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill"  # noqa
-                                          " --policy-file %s --kubeconfig %s --no-cloud"
-                                          " --inventory-kubernetes --headless"
-                                          % (scenario[0], kubeconfig_path))
+                        # Inject node chaos scenarios specified in the config
+                        elif scenario_type == "node_scenarios":
+                            node_scenarios(scenarios_list, config)
 
-                        logging.info("Scenario: %s has been successfully injected!" % (scenario[0]))
-                        logging.info("Waiting for the specified duration: %s" % (wait_duration))
-                        time.sleep(wait_duration)
-
-                        failed_post_scenarios = post_actions(kubeconfig_path, scenario,
-                                                             failed_post_scenarios,
-                                                             pre_action_output)
-                        publish_kraken_status(config, failed_post_scenarios)
-                except Exception as e:
-                    logging.error("Failed to run scenario: %s. Encountered the following "
-                                  "exception: %s" % (scenario[0], e))
-
-            # Inject node chaos scenarios specified in the config
-            if node_scenarios:
-                for node_scenario_config in node_scenarios:
-                    with open(node_scenario_config, 'r') as f:
-                        node_scenario_config = yaml.full_load(f)
-                        for node_scenario in node_scenario_config['node_scenarios']:
-                            node_scenario_object = get_node_scenario_object(node_scenario)
-                            if node_scenario['actions']:
-                                for action in node_scenario['actions']:
-                                    inject_node_scenario(action, node_scenario,
-                                                         node_scenario_object)
-                                    logging.info("Waiting for the specified duration: %s"
-                                                 % (wait_duration))
-                                    time.sleep(wait_duration)
-                                    cerberus_integration(config)
-                                    logging.info("")
-
-            # Inject time skew chaos scenarios specified in the config
-            if time_scenarios:
-                for time_scenario_config in time_scenarios:
-                    with open(time_scenario_config, 'r') as f:
-                        scenario_config = yaml.full_load(f)
-                        for time_scenario in scenario_config['time_scenarios']:
-                            object_type, object_names = time_actions.skew_time(time_scenario)
-                            not_reset = time_actions.check_date_time(object_type, object_names)
-                            if len(not_reset) > 0:
-                                logging.info('Object times were not reset')
-                            logging.info("Waiting for the specified duration: %s"
-                                         % wait_duration)
-                            time.sleep(wait_duration)
-                            publish_kraken_status(config, not_reset)
+                        # Inject time skew chaos scenarios specified in the config
+                        elif scenario_type == "time_scenarios":
+                            time_scenarios(scenarios_list, config)
 
             iteration += 1
             logging.info("")
