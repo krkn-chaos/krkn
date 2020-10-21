@@ -1,16 +1,19 @@
 kraken:
     kubeconfig_path: /root/.kube/config                    # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
-    scenarios:                                             # List of policies/chaos scenarios to load
-        - -    scenarios/etcd.yml
-        - -    scenarios/openshift-kube-apiserver.yml
-        - -    scenarios/openshift-apiserver.yml
-        - -    scenarios/regex_openshift_pod_kill.yml
-          -    scenarios/post_action_regex.py
-    node_scenarios:                                        # List of chaos node scenarios to load
-        -   scenarios/node_scenarios_example.yml
-    time_scenarios:                                        # List of chaos time scenarios to load
-        - scenarios/time_scenarios_example.yml
+    chaos_scenarios:                                         # List of policies/chaos scenarios to load
+        -   pod_scenarios:                                 # List of chaos pod scenarios to load
+            - -    scenarios/etcd.yml
+            - -    scenarios/regex_openshift_pod_kill.yml
+              -    scenarios/post_action_regex.py
+        -   node_scenarios:                                # List of chaos node scenarios to load
+            -   scenarios/node_scenarios_example.yml
+        -   pod_scenarios:
+            - -    scenarios/openshift-apiserver.yml
+            - -    scenarios/openshift-kube-apiserver.yml
+        -   time_scenarios:                                # List of chaos time scenarios to load
+            - scenarios/time_scenarios_example.yml
+
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
