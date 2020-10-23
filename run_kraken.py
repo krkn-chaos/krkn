@@ -14,6 +14,7 @@ import kraken.litmus.common_litmus as common_litmus
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
 from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
+from kraken.node_actions.az_node_scenarios import azure_node_scenarios
 from kraken.node_actions.gcp_node_scenarios import gcp_node_scenarios
 from kraken.node_actions.openstack_node_scenarios import openstack_node_scenarios
 import kraken.time_actions.common_time_functions as time_actions
@@ -34,6 +35,8 @@ def get_node_scenario_object(node_scenario):
         return gcp_node_scenarios()
     elif node_scenario['cloud_type'] == 'openstack':
         return openstack_node_scenarios()
+    elif node_scenario['cloud_type'] == 'azure' or node_scenario['cloud_type'] == 'az':
+        return azure_node_scenarios()
     else:
         logging.error("Cloud type " + node_scenario['cloud_type'] + " is not currently supported; "
                       "try using 'generic' if wanting to stop/start kubelet or fork bomb on any "
@@ -85,6 +88,8 @@ def inject_node_scenario(action, node_scenario, node_scenario_object):
                     instance_kill_count, node_scenario['helper_node_ip'], timeout)
                 node_scenario_object.helper_node_service_status(
                     node_scenario['helper_node_ip'], service, ssh_private_key, timeout)
+        else:
+            logging.info('There is no node action that matches %s, skipping scenario' % action)
 
 
 # Get cerberus status

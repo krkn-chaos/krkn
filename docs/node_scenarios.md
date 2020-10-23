@@ -39,6 +39,24 @@ The supported node level chaos scenarios on an OPENSTACK cloud are `node_stop_st
 
 To execute the scenario, ensure the value for `ssh_private_key` in the node scenarios config file is set with the correct private key file path for ssh connection to the helper node. Ensure passwordless ssh is configured on the host running Kraken and the helper node to avoid connection errors.
 
+#### Azure
+
+**NOTE**: For Azure node killing scenarios, make sure [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) is installed
+
+You will also need to create a service principal and give it the correct access, see [here](https://docs.openshift.com/container-platform/4.5/installing/installing_azure/installing-azure-account.html) for creating the service principal and setting the proper permissions
+
+To properly run the service principal requires “Azure Active Directory Graph/Application.ReadWrite.OwnedBy” api permission granted and “User Access Administrator”
+
+Before running you'll need to set the following: 
+1. Login using ```az login```
+
+2. ```export AZURE_TENANT_ID=<tenant_id>```
+
+3. ```export AZURE_CLIENT_SECRET=<client secret>```
+
+4. ```export AZURE_CLIENT_ID=<client id>```
+
+
 **NOTE**: The `node_crash_scenario` and `stop_kubelet_scenario` scenario is supported independent of the cloud platform.
 
 Use 'generic' or do not add the 'cloud_type' key to your scenario if your cluster is not set up using one of the current supported cloud types
@@ -62,7 +80,7 @@ node_scenarios:
     label_selector: node-role.kubernetes.io/infra
     instance_kill_count: 1
     timeout: 120
-    cloud_type: aws
+    cloud_type: azure
   - actions:
     - node_crash_scenario
     node_name:
