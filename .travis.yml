@@ -2,7 +2,7 @@ dist: xenial
 
 langauge: python
 
-python: "3.6"
+python: "3.6.8"
 
 before_install:
   - sudo apt-get update
