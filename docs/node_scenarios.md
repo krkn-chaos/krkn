@@ -15,9 +15,9 @@ Following node chaos scenarios are supported:
 
 **NOTE**: node_start_scenario, node_stop_scenario, node_stop_start_scenario, node_termination_scenario, node_reboot_scenario and stop_start_kubelet_scenario are supported only on AWS as of now.
 
-**NOTE**: AWS is the only cloud platform supported as of today but we are looking into adding more. Make sure [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) is installed.
+**NOTE**: AWS is the only cloud platform supported as of today but we are looking into adding more. Make sure [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) is installed and properly [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html) using an AWS account
 
-**NOTE**: The `stop_start_kubelet_scenario` and `node_crash_scenario` scenarios are supported as they are independent of the cloud platform.
+**NOTE**: The `stop_start_kubelet_scenario` and `node_crash_scenario` scenarios are supported as they are independent of the cloud platform
 
 
 Node scenarios can be injected by placing the node scenarios config files under node_scenarios option in the kraken config. Refer to [node_scenarios_example](https://github.com/openshift-scale/kraken/blob/master/scenarios/node_scenarios_example.yml) config file.
