@@ -15,7 +15,8 @@ class GCP:
         self.project = runcommand.invoke('gcloud config get-value project').split('/n')[0].strip()
         logging.info("project " + str(self.project) + "!")
         credentials = GoogleCredentials.get_application_default()
-        self.client = discovery.build('compute', 'v1', credentials=credentials, cache_discovery=False)
+        self.client = discovery.build('compute', 'v1', credentials=credentials,
+                                      cache_discovery=False)
 
     # Get the instance ID of the node
     def get_instance_id(self, node):
@@ -23,50 +24,56 @@ class GCP:
         while zone_request is not None:
             zone_response = zone_request.execute()
             for zone in zone_response['items']:
-                instances_request = self.client.instances().list(project=self.project, zone=zone['name'])
+                instances_request = self.client.instances().list(project=self.project,
+                                                                 zone=zone['name'])
                 while instances_request is not None:
                     instance_response = instances_request.execute()
                     if "items" in instance_response.keys():
                         for instance in instance_response['items']:
                             if instance['name'] in node:
                                 return instance['name'], zone['name']
-                    instances_request = self.client.zones().list_next(previous_request=instances_request,
-                                                                          previous_response=instance_response)
-            zone_request = self.client.zones().list_next(previous_request=zone_request, previous_response=zone_response)
+                    instances_request = self.client.zones().list_next(
+                        previous_request=instances_request,
+                        previous_response=instance_response)
+            zone_request = self.client.zones().list_next(previous_request=zone_request,
+                                                         previous_response=zone_response)
         logging.info('no instances ')
 
     # Start the node instance
     def start_instances(self, zone, instance_id):
-        self.client.instances().start(project=self.project, zone=zone, instance=instance_id).execute()
+        self.client.instances().start(project=self.project, zone=zone, instance=instance_id)\
+            .execute()
 
     # Stop the node instance
     def stop_instances(self, zone, instance_id):
-        self.client.instances().stop(project=self.project, zone=zone, instance=instance_id).execute()
+        self.client.instances().stop(project=self.project, zone=zone, instance=instance_id)\
+            .execute()
 
     # Start the node instance
     def suspend_instances(self, zone, instance_id):
-        self.client.instances().suspend(project=self.project, zone=zone, instance=instance_id).execute()
-
-    # Stop the node instance
-    def stop_instances(self, zone, instance_id):
-        self.client.instances().stop(project=self.project, zone=zone, instance=instance_id).execute()
+        self.client.instances().suspend(project=self.project, zone=zone, instance=instance_id)\
+            .execute()
 
     # Terminate the node instance
     def terminate_instances(self, zone, instance_id):
-        self.client.instances().delete(project=self.project, zone=zone, instance=instance_id).execute()
+        self.client.instances().delete(project=self.project, zone=zone, instance=instance_id)\
+            .execute()
 
     # Reboot the node instance
     def reboot_instances(self, zone, instance_id):
-        response = self.client.instances().reset(project=self.project, zone=zone, instance=instance_id).execute()
+        response = self.client.instances().reset(project=self.project, zone=zone,
+                                                 instance=instance_id).execute()
         logging.info('response reboot ' + str(response))
 
     # Get instance status
     def get_instance_status(self, zone, instance_id, expected_status, timeout):
-        # statuses: PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING, and TERMINATED.
+        # statuses: PROVISIONING, STAGING, RUNNING, STOPPING, SUSPENDING, SUSPENDED, REPAIRING,
+        # and TERMINATED.
         i = 0
         sleeper = 5
         while i <= timeout:
-            instStatus = self.client.instances().get(project=self.project, zone=zone, instance=instance_id).execute()
+            instStatus = self.client.instances().get(project=self.project, zone=zone,
+                                                     instance=instance_id).execute()
             logging.info("Status of vm " + str(instStatus['status']))
             if instStatus['status'] == expected_status:
                 return True

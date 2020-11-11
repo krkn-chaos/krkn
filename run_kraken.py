@@ -12,16 +12,29 @@ import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
+from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
 from kraken.node_actions.gcp_node_scenarios import gcp_node_scenarios
 import kraken.time_actions.common_time_functions as time_actions
 
 
+node_general = False
+
+
 # Get the node scenarios object of specfied cloud type
 def get_node_scenario_object(node_scenario):
+    if "cloud_type" not in node_scenario.keys() or node_scenario['cloud_type'] == "generic":
+        global node_general
+        node_general = True
+        return general_node_scenarios()
     if node_scenario['cloud_type'] == 'aws':
         return aws_node_scenarios()
     elif node_scenario['cloud_type'] == 'gcp':
         return gcp_node_scenarios()
+    else:
+        logging.error("Cloud type " + node_scenario['cloud_type'] + " is not currently supported; "
+                      "try using 'generic' if wanting to stop/start kubelet or fork bomb on any "
+                      "cluster")
+        sys.exit(1)
 
 
 # Inject the specified node scenario
@@ -34,19 +47,38 @@ def inject_node_scenario(action, node_scenario, node_scenario_object):
     # Get the node to apply the scenario
     node = nodeaction.get_node(node_name, label_selector)
     if action == "node_start_scenario":
-        node_scenario_object.node_start_scenario(instance_kill_count, node, timeout)
+        if node_general:
+            logging.info("Node start is not set up for generic cloud type, skipping action")
+        else:
+            node_scenario_object.node_start_scenario(instance_kill_count, node, timeout)
     elif action == "node_stop_scenario":
-        node_scenario_object.node_stop_scenario(instance_kill_count, node, timeout)
+        if node_general:
+            logging.info("Node stop is not set up for generic cloud type, skipping action")
+        else:
+            node_scenario_object.node_stop_scenario(instance_kill_count, node, timeout)
     elif action == "node_stop_start_scenario":
-        node_scenario_object.node_stop_start_scenario(instance_kill_count, node, timeout)
+        if node_general:
+            logging.info("Node stop/start is not set up for generic cloud type, skipping action")
+        else:
+            node_scenario_object.node_stop_start_scenario(instance_kill_count, node, timeout)
     elif action == "node_termination_scenario":
-        node_scenario_object.node_termination_scenario(instance_kill_count, node, timeout)
+        if node_general:
+            logging.info("Node termination is not set up for generic cloud type, skipping action")
+        else:
+            node_scenario_object.node_termination_scenario(instance_kill_count, node, timeout)
     elif action == "node_reboot_scenario":
-        node_scenario_object.node_reboot_scenario(instance_kill_count, node, timeout)
+        if node_general:
+            logging.info("Node reboot is not set up for generic cloud type, skipping action")
+        else:
+            node_scenario_object.node_reboot_scenario(instance_kill_count, node, timeout)
+    elif action == "stop_start_kubelet_scenario":
+        if node_general:
+            logging.info("Node stop/start kubelet is not set up for generic cloud type, "
+                         "skipping action")
+        else:
+            node_scenario_object.stop_start_kubelet_scenario(instance_kill_count, node, timeout)
     elif action == "stop_kubelet_scenario":
         node_scenario_object.stop_kubelet_scenario(instance_kill_count, node, timeout)
-    elif action == "stop_start_kubelet_scenario":
-        node_scenario_object.stop_start_kubelet_scenario(instance_kill_count, node, timeout)
     elif action == "node_crash_scenario":
         node_scenario_object.node_crash_scenario(instance_kill_count, node, timeout)
 
