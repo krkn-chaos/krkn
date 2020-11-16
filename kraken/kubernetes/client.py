@@ -1,4 +1,5 @@
 from kubernetes import client, config
+from kubernetes.stream import stream
 from kubernetes.client.rest import ApiException
 import logging
 import kraken.invoke.command as runcommand
@@ -70,6 +71,19 @@ def get_all_pods(label_selector=None):
     for pod in ret.items:
         pods.append([pod.metadata.name, pod.metadata.namespace])
     return pods
+
+
+# Execute command in pod
+def exec_cmd_in_pod(command, pod_name, namespace):
+
+    exec_command = ['bash', '-c', command]
+    try:
+        ret = stream(cli.connect_get_namespaced_pod_exec, pod_name, namespace,
+                     command=exec_command, stderr=True, stdin=False,
+                     stdout=True, tty=False)
+    except Exception:
+        return False
+    return ret
 
 
 # Obtain node status
