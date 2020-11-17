@@ -12,6 +12,7 @@ import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
+from kraken.node_actions.gcp_node_scenarios import gcp_node_scenarios
 import kraken.time_actions.common_time_functions as time_actions
 
 
@@ -19,6 +20,8 @@ import kraken.time_actions.common_time_functions as time_actions
 def get_node_scenario_object(node_scenario):
     if node_scenario['cloud_type'] == 'aws':
         return aws_node_scenarios()
+    elif node_scenario['cloud_type'] == 'gcp':
+        return gcp_node_scenarios()
 
 
 # Inject the specified node scenario
@@ -28,10 +31,8 @@ def inject_node_scenario(action, node_scenario, node_scenario_object):
     node_name = node_scenario.get("node_name", "")
     label_selector = node_scenario.get("label_selector", "")
     timeout = node_scenario.get("timeout", 120)
-
     # Get the node to apply the scenario
     node = nodeaction.get_node(node_name, label_selector)
-
     if action == "node_start_scenario":
         node_scenario_object.node_start_scenario(instance_kill_count, node, timeout)
     elif action == "node_stop_scenario":
