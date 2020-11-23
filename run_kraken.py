@@ -161,10 +161,10 @@ def pod_scenarios(scenarios_list, config, failed_post_scenarios):
                 pre_action_output = run_post_action(kubeconfig_path, pod_scenario[1])
             else:
                 pre_action_output = ''
-            scenario_logs = runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-of-ssh-kill"
-                              " --policy-file %s --kubeconfig %s --no-cloud"
-                              " --inventory-kubernetes --headless"
-                              % (pod_scenario[0], kubeconfig_path))
+            scenario_logs = runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-"
+                                              "of-ssh-kill --policy-file %s --kubeconfig %s "
+                                              "--no-cloud --inventory-kubernetes --headless"
+                                              % (pod_scenario[0], kubeconfig_path))
 
             # Display pod scenario logs/actions
             print(scenario_logs)

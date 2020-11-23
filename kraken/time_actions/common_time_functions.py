@@ -10,8 +10,12 @@ import sys
 def pod_exec(pod_name, command, namespace):
     i = 0
     for i in range(5):
-        response = runcommand.invoke('kubectl exec %s -n %s -- %s' % (pod_name, namespace, command))
-        if "unauthorized" in response.lower() or "authorization" in response.lower():
+        response = kubecli.exec_cmd_in_pod(command, pod_name, namespace)
+        if not response:
+            time.sleep(2)
+            continue
+        elif "unauthorized" in response.lower() or "authorization" in response.lower():
+            time.sleep(2)
             continue
         else:
             break
@@ -19,13 +23,12 @@ def pod_exec(pod_name, command, namespace):
 
 
 def node_debug(node_name, command):
-
     response = runcommand.invoke("oc debug node/" + node_name + ' -- chroot /host ' + command)
     return response
 
 
 def skew_time(scenario):
-    skew_command = "date -s "
+    skew_command = "date --set "
     if scenario['action'] == "skew_date":
         skewed_date = "00-01-01"
         skew_command += skewed_date
@@ -101,8 +104,8 @@ def check_date_time(object_type, names):
             node_datetime = string_to_date(node_datetime_string)
             counter = 0
             while not first_date_time < node_datetime < datetime.datetime.utcnow():
-                time.sleep(5)
-                logging.info("Date/time on node %s still not reset, waiting 5 seconds and retrying"
+                time.sleep(10)
+                logging.info("Date/time on node %s still not reset, waiting 10 seconds and retrying"
                              % node_name)
                 node_datetime_string = node_debug(node_name, skew_command)
                 node_datetime = string_to_date(node_datetime_string)
@@ -121,8 +124,8 @@ def check_date_time(object_type, names):
             pod_datetime_string = pod_exec(pod_name[0], skew_command, pod_name[1])
             pod_datetime = string_to_date(pod_datetime_string)
             while not first_date_time < pod_datetime < datetime.datetime.utcnow():
-                time.sleep(5)
-                logging.info("Date/time on pod %s still not reset, waiting 5 seconds and retrying"
+                time.sleep(10)
+                logging.info("Date/time on pod %s still not reset, waiting 10 seconds and retrying"
                              % pod_name[0])
                 first_date_time = datetime.datetime.utcnow()
                 pod_datetime = pod_exec(pod_name[0], skew_command, pod_name[1])
