@@ -39,6 +39,7 @@ def get_node_scenario_object(node_scenario):
 
 # Inject the specified node scenario
 def inject_node_scenario(action, node_scenario, node_scenario_object):
+    generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario")
     # Get the node scenario configurations
     instance_kill_count = node_scenario.get("instance_kill_count", 1)
     node_name = node_scenario.get("node_name", "")
@@ -46,41 +47,26 @@ def inject_node_scenario(action, node_scenario, node_scenario_object):
     timeout = node_scenario.get("timeout", 120)
     # Get the node to apply the scenario
     node = nodeaction.get_node(node_name, label_selector)
-    if action == "node_start_scenario":
-        if node_general:
-            logging.info("Node start is not set up for generic cloud type, skipping action")
-        else:
+
+    if node_general and action not in generic_cloud_scenarios:
+        logging.info("Scenario: " + action + " is not set up for generic cloud type, skipping action")
+    else:
+        if action == "node_start_scenario":
             node_scenario_object.node_start_scenario(instance_kill_count, node, timeout)
-    elif action == "node_stop_scenario":
-        if node_general:
-            logging.info("Node stop is not set up for generic cloud type, skipping action")
-        else:
+        elif action == "node_stop_scenario":
             node_scenario_object.node_stop_scenario(instance_kill_count, node, timeout)
-    elif action == "node_stop_start_scenario":
-        if node_general:
-            logging.info("Node stop/start is not set up for generic cloud type, skipping action")
-        else:
+        elif action == "node_stop_start_scenario":
             node_scenario_object.node_stop_start_scenario(instance_kill_count, node, timeout)
-    elif action == "node_termination_scenario":
-        if node_general:
-            logging.info("Node termination is not set up for generic cloud type, skipping action")
-        else:
+        elif action == "node_termination_scenario":
             node_scenario_object.node_termination_scenario(instance_kill_count, node, timeout)
-    elif action == "node_reboot_scenario":
-        if node_general:
-            logging.info("Node reboot is not set up for generic cloud type, skipping action")
-        else:
+        elif action == "node_reboot_scenario":
             node_scenario_object.node_reboot_scenario(instance_kill_count, node, timeout)
-    elif action == "stop_start_kubelet_scenario":
-        if node_general:
-            logging.info("Node stop/start kubelet is not set up for generic cloud type, "
-                         "skipping action")
-        else:
+        elif action == "stop_start_kubelet_scenario":
             node_scenario_object.stop_start_kubelet_scenario(instance_kill_count, node, timeout)
-    elif action == "stop_kubelet_scenario":
-        node_scenario_object.stop_kubelet_scenario(instance_kill_count, node, timeout)
-    elif action == "node_crash_scenario":
-        node_scenario_object.node_crash_scenario(instance_kill_count, node, timeout)
+        elif action == "stop_kubelet_scenario":
+            node_scenario_object.stop_kubelet_scenario(instance_kill_count, node, timeout)
+        elif action == "node_crash_scenario":
+            node_scenario_object.node_crash_scenario(instance_kill_count, node, timeout)
 
 
 # Get cerberus status
