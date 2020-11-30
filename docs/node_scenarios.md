@@ -28,7 +28,9 @@ A google service account is required to give proper authentication to GCP for no
  
 After creating the service account you'll need to enable the account using the following: ```export GOOGLE_APPLICATION_CREDENTIALS="<serviceaccount.json>"```
 
-**NOTE**: The `stop_start_kubelet_scenario` and `node_crash_scenario` scenarios are supported as they are independent of the cloud platform.
+**NOTE**: The `node_crash_scenario` and `stop_kubelet_scenario` scenario is supported independent of the cloud platform.
+
+Use 'generic' or do not add the 'cloud_type' key to your scenario if your cluster is not set up using one of the current supported cloud types
 
 
 Node scenarios can be injected by placing the node scenarios config files under node_scenarios option in the kraken config. Refer to [node_scenarios_example](https://github.com/openshift-scale/kraken/blob/master/scenarios/node_scenarios_example.yml) config file.
@@ -51,4 +53,10 @@ node_scenarios:
     instance_kill_count: 1
     timeout: 120
     cloud_type: aws
+  - actions:
+    - node_crash_scenario
+    node_name:
+    label_selector: node-role.kubernetes.io/infra
+    instance_kill_count: 1
+    timeout: 120
 ```
