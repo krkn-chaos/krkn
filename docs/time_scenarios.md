@@ -26,4 +26,5 @@ time_scenarios:
     namespace: openshift-apiserver
   - action: skew_date
     object_type: node
-    label_selector: node-role.kubernetes.io/worker```
+    label_selector: node-role.kubernetes.io/worker
+```
