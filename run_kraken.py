@@ -10,6 +10,7 @@ import requests
 import pyfiglet
 import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
+import kraken.litmus.common_litmus as common_litmus
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
 from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
@@ -229,6 +230,53 @@ def time_scenarios(scenarios_list, config):
                 publish_kraken_status(config, not_reset)
 
 
+def litmus_scenarios(scenarios_list, config, litmus_namespaces, litmus_uninstall):
+    # Loop to run the scenarios starts here
+    for l_scenario in scenarios_list:
+        try:
+            for item in l_scenario:
+                runcommand.invoke("kubectl apply -f %s" % item)
+                if "http" in item:
+                    f = requests.get(item)
+                    yaml_item = list(yaml.safe_load_all(f.content))[0]
+                else:
+                    with open(item, "r") as f:
+                        logging.info("opened yaml" + str(item))
+                        yaml_item = list(yaml.safe_load_all(f))[0]
+
+                if yaml_item['kind'] == "ChaosEngine":
+                    engine_name = yaml_item['metadata']['name']
+                    namespace = yaml_item['metadata']['namespace']
+                    litmus_namespaces.append(namespace)
+                    experiment_names = yaml_item['spec']['experiments']
+                    for expr in experiment_names:
+                        expr_name = expr['name']
+                        experiment_result = common_litmus.check_experiment(engine_name,
+                                                                           expr_name,
+                                                                           namespace)
+                        if experiment_result:
+                            logging.info("Scenario: %s has been successfully injected!"
+                                         % item)
+                        else:
+                            logging.info("Scenario: %s was not successfully injected!"
+                                         % item)
+                            if litmus_uninstall:
+                                for l_item in l_scenario:
+                                    logging.info('item ' + str(l_item))
+                                    runcommand.invoke("kubectl delete -f %s" % l_item)
+            if litmus_uninstall:
+                for item in l_scenario:
+                    logging.info('item ' + str(item))
+                    runcommand.invoke("kubectl delete -f %s" % item)
+            cerberus_integration(config)
+            logging.info("Waiting for the specified duration: %s" % wait_duration)
+            time.sleep(wait_duration)
+        except Exception as e:
+            logging.error("Failed to run litmus scenario: %s. Encountered "
+                          "the following exception: %s" % (item, e))
+    return litmus_namespaces
+
+
 # Main function
 def main(cfg):
     # Start kraken
@@ -242,6 +290,8 @@ def main(cfg):
         global kubeconfig_path, wait_duration
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
+        litmus_version = config['kraken'].get("litmus_version", 'v1.9.1')
+        litmus_uninstall = config['kraken'].get("litmus_uninstall", False)
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
@@ -277,6 +327,8 @@ def main(cfg):
             iterations = int(iterations)
 
         failed_post_scenarios = []
+        litmus_namespaces = []
+        litmus_installed = False
         # Loop to run the chaos starts here
         while (int(iteration) < iterations):
             # Inject chaos scenarios specified in the config
@@ -298,9 +350,23 @@ def main(cfg):
                         # Inject time skew chaos scenarios specified in the config
                         elif scenario_type == "time_scenarios":
                             time_scenarios(scenarios_list, config)
+                        elif scenario_type == "litmus_scenarios":
+                            if not litmus_installed:
+                                common_litmus.install_litmus(litmus_version)
+                                common_litmus.deploy_all_experiments(litmus_version)
+                                litmus_installed = True
+                            litmus_namespaces = litmus_scenarios(scenarios_list, config,
+                                                                 litmus_namespaces,
+                                                                 litmus_uninstall)
 
             iteration += 1
             logging.info("")
+        if litmus_uninstall and litmus_installed:
+            for namespace in litmus_namespaces:
+                common_litmus.delete_chaos(namespace)
+            common_litmus.delete_experiments()
+            common_litmus.uninstall_litmus(litmus_version)
+
         if failed_post_scenarios:
             logging.error("Post scenarios are still failing at the end of all iterations")
             sys.exit(1)
