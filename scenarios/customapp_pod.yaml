@@ -1,0 +1,32 @@
+config:
+  runStrategy:
+    runs: 1
+    maxSecondsBetweenRuns: 30
+    minSecondsBetweenRuns: 1
+scenarios:
+  - name: "delete acme-air pods"
+    steps:
+    - podAction:
+        matches:
+          - labels:
+              namespace: "acme-air"
+              selector: ""
+        filters:
+          - randomSample:
+              size: 1
+        actions:
+          - kill:
+              probability: 1
+              force: true
+    - podAction:
+        matches:
+          - labels:
+              namespace: "acme-air"
+              selector: ""
+        retries:
+          retriesTimeout:
+            timeout: 180
+
+        actions:
+          - checkPodCount:
+              count: 8
