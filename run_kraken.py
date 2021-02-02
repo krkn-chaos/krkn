@@ -15,6 +15,7 @@ import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
 from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
 from kraken.node_actions.gcp_node_scenarios import gcp_node_scenarios
+from kraken.node_actions.openstack_node_scenarios import openstack_node_scenarios
 import kraken.time_actions.common_time_functions as time_actions
 
 
@@ -31,6 +32,8 @@ def get_node_scenario_object(node_scenario):
         return aws_node_scenarios()
     elif node_scenario['cloud_type'] == 'gcp':
         return gcp_node_scenarios()
+    elif node_scenario['cloud_type'] == 'openstack':
+        return openstack_node_scenarios()
     else:
         logging.error("Cloud type " + node_scenario['cloud_type'] + " is not currently supported; "
                       "try using 'generic' if wanting to stop/start kubelet or fork bomb on any "

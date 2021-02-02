@@ -35,3 +35,7 @@ def wait_for_unknown_status(node, timeout):
         time.sleep(1)
     if kubecli.get_node_status(node) != "Unknown":
         raise Exception("Node condition status isn't Unknown")
+
+# Get the ip of the cluster node
+def get_node_ip(node):
+    return runcommand.invoke("kubectl get node %s -o jsonpath='{.status.addresses[?(@.type==\"InternalIP\")].address}'" % (node))
