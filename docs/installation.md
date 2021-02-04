@@ -8,6 +8,8 @@ Following ways are supported to run Kraken:
 
 **NOTE**: It is recommended to run Kraken external to the cluster ( Standalone or Containerized ) hitting the Kubernetes/OpenShift API as running it internal to the cluster might be disruptive to itself and also might not report back the results if the chaos leads to cluster's API server instability.
 
+**NOTE**: To run Kraken on Power (ppc64le) architecture, build and run a containerized version by following the instructions given [here](https://github.com/openshift-scale/kraken/tree/master/containers/build_own_image-README.md).
+
 ### Git
 
 #### Clone the repository
