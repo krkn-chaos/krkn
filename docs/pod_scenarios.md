@@ -4,7 +4,7 @@ Kraken consumes [Powerfulseal](https://github.com/powerfulseal/powerfulseal) und
 
 #### Pod chaos scenarios
 Following are the components of Kubernetes/OpenShift for which a basic chaos scenario config exists today. Adding a new pod based scenario is as simple as adding a new config under scenarios directory and defining it in the config.
-For example, for adding a pod level scenario for a custom application, refer to the sample scenario (customapp_pod.yaml) provided in the scenarios directory.
+For example, for adding a pod level scenario for a custom application, refer to the sample scenario provided in the scenarios directory (scenarios/customapp_pod.yaml).
 
 Component                | Description                                                                                        | Working
 ------------------------ | ---------------------------------------------------------------------------------------------------| ------------------------- |
