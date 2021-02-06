@@ -8,6 +8,8 @@ node_scenarios:
     instance_kill_count: 1                                          # number of times to inject each scenario under actions
     timeout: 120                                                    # duration to wait for completion of node scenario injection
     cloud_type: aws                                                 # cloud type on which Kubernetes/OpenShift runs
+#   bm_user: user
+#   bm_password: pass
   - actions:
     - node_reboot_scenario
     node_name:
@@ -15,3 +17,5 @@ node_scenarios:
     instance_kill_count: 1
     timeout: 120
     cloud_type: aws
+#   bm_user: user
+#   bm_password: pass

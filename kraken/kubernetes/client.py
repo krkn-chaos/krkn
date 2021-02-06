@@ -30,6 +30,19 @@ def list_nodes(label_selector=None):
         nodes.append(node.metadata.name)
     return nodes
 
+# Get a node object by name
+def get_node_object(node_name):
+    try:
+        if label_selector:
+            ret = cli.list_node(pretty=True, label_selector=label_selector)
+        else:
+            ret = cli.list_node(pretty=True)
+    except ApiException as e:
+        logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
+    if len(ret.items) > 0:
+        return ret.items[0]
+    else
+        return None
 
 # List nodes in the cluster that can be killed
 def list_killable_nodes(label_selector=None):

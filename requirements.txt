@@ -14,3 +14,5 @@ python-openstackclient
 gitpython
 paramiko
 setuptools
+openshift-client
+python-ipmi
