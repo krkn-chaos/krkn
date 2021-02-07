@@ -8,3 +8,4 @@ google-api-python-client
 kubernetes==12.0.0a1
 oauth2client>=4.1.3
 python-openstackclient
+gitpython

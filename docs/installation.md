@@ -21,6 +21,8 @@ $ cd kraken
 $ pip3 install -r requirements.txt
 ```
 
+**NOTE**: Make sure python3-devel is installed on the system.
+
 #### Run
 ```
 $ python3 run_kraken.py --config <config_file_location>
