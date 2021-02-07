@@ -17,7 +17,7 @@ from kraken.node_actions.general_cloud_node_scenarios import general_node_scenar
 from kraken.node_actions.gcp_node_scenarios import gcp_node_scenarios
 from kraken.node_actions.openstack_node_scenarios import openstack_node_scenarios
 import kraken.time_actions.common_time_functions as time_actions
-
+import kraken.performance_dashboards.setup as performance_dashboards
 
 node_general = False
 
@@ -298,6 +298,8 @@ def main(cfg):
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
+        deploy_performance_dashboards = config["performance_monitoring"].get("deploy_dashboards", False)
+        dashboard_repo = config["performance_monitoring"].get("repo", "https://github.com/cloud-bulldozer/performance-dashboards.git")
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
@@ -314,6 +316,10 @@ def main(cfg):
         cluster_info = runcommand.invoke("kubectl cluster-info | awk 'NR==1' | sed -r "
                                          "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'")  # noqa
         logging.info("\n%s%s" % (cluster_version, cluster_info))
+
+        # Deploy performance dashboards
+        if deploy_performance_dashboards:
+            performance_dashboards.setup(dashboard_repo)
 
         # Initialize the start iteration to 0
         iteration = 0

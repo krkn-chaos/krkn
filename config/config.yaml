@@ -23,6 +23,10 @@ cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
 
+performance_monitoring:
+    deploy_dashboards: False                              # Install a mutable grafana and load the performance dashboards. Enable this only when running on OpenShift
+    repo: "https://github.com/cloud-bulldozer/performance-dashboards.git"
+
 tunings:
     wait_duration: 60                                      # Duration to wait between each chaos scenario
     iterations: 1                                          # Number of times to execute the scenarios
