@@ -1,6 +1,7 @@
 import time
 import random
 import logging
+import paramiko
 import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 
@@ -36,6 +37,36 @@ def wait_for_unknown_status(node, timeout):
     if kubecli.get_node_status(node) != "Unknown":
         raise Exception("Node condition status isn't Unknown")
 
+
 # Get the ip of the cluster node
 def get_node_ip(node):
-    return runcommand.invoke("kubectl get node %s -o jsonpath='{.status.addresses[?(@.type==\"InternalIP\")].address}'" % (node))
+    return runcommand.invoke("kubectl get node %s -o "
+                             "jsonpath='{.status.addresses[?(@.type==\"InternalIP\")].address}'"
+                             % (node))
+
+
+def check_service_status(node, service, ssh_private_key, timeout):
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    i = 0
+    sleeper = 1
+    while i <= timeout:
+        try:
+            time.sleep(sleeper)
+            i += sleeper
+            logging.info("Trying to ssh to instance: %s" % (node))
+            connection = ssh.connect(node, username='root', key_filename=ssh_private_key,
+                                     timeout=800, banner_timeout=400)
+            if connection is None:
+                break
+        except Exception:
+            pass
+    for service_name in service:
+        logging.info("Checking status of Service: %s" % (service_name))
+        stdin, stdout, stderr = ssh.exec_command("systemctl status %s  | grep '^   Active' "
+                                                 "|  awk '{print $2}'" % (service_name))
+        service_status = stdout.readlines()[0]
+        logging.info("Status of service %s is %s \n" % (service_name, service_status.strip()))
+        if(service_status.strip() != "active"):
+            logging.error("Service %s is in %s state" % (service_name, service_status.strip()))
+    ssh.close()

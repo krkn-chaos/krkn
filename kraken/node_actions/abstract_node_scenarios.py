@@ -21,6 +21,12 @@ class abstract_node_scenarios:
         self.node_start_scenario(instance_kill_count, node, timeout)
         logging.info("node_stop_start_scenario has been successfully injected!")
 
+    def helper_node_stop_start_scenario(self, instance_kill_count, node, timeout):
+        logging.info("Starting helper_node_stop_start_scenario injection")
+        self.helper_node_stop_scenario(instance_kill_count, node, timeout)
+        self.helper_node_start_scenario(instance_kill_count, node, timeout)
+        logging.info("helper_node_stop_start_scenario has been successfully injected!")
+
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
         pass
@@ -66,3 +72,7 @@ class abstract_node_scenarios:
                               "Test Failed" % (e))
                 logging.error("node_crash_scenario injection failed!")
                 sys.exit(1)
+
+    # Node scenario to check service status on helper node
+    def node_service_status(self, node, service, ssh_private_key, timeout):
+        pass

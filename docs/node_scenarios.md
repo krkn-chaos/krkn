@@ -10,6 +10,7 @@ Following node chaos scenarios are supported:
 6. **stop_kubelet_scenario**: scenario to stop the kubelet of the node instance.
 7. **stop_start_kubelet_scenario**: scenario to stop and start the kubelet of the node instance.
 8. **node_crash_scenario**: scenario to crash the node instance.
+9. **stop_start_helper_node_scenario**: scenario to stop and start the helper node and check service status.
 
 **NOTE**: If the node doesn't recover from the node_crash_scenario injection, reboot the node to get it back to Ready state.
 
@@ -33,6 +34,10 @@ After creating the service account you'll need to enable the account using the f
 **NOTE**: For clusters with OPENSTACK Cloud, ensure to create and source the [OPENSTACK RC file](https://docs.openstack.org/newton/user-guide/common/cli-set-environment-variables-using-openstack-rc.html) to set the OPENSTACK environment variables from the server where Kraken runs.
 
 The supported node level chaos scenarios on an OPENSTACK cloud are `node_stop_start_scenario`, `stop_start_kubelet_scenario` and `node_reboot_scenario`.
+
+**NOTE**: For `stop_start_helper_node_scenario`,  visit [here](https://github.com/RedHatOfficial/ocp4-helpernode) to learn more about the helper node and its usage.
+
+To execute the scenario, ensure the value for `ssh_private_key` in the node scenarios config file is set with the correct private key file path for ssh connection to the helper node. Ensure passwordless ssh is configured on the host running Kraken and the helper node to avoid connection errors.
 
 **NOTE**: The `node_crash_scenario` and `stop_kubelet_scenario` scenario is supported independent of the cloud platform.
 
@@ -64,4 +69,15 @@ node_scenarios:
     label_selector: node-role.kubernetes.io/infra
     instance_kill_count: 1
     timeout: 120
+  - actions:                                                        
+    - stop_start_helper_node_scenario                               # node chaos scenario for helper node
+    instance_kill_count: 1                                          
+    timeout: 120                                                   
+    helper_node_ip:                                                 # ip address of the helper node
+    service:                                                        # check status of the services on the helper node
+      - haproxy
+      - dhcpd
+      - named
+    ssh_private_key: /root/.ssh/id_rsa                              # ssh key to access the helper node
+    cloud_type: openstack                                           
 ```
