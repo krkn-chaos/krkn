@@ -42,6 +42,7 @@ Monitoring the Kubernetes/OpenShift cluster to observe the impact of Kraken chao
 ### Contributions
 We are always looking for more enhancements, fixes to make it better, any contributions are most welcome. Feel free to report or work on the issues filed on github. 
 
+[More information on how to Contribute](docs/contribute.md)
 
 ### Community
 Key Members(slack_usernames): paigerube14, rook, mffiedler, mohit, dry923, rsevilla, ravi
