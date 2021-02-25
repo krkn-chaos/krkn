@@ -10,29 +10,46 @@ class OPENSTACKCLOUD:
     def __init__(self):
         self.Wait = 30
 
+    # Get the instance ID of the node
+    def get_instance_id(self, node):
+        openstack_node_ip = nodeaction.get_node_ip(node)
+        openstack_node_name = self.openstackcloud.get_openstack_nodename(openstack_node_ip)
+        return openstack_node_name
+
     # Start the node instance
     def start_instances(self, node):
-        runcommand.invoke("openstack server start %s" % (node))
-        logging.info("OPENSTACK CLI INFO: Completed instance start action for node %s" % (node))
+        try:
+            runcommand.invoke("openstack server start %s" % (node))
+            logging.info("Instance: " + str(node) + " started")
+        except Exception as e:
+            logging.error("Failed to start node instance %s. Encountered following " "exception: %s." % (node, e))
+            sys.exit(1)
 
     # Stop the node instance
     def stop_instances(self, node):
-        runcommand.invoke("openstack server stop %s" % (node))
-        logging.info("OPENSTACK CLI INFO: Completed instance stop action for node %s" % (node))
-        # return action_output
+        try:
+            runcommand.invoke("openstack server stop %s" % (node))
+            logging.info("Instance: " + str(node) + " stopped")
+        except Exception as e:
+            logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (node, e))
+            sys.exit(1)
 
     # Reboot the node instance
     def reboot_instances(self, node):
-        runcommand.invoke("openstack server reboot --soft %s" % (node))
-        logging.info("OPENSTACK CLI INFO: Completed instance reboot action for node %s" % (node))
+        try:
+            runcommand.invoke("openstack server reboot --soft %s" % (node))
+            logging.info("Instance: " + str(node) + " rebooted")
+        except Exception as e:
+            logging.error("Failed to reboot node instance %s. Encountered following " "exception: %s." % (node, e))
+            sys.exit(1)
 
     # Wait until the node instance is running
-    def wait_until_running(self, node):
-        self.get_instance_status(node, "ACTIVE", self.Wait)
+    def wait_until_running(self, node, timeout):
+        return self.get_instance_status(node, "ACTIVE", timeout)
 
     # Wait until the node instance is stopped
-    def wait_until_stopped(self, node):
-        self.get_instance_status(node, "SHUTOFF", self.Wait)
+    def wait_until_stopped(self, node, timeout):
+        return self.get_instance_status(node, "SHUTOFF", timeout)
 
     # Get instance status
     def get_instance_status(self, node, expected_status, timeout):
@@ -49,6 +66,7 @@ class OPENSTACKCLOUD:
                 return True
             time.sleep(sleeper)
             i += sleeper
+        return False
 
     # Get the openstack instance name
     def get_openstack_nodename(self, os_node_ip):
@@ -79,8 +97,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 logging.info("Starting the node %s" % (node))
-                openstack_node_ip = nodeaction.get_node_ip(node)
-                openstack_node_name = self.openstackcloud.get_openstack_nodename(openstack_node_ip)
+                openstack_node_name = self.openstackcloud.get_instance_id(node)
                 self.openstackcloud.start_instances(openstack_node_name)
                 self.openstackcloud.wait_until_running(openstack_node_name)
                 nodeaction.wait_for_ready_status(node, timeout)
@@ -99,8 +116,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 logging.info("Stopping the node %s " % (node))
-                openstack_node_ip = nodeaction.get_node_ip(node)
-                openstack_node_name = self.openstackcloud.get_openstack_nodename(openstack_node_ip)
+                openstack_node_name = self.openstackcloud.get_instance_id(node)
                 self.openstackcloud.stop_instances(openstack_node_name)
                 self.openstackcloud.wait_until_stopped(openstack_node_name)
                 logging.info("Node with instance name: %s is in stopped state" % (node))
@@ -116,8 +132,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info("Rebooting the node %s" % (node))
-                openstack_node_ip = nodeaction.get_node_ip(node)
-                openstack_node_name = self.openstackcloud.get_openstack_nodename(openstack_node_ip)
+                openstack_node_name = self.openstackcloud.get_instance_id(node)
                 self.openstackcloud.reboot_instances(openstack_node_name)
                 nodeaction.wait_for_unknown_status(node, timeout)
                 nodeaction.wait_for_ready_status(node, timeout)
