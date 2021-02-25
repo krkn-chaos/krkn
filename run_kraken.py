@@ -290,9 +290,9 @@ def litmus_scenarios(scenarios_list, config, litmus_namespaces, litmus_uninstall
                 for item in l_scenario:
                     logging.info('item ' + str(item))
                     runcommand.invoke("kubectl delete -f %s" % item)
-            cerberus_integration(config)
             logging.info("Waiting for the specified duration: %s" % wait_duration)
             time.sleep(wait_duration)
+            cerberus_integration(config)
         except Exception as e:
             logging.error("Failed to run litmus scenario: %s. Encountered "
                           "the following exception: %s" % (item, e))
