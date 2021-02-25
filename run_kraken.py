@@ -112,10 +112,7 @@ def main(cfg):
                         # Inject pod chaos scenarios specified in the config
                         if scenario_type == "pod_scenarios":
                             failed_post_scenarios = pod_scenarios.run(
-                                kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration,
-                            )
-                            failed_post_scenarios = pod_scenarios.run(
-                                kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration,
+                                kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration
                             )
 
                         # Inject node chaos scenarios specified in the config
@@ -131,7 +128,7 @@ def main(cfg):
                                 common_litmus.deploy_all_experiments(litmus_version)
                                 litmus_installed = True
                             litmus_namespaces = common_litmus.run(
-                                scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration,
+                                scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration
                             )
 
             iteration += 1

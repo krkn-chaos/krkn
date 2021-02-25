@@ -7,13 +7,16 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 ![Kraken workflow](media/kraken-workflow.png)
 
 
-### Installation and usage
+### How to Get Started
 Instructions on how to setup, configure and run Kraken can be found at [Installation](docs/installation.md).
+
+See the [getting started doc](docs/getting_started.md) on support on how to get started with your own custom scenario or editing current scenarios for your specific usage
+
+After installation, refer back to the below sections for supported scenarios and how to tweak the kraken config to load them on your cluster
 
 
 ### Config
 Instructions on how to setup the config and the options supported can be found at [Config](docs/config.md).
-
 
 ### Kubernetes/OpenShift chaos scenarios supported
 Kraken supports pod, node, time/date and [litmus](https://github.com/litmuschaos/litmus) based scenarios.
