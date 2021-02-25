@@ -18,20 +18,14 @@ Following node chaos scenarios are supported:
 
 #### AWS
 
-**NOTE**: For clusters with AWS make sure [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) is installed and properly [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html) using an AWS account
+How to set up AWS cli to run node scenarios is defined [here](cloud_setup.md#aws)
 
 #### GCP
-**NOTE**: For clusters with GCP make sure [GCP CLI](https://cloud.google.com/sdk/docs/install#linux) is installed.
+How to set up GCP cli to run node scenarios is defined [here](cloud_setup.md#gcp)
 
-A google service account is required to give proper authentication to GCP for node actions. See [here](https://cloud.google.com/docs/authentication/getting-started) for how to create a service account.
+#### Openstack
 
-**NOTE**: A user with 'resourcemanager.projects.setIamPolicy' permission is required to grant project-level permissions to the service account.
-
-After creating the service account you'll need to enable the account using the following: ```export GOOGLE_APPLICATION_CREDENTIALS="<serviceaccount.json>"```
-
-#### OPENSTACK
-
-**NOTE**: For clusters with OPENSTACK Cloud, ensure to create and source the [OPENSTACK RC file](https://docs.openstack.org/newton/user-guide/common/cli-set-environment-variables-using-openstack-rc.html) to set the OPENSTACK environment variables from the server where Kraken runs.
+How to set up Openstack cli to run node scenarios is defined [here](cloud_setup.md#openstack)
 
 The supported node level chaos scenarios on an OPENSTACK cloud are `node_stop_start_scenario`, `stop_start_kubelet_scenario` and `node_reboot_scenario`.
 
@@ -39,22 +33,10 @@ The supported node level chaos scenarios on an OPENSTACK cloud are `node_stop_st
 
 To execute the scenario, ensure the value for `ssh_private_key` in the node scenarios config file is set with the correct private key file path for ssh connection to the helper node. Ensure passwordless ssh is configured on the host running Kraken and the helper node to avoid connection errors.
 
+
 #### Azure
 
-**NOTE**: For Azure node killing scenarios, make sure [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) is installed
-
-You will also need to create a service principal and give it the correct access, see [here](https://docs.openshift.com/container-platform/4.5/installing/installing_azure/installing-azure-account.html) for creating the service principal and setting the proper permissions
-
-To properly run the service principal requires “Azure Active Directory Graph/Application.ReadWrite.OwnedBy” api permission granted and “User Access Administrator”
-
-Before running you'll need to set the following:
-1. Login using ```az login```
-
-2. ```export AZURE_TENANT_ID=<tenant_id>```
-
-3. ```export AZURE_CLIENT_SECRET=<client secret>```
-
-4. ```export AZURE_CLIENT_ID=<client id>```
+How to set up Azure cli to run node scenarios is defined [here](cloud_setup.md#azure)
 
 
 **NOTE**: The `node_crash_scenario` and `stop_kubelet_scenario` scenario is supported independent of the cloud platform.

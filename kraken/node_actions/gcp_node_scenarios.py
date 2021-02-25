@@ -38,24 +38,56 @@ class GCP:
 
     # Start the node instance
     def start_instances(self, zone, instance_id):
-        self.client.instances().start(project=self.project, zone=zone, instance=instance_id).execute()
+        try:
+            self.client.instances().start(project=self.project, zone=zone, instance=instance_id).execute()
+            logging.info("vm name " + str(instance_id) + " started")
+        except Exception as e:
+            logging.error(
+                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+            )
+            sys.exit(1)
 
     # Stop the node instance
     def stop_instances(self, zone, instance_id):
-        self.client.instances().stop(project=self.project, zone=zone, instance=instance_id).execute()
+        try:
+            self.client.instances().stop(project=self.project, zone=zone, instance=instance_id).execute()
+            logging.info("vm name " + str(instance_id) + " stopped")
+        except Exception as e:
+            logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (instance_id, e))
+            sys.exit(1)
 
     # Start the node instance
     def suspend_instances(self, zone, instance_id):
-        self.client.instances().suspend(project=self.project, zone=zone, instance=instance_id).execute()
+        try:
+            self.client.instances().suspend(project=self.project, zone=zone, instance=instance_id).execute()
+            logging.info("vm name " + str(instance_id) + " suspended")
+        except Exception as e:
+            logging.error(
+                "Failed to suspend node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+            )
+            sys.exit(1)
 
     # Terminate the node instance
     def terminate_instances(self, zone, instance_id):
-        self.client.instances().delete(project=self.project, zone=zone, instance=instance_id).execute()
+        try:
+            self.client.instances().delete(project=self.project, zone=zone, instance=instance_id).execute()
+            logging.info("vm name " + str(instance_id) + " terminated")
+        except Exception as e:
+            logging.error(
+                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+            )
+            sys.exit(1)
 
     # Reboot the node instance
     def reboot_instances(self, zone, instance_id):
-        response = self.client.instances().reset(project=self.project, zone=zone, instance=instance_id).execute()
-        logging.info("response reboot " + str(response))
+        try:
+            self.client.instances().reset(project=self.project, zone=zone, instance=instance_id).execute()
+            logging.info("vm name " + str(instance_id) + " rebooted")
+        except Exception as e:
+            logging.error(
+                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+            )
+            sys.exit(1)
 
     # Get instance status
     def get_instance_status(self, zone, instance_id, expected_status, timeout):
@@ -70,19 +102,20 @@ class GCP:
                 return True
             time.sleep(sleeper)
             i += sleeper
-        logging.error("Status of %s was not %s in a")
+        logging.error("Status of %s was not %s in %s seconds" % (instance_id, expected_status, timeout))
+        return False
 
     # Wait until the node instance is suspended
     def wait_until_suspended(self, zone, instance_id, timeout):
-        self.get_instance_status(zone, instance_id, "SUSPENDED", timeout)
+        return self.get_instance_status(zone, instance_id, "SUSPENDED", timeout)
 
     # Wait until the node instance is running
     def wait_until_running(self, zone, instance_id, timeout):
-        self.get_instance_status(zone, instance_id, "RUNNING", timeout)
+        return self.get_instance_status(zone, instance_id, "RUNNING", timeout)
 
     # Wait until the node instance is stopped
     def wait_until_stopped(self, zone, instance_id, timeout):
-        self.get_instance_status(zone, instance_id, "TERMINATED", timeout)
+        return self.get_instance_status(zone, instance_id, "TERMINATED", timeout)
 
     # Wait until the node instance is terminated
     def wait_until_terminated(self, zone, instance_id, timeout):

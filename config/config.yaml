@@ -19,7 +19,9 @@ kraken:
         -   litmus_scenarios:                              # List of litmus scenarios to load
             - - https://hub.litmuschaos.io/api/chaos/1.10.0?file=charts/generic/node-cpu-hog/rbac.yaml
               - scenarios/node_hog_engine.yaml
-
+        -   cluster_shut_down_scenarios:
+            - - scenarios/cluster_shut_down_scenario.yml
+              - scenarios/post_action_shut_down.py
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal

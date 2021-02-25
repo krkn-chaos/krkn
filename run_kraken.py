@@ -14,6 +14,7 @@ import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
 import kraken.pod_scenarios.setup as pod_scenarios
+import kraken.shut_down.common_shut_down_func as shut_down
 import kraken.node_actions.run as nodeaction
 import kraken.kube_burner.client as kube_burner
 
@@ -135,6 +136,8 @@ def main(cfg):
                             litmus_namespaces = common_litmus.run(
                                 scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration,
                             )
+                        elif scenario_type == "cluster_shut_down_scenarios":
+                            shut_down.run(scenarios_list, config, wait_duration)
 
             iteration += 1
             logging.info("")

@@ -20,31 +20,75 @@ class AWS:
 
     # Start the node instance
     def start_instances(self, instance_id):
-        self.boto_client.start_instances(InstanceIds=[instance_id])
+        try:
+            self.boto_client.start_instances(InstanceIds=[instance_id])
+            logging.info("EC2 instance: " + str(instance_id) + " started")
+        except Exception as e:
+            logging.error(
+                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+            )
+            sys.exit(1)
 
     # Stop the node instance
     def stop_instances(self, instance_id):
-        self.boto_client.stop_instances(InstanceIds=[instance_id])
+        try:
+            self.boto_client.stop_instances(InstanceIds=[instance_id])
+            logging.info("EC2 instance: " + str(instance_id) + " stopped")
+        except Exception as e:
+            logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (instance_id, e))
+            sys.exit(1)
 
     # Terminate the node instance
     def terminate_instances(self, instance_id):
-        self.boto_client.terminate_instances(InstanceIds=[instance_id])
+        try:
+            self.boto_client.terminate_instances(InstanceIds=[instance_id])
+            logging.info("EC2 instance: " + str(instance_id) + " terminated")
+        except Exception as e:
+            logging.error(
+                "Failed to terminate node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+            )
+            sys.exit(1)
 
     # Reboot the node instance
     def reboot_instances(self, instance_id):
-        self.boto_client.reboot_instances(InstanceIds=[instance_id])
+        try:
+            self.boto_client.reboot_instances(InstanceIds=[instance_id])
+            logging.info("EC2 instance " + str(instance_id) + " rebooted")
+        except Exception as e:
+            logging.error(
+                "Failed to reboot node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+            )
+            sys.exit(1)
 
+    # Below functions poll EC2.Client.describe_instances() every 15 seconds
+    # until a successful state is reached. An error is returned after 40 failed checks
+    # Setting timeout for consistency with other cloud functions
     # Wait until the node instance is running
-    def wait_until_running(self, instance_id):
-        self.boto_instance.wait_until_running(InstanceIds=[instance_id])
+    def wait_until_running(self, instance_id, timeout=600):
+        try:
+            self.boto_instance.wait_until_running(InstanceIds=[instance_id])
+            return True
+        except Exception as e:
+            logging.error("Failed to get status waiting for %s to be running %s" % (instance_id, e))
+            return False
 
     # Wait until the node instance is stopped
-    def wait_until_stopped(self, instance_id):
-        self.boto_instance.wait_until_stopped(InstanceIds=[instance_id])
+    def wait_until_stopped(self, instance_id, timeout=600):
+        try:
+            self.boto_instance.wait_until_stopped(InstanceIds=[instance_id])
+            return True
+        except Exception as e:
+            logging.error("Failed to get status waiting for %s to be stopped %s" % (instance_id, e))
+            return False
 
     # Wait until the node instance is terminated
-    def wait_until_terminated(self, instance_id):
-        self.boto_instance.wait_until_terminated(InstanceIds=[instance_id])
+    def wait_until_terminated(self, instance_id, timeout=600):
+        try:
+            self.boto_instance.wait_until_terminated(InstanceIds=[instance_id])
+            return True
+        except Exception as e:
+            logging.error("Failed to get status waiting for %s to be terminated %s" % (instance_id, e))
+            return False
 
 
 class aws_node_scenarios(abstract_node_scenarios):
@@ -114,7 +158,7 @@ class aws_node_scenarios(abstract_node_scenarios):
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
             try:
-                logging.info("Starting node_reboot_scenario injection")
+                logging.info("Starting node_reboot_scenario injection" + str(node))
                 instance_id = self.aws.get_instance_id(node)
                 logging.info("Rebooting the node %s with instance ID: %s " % (node, instance_id))
                 self.aws.reboot_instances(instance_id)

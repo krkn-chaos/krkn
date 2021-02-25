@@ -27,6 +27,8 @@ def run(kubeconfig_path, scenario, pre_action_output=""):
                 logging.info(scenario + " post action checks passed")
             else:
                 logging.info(scenario + " post action response did not match pre check output")
+                logging.info("Pre action output: " + str(pre_action_output) + "\n")
+                logging.info("Post action output: " + str(action_output))
                 return False
     elif scenario != "":
         # invoke custom bash script
