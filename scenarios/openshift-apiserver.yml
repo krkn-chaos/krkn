@@ -10,7 +10,7 @@ scenarios:
         matches:
           - labels:
               namespace: "openshift-apiserver"
-              selector: "app=openshift-apiserver"
+              selector: "app=openshift-apiserver-a"
 
         filters:
           - randomSample:
@@ -25,7 +25,7 @@ scenarios:
         matches:
           - labels:
               namespace: "openshift-apiserver"
-              selector: "app=openshift-apiserver"
+              selector: "app=openshift-apiserver-a"
         retries:
           retriesTimeout:
             timeout: 180
