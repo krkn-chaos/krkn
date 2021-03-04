@@ -1,34 +1,42 @@
-import sys
-import time
-import openshift as oc
-import logging
 import kraken.kubernetes.client as kubecli
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
-
+import logging
+import openshift as oc
+import pyipmi
+import pyipmi.interfaces
+import sys
+import time
+import traceback
 
 class BM:
     def __init__(self, user, passwd):
-        this.user = user
-        this.passwd = passwd
+        self.user = user
+        self.passwd = passwd
+
+    def get_node_object(self, node_name):
+        with oc.project('openshift-machine-api'):
+            return oc.selector('node/' + node_name).object()
 
 
     # Get the ipmi or other BMC address of the baremetal node
     def get_bmc_addr(self, node_name):
-        node = kubecli.get_node_object(node_name)
-        provider_id = node..spec.provider_id
-        startOfUid = provider_id.rfind('/') # The / before the uid
-        startOfName = provider_id.rfind('/', 0, startOfUid) + 1
-        bmh_name = provider_id[startOfName:startOfUid]
-        bmh_resource_name = 'baremetalhost.metal3.io/' + bmh_name
-        bmh_object = oc.selector(bmh_resource_name).object()
-        return bmh_object.as_dict()["spec"]["bmc"]["address"]
+        with oc.project('openshift-machine-api'):
+            logging.info("Getting node with name: %s" % (node_name))
+            node = self.get_node_object(node_name)
+            provider_id = node.model.spec.providerID
+            startOfUid = provider_id.rfind('/') # The / before the uid
+            startOfName = provider_id.rfind('/', 0, startOfUid) + 1
+            bmh_name = provider_id[startOfName:startOfUid]
+            bmh_resource_name = 'baremetalhost.metal3.io/' + bmh_name
+            bmh_object = oc.selector(bmh_resource_name).object()
+            return bmh_object.model.spec.bmc.address
 
     def get_ipmi_connection(self, bmc_addr):
         type_position = bmc_addr.find("://")
         if type_position == -1:
             host = bmc_addr
-       else:
+        else:
             host = bmc_addr[type_position + 3:]
         port_position = host.find(":")
         if port_position == -1:
@@ -43,9 +51,8 @@ class BM:
         connection = pyipmi.create_connection(interface)
 
         connection.target = pyipmi.Target(ipmb_address=0x20)
-        #connection.target = pyipmi.Target(ipmb_address=0x82, routing=[(0x81,0x20,0),(0x20,0x82,7)])
         connection.session.set_session_type_rmcp(host, port=623)
-        connection.session.set_auth_type_user(user, pass)
+        connection.session.set_auth_type_user(self.user, self.passwd)
         connection.session.establish()
         return connection
 
@@ -78,7 +85,7 @@ class bm_node_scenarios(abstract_node_scenarios):
         self.bm = BM(user, passwd)
 
     # Node scenario to start the node
-    def node_start_scenario(self, instance_kill_count, node_name, timeout):
+    def node_start_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
             try:
                 logging.info("Starting node_start_scenario injection")
@@ -122,6 +129,7 @@ class bm_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 bmc_addr = self.bm.get_bmc_addr(node)
+                logging.info("BMC Addr: %s" % (bmc_addr))
                 logging.info("Rebooting the node %s with bmc address: %s " % (node, bmc_addr))
                 self.bm.reboot_instances(bmc_addr)
                 nodeaction.wait_for_unknown_status(node, timeout)
@@ -131,5 +139,6 @@ class bm_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error("Failed to reboot node instance. Encountered following exception:"
                               " %s. Test Failed" % (e))
+                traceback.print_exc()
                 logging.error("node_reboot_scenario injection failed!")
                 sys.exit(1)
