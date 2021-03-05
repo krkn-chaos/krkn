@@ -20,6 +20,13 @@ Following node chaos scenarios are supported:
 
 How to set up AWS cli to run node scenarios is defined [here](cloud_setup.md#aws)
 
+#### Baremetal
+**NOTE**: Baremetal requires setting the IPMI user and password to power on, off, and reboot nodes, using the config options `bm_user` and `bm_password`.
+
+It currently assumes that all nodes have the same user and password.
+
+**NOTE**: Baremetal requires oc (openshift client) be installed on the machine running Kraken.
+
 #### GCP
 How to set up GCP cli to run node scenarios is defined [here](cloud_setup.md#gcp)
 
