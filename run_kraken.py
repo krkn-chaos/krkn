@@ -318,7 +318,7 @@ def main(cfg):
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
         deploy_performance_dashboards = config["performance_monitoring"].get("deploy_dashboards", False)
-        dashboard_repo = config["performance_monitoring"].get("repo", "https://github.com/cloud-bulldozer/performance-dashboards.git")
+        dashboard_repo = config["performance_monitoring"].get("repo", "https://github.com/cloud-bulldozer/performance-dashboards.git") # noqa
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
