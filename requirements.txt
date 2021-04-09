@@ -13,3 +13,5 @@ oauth2client>=4.1.3
 python-openstackclient
 gitpython
 paramiko
+setuptools
+tox
