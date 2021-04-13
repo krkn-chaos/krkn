@@ -14,6 +14,7 @@ COPY --from=origintests /usr/bin/kubectl /usr/bin/kubectl
 
 # Install dependencies
 RUN yum install -y git python36 python3-pip && \
+python3 -m pip install -U pip && \
 git clone https://github.com/openshift-scale/kraken /root/kraken && \
 mkdir -p /root/.kube && cd /root/kraken && \
 pip3 install -r requirements.txt
