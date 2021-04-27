@@ -13,7 +13,8 @@ RUN curl -L -o openshift-client-linux.tar.gz https://mirror.openshift.com/pub/op
 && tar xf openshift-client-linux.tar.gz -C /usr/bin && rm -rf openshift-client-linux.tar.gz
 
 # Install dependencies
-RUN yum install -y git python36 python3-pip gcc libffi-devel python36-devel openssl-devel gcc-c++ make && \
+RUN yum install epel-release -y && \
+yum install -y git python36 python3-pip gcc libffi-devel python36-devel openssl-devel gcc-c++ make jq gettext && \
 git clone https://github.com/cloud-bulldozer/kraken /root/kraken && \
 mkdir -p /root/.kube && cd /root/kraken && \
 pip3 install cryptography==3.3.2 && \
