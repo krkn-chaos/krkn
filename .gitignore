@@ -31,7 +31,6 @@ tags
 # Unittest and coverage
 htmlcov/*
 .coverage
-.tox
 junit.xml
 coverage.xml
 .pytest_cache/

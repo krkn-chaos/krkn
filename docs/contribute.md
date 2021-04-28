@@ -22,15 +22,17 @@ $ git push
 ```
 
 ## Fix Formatting
-You can do this before your first commit but please take a look at the formatting outlined using tox.
+Kraken uses [pre-commit](https://pre-commit.com) framework to maintain the code linting and python code styling.
+The CI would run the pre-commit check on each pull request.
+We encourage our contributors to follow the same pattern, while contributing to the code.
 
-To run:
+The pre-commit configuration file is present in the repository `.pre-commit-config.yaml`
+It contains the different code styling and linting guide which we use for the application.
 
-```pip install tox ```(if not already installed)
+Following command can be used to run the pre-commit:
+`pre-commit run --all-files`
 
-```tox```
-
-Fix all spacing, import issues and other formatting issues
+If pre-commit is not installed in your system, it can be install with : `pip install pre-commit`
 
 ## Squash Commits
 If there are mutliple commits, please rebase/squash multiple commits
