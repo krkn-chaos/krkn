@@ -25,7 +25,7 @@ scenarios: "{{ lookup('env', 'SCENARIOS')|default('[[scenarios/etcd.yml, scenari
 
 exit_on_failure: "{{ lookup('env', 'EXIT_ON_FAILURE')|default(false, true) }}"
 
-# Cerberus enabled by user 
+# Cerberus enabled by user
 cerberus_enabled: "{{ lookup('env', 'CERBERUS_ENABLED')|default(false, true) }}"
 cerberus_url: "{{ lookup('env', 'CERBERUS_URL')|default('', true) }}"
 

@@ -28,7 +28,7 @@ To run:
 
 ```pip install tox ```(if not already installed)
 
-```tox``` 
+```tox```
 
 Fix all spacing, import issues and other formatting issues
 
@@ -50,6 +50,3 @@ Push your rebased commits (you may need to force), then issue your PR.
 ```
 $ git push origin <my-working-branch> --force
 ```
-
-
-

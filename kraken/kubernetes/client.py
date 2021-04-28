@@ -55,8 +55,11 @@ def list_pods(namespace):
     try:
         ret = cli.list_namespaced_pod(namespace, pretty=True)
     except ApiException as e:
-        logging.error("Exception when calling \
-                       CoreV1Api->list_namespaced_pod: %s\n" % e)
+        logging.error(
+            "Exception when calling \
+                       CoreV1Api->list_namespaced_pod: %s\n"
+            % e
+        )
     for pod in ret.items:
         pods.append(pod.metadata.name)
     return pods
@@ -76,11 +79,18 @@ def get_all_pods(label_selector=None):
 # Execute command in pod
 def exec_cmd_in_pod(command, pod_name, namespace):
 
-    exec_command = ['bash', '-c', command]
+    exec_command = ["bash", "-c", command]
     try:
-        ret = stream(cli.connect_get_namespaced_pod_exec, pod_name, namespace,
-                     command=exec_command, stderr=True, stdin=False,
-                     stdout=True, tty=False)
+        ret = stream(
+            cli.connect_get_namespaced_pod_exec,
+            pod_name,
+            namespace,
+            command=exec_command,
+            stderr=True,
+            stdin=False,
+            stdout=True,
+            tty=False,
+        )
     except Exception:
         return False
     return ret
@@ -91,8 +101,11 @@ def get_node_status(node):
     try:
         node_info = cli.read_node_status(node, pretty=True)
     except ApiException as e:
-        logging.error("Exception when calling \
-                       CoreV1Api->read_node_status: %s\n" % e)
+        logging.error(
+            "Exception when calling \
+                       CoreV1Api->read_node_status: %s\n"
+            % e
+        )
     for condition in node_info.status.conditions:
         if condition.type == "Ready":
             return condition.status
@@ -107,8 +120,11 @@ def monitor_nodes():
         try:
             node_info = cli.read_node_status(node, pretty=True)
         except ApiException as e:
-            logging.error("Exception when calling \
-                           CoreV1Api->read_node_status: %s\n" % e)
+            logging.error(
+                "Exception when calling \
+                           CoreV1Api->read_node_status: %s\n"
+                % e
+            )
         for condition in node_info.status.conditions:
             if condition.type == "KernelDeadlock":
                 node_kerneldeadlock_status = condition.status
@@ -116,10 +132,7 @@ def monitor_nodes():
                 node_ready_status = condition.status
             else:
                 continue
-        if (
-            node_kerneldeadlock_status != "False"       # noqa
-            or node_ready_status != "True"               # noqa
-        ):
+        if node_kerneldeadlock_status != "False" or node_ready_status != "True":  # noqa  # noqa
             notready_nodes.append(node)
     if len(notready_nodes) != 0:
         status = False
@@ -135,15 +148,15 @@ def monitor_namespace(namespace):
     notready_pods = []
     for pod in pods:
         try:
-            pod_info = cli.read_namespaced_pod_status(pod, namespace,
-                                                      pretty=True)
+            pod_info = cli.read_namespaced_pod_status(pod, namespace, pretty=True)
         except ApiException as e:
-            logging.error("Exception when calling \
-                           CoreV1Api->read_namespaced_pod_status: %s\n" % e)
+            logging.error(
+                "Exception when calling \
+                           CoreV1Api->read_namespaced_pod_status: %s\n"
+                % e
+            )
         pod_status = pod_info.status.phase
-        if pod_status != "Running" \
-            and pod_status != "Completed" \
-            and pod_status != "Succeeded":
+        if pod_status != "Running" and pod_status != "Completed" and pod_status != "Succeeded":
             notready_pods.append(pod)
     if len(notready_pods) != 0:
         status = False
@@ -154,10 +167,8 @@ def monitor_namespace(namespace):
 
 # Monitor component namespace
 def monitor_component(iteration, component_namespace):
-    watch_component_status, failed_component_pods = \
-        monitor_namespace(component_namespace)
-    logging.info("Iteration %s: %s: %s"
-                 % (iteration, component_namespace, watch_component_status))
+    watch_component_status, failed_component_pods = monitor_namespace(component_namespace)
+    logging.info("Iteration %s: %s: %s" % (iteration, component_namespace, watch_component_status))
     return watch_component_status, failed_component_pods
 
 
@@ -178,7 +189,7 @@ def find_kraken_node():
         runcommand.invoke("kubectl config set-context --current --namespace=" + str(kraken_project))
         pod_json_str = runcommand.invoke("kubectl get pods/" + str(kraken_pod_name) + " -o json")
         pod_json = json.loads(pod_json_str)
-        node_name = pod_json['spec']['nodeName']
+        node_name = pod_json["spec"]["nodeName"]
 
         # Reset to the default project
         runcommand.invoke("kubectl config set-context --current --namespace=default")

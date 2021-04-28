@@ -46,8 +46,9 @@ class abstract_node_scenarios:
                 logging.info("The kubelet of the node %s has been stopped" % (node))
                 logging.info("stop_kubelet_scenario has been successfuly injected!")
             except Exception as e:
-                logging.error("Failed to stop the kubelet of the node. Encountered following "
-                              "exception: %s. Test Failed" % (e))
+                logging.error(
+                    "Failed to stop the kubelet of the node. Encountered following " "exception: %s. Test Failed" % (e)
+                )
                 logging.error("stop_kubelet_scenario injection failed!")
                 sys.exit(1)
 
@@ -64,12 +65,12 @@ class abstract_node_scenarios:
             try:
                 logging.info("Starting node_crash_scenario injection")
                 logging.info("Crashing the node %s" % (node))
-                runcommand.invoke("oc debug node/" + node + " -- chroot /host "
-                                  "dd if=/dev/urandom of=/proc/sysrq-trigger")
+                runcommand.invoke(
+                    "oc debug node/" + node + " -- chroot /host " "dd if=/dev/urandom of=/proc/sysrq-trigger"
+                )
                 logging.info("node_crash_scenario has been successfuly injected!")
             except Exception as e:
-                logging.error("Failed to crash the node. Encountered following exception: %s. "
-                              "Test Failed" % (e))
+                logging.error("Failed to crash the node. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("node_crash_scenario injection failed!")
                 sys.exit(1)
 

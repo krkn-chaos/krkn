@@ -15,8 +15,11 @@ def list_namespaces():
         cli = client.CoreV1Api()
         ret = cli.list_namespace(pretty=True)
     except ApiException as e:
-        logging.error("Exception when calling \
-                       CoreV1Api->list_namespaced_pod: %s\n" % e)
+        logging.error(
+            "Exception when calling \
+                       CoreV1Api->list_namespaced_pod: %s\n"
+            % e
+        )
     for namespace in ret.items:
         namespaces.append(namespace.metadata.name)
     return namespaces
@@ -47,9 +50,9 @@ def check_namespaces(namespaces):
 
 def run(cmd):
     try:
-        output = subprocess.Popen(cmd, shell=True,
-                                  universal_newlines=True, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT)
+        output = subprocess.Popen(
+            cmd, shell=True, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
         (out, err) = output.communicate()
     except Exception as e:
         logging.error("Failed to run %s, error: %s" % (cmd, e))

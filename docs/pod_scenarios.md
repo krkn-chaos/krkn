@@ -1,5 +1,5 @@
 ### Pod Scenarios
-Kraken consumes [Powerfulseal](https://github.com/powerfulseal/powerfulseal) under the hood to run the pod scenarios. 
+Kraken consumes [Powerfulseal](https://github.com/powerfulseal/powerfulseal) under the hood to run the pod scenarios.
 
 
 #### Pod chaos scenarios

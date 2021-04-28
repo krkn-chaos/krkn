@@ -16,7 +16,7 @@ Following node chaos scenarios are supported:
 
 **NOTE**: node_start_scenario, node_stop_scenario, node_stop_start_scenario, node_termination_scenario, node_reboot_scenario and stop_start_kubelet_scenario are supported only on AWS and GCP as of now.
 
-#### AWS 
+#### AWS
 
 **NOTE**: For clusters with AWS make sure [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html) is installed and properly [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html) using an AWS account
 
@@ -24,9 +24,9 @@ Following node chaos scenarios are supported:
 **NOTE**: For clusters with GCP make sure [GCP CLI](https://cloud.google.com/sdk/docs/install#linux) is installed.
 
 A google service account is required to give proper authentication to GCP for node actions. See [here](https://cloud.google.com/docs/authentication/getting-started) for how to create a service account.
- 
+
 **NOTE**: A user with 'resourcemanager.projects.setIamPolicy' permission is required to grant project-level permissions to the service account.
- 
+
 After creating the service account you'll need to enable the account using the following: ```export GOOGLE_APPLICATION_CREDENTIALS="<serviceaccount.json>"```
 
 #### OPENSTACK
@@ -47,7 +47,7 @@ You will also need to create a service principal and give it the correct access,
 
 To properly run the service principal requires “Azure Active Directory Graph/Application.ReadWrite.OwnedBy” api permission granted and “User Access Administrator”
 
-Before running you'll need to set the following: 
+Before running you'll need to set the following:
 1. Login using ```az login```
 
 2. ```export AZURE_TENANT_ID=<tenant_id>```
@@ -87,15 +87,15 @@ node_scenarios:
     label_selector: node-role.kubernetes.io/infra
     instance_kill_count: 1
     timeout: 120
-  - actions:                                                        
+  - actions:
     - stop_start_helper_node_scenario                               # node chaos scenario for helper node
-    instance_kill_count: 1                                          
-    timeout: 120                                                   
+    instance_kill_count: 1
+    timeout: 120
     helper_node_ip:                                                 # ip address of the helper node
     service:                                                        # check status of the services on the helper node
       - haproxy
       - dhcpd
       - named
     ssh_private_key: /root/.ssh/id_rsa                              # ssh key to access the helper node
-    cloud_type: openstack                                           
+    cloud_type: openstack
 ```
