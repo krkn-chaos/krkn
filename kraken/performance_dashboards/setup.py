@@ -12,7 +12,7 @@ def setup(repo):
         # delete repo to clone the latest copy if exists
         subprocess.run(delete_repo, shell=True, universal_newlines=True, timeout=45)
         # clone the repo
-        git.Repo.clone_from(repo, '/tmp/performance-dashboards')
+        git.Repo.clone_from(repo, "/tmp/performance-dashboards")
         # deploy performance dashboards
         subprocess.run(command, shell=True, universal_newlines=True)
     except Exception as e:

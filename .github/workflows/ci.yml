@@ -1,0 +1,22 @@
+name: Code Quality Check
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  lint-ci:
+    runs-on: ubuntu-latest
+    name: Run pre-commit and install test
+    steps:
+      - name: Check out source repository
+        uses: actions/checkout@v2
+      - name: Set up Python environment
+        uses: actions/setup-python@v1
+        with:
+          python-version: "3.8"
+      - name: Run pre-commit
+        uses: pre-commit/action@v2.0.3
+      - name: Install Kraken
+        run: |
+          python setup.py develop

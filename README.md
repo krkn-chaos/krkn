@@ -42,7 +42,7 @@ Monitoring the Kubernetes/OpenShift cluster to observe the impact of Kraken chao
 - Blog post emphasizing the importance of making Chaos part of Performance and Scale runs to mimic the production environments: https://www.openshift.com/blog/making-chaos-part-of-kubernetes/openshift-performance-and-scalability-tests
 
 ### Contributions
-We are always looking for more enhancements, fixes to make it better, any contributions are most welcome. Feel free to report or work on the issues filed on github. 
+We are always looking for more enhancements, fixes to make it better, any contributions are most welcome. Feel free to report or work on the issues filed on github.
 
 [More information on how to Contribute](docs/contribute.md)
 

@@ -5,9 +5,9 @@ import logging
 
 def run(cmd):
     try:
-        output = subprocess.Popen(cmd, shell=True,
-                                  universal_newlines=True, stdout=subprocess.PIPE,
-                                  stderr=subprocess.STDOUT)
+        output = subprocess.Popen(
+            cmd, shell=True, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
+        )
         (out, err) = output.communicate()
         logging.info("out " + str(out))
     except Exception as e:

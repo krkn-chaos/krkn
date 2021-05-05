@@ -39,12 +39,12 @@ class OPENSTACKCLOUD:
         i = 0
         sleeper = 1
         while i <= timeout:
-            instStatus = runcommand.invoke("openstack server show %s | tr -d ' ' |"
-                                           "grep '^|status' |"
-                                           "cut -d '|' -f3 | tr -d '\n'" % (node))
+            instStatus = runcommand.invoke(
+                "openstack server show %s | tr -d ' ' |" "grep '^|status' |" "cut -d '|' -f3 | tr -d '\n'" % (node)
+            )
             logging.info("instance status is %s" % (instStatus))
             logging.info("expected status is %s" % (expected_status))
-            if (instStatus.strip() == expected_status):
+            if instStatus.strip() == expected_status:
                 logging.info("instance status has reached desired status %s" % (instStatus))
                 return True
             time.sleep(sleeper)
@@ -53,7 +53,7 @@ class OPENSTACKCLOUD:
     # Get the openstack instance name
     def get_openstack_nodename(self, os_node_ip):
         server_list = runcommand.invoke("openstack server list | grep %s" % (os_node_ip))
-        list_of_servers = server_list.split('\n')
+        list_of_servers = server_list.split("\n")
         for item in list_of_servers:
             items = item.split("|")
             counter = 0
@@ -63,7 +63,7 @@ class OPENSTACKCLOUD:
                     logging.info("Openstack node name is %s " % (node_name))
                     counter += 1
                     continue
-                item_list = i.split('=')
+                item_list = i.split("=")
                 if len(item_list) == 2 and item_list[-1].strip() == os_node_ip:
                     return node_name
                 counter += 1
@@ -87,8 +87,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.info("Node with instance ID: %s is in running state" % (node))
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
-                logging.error("Failed to start node instance. Encountered following "
-                              "exception: %s. Test Failed" % (e))
+                logging.error(
+                    "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
+                )
                 logging.error("node_start_scenario injection failed!")
                 sys.exit(1)
 
@@ -105,8 +106,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.info("Node with instance name: %s is in stopped state" % (node))
                 nodeaction.wait_for_ready_status(node, timeout)
             except Exception as e:
-                logging.error("Failed to stop node instance. Encountered following exception: %s. "
-                              "Test Failed" % (e))
+                logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("node_stop_scenario injection failed!")
                 sys.exit(1)
 
@@ -124,8 +124,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.info("Node with instance name: %s has been rebooted" % (node))
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
-                logging.error("Failed to reboot node instance. Encountered following exception:"
-                              " %s. Test Failed" % (e))
+                logging.error(
+                    "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
+                )
                 logging.error("node_reboot_scenario injection failed!")
                 sys.exit(1)
 
@@ -141,8 +142,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.info("Helper node with IP: %s is in running state" % (node_ip))
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
-                logging.error("Failed to start node instance. Encountered following "
-                              "exception: %s. Test Failed" % (e))
+                logging.error(
+                    "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
+                )
                 logging.error("helper_node_start_scenario injection failed!")
                 sys.exit(1)
 
@@ -157,8 +159,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 self.openstackcloud.wait_until_stopped(openstack_node_name)
                 logging.info("Helper node with IP: %s is in stopped state" % (node_ip))
             except Exception as e:
-                logging.error("Failed to stop node instance. Encountered following exception: %s. "
-                              "Test Failed" % (e))
+                logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("helper_node_stop_scenario injection failed!")
                 sys.exit(1)
 
@@ -169,7 +170,6 @@ class openstack_node_scenarios(abstract_node_scenarios):
             logging.info("Service status checked on %s" % (node_ip))
             logging.info("Check service status is successfuly injected!")
         except Exception as e:
-            logging.error("Failed to check service status. Encountered following exception:"
-                          " %s. Test Failed" % (e))
+            logging.error("Failed to check service status. Encountered following exception:" " %s. Test Failed" % (e))
             logging.error("helper_node_service_status injection failed!")
             sys.exit(1)

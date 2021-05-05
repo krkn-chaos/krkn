@@ -25,22 +25,24 @@ node_general = False
 
 # Get the node scenarios object of specfied cloud type
 def get_node_scenario_object(node_scenario):
-    if "cloud_type" not in node_scenario.keys() or node_scenario['cloud_type'] == "generic":
+    if "cloud_type" not in node_scenario.keys() or node_scenario["cloud_type"] == "generic":
         global node_general
         node_general = True
         return general_node_scenarios()
-    if node_scenario['cloud_type'] == 'aws':
+    if node_scenario["cloud_type"] == "aws":
         return aws_node_scenarios()
-    elif node_scenario['cloud_type'] == 'gcp':
+    elif node_scenario["cloud_type"] == "gcp":
         return gcp_node_scenarios()
-    elif node_scenario['cloud_type'] == 'openstack':
+    elif node_scenario["cloud_type"] == "openstack":
         return openstack_node_scenarios()
-    elif node_scenario['cloud_type'] == 'azure' or node_scenario['cloud_type'] == 'az':
+    elif node_scenario["cloud_type"] == "azure" or node_scenario["cloud_type"] == "az":
         return azure_node_scenarios()
     else:
-        logging.error("Cloud type " + node_scenario['cloud_type'] + " is not currently supported; "
-                      "try using 'generic' if wanting to stop/start kubelet or fork bomb on any "
-                      "cluster")
+        logging.error(
+            "Cloud type " + node_scenario["cloud_type"] + " is not currently supported; "
+            "try using 'generic' if wanting to stop/start kubelet or fork bomb on any "
+            "cluster"
+        )
         sys.exit(1)
 
 
@@ -77,19 +79,23 @@ def inject_node_scenario(action, node_scenario, node_scenario_object):
         elif action == "node_crash_scenario":
             node_scenario_object.node_crash_scenario(instance_kill_count, node, timeout)
         elif action == "stop_start_helper_node_scenario":
-            if node_scenario['cloud_type'] != "openstack":
-                logging.error("Scenario: " + action + " is not supported for "
-                              "cloud type " + node_scenario['cloud_type'] + ", skipping action")
+            if node_scenario["cloud_type"] != "openstack":
+                logging.error(
+                    "Scenario: " + action + " is not supported for "
+                    "cloud type " + node_scenario["cloud_type"] + ", skipping action"
+                )
             else:
-                if not node_scenario['helper_node_ip']:
+                if not node_scenario["helper_node_ip"]:
                     logging.error("Helper node IP address is not provided")
                     sys.exit(1)
                 node_scenario_object.helper_node_stop_start_scenario(
-                    instance_kill_count, node_scenario['helper_node_ip'], timeout)
+                    instance_kill_count, node_scenario["helper_node_ip"], timeout
+                )
                 node_scenario_object.helper_node_service_status(
-                    node_scenario['helper_node_ip'], service, ssh_private_key, timeout)
+                    node_scenario["helper_node_ip"], service, ssh_private_key, timeout
+                )
         else:
-            logging.info('There is no node action that matches %s, skipping scenario' % action)
+            logging.info("There is no node action that matches %s, skipping scenario" % action)
 
 
 # Get cerberus status
@@ -101,15 +107,16 @@ def cerberus_integration(config):
             logging.error("url where Cerberus publishes True/False signal is not provided.")
             sys.exit(1)
         cerberus_status = requests.get(cerberus_url).content
-        cerberus_status = True if cerberus_status == b'True' else False
+        cerberus_status = True if cerberus_status == b"True" else False
         if not cerberus_status:
-            logging.error("Received a no-go signal from Cerberus, looks like "
-                          "the cluster is unhealthy. Please check the Cerberus "
-                          "report for more details. Test failed.")
+            logging.error(
+                "Received a no-go signal from Cerberus, looks like "
+                "the cluster is unhealthy. Please check the Cerberus "
+                "report for more details. Test failed."
+            )
             sys.exit(1)
         else:
-            logging.info("Received a go signal from Ceberus, the cluster is healthy. "
-                         "Test passed.")
+            logging.info("Received a go signal from Ceberus, the cluster is healthy. " "Test passed.")
     return cerberus_status
 
 
@@ -118,35 +125,36 @@ def publish_kraken_status(config, failed_post_scenarios):
     cerberus_status = cerberus_integration(config)
     if not cerberus_status:
         if failed_post_scenarios:
-            if config['kraken']['exit_on_failure']:
-                logging.info("Cerberus status is not healthy and post action scenarios "
-                             "are still failing, exiting kraken run")
+            if config["kraken"]["exit_on_failure"]:
+                logging.info(
+                    "Cerberus status is not healthy and post action scenarios " "are still failing, exiting kraken run"
+                )
                 sys.exit(1)
             else:
-                logging.info("Cerberus status is not healthy and post action scenarios "
-                             "are still failing")
+                logging.info("Cerberus status is not healthy and post action scenarios " "are still failing")
     else:
         if failed_post_scenarios:
-            if config['kraken']['exit_on_failure']:
-                logging.info("Cerberus status is healthy but post action scenarios "
-                             "are still failing, exiting kraken run")
+            if config["kraken"]["exit_on_failure"]:
+                logging.info(
+                    "Cerberus status is healthy but post action scenarios " "are still failing, exiting kraken run"
+                )
                 sys.exit(1)
             else:
-                logging.info("Cerberus status is healthy but post action scenarios "
-                             "are still failing")
+                logging.info("Cerberus status is healthy but post action scenarios " "are still failing")
 
 
 def run_post_action(kubeconfig_path, scenario, pre_action_output=""):
 
     if scenario.endswith(".yaml") or scenario.endswith(".yml"):
-        action_output = runcommand.invoke("powerfulseal autonomous "
-                                          "--use-pod-delete-instead-of-ssh-kill"
-                                          " --policy-file %s --kubeconfig %s --no-cloud"
-                                          " --inventory-kubernetes --headless"
-                                          % (scenario, kubeconfig_path))
+        action_output = runcommand.invoke(
+            "powerfulseal autonomous "
+            "--use-pod-delete-instead-of-ssh-kill"
+            " --policy-file %s --kubeconfig %s --no-cloud"
+            " --inventory-kubernetes --headless" % (scenario, kubeconfig_path)
+        )
         # read output to make sure no error
         if "ERROR" in action_output:
-            action_output.split("ERROR")[1].split('\n')[0]
+            action_output.split("ERROR")[1].split("\n")[0]
             if not pre_action_output:
                 logging.info("Powerful seal pre action check failed for " + str(scenario))
             return False
@@ -159,7 +167,7 @@ def run_post_action(kubeconfig_path, scenario, pre_action_output=""):
             if pre_action_output == action_output:
                 logging.info(scenario + " post action checks passed")
             else:
-                logging.info(scenario + ' post action response did not match pre check output')
+                logging.info(scenario + " post action response did not match pre check output")
                 return False
     elif scenario != "":
         # invoke custom bash script
@@ -168,7 +176,7 @@ def run_post_action(kubeconfig_path, scenario, pre_action_output=""):
             if pre_action_output == action_output:
                 logging.info(scenario + " post action checks passed")
             else:
-                logging.info(scenario + ' post action response did not match pre check output')
+                logging.info(scenario + " post action response did not match pre check output")
                 return False
 
     return action_output
@@ -178,12 +186,11 @@ def run_post_action(kubeconfig_path, scenario, pre_action_output=""):
 def post_actions(kubeconfig_path, scenario, failed_post_scenarios, pre_action_output):
 
     for failed_scenario in failed_post_scenarios:
-        post_action_output = run_post_action(kubeconfig_path,
-                                             failed_scenario[0], failed_scenario[1])
+        post_action_output = run_post_action(kubeconfig_path, failed_scenario[0], failed_scenario[1])
         if post_action_output is not False:
             failed_post_scenarios.remove(failed_scenario)
         else:
-            logging.info('Post action scenario ' + str(failed_scenario) + "is still failing")
+            logging.info("Post action scenario " + str(failed_scenario) + "is still failing")
 
     # check post actions
     if len(scenario) > 1:
@@ -201,11 +208,12 @@ def pod_scenarios(scenarios_list, config, failed_post_scenarios):
             if len(pod_scenario) > 1:
                 pre_action_output = run_post_action(kubeconfig_path, pod_scenario[1])
             else:
-                pre_action_output = ''
-            scenario_logs = runcommand.invoke("powerfulseal autonomous --use-pod-delete-instead-"
-                                              "of-ssh-kill --policy-file %s --kubeconfig %s "
-                                              "--no-cloud --inventory-kubernetes --headless"
-                                              % (pod_scenario[0], kubeconfig_path))
+                pre_action_output = ""
+            scenario_logs = runcommand.invoke(
+                "powerfulseal autonomous --use-pod-delete-instead-"
+                "of-ssh-kill --policy-file %s --kubeconfig %s "
+                "--no-cloud --inventory-kubernetes --headless" % (pod_scenario[0], kubeconfig_path)
+            )
 
             # Display pod scenario logs/actions
             print(scenario_logs)
@@ -214,23 +222,23 @@ def pod_scenarios(scenarios_list, config, failed_post_scenarios):
             logging.info("Waiting for the specified duration: %s" % (wait_duration))
             time.sleep(wait_duration)
 
-            failed_post_scenarios = post_actions(kubeconfig_path, pod_scenario,
-                                                 failed_post_scenarios, pre_action_output)
+            failed_post_scenarios = post_actions(
+                kubeconfig_path, pod_scenario, failed_post_scenarios, pre_action_output
+            )
             publish_kraken_status(config, failed_post_scenarios)
     except Exception as e:
-        logging.error("Failed to run scenario: %s. Encountered the following "
-                      "exception: %s" % (pod_scenario[0], e))
+        logging.error("Failed to run scenario: %s. Encountered the following " "exception: %s" % (pod_scenario[0], e))
     return failed_post_scenarios
 
 
 def node_scenarios(scenarios_list, config):
     for node_scenario_config in scenarios_list:
-        with open(node_scenario_config, 'r') as f:
+        with open(node_scenario_config, "r") as f:
             node_scenario_config = yaml.full_load(f)
-            for node_scenario in node_scenario_config['node_scenarios']:
+            for node_scenario in node_scenario_config["node_scenarios"]:
                 node_scenario_object = get_node_scenario_object(node_scenario)
-                if node_scenario['actions']:
-                    for action in node_scenario['actions']:
+                if node_scenario["actions"]:
+                    for action in node_scenario["actions"]:
                         inject_node_scenario(action, node_scenario, node_scenario_object)
                         logging.info("Waiting for the specified duration: %s" % (wait_duration))
                         time.sleep(wait_duration)
@@ -240,13 +248,13 @@ def node_scenarios(scenarios_list, config):
 
 def time_scenarios(scenarios_list, config):
     for time_scenario_config in scenarios_list:
-        with open(time_scenario_config, 'r') as f:
+        with open(time_scenario_config, "r") as f:
             scenario_config = yaml.full_load(f)
-            for time_scenario in scenario_config['time_scenarios']:
+            for time_scenario in scenario_config["time_scenarios"]:
                 object_type, object_names = time_actions.skew_time(time_scenario)
                 not_reset = time_actions.check_date_time(object_type, object_names)
                 if len(not_reset) > 0:
-                    logging.info('Object times were not reset')
+                    logging.info("Object times were not reset")
                 logging.info("Waiting for the specified duration: %s" % (wait_duration))
                 time.sleep(wait_duration)
                 publish_kraken_status(config, not_reset)
@@ -266,36 +274,31 @@ def litmus_scenarios(scenarios_list, config, litmus_namespaces, litmus_uninstall
                         logging.info("opened yaml" + str(item))
                         yaml_item = list(yaml.safe_load_all(f))[0]
 
-                if yaml_item['kind'] == "ChaosEngine":
-                    engine_name = yaml_item['metadata']['name']
-                    namespace = yaml_item['metadata']['namespace']
+                if yaml_item["kind"] == "ChaosEngine":
+                    engine_name = yaml_item["metadata"]["name"]
+                    namespace = yaml_item["metadata"]["namespace"]
                     litmus_namespaces.append(namespace)
-                    experiment_names = yaml_item['spec']['experiments']
+                    experiment_names = yaml_item["spec"]["experiments"]
                     for expr in experiment_names:
-                        expr_name = expr['name']
-                        experiment_result = common_litmus.check_experiment(engine_name,
-                                                                           expr_name,
-                                                                           namespace)
+                        expr_name = expr["name"]
+                        experiment_result = common_litmus.check_experiment(engine_name, expr_name, namespace)
                         if experiment_result:
-                            logging.info("Scenario: %s has been successfully injected!"
-                                         % item)
+                            logging.info("Scenario: %s has been successfully injected!" % item)
                         else:
-                            logging.info("Scenario: %s was not successfully injected!"
-                                         % item)
+                            logging.info("Scenario: %s was not successfully injected!" % item)
                             if litmus_uninstall:
                                 for l_item in l_scenario:
-                                    logging.info('item ' + str(l_item))
+                                    logging.info("item " + str(l_item))
                                     runcommand.invoke("kubectl delete -f %s" % l_item)
             if litmus_uninstall:
                 for item in l_scenario:
-                    logging.info('item ' + str(item))
+                    logging.info("item " + str(item))
                     runcommand.invoke("kubectl delete -f %s" % item)
             logging.info("Waiting for the specified duration: %s" % wait_duration)
             time.sleep(wait_duration)
             cerberus_integration(config)
         except Exception as e:
-            logging.error("Failed to run litmus scenario: %s. Encountered "
-                          "the following exception: %s" % (item, e))
+            logging.error("Failed to run litmus scenario: %s. Encountered " "the following exception: %s" % (item, e))
     return litmus_namespaces
 
 
@@ -307,18 +310,20 @@ def main(cfg):
 
     # Parse and read the config
     if os.path.isfile(cfg):
-        with open(cfg, 'r') as f:
+        with open(cfg, "r") as f:
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
-        litmus_version = config['kraken'].get("litmus_version", 'v1.9.1')
-        litmus_uninstall = config['kraken'].get("litmus_uninstall", False)
+        litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
+        litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
         deploy_performance_dashboards = config["performance_monitoring"].get("deploy_dashboards", False)
-        dashboard_repo = config["performance_monitoring"].get("repo", "https://github.com/cloud-bulldozer/performance-dashboards.git") # noqa
+        dashboard_repo = config["performance_monitoring"].get(
+            "repo", "https://github.com/cloud-bulldozer/performance-dashboards.git"
+        )  # noqa
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
@@ -332,8 +337,9 @@ def main(cfg):
         # Cluster info
         logging.info("Fetching cluster info")
         cluster_version = runcommand.invoke("kubectl get clusterversion")
-        cluster_info = runcommand.invoke("kubectl cluster-info | awk 'NR==1' | sed -r "
-                                         "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'")  # noqa
+        cluster_info = runcommand.invoke(
+            "kubectl cluster-info | awk 'NR==1' | sed -r " "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'"
+        )  # noqa
         logging.info("\n%s%s" % (cluster_version, cluster_info))
 
         # Deploy performance dashboards
@@ -348,17 +354,16 @@ def main(cfg):
         if daemon_mode:
             logging.info("Daemon mode enabled, kraken will cause chaos forever\n")
             logging.info("Ignoring the iterations set")
-            iterations = float('inf')
+            iterations = float("inf")
         else:
-            logging.info("Daemon mode not enabled, will run through %s iterations\n"
-                         % str(iterations))
+            logging.info("Daemon mode not enabled, will run through %s iterations\n" % str(iterations))
             iterations = int(iterations)
 
         failed_post_scenarios = []
         litmus_namespaces = []
         litmus_installed = False
         # Loop to run the chaos starts here
-        while (int(iteration) < iterations):
+        while int(iteration) < iterations:
             # Inject chaos scenarios specified in the config
             logging.info("Executing scenarios for iteration " + str(iteration))
             if chaos_scenarios:
@@ -368,8 +373,7 @@ def main(cfg):
                     if scenarios_list:
                         # Inject pod chaos scenarios specified in the config
                         if scenario_type == "pod_scenarios":
-                            failed_post_scenarios = pod_scenarios(scenarios_list, config,
-                                                                  failed_post_scenarios)
+                            failed_post_scenarios = pod_scenarios(scenarios_list, config, failed_post_scenarios)
 
                         # Inject node chaos scenarios specified in the config
                         elif scenario_type == "node_scenarios":
@@ -383,9 +387,9 @@ def main(cfg):
                                 common_litmus.install_litmus(litmus_version)
                                 common_litmus.deploy_all_experiments(litmus_version)
                                 litmus_installed = True
-                            litmus_namespaces = litmus_scenarios(scenarios_list, config,
-                                                                 litmus_namespaces,
-                                                                 litmus_uninstall)
+                            litmus_namespaces = litmus_scenarios(
+                                scenarios_list, config, litmus_namespaces, litmus_uninstall
+                            )
 
             iteration += 1
             logging.info("")
@@ -407,21 +411,15 @@ if __name__ == "__main__":
     # Initialize the parser to read the config
     parser = optparse.OptionParser()
     parser.add_option(
-        "-c", "--config",
-        dest="cfg",
-        help="config location",
-        default="config/config.yaml",
+        "-c", "--config", dest="cfg", help="config location", default="config/config.yaml",
     )
     (options, args) = parser.parse_args()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler("kraken.report", mode='w'),
-            logging.StreamHandler()
-        ]
+        handlers=[logging.FileHandler("kraken.report", mode="w"), logging.StreamHandler()],
     )
-    if (options.cfg is None):
+    if options.cfg is None:
         logging.error("Please check if you have passed the config")
         sys.exit(1)
     else:

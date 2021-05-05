@@ -14,4 +14,3 @@ python-openstackclient
 gitpython
 paramiko
 setuptools
-tox
