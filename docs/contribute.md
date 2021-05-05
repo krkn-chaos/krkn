@@ -47,7 +47,6 @@ $ git rebase -i <commit_id_of_first_change_commit>
 
 In the interactive rebase screen, set the first commit to `pick` and all others to `squash` (or whatever else you may need to do).
 
-
 Push your rebased commits (you may need to force), then issue your PR.
 
 ```
