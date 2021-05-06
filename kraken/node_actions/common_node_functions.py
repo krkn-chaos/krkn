@@ -10,7 +10,7 @@ import kraken.invoke.command as runcommand
 def get_node(node_name, label_selector):
     if node_name in kubecli.list_killable_nodes():
         return node_name
-    else:
+    elif node_name:
         logging.info("Node with provided node_name does not exist or the node might " "be in NotReady state.")
     nodes = kubecli.list_killable_nodes(label_selector)
     if not nodes:
