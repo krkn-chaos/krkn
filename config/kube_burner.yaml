@@ -1,0 +1,15 @@
+---
+
+global:
+  writeToFile: true
+  metricsDirectory: collected-metrics
+  measurements:
+    - name: podLatency
+      esIndex: kube-burner
+
+  indexerConfig:
+    enabled: true
+    esServers: [https://elastic.example.com:9200]
+    insecureSkipVerify: true
+    defaultIndex: kraken
+    type: elastic

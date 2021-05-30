@@ -6,6 +6,8 @@ import yaml
 import logging
 import optparse
 import pyfiglet
+import uuid
+import time
 import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 import kraken.litmus.common_litmus as common_litmus
@@ -13,6 +15,7 @@ import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
 import kraken.pod_scenarios.setup as pod_scenarios
 import kraken.node_actions.run as nodeaction
+import kraken.kube_burner.client as kube_burner
 
 
 # Main function
@@ -26,6 +29,7 @@ def main(cfg):
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration
+        distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
@@ -37,6 +41,16 @@ def main(cfg):
         dashboard_repo = config["performance_monitoring"].get(
             "repo", "https://github.com/cloud-bulldozer/performance-dashboards.git"
         )  # noqa
+        capture_metrics = config["performance_monitoring"].get("capture_metrics", False)
+        kube_burner_url = config["performance_monitoring"].get(
+            "kube_burner_binary_url",
+            "https://github.com/cloud-bulldozer/kube-burner/releases/download/v0.9.1/kube-burner-0.9.1-Linux-x86_64.tar.gz",  # noqa
+        )
+        config_path = config["performance_monitoring"].get("config_path", "config/kube_burner.yaml")
+        metrics_profile = config["performance_monitoring"].get("metrics_profile_path", "config/metrics-aggregated.yaml")
+        prometheus_url = config["performance_monitoring"].get("prometheus_url", "")
+        prometheus_bearer_token = config["performance_monitoring"].get("prometheus_bearer_token", "")
+        run_uuid = config["performance_monitoring"].get("uuid", "")
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
@@ -59,6 +73,13 @@ def main(cfg):
         if deploy_performance_dashboards:
             performance_dashboards.setup(dashboard_repo)
 
+        # Generate uuid for the run
+        if run_uuid:
+            logging.info("Using the uuid defined by the user for the run: %s" % run_uuid)
+        else:
+            run_uuid = str(uuid.uuid4())
+            logging.info("Generated a uuid for the run: %s" % run_uuid)
+
         # Initialize the start iteration to 0
         iteration = 0
 
@@ -75,6 +96,10 @@ def main(cfg):
         failed_post_scenarios = []
         litmus_namespaces = []
         litmus_installed = False
+
+        # Capture the start time
+        start_time = int(time.time())
+
         # Loop to run the chaos starts here
         while int(iteration) < iterations:
             # Inject chaos scenarios specified in the config
@@ -111,6 +136,25 @@ def main(cfg):
 
             iteration += 1
             logging.info("")
+
+        # Capture the end time
+        end_time = int(time.time())
+
+        # Capture metrics for the run
+        if capture_metrics:
+            logging.info("Capturing metrics")
+            kube_burner.setup(kube_burner_url)
+            kube_burner.scrape_metrics(
+                distribution,
+                run_uuid,
+                prometheus_url,
+                prometheus_bearer_token,
+                start_time,
+                end_time,
+                config_path,
+                metrics_profile,
+            )
+
         if litmus_uninstall and litmus_installed:
             for namespace in litmus_namespaces:
                 common_litmus.delete_chaos(namespace)
