@@ -47,6 +47,8 @@ We are always looking for more enhancements, fixes to make it better, any contri
 [More information on how to Contribute](docs/contribute.md)
 
 ### Community
-Key Members(slack_usernames): paigerube14, rook, mffiedler, mohit, dry923, rsevilla, ravi
+Key Members(slack_usernames): paigerube14, rook, mffiedler, mohit, dry923, rsevilla, ravielluri
 * [**#sig-scalability on Kubernetes Slack**](https://kubernetes.slack.com)
-* [**#forum-perfscale on CoreOS Slack**](https://coreos.slack.com)
+* [**#sig-scalability on Kubernetes Slack**](https://kubernetes.slack.com)
+* [**#forum-chaos on CoreOS Slack internal to Red Hat**](https://coreos.slack.com)
+* [**#forum-perfscale on CoreOS Slack internal to Red Hat**](https://coreos.slack.com)
