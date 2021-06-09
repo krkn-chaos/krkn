@@ -2,6 +2,52 @@ import kraken.invoke.command as runcommand
 import logging
 import time
 import sys
+import requests
+import yaml
+import kraken.cerberus.setup as cerberus
+
+
+# Inject litmus scenarios defined in the config
+def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration):
+    # Loop to run the scenarios starts here
+    for l_scenario in scenarios_list:
+        try:
+            for item in l_scenario:
+                runcommand.invoke("kubectl apply -f %s" % item)
+                if "http" in item:
+                    f = requests.get(item)
+                    yaml_item = list(yaml.safe_load_all(f.content))[0]
+                else:
+                    with open(item, "r") as f:
+                        logging.info("opened yaml" + str(item))
+                        yaml_item = list(yaml.safe_load_all(f))[0]
+
+                if yaml_item["kind"] == "ChaosEngine":
+                    engine_name = yaml_item["metadata"]["name"]
+                    namespace = yaml_item["metadata"]["namespace"]
+                    litmus_namespaces.append(namespace)
+                    experiment_names = yaml_item["spec"]["experiments"]
+                    for expr in experiment_names:
+                        expr_name = expr["name"]
+                        experiment_result = check_experiment(engine_name, expr_name, namespace)
+                        if experiment_result:
+                            logging.info("Scenario: %s has been successfully injected!" % item)
+                        else:
+                            logging.info("Scenario: %s was not successfully injected!" % item)
+                            if litmus_uninstall:
+                                for l_item in l_scenario:
+                                    logging.info("item " + str(l_item))
+                                    runcommand.invoke("kubectl delete -f %s" % l_item)
+            if litmus_uninstall:
+                for item in l_scenario:
+                    logging.info("item " + str(item))
+                    runcommand.invoke("kubectl delete -f %s" % item)
+            logging.info("Waiting for the specified duration: %s" % wait_duration)
+            time.sleep(wait_duration)
+            cerberus.get_status(config)
+        except Exception as e:
+            logging.error("Failed to run litmus scenario: %s. Encountered " "the following exception: %s" % (item, e))
+    return litmus_namespaces
 
 
 # Install litmus and wait until pod is running
