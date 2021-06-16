@@ -12,7 +12,7 @@ import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
 import kraken.pod_scenarios.setup as pod_scenarios
-import kraken.node_actions.common_node_functions as nodeaction
+import kraken.node_actions.run as nodeaction
 
 
 # Main function
