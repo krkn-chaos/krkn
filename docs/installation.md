@@ -31,10 +31,10 @@ $ python3 run_kraken.py --config <config_file_location>
 ```
 
 ### Run containerized version
-Assuming that the latest docker ( 17.05 or greater with multi-build support ) is intalled on the host, run:
+Assuming that the latest docker ( 17.05 or greater with multi-build support ) is installed on the host, run:
 ```
 $ docker pull quay.io/openshift-scale/kraken:latest
-$ docker run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config -v <path_to_kraken_config>:/root/kraken/config/config.yaml -d quay.io/openshift-scale/kraken:latest
+$ docker run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -d quay.io/openshift-scale/kraken:latest
 $ docker logs -f kraken
 ```
 
