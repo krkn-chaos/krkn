@@ -6,8 +6,6 @@ It uses [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) under the 
 
 ```
 performance_monitoring:
-    deploy_dashboards: False                              # Install a mutable grafana and load the performance dashboards. Enable this only when running on OpenShift
-    repo: "https://github.com/cloud-bulldozer/performance-dashboards.git"
     kube_burner_binary_url: "https://github.com/cloud-bulldozer/kube-burner/releases/download/v0.9.1/kube-burner-0.9.1-Linux-x86_64.tar.gz"
     capture_metrics: True
     config_path: config/kube_burner.yaml                  # Define the Elasticsearch url and index name in this config

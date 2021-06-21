@@ -51,6 +51,8 @@ def main(cfg):
         prometheus_url = config["performance_monitoring"].get("prometheus_url", "")
         prometheus_bearer_token = config["performance_monitoring"].get("prometheus_bearer_token", "")
         run_uuid = config["performance_monitoring"].get("uuid", "")
+        enable_alerts = config["performance_monitoring"].get("enable_alerts", False)
+        alert_profile = config["performance_monitoring"].get("alert_profile", "")
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
@@ -154,6 +156,18 @@ def main(cfg):
                 config_path,
                 metrics_profile,
             )
+
+        # Check for the alerts specified
+        if enable_alerts:
+            logging.info("Alerts checking is enabled")
+            kube_burner.setup(kube_burner_url)
+            if alert_profile:
+                kube_burner.alerts(
+                    distribution, prometheus_url, prometheus_bearer_token, start_time, end_time, alert_profile,
+                )
+            else:
+                logging.error("Alert profile is not defined")
+                sys.exit(1)
 
         if litmus_uninstall and litmus_installed:
             for namespace in litmus_namespaces:
