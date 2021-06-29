@@ -31,3 +31,5 @@ tunings:
     iterations: 1                                          # Number of times to execute the scenarios
     daemon_mode: False                                     # Iterations are set to infinity which means that the kraken will cause chaos forever
 ```
+
+**NOTE**: [config](https://github.com/cloud-bulldozer/kraken/tree/master/config/config_performance.yaml) can be used if leveraging the automated way to install the infrastruture pieces.

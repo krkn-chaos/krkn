@@ -16,3 +16,5 @@ paramiko
 setuptools
 openshift-client
 python-ipmi
+podman-compose
+docker-compose
