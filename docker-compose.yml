@@ -1,0 +1,35 @@
+version: "3"
+services:
+  elastic:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.13.2
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    environment:
+      discovery.type: single-node
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.13.2
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: "http://0.0.0.0:9200"
+  cerberus:
+    image: quay.io/openshift-scale/cerberus:latest
+    privileged: true
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "8080:8080"
+    volumes:
+       - ./config/cerberus.yaml:/root/cerberus/config/cerberus.yaml:Z  # Modify the config in case of the need to monitor additional components
+       - /root/.kube/config:/root/.kube/config:Z

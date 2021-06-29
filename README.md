@@ -15,6 +15,19 @@ See the [getting started doc](docs/getting_started.md) on support on how to get 
 After installation, refer back to the below sections for supported scenarios and how to tweak the kraken config to load them on your cluster
 
 
+### Setting up infrastructure dependencies
+Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastruture pieces can be easily installed, uninstalled by running:
+
+```
+$ cd kraken
+$ podman-compose up or $ docker-compose up    # Spins up the containers specified in the docker-compose.yml file present in the run directory
+$ podman-compose down or $ docker-compose up  # Delete the containers installed
+```
+This will manage the Cerberus and Elasticsearch containers on the host on which you are running Kraken.
+
+**NOTE**: Make sure to have enough resources ( memory and disk ) on the machine on top of which the containers are running as Elasticsearch is resource intensive. Cerberus monitors the system components by default, the [config](config/cerberus.yaml) can be tweaked to add applications namespaces, routes and other components to monitor as well. Also the command will keep running until killed as detached mode is not supported as of now.
+
+
 ### Config
 Instructions on how to setup the config and the options supported can be found at [Config](docs/config.md).
 
@@ -31,10 +44,12 @@ Kraken supports pod, node, time/date and [litmus](https://github.com/litmuschaos
 
 - [Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md)
 
+
 ### Kraken scenario pass/fail criteria and report
 It's important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
 - Having built in checks for pod and node based scenarios to ensure the expected number of replicas and nodes are up. It also supports running custom scripts with the checks.
 - Leveraging [Cerberus](https://github.com/openshift-scale/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail. It is highly recommended to turn on the Cerberus health check feature avaliable in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file.
+- Leveraging [kube-burner](docs/alerts.md) alerting feature to fail the runs in case of critical alerts.
 
 
 ### Performance monitoring

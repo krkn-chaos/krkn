@@ -1,0 +1,54 @@
+cerberus:
+    distribution: openshift                              # Distribution can be kubernetes or openshift
+    kubeconfig_path: ~/.kube/config                      # Path to kubeconfig
+    port: 8080                                           # http server port where cerberus status is published
+    watch_nodes: True                                    # Set to True for the cerberus to monitor the cluster nodes
+    watch_cluster_operators: True                        # Set to True for cerberus to monitor cluster operators
+    watch_url_routes:                                    # Route url's you want to monitor, this is a double array with the url and optional authorization parameter
+    watch_master_schedulable:                            # When enabled checks for the schedulable master nodes with given label.
+        enabled: True
+        label: node-role.kubernetes.io/master
+    watch_namespaces:                                    # List of namespaces to be monitored
+        -    openshift-etcd
+        -    openshift-apiserver
+        -    openshift-kube-apiserver
+        -    openshift-monitoring
+        -    openshift-kube-controller-manager
+        -    openshift-machine-api
+        -    openshift-kube-scheduler
+        -    openshift-ingress
+        -    openshift-sdn                               # When enabled, it will check for the cluster sdn and monitor that namespace
+    cerberus_publish_status: True                        # When enabled, cerberus starts a light weight http server and publishes the status
+    inspect_components: False                            # Enable it only when OpenShift client is supported to run
+                                                         # When enabled, cerberus collects logs, events and metrics of failed components
+
+    prometheus_url:                                      # The prometheus url/route is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.
+    prometheus_bearer_token:                             # The bearer token is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes. This is needed to authenticate with prometheus.
+                                                         # This enables Cerberus to query prometheus and alert on observing high Kube API Server latencies.
+
+    slack_integration: False                             # When enabled, cerberus reports the failed iterations in the slack channel
+                                                         # The following env vars needs to be set: SLACK_API_TOKEN ( Bot User OAuth Access Token ) and SLACK_CHANNEL ( channel to send notifications in case of failures )
+                                                         # When slack_integration is enabled, a watcher can be assigned for each day. The watcher of the day is tagged while reporting failures in the slack channel. Values are slack member ID's.
+    watcher_slack_ID:                                        # (NOTE: Defining the watcher id's is optional and when the watcher slack id's are not defined, the slack_team_alias tag is used if it is set else no tag is used while reporting failures in the slack channel.)
+        Monday:
+        Tuesday:
+        Wednesday:
+        Thursday:
+        Friday:
+        Saturday:
+        Sunday:
+    slack_team_alias:                                    # The slack team alias to be tagged while reporting failures in the slack channel when no watcher is assigned
+
+    custom_checks:                                       # Relative paths of files conataining additional user defined checks
+
+tunings:
+    timeout: 60                                          # Number of seconds before requests fail
+    iterations: 5                                        # Iterations to loop before stopping the watch, it will be replaced with infinity when the daemon mode is enabled
+    sleep_time: 5                                       # Sleep duration between each iteration
+    kube_api_request_chunk_size: 250                     # Large requests will be broken into the specified chunk size to reduce the load on API server and improve responsiveness.
+    daemon_mode: True                                    # Iterations are set to infinity which means that the cerberus will monitor the resources forever
+    cores_usage_percentage: 0.5                          # Set the fraction of cores to be used for multiprocessing
+
+database:
+    database_path: /tmp/cerberus.db                      # Path where cerberus database needs to be stored
+    reuse_database: False                                # When enabled, the database is reused to store the failures
