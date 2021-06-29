@@ -7,12 +7,13 @@ import re
 import sys
 import kraken.cerberus.setup as cerberus
 import yaml
+import random
 
 
-def pod_exec(pod_name, command, namespace):
+def pod_exec(pod_name, command, namespace, container_name):
     i = 0
     for i in range(5):
-        response = kubecli.exec_cmd_in_pod(command, pod_name, namespace)
+        response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
         if not response:
             time.sleep(2)
             continue
@@ -27,6 +28,19 @@ def pod_exec(pod_name, command, namespace):
 def node_debug(node_name, command):
     response = runcommand.invoke("oc debug node/" + node_name + " -- chroot /host " + command)
     return response
+
+
+def get_container_name(pod_name, namespace, container_name=""):
+
+    container_names = kubecli.get_containers_in_pod(pod_name, namespace)
+    if container_name != "":
+        if container_name in container_names:
+            return container_name
+        else:
+            logging.error("Container name %s not an existing container in pod %s" % (container_name, pod_name))
+    else:
+        container_name = container_names[random.randint(0, len(container_names) - 1)]
+        return container_name
 
 
 def skew_time(scenario):
@@ -50,6 +64,7 @@ def skew_time(scenario):
         return "node", node_names
 
     elif "pod" in scenario["object_type"]:
+        container_name = scenario.get("container_name", "")
         pod_names = []
         if "object_name" in scenario.keys() and scenario["object_name"]:
             for name in scenario["object_name"]:
@@ -79,23 +94,45 @@ def skew_time(scenario):
         if len(pod_names) == 0:
             logging.info("Cannot find pods matching the namespace/label_selector, please check")
             sys.exit(1)
+        pod_counter = 0
         for pod in pod_names:
             if len(pod) > 1:
-                pod_exec(pod[0], skew_command, pod[1])
+                selected_container_name = get_container_name(pod[0], pod[1], container_name)
+                pod_exec_response = pod_exec(pod[0], skew_command, pod[1], selected_container_name)
+                if pod_exec_response is False:
+                    logging.error(
+                        "Couldn't reset time on container %s in pod %s in namespace %s"
+                        % (selected_container_name, pod[0], pod[1])
+                    )
+                    sys.exit(1)
+                pod_names[pod_counter].append(selected_container_name)
             else:
-                pod_exec(pod, skew_command, scenario["namespace"])
+                selected_container_name = get_container_name(pod, scenario["namespace"], container_name)
+                pod_exec_response = pod_exec(pod, skew_command, scenario["namespace"], selected_container_name)
+                if pod_exec_response is False:
+                    logging.error(
+                        "Couldn't reset time on container %s in pod %s in namespace %s"
+                        % (selected_container_name, pod, scenario["namespace"])
+                    )
+                    sys.exit(1)
+                pod_names[pod_counter].append(selected_container_name)
             logging.info("Reset date/time on pod " + str(pod[0]))
+            pod_counter += 1
         return "pod", pod_names
 
 
 # From kubectl/oc command get time output
 def parse_string_date(obj_datetime):
     try:
+        logging.info("obj_date time " + str(obj_datetime))
         date_line = re.search(
-            r"[a-zA-Z0-9_() .]*\w{3}\s{1,}\w{3}\s{1,}\d{2}\s{1,}\d{2}:\d{2}:\d{2}\s{1,}\w{3} " r"\d{4}\W*", obj_datetime
+            r"[\s\S\n]*\w{3}\s{1,}\w{3}\s{1,}\d{2}\s{1,}\d{2}:\d{2}:\d{2}\s{1,}\w{3} " r"\d{4}\W*", obj_datetime
         )
-        return date_line.group().strip()
+        search_response = date_line.group().strip()
+        logging.info("search_res" + str(search_response))
+        return search_response
     except Exception:
+        logging.info("exception")
         return ""
 
 
@@ -135,13 +172,13 @@ def check_date_time(object_type, names):
         for pod_name in names:
             first_date_time = datetime.datetime.utcnow()
             counter = 0
-            pod_datetime_string = pod_exec(pod_name[0], skew_command, pod_name[1])
+            pod_datetime_string = pod_exec(pod_name[0], skew_command, pod_name[1], pod_name[2])
             pod_datetime = string_to_date(pod_datetime_string)
             while not first_date_time < pod_datetime < datetime.datetime.utcnow():
                 time.sleep(10)
                 logging.info("Date/time on pod %s still not reset, waiting 10 seconds and retrying" % pod_name[0])
                 first_date_time = datetime.datetime.utcnow()
-                pod_datetime = pod_exec(pod_name[0], skew_command, pod_name[1])
+                pod_datetime = pod_exec(pod_name[0], skew_command, pod_name[1], pod_name[2])
                 pod_datetime = string_to_date(pod_datetime)
                 counter += 1
                 if counter > max_retries:

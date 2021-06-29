@@ -164,6 +164,15 @@ def exec_cmd_in_pod(command, pod_name, namespace, container=None):
     return ret
 
 
+def get_containers_in_pod(pod_name, namespace):
+    pod_info = cli.read_namespaced_pod(pod_name, namespace)
+    container_names = []
+
+    for cont in pod_info.spec.containers:
+        container_names.append(cont.name)
+    return container_names
+
+
 # Obtain node status
 def get_node_status(node):
     try:

@@ -2,6 +2,7 @@ time_scenarios:
   - action: skew_time
     object_type: pod
     namespace: openshift-etcd
+    container_name: etcd
     label_selector: app=etcd
   - action: skew_date
     object_type: node
