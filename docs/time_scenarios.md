@@ -12,6 +12,8 @@ Configuration Options:
 
 **label_selector:** label on the nodes or pods you want to skew
 
+**container_name:** container name in pod you want to reset time on, if left blank it will randomly select one
+
 **object_name:** list of the names of pods or nodes you want to skew
 
 Refer to [time_scenarios_example](https://github.com/openshift-scale/kraken/blob/master/scenarios/time_scenarios_example.yml) config file.
@@ -24,6 +26,7 @@ time_scenarios:
       - apiserver-868595fcbb-6qnsc
       - apiserver-868595fcbb-mb9j5
     namespace: openshift-apiserver
+    container_name: openshift-apiserver
   - action: skew_date
     object_type: node
     label_selector: node-role.kubernetes.io/worker
