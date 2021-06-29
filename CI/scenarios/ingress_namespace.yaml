@@ -1,0 +1,6 @@
+scenarios:
+- action: delete
+  namespace: "^.*etcd.*$"
+  runs: 1
+  sleep: 15
+  wait_time: 30

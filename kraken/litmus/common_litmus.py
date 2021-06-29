@@ -178,8 +178,10 @@ def delete_chaos_experiments(namespace):
 
     namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + namespace + " | xargs")
     if namespace_exists.strip() != "0":
-        logging.info("Deleting all litmus experiments")
-        runcommand.invoke("kubectl delete chaosexperiment --all -n " + str(namespace))
+        chaos_exp_exists = runcommand.invoke_no_exit("kubectl get chaosexperiment")
+        if "returned non-zero exit status 1" not in chaos_exp_exists:
+            logging.info("Deleting all litmus experiments")
+            runcommand.invoke("kubectl delete chaosexperiment --all -n " + str(namespace))
 
 
 # Delete all chaos engines in a given namespace
@@ -188,8 +190,12 @@ def delete_chaos(namespace):
     namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + namespace + " | xargs")
     if namespace_exists.strip() != "0":
         logging.info("Deleting all litmus run objects")
-        runcommand.invoke("kubectl delete chaosengine --all -n " + str(namespace))
-        runcommand.invoke("kubectl delete chaosresult --all -n " + str(namespace))
+        chaos_engine_exists = runcommand.invoke_no_exit("kubectl get chaosengine")
+        if "returned non-zero exit status 1" not in chaos_engine_exists:
+            runcommand.invoke("kubectl delete chaosengine --all -n " + str(namespace))
+        chaos_result_exists = runcommand.invoke_no_exit("kubectl get chaosresult")
+        if "returned non-zero exit status 1" not in chaos_result_exists:
+            runcommand.invoke("kubectl delete chaosresult --all -n " + str(namespace))
     else:
         logging.info(namespace + " namespace doesn't exist")
 
@@ -198,9 +204,9 @@ def uninstall_litmus(version, litmus_namespace):
     namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + litmus_namespace + " | xargs")
     if namespace_exists.strip() != "0":
         logging.info("Uninstalling Litmus operator")
-        runcommand.invoke(
+        runcommand.invoke_no_exit(
             "kubectl delete -n %s -f "
             "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % (litmus_namespace, version)
         )
         logging.info("Deleting litmus crd")
-        runcommand.invoke("kubectl get crds | grep litmus | awk '{print $1}' | xargs -I {} oc delete crd/{}")
+        runcommand.invoke_no_exit("kubectl get crds | grep litmus | awk '{print $1}' | xargs -I {} oc delete crd/{}")

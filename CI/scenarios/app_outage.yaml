@@ -1,0 +1,5 @@
+application_outage:                                  # Scenario to create an outage of an application by blocking traffic
+  duration: 10                                      # Duration in seconds after which the routes will be accessible
+  namespace: openshift-monitoring            # Namespace to target - all application routes will go inaccessible if pod selector is empty
+  pod_selector: {}                            # Pods to target
+  block: [Ingress, Egress]                           # It can be Ingress or Egress or Ingress, Egress

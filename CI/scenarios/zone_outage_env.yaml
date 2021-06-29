@@ -1,0 +1,5 @@
+zone_outage:                                         # Scenario to create an outage of a zone by tweaking network ACL
+  cloud_type: aws                                    # cloud type on which Kubernetes/OpenShift runs. aws is only platform supported currently for this scenario.
+  duration: 10                                      # duration in seconds after which the zone will be back online
+  vpc_id: vpc-0b43122e2d2ee058f                                           # cluster virtual private network to target
+  subnet_id: [subnet-088c73e73587d8aba]                    # List of subnet-id's to deny both ingress and egress traffic

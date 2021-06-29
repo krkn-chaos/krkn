@@ -1,0 +1,35 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: nginx-chaos
+  namespace: litmus
+spec:
+  # It can be delete/retain
+  jobCleanUpPolicy: 'retain'
+  # It can be active/stop
+  engineState: 'active'
+  chaosServiceAccount: litmus-sa
+  experiments:
+    - name: node-io-stress
+      spec:
+        components:
+          env:
+            # set chaos duration (in sec) as desired
+            - name: TOTAL_CHAOS_DURATION
+              value: '10'
+
+            ## specify the size as percentage of free space on the file system
+            - name: FILESYSTEM_UTILIZATION_PERCENTAGE
+              value: '100'
+
+            ## Number of core of CPU
+            - name: CPU
+              value: '1'
+
+            ## Total number of workers default value is 4
+            - name: NUMBER_OF_WORKERS
+              value: '3'
+
+             ## enter the comma separated target nodes name
+            - name: TARGET_NODES
+              value:
