@@ -46,12 +46,12 @@ class BM:
             host = host[0:port_position]
 
         #establish connection
-        interface = pyipmi.interfaces.create_interface('ipmitool', interface_type='lan')
+        interface = pyipmi.interfaces.create_interface('ipmitool', interface_type='lanplus')
 
         connection = pyipmi.create_connection(interface)
 
         connection.target = pyipmi.Target(ipmb_address=0x20)
-        connection.session.set_session_type_rmcp(host, port=623)
+        connection.session.set_session_type_rmcp(host, port)
         connection.session.set_auth_type_user(self.user, self.passwd)
         connection.session.establish()
         return connection
