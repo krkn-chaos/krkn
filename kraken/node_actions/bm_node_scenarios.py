@@ -20,7 +20,6 @@ class BM:
         with oc.project("openshift-machine-api"):
             return oc.selector("node/" + node_name).object()
 
-
     # Get the ipmi or other BMC address of the baremetal node
     def get_bmc_addr(self, node_name):
         # Addresses in the config get higher priority.
@@ -32,7 +31,7 @@ class BM:
             logging.info("Getting node with name: %s" % (node_name))
             node = self.get_node_object(node_name)
             provider_id = node.model.spec.providerID
-            startOfUid = provider_id.rfind("/") # The / before the uid
+            startOfUid = provider_id.rfind("/")  # The / before the uid
             startOfName = provider_id.rfind("/", 0, startOfUid) + 1
             bmh_name = provider_id[startOfName:startOfUid]
             bmh_resource_name = "baremetalhost.metal3.io/" + bmh_name
