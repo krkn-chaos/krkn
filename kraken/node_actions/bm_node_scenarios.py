@@ -9,6 +9,7 @@ import sys
 import time
 import traceback
 
+
 class BM:
     def __init__(self, bm_info, user, passwd):
         self.user = user
@@ -16,8 +17,8 @@ class BM:
         self.bm_info = bm_info
 
     def get_node_object(self, node_name):
-        with oc.project('openshift-machine-api'):
-            return oc.selector('node/' + node_name).object()
+        with oc.project("openshift-machine-api"):
+            return oc.selector("node/" + node_name).object()
 
 
     # Get the ipmi or other BMC address of the baremetal node
@@ -27,18 +28,20 @@ class BM:
             return self.bm_info[node_name]["bmc_addr"]
 
         # Get the bmc addr from the BareMetalHost object.
-        with oc.project('openshift-machine-api'):
+        with oc.project("openshift-machine-api"):
             logging.info("Getting node with name: %s" % (node_name))
             node = self.get_node_object(node_name)
             provider_id = node.model.spec.providerID
-            startOfUid = provider_id.rfind('/') # The / before the uid
-            startOfName = provider_id.rfind('/', 0, startOfUid) + 1
+            startOfUid = provider_id.rfind("/") # The / before the uid
+            startOfName = provider_id.rfind("/", 0, startOfUid) + 1
             bmh_name = provider_id[startOfName:startOfUid]
-            bmh_resource_name = 'baremetalhost.metal3.io/' + bmh_name
+            bmh_resource_name = "baremetalhost.metal3.io/" + bmh_name
             bmh_object = oc.selector(bmh_resource_name).object()
             if len(bmh_object.model.spec.bmc.addr) == 0:
-                logging.error("BMC addr empty for node \"%s\". Either fix the BMH object,"
-                              " or specify the address in the scenario config" % node_name)
+                logging.error(
+                    'BMC addr empty for node "%s". Either fix the BMH object,'
+                    " or specify the address in the scenario config" % node_name
+                )
                 sys.exit(1)
             return bmh_object.model.spec.bmc.address
 
@@ -47,12 +50,12 @@ class BM:
         if type_position == -1:
             host = bmc_addr
         else:
-            host = bmc_addr[type_position + 3:]
+            host = bmc_addr[type_position + 3 :]
         port_position = host.find(":")
         if port_position == -1:
             port = 623
         else:
-            port = int(host[port_position + 1:])
+            port = int(host[port_position + 1 :])
             host = host[0:port_position]
 
         # Determine correct username and password
@@ -64,12 +67,14 @@ class BM:
             user = self.user
             passwd = self.passwd
         if user == None or passwd == None:
-            logging.error("Missing IBMI BMI user and/or password for baremetal cloud. "
-                          "Please specify either a global or per-machine user and pass")
+            logging.error(
+                "Missing IPMI BMI user and/or password for baremetal cloud. "
+                "Please specify either a global or per-machine user and pass"
+            )
             sys.exit(1)
 
         # Establish connection
-        interface = pyipmi.interfaces.create_interface('ipmitool', interface_type='lanplus')
+        interface = pyipmi.interfaces.create_interface("ipmitool", interface_type="lanplus")
 
         connection = pyipmi.create_connection(interface)
 
@@ -78,7 +83,6 @@ class BM:
         connection.session.set_auth_type_user(user, passwd)
         connection.session.establish()
         return connection
-
 
     # Start the node instance
     def start_instances(self, bmc_addr, node_name):
@@ -94,12 +98,12 @@ class BM:
 
     # Wait until the node instance is running
     def wait_until_running(self, bmc_addr, node_name):
-        while (self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on == False):
+        while self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on == False:
             time.sleep(1)
 
     # Wait until the node instance is stopped
     def wait_until_stopped(self, bmc_addr, node_name):
-        while (self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on == True):
+        while self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on == True:
             time.sleep(1)
 
 
@@ -120,9 +124,11 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.info("Node with bmc address: %s is in running state" % (bmc_addr))
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
-                logging.error("Failed to start node instance. Encountered following "
-                              "exception: %s. Test Failed. Most errors are caused by "
-                              "an incorrect ipmi address or login" % (e))
+                logging.error(
+                    "Failed to start node instance. Encountered following "
+                    "exception: %s. Test Failed. Most errors are caused by "
+                    "an incorrect ipmi address or login" % (e)
+                )
                 logging.error("node_start_scenario injection failed!")
                 sys.exit(1)
 
@@ -138,9 +144,11 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.info("Node with bmc address: %s is in stopped state" % (bmc_addr))
                 nodeaction.wait_for_unknown_status(node, timeout)
             except Exception as e:
-                logging.error("Failed to stop node instance. Encountered following exception: %s. "
-                              "Test Failed. Most errors are caused by "
-                              "an incorrect ipmi address or login" % (e))
+                logging.error(
+                    "Failed to stop node instance. Encountered following exception: %s. "
+                    "Test Failed. Most errors are caused by "
+                    "an incorrect ipmi address or login" % (e)
+                )
                 logging.error("node_stop_scenario injection failed!")
                 sys.exit(1)
 
@@ -162,9 +170,11 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.info("Node with bmc address: %s has been rebooted" % (bmc_addr))
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
-                logging.error("Failed to reboot node instance. Encountered following exception:"
-                              " %s. Test Failed. Most errors are caused by "
-                              "an incorrect ipmi address or login" % (e))
+                logging.error(
+                    "Failed to reboot node instance. Encountered following exception:"
+                    " %s. Test Failed. Most errors are caused by "
+                    "an incorrect ipmi address or login" % (e)
+                )
                 traceback.print_exc()
                 logging.error("node_reboot_scenario injection failed!")
                 sys.exit(1)

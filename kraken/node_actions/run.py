@@ -30,8 +30,9 @@ def get_node_scenario_object(node_scenario):
     elif node_scenario["cloud_type"] == "azure" or node_scenario["cloud_type"] == "az":
         return azure_node_scenarios()
     elif node_scenario["cloud_type"] == "bm":
-        return bm_node_scenarios(node_scenario.get("bmc_info"), node_scenario.get("bmc_user", None),
-                                  node_scenario.get("bmc_password", None))
+        return bm_node_scenarios(
+            node_scenario.get("bmc_info"), node_scenario.get("bmc_user", None), node_scenario.get("bmc_password", None)
+        )
     else:
         logging.error(
             "Cloud type " + node_scenario["cloud_type"] + " is not currently supported; "
