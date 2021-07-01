@@ -1,6 +1,6 @@
 datetime
 pyfiglet
-PyYAML
+PyYAML>=5.1
 git+https://github.com/powerfulseal/powerfulseal.git
 requests
 boto3

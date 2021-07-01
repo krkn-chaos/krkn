@@ -30,10 +30,8 @@ def get_node_scenario_object(node_scenario):
     elif node_scenario["cloud_type"] == "azure" or node_scenario["cloud_type"] == "az":
         return azure_node_scenarios()
     elif node_scenario["cloud_type"] == "bm":
-        if "bm_user" not in node_scenario.keys() or "bm_password" not in node_scenario.keys():
-            logging.error("Missing IBMI BMI user and password for baremetal cloud")
-            sys.exit(1)
-        return bm_node_scenarios(node_scenario["bm_user"], node_scenario["bm_password"])
+        return bm_node_scenarios(node_scenario.get("bmc_info"), node_scenario.get("bmc_user", None),
+                                  node_scenario.get("bmc_password", None))
     else:
         logging.error(
             "Cloud type " + node_scenario["cloud_type"] + " is not currently supported; "
