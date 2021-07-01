@@ -1,4 +1,4 @@
-import kraken.kubernetes.client as kubecli
+
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 import logging
@@ -23,7 +23,7 @@ class BM:
     # Get the ipmi or other BMC address of the baremetal node
     def get_bmc_addr(self, node_name):
         # Addresses in the config get higher priority.
-        if self.bm_info != None and node_name in self.bm_info and "bmc_addr" in self.bm_info[node_name]:
+        if self.bm_info is not None and node_name in self.bm_info and "bmc_addr" in self.bm_info[node_name]:
             return self.bm_info[node_name]["bmc_addr"]
 
         # Get the bmc addr from the BareMetalHost object.
@@ -49,23 +49,23 @@ class BM:
         if type_position == -1:
             host = bmc_addr
         else:
-            host = bmc_addr[type_position + 3 :]
+            host = bmc_addr[type_position + 3:]
         port_position = host.find(":")
         if port_position == -1:
             port = 623
         else:
-            port = int(host[port_position + 1 :])
+            port = int(host[port_position + 1:])
             host = host[0:port_position]
 
         # Determine correct username and password
         # If specified, uses device-specific user/pass. Else uses the global one.
-        if self.bm_info != None and node_name in self.bm_info:
+        if self.bm_info is not None and node_name in self.bm_info:
             user = self.bm_info[node_name].get("bmc_user", self.user)
             passwd = self.bm_info[node_name].get("bmc_password", self.passwd)
         else:
             user = self.user
             passwd = self.passwd
-        if user == None or passwd == None:
+        if user is None or passwd is None:
             logging.error(
                 "Missing IPMI BMI user and/or password for baremetal cloud. "
                 "Please specify either a global or per-machine user and pass"
@@ -97,12 +97,12 @@ class BM:
 
     # Wait until the node instance is running
     def wait_until_running(self, bmc_addr, node_name):
-        while self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on == False:
+        while not self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on:
             time.sleep(1)
 
     # Wait until the node instance is stopped
     def wait_until_stopped(self, bmc_addr, node_name):
-        while self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on == True:
+        while self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on:
             time.sleep(1)
 
 
