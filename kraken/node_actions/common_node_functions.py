@@ -34,7 +34,7 @@ def wait_for_unknown_status(node, timeout):
     for _ in range(timeout):
         if kubecli.get_node_status(node) == "Unknown":
             break
-        time.sleep(1)
+        time.sleep(3)
     if kubecli.get_node_status(node) != "Unknown":
         raise Exception("Node condition status isn't Unknown")
 

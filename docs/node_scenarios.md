@@ -20,6 +20,18 @@ Following node chaos scenarios are supported:
 
 How to set up AWS cli to run node scenarios is defined [here](cloud_setup.md#aws)
 
+#### Baremetal
+**NOTE**: Baremetal requires setting the IPMI user and password to power on, off, and reboot nodes, using the config options `bm_user` and `bm_password`. It can either be set in the root of the entry in the scenarios config, or it can be set per machine.
+
+If no per-machine addresses are specified, kraken attempts to use the BMC value in the BareMetalHost object. To list them, you can do 'oc get bmh -o wide --all-namespaces'. If the BMC values are blank, you must specify them per-machine using the config option 'bmc_addr' as specified below.
+
+For per-machine settings, add a "bmc_info" section to the entry in the scenarios config. Inside there, add a configuration section using the node name. In that, add per-machine settings. Valid settings are 'bmc_user', 'bmc_password', and 'bmc_addr'.
+For examples, see the example node scenario or the example below.
+
+**NOTE**: Baremetal requires oc (openshift client) be installed on the machine running Kraken.
+
+**NOTE**: Baremetal machines are fragile. Some node actions can occasionally corrupt the filesystem if it does not shut down properly, and sometimes the kubelet does not start properly.
+
 #### GCP
 How to set up GCP cli to run node scenarios is defined [here](cloud_setup.md#gcp)
 
@@ -80,4 +92,20 @@ node_scenarios:
       - named
     ssh_private_key: /root/.ssh/id_rsa                              # ssh key to access the helper node
     cloud_type: openstack
+  - actions:
+    - node_stop_start_scenario
+    node_name:
+    label_selector: node-role.kubernetes.io/worker
+    instance_kill_count: 1
+    timeout: 120
+    cloud_type: bm
+    bmc_user: defaultuser                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines.
+    bmc_password: defaultpass                                       # For baremetal (bm) cloud type. The default IPMI password. Optional if specified for all machines.
+    bmc_info:                                                       # This section is here to specify baremetal per-machine info, so it is optional if there is no per-machine info.
+      node-1:                                                       # The node name for the baremetal machine
+        bmc_addr: mgmt-machine1.example.com                         # Optional. For baremetal nodes with the IPMI BMC address missing from 'oc get bmh'
+      node-2:
+        bmc_addr: mgmt-machine2.example.com
+        bmc_user: user                                              # The baremetal IPMI user. Overrides the default IPMI user specified above. Optional if the default is set.
+        bmc_password: pass                                          # The baremetal IPMI password. Overrides the default IPMI user specified above. Optional if the default is set.
 ```

@@ -7,6 +7,7 @@ from kraken.node_actions.general_cloud_node_scenarios import general_node_scenar
 from kraken.node_actions.az_node_scenarios import azure_node_scenarios
 from kraken.node_actions.gcp_node_scenarios import gcp_node_scenarios
 from kraken.node_actions.openstack_node_scenarios import openstack_node_scenarios
+from kraken.node_actions.bm_node_scenarios import bm_node_scenarios
 import kraken.node_actions.common_node_functions as common_node_functions
 import kraken.cerberus.setup as cerberus
 
@@ -28,6 +29,10 @@ def get_node_scenario_object(node_scenario):
         return openstack_node_scenarios()
     elif node_scenario["cloud_type"] == "azure" or node_scenario["cloud_type"] == "az":
         return azure_node_scenarios()
+    elif node_scenario["cloud_type"] == "bm":
+        return bm_node_scenarios(
+            node_scenario.get("bmc_info"), node_scenario.get("bmc_user", None), node_scenario.get("bmc_password", None)
+        )
     else:
         logging.error(
             "Cloud type " + node_scenario["cloud_type"] + " is not currently supported; "
