@@ -30,6 +30,8 @@ For examples, see the example node scenario or the example below.
 
 **NOTE**: Baremetal requires oc (openshift client) be installed on the machine running Kraken.
 
+**NOTE**: Baremetal machines are fragile. Some node actions can occasionally corrupt the filesystem if it does not shut down properly, and sometimes the kubelet does not start properly.
+
 #### GCP
 How to set up GCP cli to run node scenarios is defined [here](cloud_setup.md#gcp)
 
