@@ -1,4 +1,3 @@
-
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 import logging
@@ -49,12 +48,12 @@ class BM:
         if type_position == -1:
             host = bmc_addr
         else:
-            host = bmc_addr[type_position + 3:]
+            host = bmc_addr[type_position + 3 :]
         port_position = host.find(":")
         if port_position == -1:
             port = 623
         else:
-            port = int(host[port_position + 1:])
+            port = int(host[port_position + 1 :])
             host = host[0:port_position]
 
         # Determine correct username and password
