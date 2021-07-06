@@ -5,7 +5,9 @@ kraken:
     litmus_version: v1.10.0                                # Litmus version to install
     litmus_uninstall: False                                # If you want to uninstall litmus if failure
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
-        -   pod_scenarios:                                 # List of chaos pod scenarios to load
+        -   container_scenarios:                                 # List of chaos pod scenarios to load
+            - -    scenarios/container_etcd.yml
+        -   pod_scenarios:
             - -    scenarios/etcd.yml
             - -    scenarios/regex_openshift_pod_kill.yml
               -    scenarios/post_action_regex.py
@@ -19,7 +21,7 @@ kraken:
         -   litmus_scenarios:                              # List of litmus scenarios to load
             - - https://hub.litmuschaos.io/api/chaos/1.10.0?file=charts/generic/node-cpu-hog/rbac.yaml
               - scenarios/node_hog_engine.yaml
-        -   cluster_shut_down_scenarios:
+        - cluster_shut_down_scenarios:
             - - scenarios/cluster_shut_down_scenario.yml
               - scenarios/post_action_shut_down.py
 cerberus:

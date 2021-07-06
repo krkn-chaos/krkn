@@ -118,7 +118,11 @@ def main(cfg):
                             failed_post_scenarios = pod_scenarios.run(
                                 kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration
                             )
-
+                        elif scenario_type == "container_scenarios":
+                            logging.info("Running container scenarios")
+                            failed_post_scenarios = pod_scenarios.container_run(
+                                kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration
+                            )
                         # Inject node chaos scenarios specified in the config
                         elif scenario_type == "node_scenarios":
                             logging.info("Running node scenarios")
