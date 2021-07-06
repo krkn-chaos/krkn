@@ -114,18 +114,22 @@ def main(cfg):
                     if scenarios_list:
                         # Inject pod chaos scenarios specified in the config
                         if scenario_type == "pod_scenarios":
+                            logging.info("Running pod scenarios")
                             failed_post_scenarios = pod_scenarios.run(
                                 kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration
                             )
 
                         # Inject node chaos scenarios specified in the config
                         elif scenario_type == "node_scenarios":
+                            logging.info("Running node scenarios")
                             nodeaction.run(scenarios_list, config, wait_duration)
 
                         # Inject time skew chaos scenarios specified in the config
                         elif scenario_type == "time_scenarios":
+                            logging.info("Running time skew scenarios")
                             time_actions.run(scenarios_list, config, wait_duration)
                         elif scenario_type == "litmus_scenarios":
+                            logging.info("Running litmus scenarios")
                             if not litmus_installed:
                                 common_litmus.install_litmus(litmus_version)
                                 common_litmus.deploy_all_experiments(litmus_version)
@@ -178,6 +182,8 @@ def main(cfg):
         if failed_post_scenarios:
             logging.error("Post scenarios are still failing at the end of all iterations")
             sys.exit(1)
+
+        logging.info("Successfully finished running Kraken. UUID for the run: %s. Exiting" % (run_uuid))
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         sys.exit(1)

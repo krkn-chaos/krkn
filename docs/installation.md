@@ -23,7 +23,7 @@ $ cd kraken
 $ pip3 install -r requirements.txt
 ```
 
-**NOTE**: Make sure python3-devel is installed on the system.
+**NOTE**: Make sure python3-devel and latest pip versions are installed on the system. The dependencies install has been tested with pip >= 21.1.3 versions.
 
 #### Run
 ```
