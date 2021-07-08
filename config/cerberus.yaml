@@ -42,7 +42,7 @@ cerberus:
     custom_checks:                                       # Relative paths of files conataining additional user defined checks
 
 tunings:
-    timeout: 60                                          # Number of seconds before requests fail
+    timeout: 3                                          # Number of seconds before requests fail
     iterations: 5                                        # Iterations to loop before stopping the watch, it will be replaced with infinity when the daemon mode is enabled
     sleep_time: 5                                       # Sleep duration between each iteration
     kube_api_request_chunk_size: 250                     # Large requests will be broken into the specified chunk size to reduce the load on API server and improve responsiveness.
