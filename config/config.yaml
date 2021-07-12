@@ -22,6 +22,9 @@ kraken:
         -   cluster_shut_down_scenarios:
             - - scenarios/cluster_shut_down_scenario.yml
               - scenarios/post_action_shut_down.py
+        -   namespace_scenarios:
+            - scenarios/regex_namespace.yaml
+            - scenarios/ingress_namespace.yaml
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
