@@ -1,0 +1,5 @@
+scenarios:
+- action: delete
+  namespace: "^.*ingress.*$"
+  runs: 1
+  sleep: 15

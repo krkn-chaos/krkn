@@ -44,6 +44,7 @@ Kraken supports pod, node, time/date and [litmus](https://github.com/litmuschaos
 
 - [Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md)
 
+- [Namespace Scenarios](docs/namespace_scenarios.md)
 
 ### Kraken scenario pass/fail criteria and report
 It's important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:

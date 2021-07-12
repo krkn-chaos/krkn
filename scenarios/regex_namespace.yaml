@@ -1,0 +1,5 @@
+scenarios:
+- action: delete
+  namespace: "^.*$"
+  runs: 2
+  sleep: 15
