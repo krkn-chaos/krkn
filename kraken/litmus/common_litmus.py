@@ -56,7 +56,12 @@ def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_durati
 
 # Install litmus and wait until pod is running
 def install_litmus(version):
-    runcommand.invoke("kubectl apply -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % version)
+    litmus_install = runcommand.invoke(
+        "kubectl apply -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % version
+    )
+    if "unable" in litmus_install:
+        logging.info("Unable to install litmus because " + str(litmus_install))
+        sys.exit(1)
 
     runcommand.invoke(
         "oc patch -n litmus deployment.apps/chaos-operator-ce --type=json --patch ' "
@@ -112,7 +117,7 @@ def check_experiment(engine_name, experiment_name, namespace):
     chaos_result = runcommand.invoke(
         "kubectl get chaosresult %s"
         "-%s -n %s -o "
-        "jsonpath='{.status.experimentstatus.verdict}'" % (engine_name, experiment_name, namespace)
+        "jsonpath='{.status.experimentStatus.verdict}'" % (engine_name, experiment_name, namespace)
     )
     result_counter = 0
     status = chaos_result.strip()
@@ -122,7 +127,7 @@ def check_experiment(engine_name, experiment_name, namespace):
         chaos_result = runcommand.invoke(
             "kubectl get chaosresult %s"
             "-%s -n %s -o "
-            "jsonpath='{.status.experimentstatus.verdict}'" % (engine_name, experiment_name, namespace)
+            "jsonpath='{.status.experimentStatus.verdict}'" % (engine_name, experiment_name, namespace)
         )
         status = chaos_result.strip()
         if result_counter >= max_tries:
@@ -139,7 +144,7 @@ def check_experiment(engine_name, experiment_name, namespace):
         chaos_result = runcommand.invoke(
             "kubectl get chaosresult %s"
             "-%s -n %s -o jsonpath="
-            "'{.status.experimentstatus.failStep}'" % (engine_name, experiment_name, namespace)
+            "'{.status.experimentStatus.failStep}'" % (engine_name, experiment_name, namespace)
         )
         logging.info("Chaos result failed information: " + str(chaos_result))
         return False
