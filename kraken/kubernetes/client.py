@@ -89,10 +89,13 @@ def list_killable_nodes(label_selector=None):
 
 
 # List pods in the given namespace
-def list_pods(namespace):
+def list_pods(namespace, label_selector=None):
     pods = []
     try:
-        ret = cli.list_namespaced_pod(namespace, pretty=True)
+        if label_selector:
+            ret = cli.list_namespaced_pod(namespace, pretty=True, label_selector=label_selector)
+        else:
+            ret = cli.list_namespaced_pod(namespace, pretty=True)
     except ApiException as e:
         logging.error(
             "Exception when calling \
@@ -116,20 +119,33 @@ def get_all_pods(label_selector=None):
 
 
 # Execute command in pod
-def exec_cmd_in_pod(command, pod_name, namespace):
+def exec_cmd_in_pod(command, pod_name, namespace, container=None):
 
     exec_command = ["bash", "-c", command]
     try:
-        ret = stream(
-            cli.connect_get_namespaced_pod_exec,
-            pod_name,
-            namespace,
-            command=exec_command,
-            stderr=True,
-            stdin=False,
-            stdout=True,
-            tty=False,
-        )
+        if container:
+            ret = stream(
+                cli.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                container=container,
+                command=exec_command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
+        else:
+            ret = stream(
+                cli.connect_get_namespaced_pod_exec,
+                pod_name,
+                namespace,
+                command=exec_command,
+                stderr=True,
+                stdin=False,
+                stdout=True,
+                tty=False,
+            )
     except Exception:
         return False
     return ret

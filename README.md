@@ -36,6 +36,8 @@ Kraken supports pod, node, time/date and [litmus](https://github.com/litmuschaos
 
 - [Pod Scenarios](docs/pod_scenarios.md)
 
+- [Container Scenarios](docs/container_scenarios.md)
+
 - [Node Scenarios](docs/node_scenarios.md)
 
 - [Time Scenarios](docs/time_scenarios.md)

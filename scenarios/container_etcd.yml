@@ -1,0 +1,7 @@
+scenarios:
+- name: "kill etcd container"
+  namespace: "openshift-etcd"
+  label_selector: "k8s-app=etcd"
+  container_name: "etcd"
+  action: "kill 1"
+  count: 1
