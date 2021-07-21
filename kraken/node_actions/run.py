@@ -51,10 +51,12 @@ def run(scenarios_list, config, wait_duration):
                 node_scenario_object = get_node_scenario_object(node_scenario)
                 if node_scenario["actions"]:
                     for action in node_scenario["actions"]:
+                        start_time = int(time.time())
                         inject_node_scenario(action, node_scenario, node_scenario_object)
                         logging.info("Waiting for the specified duration: %s" % (wait_duration))
                         time.sleep(wait_duration)
-                        cerberus.get_status(config)
+                        end_time = int(time.time())
+                        cerberus.get_status(config, start_time, end_time)
                         logging.info("")
 
 

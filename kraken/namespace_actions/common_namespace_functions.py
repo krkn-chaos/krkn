@@ -19,6 +19,7 @@ def run(scenarios_list, config, wait_duration):
                 namespace_action = scenario.get("action", "delete")
                 run_sleep = scenario.get("sleep", 10)
                 namespaces = kubecli.check_namespaces([scenario_namespace], scenario_label)
+                start_time = int(time.time())
                 for i in range(run_count):
                     if len(namespaces) == 0:
                         logging.error(
@@ -35,10 +36,12 @@ def run(scenarios_list, config, wait_duration):
                             namespace_action + " on namespace " + str(selected_namespace) + " was unsuccessful"
                         )
                         logging.info("Namespace action error: " + str(e))
+                        sys.exit(1)
                     namespaces.remove(selected_namespace)
                     logging.info("Waiting %s seconds between namespace deletions" % str(run_sleep))
                     time.sleep(run_sleep)
 
                 logging.info("Waiting for the specified duration: %s" % wait_duration)
                 time.sleep(wait_duration)
-                cerberus.get_status(config)
+                end_time = int(time.time())
+                cerberus.get_status(config, start_time, end_time)

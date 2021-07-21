@@ -31,6 +31,7 @@ This will manage the Cerberus and Elasticsearch containers on the host on which 
 ### Config
 Instructions on how to setup the config and the options supported can be found at [Config](docs/config.md).
 
+
 ### Kubernetes/OpenShift chaos scenarios supported
 Kraken supports pod, node, time/date and [litmus](https://github.com/litmuschaos/litmus) based scenarios.
 
@@ -48,10 +49,11 @@ Kraken supports pod, node, time/date and [litmus](https://github.com/litmuschaos
 
 - [Namespace Scenarios](docs/namespace_scenarios.md)
 
+
 ### Kraken scenario pass/fail criteria and report
 It's important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
 - Having built in checks for pod and node based scenarios to ensure the expected number of replicas and nodes are up. It also supports running custom scripts with the checks.
-- Leveraging [Cerberus](https://github.com/openshift-scale/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail. It is highly recommended to turn on the Cerberus health check feature avaliable in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file.
+- Leveraging [Cerberus](https://github.com/openshift-scale/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail post chaos. It is highly recommended to turn on the Cerberus health check feature avaliable in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation) or can be installed from Kraken using the [instructions](https://github.com/cloud-bulldozer/kraken#setting-up-infrastructure-dependencies). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file. Cerberus can monitor [application routes](https://github.com/cloud-bulldozer/cerberus/blob/master/docs/config.md#watch-routes) during the chaos and fails the run if it encounters downtime as it's a potential downtime in customer, users environment as well. It is especially important during the control plane chaos scenarios including the API server, Etcd, Ingress etc. It can be enabled by setting `check_applicaton_routes: True` in the [Kraken config](https://github.com/cloud-bulldozer/kraken/blob/master/config/config.yaml) provided application routes are being monitored in the [cerberus config](https://github.com/cloud-bulldozer/kraken/blob/master/config/cerberus.yaml)
 - Leveraging [kube-burner](docs/alerts.md) alerting feature to fail the runs in case of critical alerts.
 
 

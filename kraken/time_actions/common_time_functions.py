@@ -143,10 +143,12 @@ def run(scenarios_list, config, wait_duration):
         with open(time_scenario_config, "r") as f:
             scenario_config = yaml.full_load(f)
             for time_scenario in scenario_config["time_scenarios"]:
+                start_time = int(time.time())
                 object_type, object_names = skew_time(time_scenario)
                 not_reset = check_date_time(object_type, object_names)
                 if len(not_reset) > 0:
                     logging.info("Object times were not reset")
                 logging.info("Waiting for the specified duration: %s" % (wait_duration))
                 time.sleep(wait_duration)
-                cerberus.publish_kraken_status(config, not_reset)
+                end_time = int(time.time())
+                cerberus.publish_kraken_status(config, not_reset, start_time, end_time)

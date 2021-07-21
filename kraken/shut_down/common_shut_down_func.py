@@ -112,10 +112,12 @@ def run(scenarios_list, config, wait_duration):
         with open(shut_down_config[0], "r") as f:
             shut_down_config_yaml = yaml.full_load(f)
             shut_down_config_scenario = shut_down_config_yaml["cluster_shut_down_scenario"]
+            start_time = int(time.time())
             cluster_shut_down(shut_down_config_scenario)
             logging.info("Waiting for the specified duration: %s" % (wait_duration))
             time.sleep(wait_duration)
             failed_post_scenarios = post_actions.check_recovery(
                 "", shut_down_config, failed_post_scenarios, pre_action_output
             )
-            cerberus.publish_kraken_status(config, failed_post_scenarios)
+            end_time = int(time.time())
+            cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
