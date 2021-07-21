@@ -11,6 +11,7 @@ import kraken.cerberus.setup as cerberus
 def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration):
     # Loop to run the scenarios starts here
     for l_scenario in scenarios_list:
+        start_time = int(time.time())
         try:
             for item in l_scenario:
                 runcommand.invoke("kubectl apply -f %s" % item)
@@ -45,7 +46,8 @@ def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_durati
                     runcommand.invoke("kubectl delete -f %s" % item)
             logging.info("Waiting for the specified duration: %s" % wait_duration)
             time.sleep(wait_duration)
-            cerberus.get_status(config)
+            end_time = int(time.time())
+            cerberus.get_status(config, start_time, end_time)
         except Exception as e:
             logging.error("Failed to run litmus scenario: %s. Encountered " "the following exception: %s" % (item, e))
             sys.exit(1)

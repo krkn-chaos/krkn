@@ -126,6 +126,7 @@ def main(cfg):
                             failed_post_scenarios = pod_scenarios.container_run(
                                 kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration
                             )
+
                         # Inject node chaos scenarios specified in the config
                         elif scenario_type == "node_scenarios":
                             logging.info("Running node scenarios")
@@ -135,6 +136,8 @@ def main(cfg):
                         elif scenario_type == "time_scenarios":
                             logging.info("Running time skew scenarios")
                             time_actions.run(scenarios_list, config, wait_duration)
+
+                        # Inject litmus based chaos scenarios
                         elif scenario_type == "litmus_scenarios":
                             logging.info("Running litmus scenarios")
                             if not litmus_installed:
@@ -144,12 +147,16 @@ def main(cfg):
                             litmus_namespaces = common_litmus.run(
                                 scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration,
                             )
+
+                        # Inject cluster shutdown scenarios
                         elif scenario_type == "cluster_shut_down_scenarios":
                             shut_down.run(scenarios_list, config, wait_duration)
 
+                        # Inject namespace chaos scenarios
                         elif scenario_type == "namespace_scenarios":
                             logging.info("Running namespace scenarios")
                             namespace_actions.run(scenarios_list, config, wait_duration)
+
             iteration += 1
             logging.info("")
 

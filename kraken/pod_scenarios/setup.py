@@ -18,6 +18,8 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
         else:
             pre_action_output = ""
         try:
+            # capture start time
+            start_time = int(time.time())
             scenario_logs = runcommand.invoke(
                 "powerfulseal autonomous --use-pod-delete-instead-"
                 "of-ssh-kill --policy-file %s --kubeconfig %s "
@@ -40,10 +42,15 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
             failed_post_scenarios = post_actions.check_recovery(
                 kubeconfig_path, pod_scenario, failed_post_scenarios, pre_action_output
             )
-            cerberus.publish_kraken_status(config, failed_post_scenarios)
         except Exception as e:
             logging.error("Failed to run post action checks: %s" % e)
             sys.exit(1)
+
+        # capture end time
+        end_time = int(time.time())
+
+        # publish cerberus status
+        cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
     return failed_post_scenarios
 
 
@@ -56,13 +63,19 @@ def container_run(kubeconfig_path, scenarios_list, config, failed_post_scenarios
                     pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
                 else:
                     pre_action_output = ""
+                # capture start time
+                start_time = int(time.time())
                 container_killing_in_pod(cont_scenario)
                 logging.info("Waiting for the specified duration: %s" % (wait_duration))
                 time.sleep(wait_duration)
                 failed_post_scenarios = post_actions.check_recovery(
                     kubeconfig_path, container_scenario_config, failed_post_scenarios, pre_action_output
                 )
-                cerberus.publish_kraken_status(config, failed_post_scenarios)
+                # capture end time
+                end_time = int(time.time())
+
+                # publish cerberus status
+                cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
                 logging.info("")
 
 
