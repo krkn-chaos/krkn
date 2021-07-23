@@ -58,8 +58,10 @@ def main(cfg):
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
-            kubeconfig_path = None
+            logging.error("Cannot read the kubeconfig file at %s, please check" % kubeconfig_path)
+            sys.exit(1)
         logging.info("Initializing client to talk to the Kubernetes cluster")
+        os.environ["KUBECONFIG"] = str(kubeconfig_path)
         kubecli.initialize_clients(kubeconfig_path)
 
         # find node kraken might be running on
@@ -67,9 +69,9 @@ def main(cfg):
 
         # Cluster info
         logging.info("Fetching cluster info")
-        cluster_version = runcommand.invoke("kubectl get clusterversion")
+        cluster_version = runcommand.invoke("kubectl get clusterversion", 60)
         cluster_info = runcommand.invoke(
-            "kubectl cluster-info | awk 'NR==1' | sed -r " "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'"
+            "kubectl cluster-info | awk 'NR==1' | sed -r " "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'", 60
         )  # noqa
         logging.info("\n%s%s" % (cluster_version, cluster_info))
 
@@ -140,7 +142,7 @@ def main(cfg):
                                 common_litmus.deploy_all_experiments(litmus_version)
                                 litmus_installed = True
                             litmus_namespaces = common_litmus.run(
-                                scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration
+                                scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration,
                             )
                         elif scenario_type == "cluster_shut_down_scenarios":
                             shut_down.run(scenarios_list, config, wait_duration)

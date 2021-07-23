@@ -33,11 +33,12 @@ def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_durati
                         if experiment_result:
                             logging.info("Scenario: %s has been successfully injected!" % item)
                         else:
-                            logging.info("Scenario: %s was not successfully injected!" % item)
+                            logging.info("Scenario: %s was not successfully injected, please check" % item)
                             if litmus_uninstall:
                                 for l_item in l_scenario:
                                     logging.info("item " + str(l_item))
                                     runcommand.invoke("kubectl delete -f %s" % l_item)
+                            sys.exit(1)
             if litmus_uninstall:
                 for item in l_scenario:
                     logging.info("item " + str(item))
@@ -47,6 +48,7 @@ def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_durati
             cerberus.get_status(config)
         except Exception as e:
             logging.error("Failed to run litmus scenario: %s. Encountered " "the following exception: %s" % (item, e))
+            sys.exit(1)
     return litmus_namespaces
 
 

@@ -20,8 +20,8 @@ Kraken indexes the metrics specified in the profile into Elasticsearch in additi
 
 ```
 $ cd kraken
-$ podman-compose up or $ docker-compose up    # Spins up the containers specified in the docker-compose.yml file present in the run directory
-$ podman-compose down or $ docker-compose up  # Delete the containers installed
+$ podman-compose up or $ docker-compose up      # Spins up the containers specified in the docker-compose.yml file present in the run directory
+$ podman-compose down or $ docker-compose down  # Delete the containers installed
 ```
 This will manage the Cerberus and Elasticsearch containers on the host on which you are running Kraken.
 
