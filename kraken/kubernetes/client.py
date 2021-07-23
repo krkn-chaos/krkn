@@ -3,7 +3,6 @@ from kubernetes.stream import stream
 from kubernetes.client.rest import ApiException
 import logging
 import kraken.invoke.command as runcommand
-import json
 import sys
 import re
 
@@ -13,8 +12,12 @@ kraken_node_name = ""
 # Load kubeconfig and initialize kubernetes python client
 def initialize_clients(kubeconfig_path):
     global cli
-    config.load_kube_config(kubeconfig_path)
-    cli = client.CoreV1Api()
+    try:
+        config.load_kube_config(kubeconfig_path)
+        cli = client.CoreV1Api()
+    except ApiException as e:
+        logging.error("Failed to initialize kubernetes client: %s\n" % e)
+        sys.exit(1)
 
 
 # List all namespaces
@@ -241,13 +244,17 @@ def find_kraken_node():
 
     if kraken_pod_name:
         # get kraken-deployment pod, find node name
-        runcommand.invoke("kubectl config set-context --current --namespace=" + str(kraken_project))
-        pod_json_str = runcommand.invoke("kubectl get pods/" + str(kraken_pod_name) + " -o json")
-        pod_json = json.loads(pod_json_str)
-        node_name = pod_json["spec"]["nodeName"]
+        try:
+            runcommand.invoke("kubectl config set-context --current --namespace=" + str(kraken_project))
+            node_name = runcommand.invoke(
+                "kubectl get pods/" + str(kraken_pod_name) + ' -o jsonpath="{.spec.nodeName}"'
+            )
 
-        # Reset to the default project
-        runcommand.invoke("kubectl config set-context --current --namespace=default")
+            # Reset to the default project
+            runcommand.invoke("kubectl config set-context --current --namespace=default")
 
-        global kraken_node_name
-        kraken_node_name = node_name
+            global kraken_node_name
+            kraken_node_name = node_name
+        except Exception as e:
+            logging.info("%s" % (e))
+            sys.exit(1)
