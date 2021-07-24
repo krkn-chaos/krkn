@@ -3,7 +3,6 @@ from kubernetes.stream import stream
 from kubernetes.client.rest import ApiException
 import logging
 import kraken.invoke.command as runcommand
-import json
 import sys
 import re
 
@@ -247,9 +246,9 @@ def find_kraken_node():
         # get kraken-deployment pod, find node name
         try:
             runcommand.invoke("kubectl config set-context --current --namespace=" + str(kraken_project))
-            pod_json_str = runcommand.invoke("kubectl get pods/" + str(kraken_pod_name) + " -o json")
-            pod_json = json.loads(pod_json_str)
-            node_name = pod_json["spec"]["nodeName"]
+            node_name = runcommand.invoke(
+                "kubectl get pods/" + str(kraken_pod_name) + ' -o jsonpath="{.spec.nodeName}"'
+            )
 
             # Reset to the default project
             runcommand.invoke("kubectl config set-context --current --namespace=default")
