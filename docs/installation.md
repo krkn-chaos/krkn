@@ -35,6 +35,7 @@ Assuming that the latest docker ( 17.05 or greater with multi-build support ) is
 ```
 $ docker pull quay.io/openshift-scale/kraken:latest
 $ docker run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -d quay.io/openshift-scale/kraken:latest
+$ docker run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -v <path_to_scenarios_directory>:/root/kraken/scenarios:Z -d quay.io/openshift-scale/kraken:latest #custom or tweaked scenario configs
 $ docker logs -f kraken
 ```
 
@@ -42,6 +43,7 @@ Similarly, podman can be used to achieve the same:
 ```
 $ podman pull quay.io/openshift-scale/kraken
 $ podman run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -d quay.io/openshift-scale/kraken:latest
+$ podman run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -v <path_to_scenarios_directory>:/root/kraken/scenarios:Z -d quay.io/openshift-scale/kraken:latest #custom or tweaked scenario configs
 $ podman logs -f kraken
 ```
 
