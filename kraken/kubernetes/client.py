@@ -245,13 +245,13 @@ def find_kraken_node():
     if kraken_pod_name:
         # get kraken-deployment pod, find node name
         try:
-            runcommand.invoke("kubectl config set-context --current --namespace=" + str(kraken_project))
             node_name = runcommand.invoke(
-                "kubectl get pods/" + str(kraken_pod_name) + ' -o jsonpath="{.spec.nodeName}"'
+                "kubectl get pods/"
+                + str(kraken_pod_name)
+                + ' -o jsonpath="{.spec.nodeName}"'
+                + " -n"
+                + str(kraken_project)
             )
-
-            # Reset to the default project
-            runcommand.invoke("kubectl config set-context --current --namespace=default")
 
             global kraken_node_name
             kraken_node_name = node_name
