@@ -20,6 +20,15 @@ spec:
             # set chaos duration (in sec) as desired
             - name: TOTAL_CHAOS_DURATION
               value: '60'
+
+            # Number of cores of node CPU to be consumed
+            - name: NODE_CPU_CORE
+              value: ''
+
+            # percentage of total nodes to target
+            - name: NODES_AFFECTED_PERC
+              value: ''
+
             # ENTER THE COMMA SEPARATED TARGET NODES NAME
             - name: TARGET_NODES
               value: ''
