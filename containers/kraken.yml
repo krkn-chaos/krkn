@@ -1,13 +1,11 @@
 ---
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: kraken-deployment
+  name: kraken
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      tool: Kraken
+  parallelism: 1
+  completions: 1
   template:
     metadata:
       labels:
@@ -21,8 +19,6 @@ spec:
           image: quay.io/openshift-scale/kraken
           command: ["/bin/sh", "-c"]
           args: ["python3 run_kraken.py -c config/config.yaml"]
-          ports:
-            - containerPort: 8080
           volumeMounts:
             - mountPath: "/root/.kube"
               name: config
@@ -30,6 +26,7 @@ spec:
               name: kraken-config
             - mountPath: "/root/kraken/scenarios"
               name: scenarios-config
+      restartPolicy: Never
       volumes:
         - name: config
           configMap:
