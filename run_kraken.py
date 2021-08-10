@@ -18,6 +18,7 @@ import kraken.namespace_actions.common_namespace_functions as namespace_actions
 import kraken.shut_down.common_shut_down_func as shut_down
 import kraken.node_actions.run as nodeaction
 import kraken.kube_burner.client as kube_burner
+import kraken.zone_outage.actions as zone_outages
 
 
 # Main function
@@ -156,6 +157,11 @@ def main(cfg):
                         elif scenario_type == "namespace_scenarios":
                             logging.info("Running namespace scenarios")
                             namespace_actions.run(scenarios_list, config, wait_duration)
+
+                        # Inject zone failures
+                        elif scenario_type == "zone_outages":
+                            logging.info("Inject zone outages")
+                            zone_outages.run(scenarios_list, config, wait_duration)
 
             iteration += 1
             logging.info("")

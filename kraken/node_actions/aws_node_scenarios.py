@@ -90,6 +90,66 @@ class AWS:
             logging.error("Failed to get status waiting for %s to be terminated %s" % (instance_id, e))
             return False
 
+    # Creates a deny network acl and returns the id
+    def create_default_network_acl(self, vpc_id):
+        try:
+            logging.info("Trying to create a default deny network acl")
+            response = self.boto_client.create_network_acl(VpcId=vpc_id)
+            acl_id = response["NetworkAcl"]["NetworkAclId"]
+            logging.info("Created a network acl, id=%s" % acl_id)
+        except Exception as e:
+            logging.error(
+                "Failed to create the default network_acl: %s"
+                "Making sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
+            )
+            sys.exit(1)
+        return acl_id
+
+    # Replace network acl association
+    def replace_network_acl_association(self, association_id, acl_id):
+        try:
+            logging.info("Replacing the network acl associated with the subnet")
+            status = self.boto_client.replace_network_acl_association(AssociationId=association_id, NetworkAclId=acl_id)
+            logging.info(status)
+            new_association_id = status["NewAssociationId"]
+        except Exception as e:
+            logging.error("Failed to replace network acl association: %s" % (e))
+            sys.exit(1)
+        return new_association_id
+
+    # Describe network acl
+    def describe_network_acls(self, vpc_id, subnet_id):
+        try:
+            response = self.boto_client.describe_network_acls(
+                Filters=[
+                    {"Name": "vpc-id", "Values": [vpc_id]},
+                    {"Name": "association.subnet-id", "Values": [subnet_id]},
+                ]
+            )
+        except Exception as e:
+            logging.error(
+                "Failed to describe network acl: %s."
+                "Making sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
+            )
+            sys.exit(1)
+        associations = response["NetworkAcls"][0]["Associations"]
+        # grab the current network_acl in use
+        original_acl_id = response["NetworkAcls"][0]["Associations"][0]["NetworkAclId"]
+        return associations, original_acl_id
+
+    # Delete network acl
+    def delete_network_acl(self, acl_id):
+        try:
+            logging.info("Deleting the network acl: %s" % (acl_id))
+            self.boto_client.delete_network_acl(NetworkAclId=acl_id)
+        except Exception as e:
+            logging.error(
+                "Failed to delete network_acl %s: %s"
+                "Making sure you have aws cli configured on the host and set for the region of your vpc/subnet"
+                % (acl_id, e)
+            )
+            sys.exit(1)
+
 
 class aws_node_scenarios(abstract_node_scenarios):
     def __init__(self):
