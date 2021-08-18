@@ -100,7 +100,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to create the default network_acl: %s"
-                "Making sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
+                "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
             )
             sys.exit(1)
         return acl_id
@@ -129,7 +129,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to describe network acl: %s."
-                "Making sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
+                "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
             )
             sys.exit(1)
         associations = response["NetworkAcls"][0]["Associations"]
@@ -145,7 +145,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to delete network_acl %s: %s"
-                "Making sure you have aws cli configured on the host and set for the region of your vpc/subnet"
+                "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
                 % (acl_id, e)
             )
             sys.exit(1)
