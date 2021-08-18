@@ -1,5 +1,5 @@
 ### Zone outage scenario
-Scenario to create outage in a targeted zone in the public cloud to understand the impact on both Kubernetes/OpenShift platform as well as applications running on the worker nodes in that zone. It tweaks the network acl of the zone to simulate the failure and that in turn will stop both ingress and egress traffic from all the nodes in a particualar zone for the specified duration and reverts it back to the previous state. Zone outage can be injected by placing the zone_outage config file under zone_outages option in the [kraken config](https://github.com/cloud-bulldozer/kraken/blob/master/config/config.yaml). Refer to [zone_outage_scenario](https://github.com/openshift-scale/kraken/blob/master/scenarios/zone_outage.yaml) config file for the parameters that need to be defined.
+Scenario to create outage in a targeted zone in the public cloud to understand the impact on both Kubernetes/OpenShift control plane as well as applications running on the worker nodes in that zone. It tweaks the network acl of the zone to simulate the failure and that in turn will stop both ingress and egress traffic from all the nodes in a particualar zone for the specified duration and reverts it back to the previous state. Zone outage can be injected by placing the zone_outage config file under zone_outages option in the [kraken config](https://github.com/cloud-bulldozer/kraken/blob/master/config/config.yaml). Refer to [zone_outage_scenario](https://github.com/openshift-scale/kraken/blob/master/scenarios/zone_outage.yaml) config file for the parameters that need to be defined.
 
 Refer to [cloud setup](cloud_setup.md) to configure your cli properly for the cloud provider of the cluster you want to shut down
 
@@ -12,10 +12,11 @@ zone_outage:                                         # Scenario to create an out
   cloud_type: aws                                    # cloud type on which Kubernetes/OpenShift runs. aws is only platform supported currently for this scenario.
   duration: 600                                      # duration in seconds after which the zone will be back online
   vpc_id:                                            # cluster virtual private network to target
-  subnet_id:                                         # subnet-id to deny both ingress and egress traffic
+  subnet_id: [subnet1, subnet2]                      # List of subnet-id's to deny both ingress and egress traffic
 ```
 
 **NOTE**: vpc_id and subnet_id can be obtained from the cloud web console by selecting one of the instances in the targeted zone ( us-west-2a for example ).
+**NOTE**: Multiple zones will experience downtime in case of targeting multiple subnets which might have an impact on the cluster health especially if the zones have control plane components deployed.
 
 ##### Debugging steps in case of failures
 In case of failures during the steps which revert back the network acl to allow traffic and bring back the cluster nodes in the zone, the nodes in the particular zone will be in `NotReady` condition. Here is how to fix it:
