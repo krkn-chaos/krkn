@@ -56,21 +56,33 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
 
 def container_run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration):
     for container_scenario_config in scenarios_list:
+        if len(container_scenario_config) > 1:
+            pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
+        else:
+            pre_action_output = ""
         with open(container_scenario_config[0], "r") as f:
             cont_scenario_config = yaml.full_load(f)
             for cont_scenario in cont_scenario_config["scenarios"]:
-                if len(container_scenario_config) > 1:
-                    pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
-                else:
-                    pre_action_output = ""
                 # capture start time
                 start_time = int(time.time())
-                container_killing_in_pod(cont_scenario)
+                killed_containers = container_killing_in_pod(cont_scenario)
+
+                if len(container_scenario_config) > 1:
+                    try:
+                        failed_post_scenarios = post_actions.check_recovery(
+                            kubeconfig_path, container_scenario_config, failed_post_scenarios, pre_action_output
+                        )
+                    except Exception as e:
+                        logging.error("Failed to run post action checks: %s" % e)
+                        sys.exit(1)
+                else:
+                    failed_post_scenarios = check_failed_containers(
+                        killed_containers, cont_scenario.get("retry_wait", 120)
+                    )
+
                 logging.info("Waiting for the specified duration: %s" % (wait_duration))
                 time.sleep(wait_duration)
-                failed_post_scenarios = post_actions.check_recovery(
-                    kubeconfig_path, container_scenario_config, failed_post_scenarios, pre_action_output
-                )
+
                 # capture end time
                 end_time = int(time.time())
 
@@ -107,7 +119,6 @@ def container_killing_in_pod(cont_scenario):
     container_pod_list = []
     for pod in pods:
         if type(pod) == list:
-
             container_names = runcommand.invoke(
                 'oc get pods %s -n %s -o jsonpath="{.spec.containers[*].name}"' % (pod[0], pod[1])
             ).split(" ")
@@ -119,7 +130,7 @@ def container_killing_in_pod(cont_scenario):
             container_pod_list.append([pod, namespace, container_names])
 
     killed_count = 0
-
+    killed_container_list = []
     while killed_count < kill_count:
         if len(container_pod_list) == 0:
             logging.error("Trying to kill more containers than were found, try lowering kill count")
@@ -129,14 +140,17 @@ def container_killing_in_pod(cont_scenario):
         for c_name in selected_container_pod[2]:
             if container_name != "":
                 if c_name == container_name:
+                    killed_container_list.append([selected_container_pod[0], selected_container_pod[1], c_name])
                     retry_container_killing(kill_action, selected_container_pod[0], selected_container_pod[1], c_name)
                     break
             else:
+                killed_container_list.append([selected_container_pod[0], selected_container_pod[1], c_name])
                 retry_container_killing(kill_action, selected_container_pod[0], selected_container_pod[1], c_name)
                 break
         container_pod_list.remove(selected_container_pod)
         killed_count += 1
     logging.info("Scenario " + scenario_name + " successfully injected")
+    return killed_container_list
 
 
 def retry_container_killing(kill_action, podname, namespace, container_name):
@@ -153,3 +167,26 @@ def retry_container_killing(kill_action, podname, namespace, container_name):
             continue
         else:
             continue
+
+
+def check_failed_containers(killed_container_list, wait_time):
+
+    container_ready = []
+    timer = 0
+    while timer <= wait_time:
+        for killed_container in killed_container_list:
+            # pod namespace contain name
+            pod_output = runcommand.invoke("oc get pods %s -n %s -o yaml" % (killed_container[0], killed_container[1]))
+            pod_output_yaml = yaml.full_load(pod_output)
+            for statuses in pod_output_yaml["status"]["containerStatuses"]:
+                if statuses["name"] == killed_container[2]:
+                    if str(statuses["ready"]).lower() == "true":
+                        container_ready.append(killed_container)
+        for item in container_ready:
+            killed_container_list = killed_container_list.remove(item)
+        if killed_container_list is None or len(killed_container) == 0:
+            return []
+        timer += 5
+        logging.info("Waiting 5 seconds for containers to become ready")
+        time.sleep(5)
+    return killed_container_list
