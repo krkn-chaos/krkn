@@ -35,6 +35,16 @@ def list_namespaces(label_selector=None):
     return namespaces
 
 
+# Get namespace status
+def get_namespace_status(namespace_name):
+    ret = ""
+    try:
+        ret = cli.read_namespace_status(namespace_name)
+    except ApiException as e:
+        logging.error("Exception when calling CoreV1Api->read_namespace_status: %s\n" % e)
+    return ret.status.phase
+
+
 # Check if all the watch_namespaces are valid
 def check_namespaces(namespaces, label_selectors=None):
     try:

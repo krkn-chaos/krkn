@@ -160,7 +160,9 @@ def main(cfg):
                         # Inject namespace chaos scenarios
                         elif scenario_type == "namespace_scenarios":
                             logging.info("Running namespace scenarios")
-                            namespace_actions.run(scenarios_list, config, wait_duration)
+                            namespace_actions.run(
+                                scenarios_list, config, wait_duration, failed_post_scenarios, kubeconfig_path
+                            )
 
                         # Inject zone failures
                         elif scenario_type == "zone_outages":

@@ -3,3 +3,4 @@ scenarios:
   namespace: "^.*ingress.*$"
   runs: 1
   sleep: 15
+  wait_time: 300
