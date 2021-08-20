@@ -29,8 +29,9 @@ kraken:
             - - scenarios/cluster_shut_down_scenario.yml
               - scenarios/post_action_shut_down.py
         -   namespace_scenarios:
-            - scenarios/regex_namespace.yaml
-            - scenarios/ingress_namespace.yaml
+             - - scenarios/regex_namespace.yaml
+             - - scenarios/ingress_namespace.yaml
+               - scenarios/post_action_namespace.py
         -   zone_outages:
             - scenarios/zone_outage.yaml
 

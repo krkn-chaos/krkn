@@ -3,3 +3,4 @@ scenarios:
   namespace: "^.*$"
   runs: 2
   sleep: 15
+  wait_time: 300
