@@ -15,6 +15,10 @@ See the [getting started doc](docs/getting_started.md) on support on how to get 
 After installation, refer back to the below sections for supported scenarios and how to tweak the kraken config to load them on your cluster
 
 
+#### Running Kraken with minimal configuration tweaks
+For cases where you want to run Kraken with minimal configuration changes, refer [Kraken-hub](https://github.com/cloud-bulldozer/kraken-hub). The use cases can be CI integration where you don't want to carry around different configuration files for the scenarios.
+
+
 ### Setting up infrastructure dependencies
 Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastruture pieces can be easily installed, uninstalled by running:
 
