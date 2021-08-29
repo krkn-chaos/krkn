@@ -16,6 +16,9 @@ Following node chaos scenarios are supported:
 
 **NOTE**: node_start_scenario, node_stop_scenario, node_stop_start_scenario, node_termination_scenario, node_reboot_scenario and stop_start_kubelet_scenario are supported only on AWS and GCP as of now.
 
+**NOTE**: Node scenarios are supported only when running the standalone version of Kraken until https://github.com/cloud-bulldozer/kraken/issues/106 gets fixed.
+
+
 #### AWS
 
 How to set up AWS cli to run node scenarios is defined [here](cloud_setup.md#aws)
