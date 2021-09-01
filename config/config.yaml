@@ -20,7 +20,7 @@ kraken:
             - scenarios/time_scenarios_example.yml
         -   litmus_scenarios:                              # List of litmus scenarios to load
             - - https://hub.litmuschaos.io/api/chaos/1.13.6?file=charts/generic/node-cpu-hog/rbac.yaml
-              - scenarios/node_hog_engine.yaml
+              - scenarios/node_cpu_hog_engine.yaml
             - - https://hub.litmuschaos.io/api/chaos/1.13.6?file=charts/generic/node-memory-hog/rbac.yaml
               - scenarios/node_mem_engine.yaml
             - - https://hub.litmuschaos.io/api/chaos/1.13.6?file=charts/generic/node-io-stress/rbac.yaml

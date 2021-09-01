@@ -1,5 +1,5 @@
 ### Litmus Scenarios
-Kraken consumes [Litmus](https://github.com/litmuschaos/litmus) under the hood for some infrastructure, pod, and node scenarios
+Kraken consumes [Litmus](https://github.com/litmuschaos/litmus) under the hood for some scenarios
 
 Official Litmus documentation and to read more information on specifics of Litmus resources can be found [here](https://docs.litmuschaos.io/docs/next/getstarted/)
 
@@ -29,10 +29,13 @@ To run Litmus scenarios we need to apply 3 different resources/yaml files to our
 
 Adding a new Litmus based scenario is as simple as adding references to 2 new yaml files (the Service Account and Chaos engine files for your scenario ) in the Kraken config.
 
-### Current Scenarios
+
+### Supported scenarios
 
 Following are the start of scenarios for which a chaos scenario config exists today.
 
-Component                | Description                                                                                        | Working
+Scenario                 | Description                                                                                        | Working
 ------------------------ | ---------------------------------------------------------------------------------------------------| ------------------------- |
-Node CPU Hog             | Chaos scenario that hogs up the CPU on a defined node for a specific amount of time                | :heavy_check_mark:        |
+[Node CPU Hog](https://github.com/cloud-bulldozer/kraken/blob/master/scenarios/node_cpu_hog_engine.yaml)             | Chaos scenario that hogs up the CPU on a defined node for a specific amount of time                | :heavy_check_mark:        |
+[Node Memory Hog](https://github.com/cloud-bulldozer/kraken/blob/master/scenarios/node_mem_engine.yaml)          | Chaos scenario that hogs up the memory on a defined node for a specific amount of time             | :heavy_check_mark:        |
+[Node IO Hog](https://github.com/cloud-bulldozer/kraken/blob/master/scenarios/node_io_engine.yaml)                   | Chaos scenario that hogs up the IO on a defined node for a specific amount of time                 | :heavy_check_mark:        |
