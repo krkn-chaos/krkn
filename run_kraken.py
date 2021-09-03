@@ -37,6 +37,7 @@ def main(cfg):
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
         litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
+        litmus_namespace = config["kraken"].get("litmus_namespace", "litmus")
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
@@ -101,7 +102,6 @@ def main(cfg):
             iterations = int(iterations)
 
         failed_post_scenarios = []
-        litmus_namespaces = []
         litmus_installed = False
 
         # Capture the start time
@@ -142,12 +142,12 @@ def main(cfg):
                         elif scenario_type == "litmus_scenarios":
                             logging.info("Running litmus scenarios")
                             if not litmus_installed:
-                                common_litmus.install_litmus(litmus_version)
-                                common_litmus.deploy_all_experiments(litmus_version)
+                                common_litmus.install_litmus(litmus_version, litmus_namespace)
+                                common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
                                 litmus_installed = True
-                            litmus_namespaces = common_litmus.run(
-                                scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration,
-                            )
+                                common_litmus.run(
+                                    scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespace,
+                                )
 
                         # Inject cluster shutdown scenarios
                         elif scenario_type == "cluster_shut_down_scenarios":
@@ -197,9 +197,8 @@ def main(cfg):
                 sys.exit(1)
 
         if litmus_uninstall and litmus_installed:
-            for namespace in litmus_namespaces:
-                common_litmus.delete_chaos(namespace)
-            common_litmus.delete_experiments()
+            common_litmus.delete_chaos(litmus_namespace)
+            common_litmus.delete_experiments(litmus_namespace)
             common_litmus.uninstall_litmus(litmus_version)
 
         if failed_post_scenarios:

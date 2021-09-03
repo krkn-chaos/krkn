@@ -39,7 +39,6 @@ Instructions on how to setup the config and the options supported can be found a
 
 
 ### Kubernetes/OpenShift chaos scenarios supported
-Kraken supports pod, node, time/date and [litmus](https://github.com/litmuschaos/litmus) based scenarios.
 
 - [Pod Scenarios](docs/pod_scenarios.md)
 
