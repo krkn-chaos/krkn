@@ -2,13 +2,13 @@ apiVersion: litmuschaos.io/v1alpha1
 kind: ChaosEngine
 metadata:
   name: nginx-chaos
-  namespace: default
+  namespace: litmus
 spec:
   # It can be delete/retain
   jobCleanUpPolicy: 'retain'
   # It can be active/stop
   engineState: 'active'
-  chaosServiceAccount: node-io-stress-sa
+  chaosServiceAccount: litmus-sa
   experiments:
     - name: node-io-stress
       spec:

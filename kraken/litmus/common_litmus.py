@@ -8,7 +8,7 @@ import kraken.cerberus.setup as cerberus
 
 
 # Inject litmus scenarios defined in the config
-def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_duration):
+def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespace):
     # Loop to run the scenarios starts here
     for l_scenario in scenarios_list:
         start_time = int(time.time())
@@ -25,12 +25,10 @@ def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_durati
 
                 if yaml_item["kind"] == "ChaosEngine":
                     engine_name = yaml_item["metadata"]["name"]
-                    namespace = yaml_item["metadata"]["namespace"]
-                    litmus_namespaces.append(namespace)
                     experiment_names = yaml_item["spec"]["experiments"]
                     for expr in experiment_names:
                         expr_name = expr["name"]
-                        experiment_result = check_experiment(engine_name, expr_name, namespace)
+                        experiment_result = check_experiment(engine_name, expr_name, litmus_namespace)
                         if experiment_result:
                             logging.info("Scenario: %s has been successfully injected!" % item)
                         else:
@@ -51,28 +49,27 @@ def run(scenarios_list, config, litmus_namespaces, litmus_uninstall, wait_durati
         except Exception as e:
             logging.error("Failed to run litmus scenario: %s. Encountered " "the following exception: %s" % (item, e))
             sys.exit(1)
-    return litmus_namespaces
 
 
 # Install litmus and wait until pod is running
-def install_litmus(version):
+def install_litmus(version, namespace):
     litmus_install = runcommand.invoke(
-        "kubectl apply -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % version
+        "kubectl -n %s apply -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % (namespace, version)
     )
     if "unable" in litmus_install:
         logging.info("Unable to install litmus because " + str(litmus_install))
         sys.exit(1)
 
     runcommand.invoke(
-        "oc patch -n litmus deployment.apps/chaos-operator-ce --type=json --patch ' "
+        "oc patch -n %s deployment.apps/chaos-operator-ce --type=json --patch ' "
         '[ { "op": "add", "path": "/spec/template/spec/containers/0/env/-", '
-        '"value": { "name": "ANALYTICS", "value": "FALSE" } } ]\''
+        '"value": { "name": "ANALYTICS", "value": "FALSE" } } ]\'' % namespace
     )
 
-    runcommand.invoke("oc wait deploy -n litmus chaos-operator-ce --for=condition=Available")
+    runcommand.invoke("oc wait deploy -n %s chaos-operator-ce --for=condition=Available" % namespace)
 
 
-def deploy_all_experiments(version_string):
+def deploy_all_experiments(version_string, namespace):
 
     if not version_string.startswith("v"):
         logging.error("Incorrect version string for litmus, needs to start with 'v' " "followed by a number")
@@ -80,12 +77,13 @@ def deploy_all_experiments(version_string):
     version = version_string[1:]
 
     runcommand.invoke(
-        "kubectl apply -f " "https://hub.litmuschaos.io/api/chaos/%s?file=charts/generic/experiments.yaml" % version
+        "kubectl -n %s apply -f "
+        "https://hub.litmuschaos.io/api/chaos/%s?file=charts/generic/experiments.yaml" % (namespace, version)
     )
 
 
-def delete_experiments():
-    runcommand.invoke("kubectl delete chaosengine --all")
+def delete_experiments(namespace):
+    runcommand.invoke("kubectl -n %s delete chaosengine --all" % namespace)
 
 
 # Check status of experiment
