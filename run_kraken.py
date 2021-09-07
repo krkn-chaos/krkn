@@ -142,6 +142,10 @@ def main(cfg):
                         elif scenario_type == "litmus_scenarios":
                             logging.info("Running litmus scenarios")
                             if not litmus_installed:
+                                # Will always uninstall first
+                                common_litmus.delete_chaos(litmus_namespace)
+                                common_litmus.delete_chaos_experiments(litmus_namespace)
+                                common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
                                 common_litmus.install_litmus(litmus_version, litmus_namespace)
                                 common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
                                 litmus_installed = True
@@ -198,8 +202,8 @@ def main(cfg):
 
         if litmus_uninstall and litmus_installed:
             common_litmus.delete_chaos(litmus_namespace)
-            common_litmus.delete_experiments(litmus_namespace)
-            common_litmus.uninstall_litmus(litmus_version)
+            common_litmus.delete_chaos_experiments(litmus_namespace)
+            common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
 
         if failed_post_scenarios:
             logging.error("Post scenarios are still failing at the end of all iterations")

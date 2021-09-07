@@ -20,11 +20,11 @@ kraken:
         -   time_scenarios:                                # List of chaos time scenarios to load
             - scenarios/time_scenarios_example.yml
         -   litmus_scenarios:                              # List of litmus scenarios to load
-            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
+            - - scenarios/templates/litmus-rbac.yaml
               - scenarios/node_cpu_hog_engine.yaml
-            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
+            - - scenarios/templates/litmus-rbac.yaml
               - scenarios/node_mem_engine.yaml
-            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
+            - - scenarios/templates/litmus-rbac.yaml
               - scenarios/node_io_engine.yaml
         -   cluster_shut_down_scenarios:
             - - scenarios/cluster_shut_down_scenario.yml
