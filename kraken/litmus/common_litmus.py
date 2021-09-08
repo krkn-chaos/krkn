@@ -20,7 +20,6 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
                     yaml_item = list(yaml.safe_load_all(f.content))[0]
                 else:
                     with open(item, "r") as f:
-                        logging.info("opened yaml" + str(item))
                         yaml_item = list(yaml.safe_load_all(f))[0]
 
                 if yaml_item["kind"] == "ChaosEngine":
@@ -34,14 +33,10 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
                         else:
                             logging.info("Scenario: %s was not successfully injected, please check" % item)
                             if litmus_uninstall:
-                                for l_item in l_scenario:
-                                    logging.info("item " + str(l_item))
-                                    runcommand.invoke("kubectl delete -f %s" % l_item)
+                                delete_chaos(litmus_namespace)
                             sys.exit(1)
             if litmus_uninstall:
-                for item in l_scenario:
-                    logging.info("item " + str(item))
-                    runcommand.invoke("kubectl delete -f %s" % item)
+                delete_chaos(litmus_namespace)
             logging.info("Waiting for the specified duration: %s" % wait_duration)
             time.sleep(wait_duration)
             end_time = int(time.time())
@@ -53,6 +48,7 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
 
 # Install litmus and wait until pod is running
 def install_litmus(version, namespace):
+    logging.info("Installing version %s of litmus in namespace %s" % (version, namespace))
     litmus_install = runcommand.invoke(
         "kubectl -n %s apply -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % (namespace, version)
     )
@@ -65,7 +61,7 @@ def install_litmus(version, namespace):
         '[ { "op": "add", "path": "/spec/template/spec/containers/0/env/-", '
         '"value": { "name": "ANALYTICS", "value": "FALSE" } } ]\'' % namespace
     )
-
+    logging.info("Waiting for litmus operator to become available")
     runcommand.invoke("oc wait deploy -n %s chaos-operator-ce --for=condition=Available" % namespace)
 
 
@@ -75,68 +71,86 @@ def deploy_all_experiments(version_string, namespace):
         logging.error("Incorrect version string for litmus, needs to start with 'v' " "followed by a number")
         sys.exit(1)
     version = version_string[1:]
-
+    logging.info("Installing all litmus experiments")
     runcommand.invoke(
         "kubectl -n %s apply -f "
         "https://hub.litmuschaos.io/api/chaos/%s?file=charts/generic/experiments.yaml" % (namespace, version)
     )
 
 
-def delete_experiments(namespace):
-    runcommand.invoke("kubectl -n %s delete chaosengine --all" % namespace)
-
-
-# Check status of experiment
-def check_experiment(engine_name, experiment_name, namespace):
+def wait_for_initialized(engine_name, experiment_name, namespace):
     chaos_engine = runcommand.invoke(
-        "kubectl get chaosengines/%s -n %s -o jsonpath=" "'{.status.engineStatus}'" % (engine_name, namespace)
+        "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.engineStatus}'" % (engine_name, namespace)
     )
     engine_status = chaos_engine.strip()
     max_tries = 30
     engine_counter = 0
-    while engine_status.lower() != "running" and engine_status.lower() != "completed":
+    while engine_status.lower() != "initialized":
         time.sleep(10)
-        logging.info("Waiting for engine to start running.")
+        logging.info("Waiting for " + experiment_name + " to be initialized")
         chaos_engine = runcommand.invoke(
-            "kubectl get chaosengines/%s -n %s -o jsonpath=" "'{.status.engineStatus}'" % (engine_name, namespace)
+            "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.engineStatus}'" % (engine_name, namespace)
         )
         engine_status = chaos_engine.strip()
         if engine_counter >= max_tries:
-            logging.error("Chaos engine took longer than 5 minutes to be running or complete")
+            logging.error("Chaos engine " + experiment_name + " took longer than 5 minutes to be initialized")
             return False
         engine_counter += 1
         # need to see if error in run
         if "notfound" in engine_status.lower():
             logging.info("Chaos engine was not found")
             return False
+    return True
 
-    if not chaos_engine:
-        return False
+
+def wait_for_status(engine_name, expected_status, experiment_name, namespace):
+
+    if expected_status == "running":
+        response = wait_for_initialized(engine_name, experiment_name, namespace)
+        if not response:
+            logging.info("Chaos engine never initialized, exiting")
+            return False
+    chaos_engine = runcommand.invoke(
+        "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.experiments[0].status}'" % (engine_name, namespace)
+    )
+    engine_status = chaos_engine.strip()
+    max_tries = 30
+    engine_counter = 0
+    while engine_status.lower() != expected_status:
+        time.sleep(10)
+        logging.info("Waiting for " + experiment_name + " to be " + expected_status)
+        chaos_engine = runcommand.invoke(
+            "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.experiments[0].status}'" % (engine_name, namespace)
+        )
+        engine_status = chaos_engine.strip()
+        if engine_counter >= max_tries:
+            logging.error("Chaos engine " + experiment_name + " took longer than 5 minutes to be " + expected_status)
+            return False
+        engine_counter += 1
+        # need to see if error in run
+        if "notfound" in engine_status.lower():
+            logging.info("Chaos engine was not found")
+            return False
+    return True
+
+
+# Check status of experiment
+def check_experiment(engine_name, experiment_name, namespace):
+
+    wait_response = wait_for_status(engine_name, "running", experiment_name, namespace)
+
+    if wait_response:
+        wait_for_status(engine_name, "completed", experiment_name, namespace)
+    else:
+        sys.exit(1)
+
     chaos_result = runcommand.invoke(
         "kubectl get chaosresult %s"
         "-%s -n %s -o "
         "jsonpath='{.status.experimentStatus.verdict}'" % (engine_name, experiment_name, namespace)
     )
-    result_counter = 0
-    status = chaos_result.strip()
-    while status == "Awaited":
-        logging.info("Waiting for chaos result to finish, sleeping 10 seconds")
-        time.sleep(10)
-        chaos_result = runcommand.invoke(
-            "kubectl get chaosresult %s"
-            "-%s -n %s -o "
-            "jsonpath='{.status.experimentStatus.verdict}'" % (engine_name, experiment_name, namespace)
-        )
-        status = chaos_result.strip()
-        if result_counter >= max_tries:
-            logging.error("Chaos results took longer than 5 minutes to get a final result")
-            return False
-        result_counter += 1
-        if "notfound" in status.lower():
-            logging.info("Chaos result was not found")
-            return False
-
-    if status == "Pass":
+    if chaos_result == "Pass":
+        logging.info("Engine " + str(engine_name) + " finished with status " + str(chaos_result))
         return True
     else:
         chaos_result = runcommand.invoke(
@@ -144,17 +158,40 @@ def check_experiment(engine_name, experiment_name, namespace):
             "-%s -n %s -o jsonpath="
             "'{.status.experimentStatus.failStep}'" % (engine_name, experiment_name, namespace)
         )
-        logging.info("Chaos result failed information: " + str(chaos_result))
+        logging.info("Chaos scenario:" + engine_name + " failed with error: " + str(chaos_result))
+        logging.info(
+            "See 'kubectl get chaosresult %s"
+            "-%s -n %s -o yaml' for full results" % (engine_name, experiment_name, namespace)
+        )
         return False
 
 
 # Delete all chaos engines in a given namespace
+def delete_chaos_experiments(namespace):
+
+    namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + namespace + " | xargs")
+    if namespace_exists.strip() != "0":
+        logging.info("Deleting all litmus experiments")
+        runcommand.invoke("kubectl delete chaosexperiment --all -n " + str(namespace))
+
+
+# Delete all chaos engines in a given namespace
 def delete_chaos(namespace):
-    runcommand.invoke("kubectl delete chaosengine --all -n " + str(namespace))
-    runcommand.invoke("kubectl delete chaosexperiment --all -n " + str(namespace))
-    runcommand.invoke("kubectl delete chaosresult --all -n " + str(namespace))
+
+    namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + namespace + " | xargs")
+    if namespace_exists.strip() != "0":
+        logging.info("Deleting all litmus run objects")
+        runcommand.invoke("kubectl delete chaosengine --all -n " + str(namespace))
+        runcommand.invoke("kubectl delete chaosresult --all -n " + str(namespace))
+    else:
+        logging.info(namespace + " namespace doesn't exist")
 
 
-# Uninstall litmus operator
-def uninstall_litmus(version):
-    runcommand.invoke("kubectl delete -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % version)
+def uninstall_litmus(version, litmus_namespace):
+    namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + litmus_namespace + " | xargs")
+    if namespace_exists.strip() != "0":
+        logging.info("Uninstallting Litmus operator")
+        runcommand.invoke(
+            "kubectl delete -n %s -f "
+            "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % (litmus_namespace, version)
+        )
