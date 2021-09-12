@@ -37,7 +37,6 @@ def main(cfg):
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
         litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
-        litmus_namespace = config["kraken"].get("litmus_namespace", "litmus")
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
@@ -141,6 +140,7 @@ def main(cfg):
                         # Inject litmus based chaos scenarios
                         elif scenario_type == "litmus_scenarios":
                             logging.info("Running litmus scenarios")
+                            litmus_namespace = "litmus"
                             if not litmus_installed:
                                 # Will always uninstall first
                                 common_litmus.delete_chaos(litmus_namespace)
