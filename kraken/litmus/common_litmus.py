@@ -14,7 +14,7 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
         start_time = int(time.time())
         try:
             for item in l_scenario:
-                runcommand.invoke("kubectl apply -f %s" % item)
+                runcommand.invoke("kubectl apply -f %s -n %s" % (item, litmus_namespace))
                 if "http" in item:
                     f = requests.get(item)
                     yaml_item = list(yaml.safe_load_all(f.content))[0]
@@ -25,6 +25,13 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
                 if yaml_item["kind"] == "ChaosEngine":
                     engine_name = yaml_item["metadata"]["name"]
                     experiment_names = yaml_item["spec"]["experiments"]
+                    experiment_namespace = yaml_item["metadata"]["namespace"]
+                    if experiment_namespace != "litmus":
+                        logging.error(
+                            "Specified namespace: %s in the scenario: %s is not supported, please switch it to litmus"
+                            % (experiment_namespace, l_scenario)
+                        )
+                        sys.exit(1)
                     for expr in experiment_names:
                         expr_name = expr["name"]
                         experiment_result = check_experiment(engine_name, expr_name, litmus_namespace)
@@ -190,8 +197,10 @@ def delete_chaos(namespace):
 def uninstall_litmus(version, litmus_namespace):
     namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + litmus_namespace + " | xargs")
     if namespace_exists.strip() != "0":
-        logging.info("Uninstallting Litmus operator")
+        logging.info("Uninstalling Litmus operator")
         runcommand.invoke(
             "kubectl delete -n %s -f "
             "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % (litmus_namespace, version)
         )
+        logging.info("Deleting litmus crd")
+        runcommand.invoke("kubectl get crds | grep litmus | awk '{print $1}' | xargs -I {} oc delete crd/{}")
