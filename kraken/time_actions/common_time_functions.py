@@ -78,7 +78,9 @@ def skew_time(scenario):
 # From kubectl/oc command get time output
 def parse_string_date(obj_datetime):
     try:
-        date_line = re.search(r"[a-zA-Z0-9_() .]*\w{3} \w{3} \d{2} \d{2}:\d{2}:\d{2} \w{3} " r"\d{4}\W*", obj_datetime)
+        date_line = re.search(
+            r"[a-zA-Z0-9_() .]*\w{3}\s{1,}\w{3}\s{1,}\d{2}\s{1,}\d{2}:\d{2}:\d{2}\s{1,}\w{3} " r"\d{4}\W*", obj_datetime
+        )
         return date_line.group().strip()
     except Exception:
         return ""
