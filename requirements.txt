@@ -1,7 +1,7 @@
 datetime
 pyfiglet
 PyYAML>=5.1
-git+https://github.com/powerfulseal/powerfulseal.git
+git+https://github.com/powerfulseal/powerfulseal.git@3.3.0
 requests
 boto3
 google-api-python-client
