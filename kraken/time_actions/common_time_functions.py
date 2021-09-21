@@ -57,15 +57,28 @@ def skew_time(scenario):
                     logging.error("Need to set namespace when using pod name")
                     sys.exit(1)
                 pod_names.append([name, scenario["namespace"]])
-        elif "label_selector" in scenario.keys() and scenario["label_selector"]:
-            pod_names = kubecli.get_all_pods(scenario["label_selector"])
         elif "namespace" in scenario.keys() and scenario["namespace"]:
-            pod_names = kubecli.list_pods(scenario["namespace"])
+            if "label_selector" not in scenario.keys():
+                logging.info(
+                    "label_selector key not found, querying for all the pods in namespace: %s" % (scenario["namespace"])
+                )
+                pod_names = kubecli.list_pods(scenario["namespace"])
+            else:
+                logging.info(
+                    "Querying for the pods matching the %s label_selector in namespace %s"
+                    % (scenario["label_selector"], scenario["namespace"])
+                )
+                pod_names = kubecli.list_pods(scenario["namespace"], scenario["label_selector"])
             counter = 0
             for pod_name in pod_names:
                 pod_names[counter] = [pod_name, scenario["namespace"]]
                 counter += 1
+        elif "label_selector" in scenario.keys() and scenario["label_selector"]:
+            pod_names = kubecli.get_all_pods(scenario["label_selector"])
 
+        if len(pod_names) == 0:
+            logging.info("Cannot find pods matching the namespace/label_selector, please check")
+            sys.exit(1)
         for pod in pod_names:
             if len(pod) > 1:
                 pod_exec(pod[0], skew_command, pod[1])

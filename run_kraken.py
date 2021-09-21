@@ -209,7 +209,11 @@ def main(cfg):
             logging.error("Post scenarios are still failing at the end of all iterations")
             sys.exit(1)
 
-        logging.info("Successfully finished running Kraken. UUID for the run: %s. Exiting" % (run_uuid))
+        run_dir = os.getcwd() + "/kraken.report"
+        logging.info(
+            "Successfully finished running Kraken. UUID for the run: %s. Report generated at %s. Exiting"
+            % (run_uuid, run_dir)
+        )
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         sys.exit(1)
