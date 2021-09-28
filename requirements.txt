@@ -18,3 +18,4 @@ openshift-client
 python-ipmi
 podman-compose
 docker-compose
+jinja2

@@ -19,6 +19,7 @@ import kraken.shut_down.common_shut_down_func as shut_down
 import kraken.node_actions.run as nodeaction
 import kraken.kube_burner.client as kube_burner
 import kraken.zone_outage.actions as zone_outages
+import kraken.application_outage.actions as application_outage
 
 
 # Main function
@@ -168,6 +169,11 @@ def main(cfg):
                         elif scenario_type == "zone_outages":
                             logging.info("Inject zone outages")
                             zone_outages.run(scenarios_list, config, wait_duration)
+
+                        # Application outages
+                        elif scenario_type == "application_outages":
+                            logging.info("Injecting application outage")
+                            application_outage.run(scenarios_list, config, wait_duration)
 
             iteration += 1
             logging.info("")
