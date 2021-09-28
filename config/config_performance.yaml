@@ -27,6 +27,8 @@ kraken:
             - scenarios/ingress_namespace.yaml
         -   zone_outages:
             - scenarios/zone_outage.yaml
+        -   application_outages:
+            - scenarios/app_outage.yaml
 cerberus:
     cerberus_enabled: True                                # Enable it when cerberus is previously installed
     cerberus_url: http://0.0.0.0:8080                     # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
