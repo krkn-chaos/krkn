@@ -1,0 +1,53 @@
+### Signaling to Kraken
+This functionality allows a user to be able to pause or stop the kraken run at any time no matter the number of iterations or dameon_mode set in the config
+
+If publish_kraken_status is set to True in the config, kraken will start up a connection to a url at a certain port to decide if it should continue running
+
+By default it will get posted to http://0.0.0.0:8081/
+
+
+#### States
+There are 3 states in the kraken status
+
+```PAUSE```: When the Kraken signal is 'PAUSE', this will pause the kraken test and wait for the wait_duration until the signal returns to RUN
+
+```STOP```: When the Kraken signal is 'STOP', end the kraken run and print out report
+
+```RUN```: When the Kraken signal is 'RUN', continue kraken run based on iterations
+
+
+
+#### Configuration
+
+In the config you need to set these 2 parameters to tell kraken which port to post the kraken run status to
+As well if you want to publish and stop running based on the kraken status or not
+```
+    port: 8081
+    publish_kraken_status: True
+```
+
+
+#### Setting Signal
+
+See [set_stop_signal.py](https://github.com/cloud-bulldozer/kraken/tree/master/set_stop_signal.py) for an example of how to reset the kraken status during kraken execution
+
+Make sure to set the correct port number in your set_stop_signal script
+
+
+
+##### Url Examples
+To stop run:
+
+```
+curl -X POST http:/0.0.0.0:8081/STOP
+```
+
+To pause run:
+```
+curl -X POST http:/0.0.0.0:8081/PAUSE
+```
+
+To start running again:
+```
+curl -X POST http:/0.0.0.0:8081/RUN
+```
