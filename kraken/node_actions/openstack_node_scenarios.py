@@ -13,7 +13,7 @@ class OPENSTACKCLOUD:
     # Get the instance ID of the node
     def get_instance_id(self, node):
         openstack_node_ip = nodeaction.get_node_ip(node)
-        openstack_node_name = self.openstackcloud.get_openstack_nodename(openstack_node_ip)
+        openstack_node_name = self.get_openstack_nodename(openstack_node_ip)
         return openstack_node_name
 
     # Start the node instance
