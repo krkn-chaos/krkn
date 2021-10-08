@@ -31,5 +31,5 @@ services:
     ports:
       - "8080:8080"
     volumes:
-       - ./config/cerberus.yaml:/root/cerberus/config/cerberus.yaml:Z  # Modify the config in case of the need to monitor additional components
+       - ./config/cerberus.yaml:/root/cerberus/config/config.yaml:Z  # Modify the config in case of the need to monitor additional components
        - /root/.kube/config:/root/.kube/config:Z
