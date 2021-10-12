@@ -38,7 +38,9 @@ spec:
                     f.write(rendered_spec)
                 # Block the traffic by creating network policy
                 logging.info("Creating the network policy")
-                runcommand.invoke("kubectl create -f %s -n %s" % ("kraken_network_policy.yaml", namespace))
+                runcommand.invoke(
+                    "kubectl create -f %s -n %s --validate=false" % ("kraken_network_policy.yaml", namespace)
+                )
 
                 # wait for the specified duration
                 logging.info("Waiting for the specified duration in the config: %s" % (duration))
