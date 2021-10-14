@@ -68,25 +68,26 @@ node_scenarios:
     - node_crash_scenario
     node_name:                                                      # node on which scenario has to be injected
     label_selector: node-role.kubernetes.io/worker                  # when node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection
-    instance_kill_count: 1                                          # number of times to inject each scenario under actions
+    instance_count: 1                                          # Number of nodes to perform action/select that match the label selector
+    runs: 1                                                         # number of times to inject each scenario under actions (will perform on same node each time)
     timeout: 120                                                    # duration to wait for completion of node scenario injection
     cloud_type: aws                                                 # cloud type on which Kubernetes/OpenShift runs
   - actions:
     - node_reboot_scenario
     node_name:
     label_selector: node-role.kubernetes.io/infra
-    instance_kill_count: 1
+    instance_count: 1
     timeout: 120
     cloud_type: azure
   - actions:
     - node_crash_scenario
     node_name:
     label_selector: node-role.kubernetes.io/infra
-    instance_kill_count: 1
+    instance_count: 1
     timeout: 120
   - actions:
     - stop_start_helper_node_scenario                               # node chaos scenario for helper node
-    instance_kill_count: 1
+    instance_count: 1
     timeout: 120
     helper_node_ip:                                                 # ip address of the helper node
     service:                                                        # check status of the services on the helper node
@@ -99,7 +100,7 @@ node_scenarios:
     - node_stop_start_scenario
     node_name:
     label_selector: node-role.kubernetes.io/worker
-    instance_kill_count: 1
+    instance_count: 1
     timeout: 120
     cloud_type: bm
     bmc_user: defaultuser                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines.
