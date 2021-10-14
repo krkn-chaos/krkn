@@ -10,9 +10,9 @@ node_general = False
 
 
 # Pick a random node with specified label selector
-def get_node(node_name, label_selector):
+def get_node(node_name, label_selector, instance_kill_count):
     if node_name in kubecli.list_killable_nodes():
-        return node_name
+        return [node_name]
     elif node_name:
         logging.info("Node with provided node_name does not exist or the node might " "be in NotReady state.")
     nodes = kubecli.list_killable_nodes(label_selector)
@@ -20,8 +20,14 @@ def get_node(node_name, label_selector):
         raise Exception("Ready nodes with the provided label selector do not exist")
     logging.info("Ready nodes with the label selector %s: %s" % (label_selector, nodes))
     number_of_nodes = len(nodes)
-    node = nodes[random.randint(0, number_of_nodes - 1)]
-    return node
+    if instance_kill_count == number_of_nodes:
+        return nodes
+    nodes_to_return = []
+    for i in range(instance_kill_count):
+        node_to_add = nodes[random.randint(0, len(nodes) - 1)]
+        nodes_to_return.append(node_to_add)
+        nodes.remove(node_to_add)
+    return nodes_to_return
 
 
 # Wait till node status becomes Ready
