@@ -91,8 +91,6 @@ We are always looking for more enhancements, fixes to make it better, any contri
 
 
 ### Community
-Key Members(slack_usernames): paigerube14, rook, mffiedler, mohit, dry923, rsevilla, ravielluri
-* [**#sig-scalability on Kubernetes Slack**](https://kubernetes.slack.com)
+Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, ravielluri/Naga Ravi Chaitanya Elluri
 * [**#sig-scalability on Kubernetes Slack**](https://kubernetes.slack.com)
 * [**#forum-chaos on CoreOS Slack internal to Red Hat**](https://coreos.slack.com)
-* [**#forum-perfscale on CoreOS Slack internal to Red Hat**](https://coreos.slack.com)
