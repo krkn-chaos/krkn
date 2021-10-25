@@ -1,9 +1,12 @@
 ### Signaling to Kraken
-This functionality allows a user to be able to pause or stop the kraken run at any time no matter the number of iterations or dameon_mode set in the config
+This functionality allows a user to be able to pause or stop the kraken run at any time no matter the number of iterations or daemon_mode set in the config
 
 If publish_kraken_status is set to True in the config, kraken will start up a connection to a url at a certain port to decide if it should continue running
 
 By default it will get posted to http://0.0.0.0:8081/
+
+An example use case for this feature would be coordinating kraken runs based on the status of the service installation or load on the cluster
+
 
 
 #### States
@@ -19,11 +22,13 @@ There are 3 states in the kraken status
 
 #### Configuration
 
-In the config you need to set these 2 parameters to tell kraken which port to post the kraken run status to
+In the config you need to set these parameters to tell kraken which port to post the kraken run status to
 As well if you want to publish and stop running based on the kraken status or not
+The signal is set to `RUN` by default meaning it will continue to run the scenarios, it can set to `PAUSE` for Kraken to act as listener and wait until set to `RUN` before injecting chaos
 ```
     port: 8081
     publish_kraken_status: True
+    signal_state: RUN
 ```
 
 

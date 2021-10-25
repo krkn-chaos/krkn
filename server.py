@@ -32,7 +32,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.end_headers()
         with open("/tmp/kraken_status", "w+") as file:
-            file.write(str("STOP"))
+            file.write(str("RUN"))
 
     def set_stop(self):
         self.send_response(200)

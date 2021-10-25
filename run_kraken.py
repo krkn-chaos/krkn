@@ -44,6 +44,7 @@ def main(cfg):
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
         publish_running_status = config["kraken"].get("publish_kraken_status", False)
         port = config["kraken"].get("port", "8081")
+        run_signal = config["kraken"].get("signal_state", "RUN")
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
         litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
         wait_duration = config["tunings"].get("wait_duration", 60)
@@ -83,13 +84,11 @@ def main(cfg):
             port = 8081
         address = ("0.0.0.0", port)
 
-        # Setting the first signal to RUN
         # If publish_running_status is False this should keep us going in our loop below
-        run_signal = "RUN"
         if publish_running_status:
             server_address = address[0]
             port = address[1]
-            logging.info("Publishing kraken go status at http://%s:%s" % (server_address, port))
+            logging.info("Publishing kraken status at http://%s:%s" % (server_address, port))
             server.start_server(address)
             publish_kraken_status(run_signal)
 
