@@ -1,6 +1,6 @@
-import http
+import http.client as cli
 
-conn = http.client.HTTPConnection("0.0.0.0", "<port>")
+conn = cli.HTTPConnection("0.0.0.0", "<port>")
 
 conn.request("POST", "/STOP", {})
 
