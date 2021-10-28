@@ -182,8 +182,9 @@ def check_failed_containers(killed_container_list, wait_time):
                 if statuses["name"] == killed_container[2]:
                     if str(statuses["ready"]).lower() == "true":
                         container_ready.append(killed_container)
-        for item in container_ready:
-            killed_container_list = killed_container_list.remove(item)
+        if len(container_ready) != 0:
+            for item in container_ready:
+                killed_container_list = killed_container_list.remove(item)
         if killed_container_list is None or len(killed_container) == 0:
             return []
         timer += 5
