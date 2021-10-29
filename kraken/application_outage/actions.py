@@ -28,7 +28,8 @@ kind: NetworkPolicy
 metadata:
   name: kraken-deny
 spec:
-  podSelector: {{ pod_selector }}
+  podSelector:
+    matchLabels: {{ pod_selector }}
   policyTypes: {{ traffic_type }}
                 """
                 t = Template(network_policy_template)
