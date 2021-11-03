@@ -185,7 +185,7 @@ def check_failed_containers(killed_container_list, wait_time):
         if len(container_ready) != 0:
             for item in container_ready:
                 killed_container_list = killed_container_list.remove(item)
-        if killed_container_list is None or len(killed_container) == 0:
+        if killed_container_list is None or len(killed_container_list) == 0:
             return []
         timer += 5
         logging.info("Waiting 5 seconds for containers to become ready")
