@@ -1,0 +1,31 @@
+name: Docker Image CI
+on:
+  push:
+    branches: ['master']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Login in quay
+      run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
+      env:
+        QUAY_USER: ${{ secrets.QUAY_USER_1 }}
+        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
+    - name: Check out code
+      uses: actions/checkout@master
+    - name: Build the Docker images
+      run:  docker build --no-cache -t quay.io/openshift-scale/kraken containers/
+    - name: Push the Docker images
+      run: docker push quay.io/openshift-scale/kraken
+    - name: Remove Image
+      run: docker rmi -f quay.io/openshift-scale/kraken | exit 0
+    - name: Build Kraken-hub Image
+      uses: convictional/trigger-workflow-and-wait@v1.5.0
+      with:
+        owner: cloud-bulldozer
+        repo: kraken-hub
+        github_token: ${{ secrets.G_ACCESS_TOKEN }}
+        workflow_file_name: docker-image.yml
+        trigger_workflow: true
+        wait_workflow: true
