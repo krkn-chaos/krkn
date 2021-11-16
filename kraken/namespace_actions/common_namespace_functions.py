@@ -70,11 +70,12 @@ def check_active_namespace(killed_namespaces, wait_time):
     timer = 0
     while timer < wait_time and killed_namespaces:
         for namespace_name in killed_namespaces:
-            response = kubecli.get_namespace_status(namespace_name).strip()
-            if response != "Active":
-                continue
-            else:
-                active_namespace.append(namespace_name)
+            if namespace_name in kubecli.list_namespaces():
+                response = kubecli.get_namespace_status(namespace_name).strip()
+                if response != "Active":
+                    continue
+                else:
+                    active_namespace.append(namespace_name)
         killed_namespaces = set(killed_namespaces) - set(active_namespace)
         if len(killed_namespaces) == 0:
             return []
