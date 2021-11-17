@@ -20,6 +20,7 @@ import kraken.node_actions.run as nodeaction
 import kraken.kube_burner.client as kube_burner
 import kraken.zone_outage.actions as zone_outages
 import kraken.application_outage.actions as application_outage
+import kraken.pvc.pvc_scenario as pvc_scenario
 import server as server
 
 
@@ -210,6 +211,11 @@ def main(cfg):
                         elif scenario_type == "application_outages":
                             logging.info("Injecting application outage")
                             application_outage.run(scenarios_list, config, wait_duration)
+
+                        # PVC scenarios
+                        elif scenario_type == "pvc_scenarios":
+                            logging.info("Running PVC scenario")
+                            pvc_scenario.run(scenarios_list, config)
 
             iteration += 1
             logging.info("")

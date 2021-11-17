@@ -1,0 +1,6 @@
+pvc_scenario:                        # Scenario to stop all the nodes for specified duration and restart the nodes
+  pod_name: pod_name                 # Name of the pod with the PVC linked to
+  namespace: namespace_name          # Namespace where the pod is
+  mount_path: /path/to/pvc           # Path to the PVC in the default container pod
+  file_size: 1024                    # Size of the file to be created in the PVC (block size is 1K)
+  duration: 60                       # Duration in seconds for the fault
