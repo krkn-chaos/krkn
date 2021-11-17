@@ -1,9 +1,9 @@
 ### PVC scenario
-Scenario to fill up a given PersistenVolumeClaim by creating a temp file of a given size from a pod that has the volume mounted in the given path. The purpose of this scenario is to fill up a volume to understand faults cause by the application using this volume. 
+Scenario to fill up a given PersistenVolumeClaim by creating a temp file of a given size from a pod that has the volume mounted in the given path. The purpose of this scenario is to fill up a volume to understand faults cause by the application using this volume.
 
 ##### Sample scenario config
 ```
-pvc_scenario:                        # Scenario to stop all the nodes for specified duration and restart the nodes
+pvc_scenario:
   pod_name: pod_name                 # Name of the pod with the PVC linked to
   namespace: namespace_name          # Namespace where the pod is
   mount_path: /path/to/pvc           # Path to the PVC in the default container pod

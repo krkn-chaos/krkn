@@ -1,4 +1,4 @@
-pvc_scenario:                        # Scenario to stop all the nodes for specified duration and restart the nodes
+pvc_scenario:
   pod_name: pod_name                 # Name of the pod with the PVC linked to
   namespace: namespace_name          # Namespace where the pod is
   mount_path: /path/to/pvc           # Path to the PVC in the default container pod
