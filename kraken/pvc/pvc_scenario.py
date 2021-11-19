@@ -40,7 +40,9 @@ def run(scenarios_list, config):
                 pod_name = runcommand.invoke(command, 60).rstrip()
                 logging.debug("Pod name: %s" % pod_name)
                 if pod_name == "<none>":
-                    logging.error("Pod associated with %s PVC, on namespace %s, not found" % (str(pvc_name), str(namespace)))
+                    logging.error(
+                        "Pod associated with %s PVC, on namespace %s, not found" % (str(pvc_name), str(namespace))
+                    )
                     sys.exit(1)
 
                 # Get mount path
