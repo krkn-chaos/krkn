@@ -1,21 +1,23 @@
 ### PVC scenario
-Scenario to fill up a given PersistenVolumeClaim by creating a temp file of a given size from a pod that has the volume mounted in the given path. The purpose of this scenario is to fill up a volume to understand faults cause by the application using this volume.
+Scenario to fill up a given PersistenVolumeClaim by creating a temp file on the PVC from a pod associated with it. The purpose of this scenario is to fill up a volume to understand faults cause by the application using this volume.
 
 ##### Sample scenario config
 ```
 pvc_scenario:
-  pod_name: pod_name                 # Name of the pod with the PVC linked to
-  namespace: namespace_name          # Namespace where the pod is
-  mount_path: /path/to/pvc           # Path to the PVC in the default container pod
-  file_size: 1024                    # Size of the file to be created in the PVC (block size is 1K)
-  duration: 60                       # Duration in seconds for the fault
+  pvc_name: <pvc_name>          # Name of the target PVC
+  namespace: <namespace_name>   # Namespace where the PVC is
+  fill_percentage: 50           # Target percentage to fill up the cluster, value must be higher than current percentage, valid values are between 0 and 99
+  duration: 60                  # Duration in seconds for the fault
 ```
 
 ##### Steps
+ - Get the `pod_name` where the PVC is mounted
+ - Get the `mount_path` where the PVC is mounted in the pod
+ - Get the PVC capacity and current used capacity
+ - Calculate file size to fill the PVC to the target `fill_percentage`
  - Connect to the `pod_name`
- - Change directory to the `mount_path`
- - Create a temp file `kraken.tmp` with random on the `mount_path`:
-    - `dd bs=1024 count=$file_size </dev/urandom >kraken.tmp`
+ - Create a temp file `kraken.tmp` with random data on the `mount_path`:
+    - `dd bs=1024 count=$file_size </dev/urandom > /mount_path/kraken.tmp`
  - Wait for the `duration` time
  - Remove the temp file created:
     - `rm kraken.tmp`
