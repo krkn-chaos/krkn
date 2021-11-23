@@ -32,46 +32,63 @@ def run(scenarios_list, config):
                     sys.exit(1)
 
                 # Get pod name
-                command = "oc describe pvc %s -n %s | grep \"Used By:\" | grep -Eo '[^: ]*$'" % (
+                command = "kubectl describe pvc %s -n %s | grep \"Mounted By:\" | grep -Eo '[^: ]*$'" % (
                     str(pvc_name),
                     str(namespace),
                 )
                 logging.debug("Get pod name command:\n %s" % command)
                 pod_name = runcommand.invoke(command, 60).rstrip()
-                logging.debug("Pod name: %s" % pod_name)
+                logging.info("Pod name: %s" % pod_name)
                 if pod_name == "<none>":
                     logging.error(
                         "Pod associated with %s PVC, on namespace %s, not found" % (str(pvc_name), str(namespace))
                     )
                     sys.exit(1)
 
-                # Get mount path
-                command = 'oc get pods %s -n %s -o json | jq -r ".spec.containers[].volumeMounts"' % (
+                # Get volume name
+                command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.volumes"' % (str(pod_name), str(namespace),)
+                logging.debug("Get mount path command:\n %s" % command)
+                volumes_list = runcommand.invoke(command, 60).rstrip()
+                volumes_list_json = json.loads(volumes_list)
+                for entry in volumes_list_json:
+                    if "persistentVolumeClaim" in entry:
+                        if entry["persistentVolumeClaim"]["claimName"] == pvc_name:
+                            volume_name = entry["name"]
+                            break
+                logging.info("Volumen name: %s" % volume_name)
+
+                # Get container name and mount path
+                command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.containers"' % (
                     str(pod_name),
                     str(namespace),
                 )
                 logging.debug("Get mount path command:\n %s" % command)
-                volume_mounts_list = runcommand.invoke(command, 60).rstrip()
+                volume_mounts_list = runcommand.invoke(command, 60).rstrip().replace("\n]\n[\n", ",\n")
                 volume_mounts_list_json = json.loads(volume_mounts_list)
                 for entry in volume_mounts_list_json:
-                    if entry["name"] == pvc_name:
-                        mount_path = entry["mountPath"]
-                        break
-                logging.debug("Mount path: %s" % mount_path)
+                    for vol in entry["volumeMounts"]:
+                        if vol["name"] == volume_name:
+                            mount_path = vol["mountPath"]
+                            container_name = entry["name"]
+                            break
+                logging.info("Container path: %s" % container_name)
+                logging.info("Mount path: %s" % mount_path)
 
                 # Get PVC capacity
-                pvc_capacity = runcommand.invoke(
-                    "oc describe pvc %s -n %s | grep \"Capacity:\" | grep -Eo '[^: ]*$'"
-                    % (str(pvc_name), str(namespace)),
-                    60,
-                ).rstrip()
+                command = "kubectl describe pvc %s -n %s | grep \"Capacity:\" | grep -Eo '[^: ]*$'" % (
+                    str(pvc_name),
+                    str(namespace),
+                )
+                pvc_capacity = runcommand.invoke(command, 60,).rstrip()
+                logging.debug("Get PVC capacity command:\n %s" % command)
                 pvc_capacity_bytes = toKbytes(pvc_capacity)
-                logging.debug("PVC capacity: %s KB" % pvc_capacity_bytes)
+                logging.info("PVC capacity: %s KB" % pvc_capacity_bytes)
 
-                # Get used bytes in pvc
-                command = "du -sk %s | grep -Eo '[0-9]*'" % (str(mount_path))
-                pvc_used = kubecli.exec_cmd_in_pod(command, pod_name, namespace)
-                logging.debug("PVC used: %s KB" % pvc_used)
+                # Get used bytes in PVC
+                command = "du -sk %s | grep -Eo '^[0-9]*'" % (str(mount_path))
+                logging.debug("Get used bytes in PVC command:\n %s" % command)
+                pvc_used = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
+                logging.info("PVC used: %s KB" % pvc_used)
 
                 # Check valid fill percentage
                 current_fill_percentage = float(pvc_used) / float(pvc_capacity_bytes)
@@ -96,12 +113,13 @@ def run(scenarios_list, config):
                 )
 
                 start_time = int(time.time())
-                # Create temp file in the pvc
+                # Create temp file in the PVC
                 full_path = "%s/%s" % (str(mount_path), str(file_name))
                 command = "dd bs=1024 count=%s </dev/urandom >%s" % (str(file_size), str(full_path))
-                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace)
+                logging.debug("Create temp file in the PVC command:\n %s" % command)
+                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
                 logging.info("\n" + str(response))
-                if "copied" in response.lower():
+                if "copied" in str(response).lower():
                     logging.info("%s file successfully created" % (str(full_path)))
                 else:
                     logging.error("Failed to create tmp file with %s size" % (str(file_size)))
@@ -112,11 +130,13 @@ def run(scenarios_list, config):
                 time.sleep(duration)
                 logging.info("Finish waiting")
 
-                # Remove the temp file from the pvc
+                # Remove the temp file from the PVC
                 command = "rm %s" % (str(full_path))
-                kubecli.exec_cmd_in_pod(command, pod_name, namespace)
+                logging.debug("Remove temp file from the PVC command:\n %s" % command)
+                kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
                 command = "ls %s" % (str(mount_path))
-                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace)
+                logging.debug("Check temp file is removed command:\n %s" % command)
+                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
                 logging.info("\n" + str(response))
                 if not (file_name in response.lower()):
                     logging.info("Temp file successfully removed")
