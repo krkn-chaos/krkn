@@ -26,7 +26,7 @@ def run(scenarios_list, config):
 
                 logging.info(
                     """Input params:
-                pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\nduration: '%ss'"""
+pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\nduration: '%ss'"""
                     % (str(pvc_name), str(pod_name), str(namespace), str(target_fill_percentage), str(duration))
                 )
 
