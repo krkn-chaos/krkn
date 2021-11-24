@@ -1,0 +1,8 @@
+scenarios:
+- name: "kill machine config container"
+  namespace: "openshift-machine-config-operator"
+  label_selector: "k8s-app=machine-config-server"
+  container_name: "hello-openshift"
+  action: "kill 1"
+  count: 1
+  retry_wait: 60

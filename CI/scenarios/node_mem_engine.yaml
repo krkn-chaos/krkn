@@ -1,0 +1,28 @@
+apiVersion: litmuschaos.io/v1alpha1
+kind: ChaosEngine
+metadata:
+  name: nginx-chaos
+  namespace: litmus
+spec:
+  # It can be delete/retain
+  jobCleanUpPolicy: 'retain'
+  # It can be active/stop
+  engineState: 'active'
+  chaosServiceAccount: litmus-sa
+  experiments:
+    - name: node-memory-hog
+      spec:
+        components:
+          env:
+            # set chaos duration (in sec) as desired
+            - name: TOTAL_CHAOS_DURATION
+              value: '10'
+
+            ## Specify the size as percent of total node capacity Ex: '30'
+            ## Note: For consuming memory in mebibytes change the variable to MEMORY_CONSUMPTION_MEBIBYTES
+            - name: MEMORY_CONSUMPTION_PERCENTAGE
+              value: '30'
+
+            # ENTER THE COMMA SEPARATED TARGET NODES NAME
+            - name: TARGET_NODES
+              value: $WORKER_NODE

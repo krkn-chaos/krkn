@@ -98,6 +98,9 @@ We are always looking for more enhancements, fixes to make it better, any contri
 
 [More information on how to Contribute](docs/contribute.md)
 
+If adding a new scenario or tweaking the main config, be sure to add in updates into the CI to be sure the CI is up to date
+Please read [this file]((CI/README.md#adding-a-test-case)) for more information on updates
+
 
 ### Community
 Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, ravielluri/Naga Ravi Chaitanya Elluri

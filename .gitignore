@@ -13,6 +13,9 @@ __pycache__/*
 .*.swp
 */.ipynb_checkpoints/*
 .DS_Store
+*.out
+kube-burner*
+kube_burner*
 
 # Project files
 .ropeproject
@@ -47,3 +50,14 @@ MANIFEST
 
 # Per-project virtualenvs
 .venv*/
+venv*/
+kraken.report
+collected-metrics/*
+inspect.local.*
+
+# Tests
+!CI/config/common_test_config.yaml
+CI/out/*
+CI/ci_results
+CI/scenarios/*node.yaml
+CI/results.markdown

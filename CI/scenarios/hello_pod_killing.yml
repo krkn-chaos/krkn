@@ -1,0 +1,31 @@
+config:
+  runStrategy:
+    runs: 1
+    maxSecondsBetweenRuns: 30
+    minSecondsBetweenRuns: 1
+scenarios:
+  - name: "delete hello pods"
+    steps:
+    - podAction:
+        matches:
+          - labels:
+              namespace: "default"
+              selector: "hello-openshift"
+        filters:
+          - randomSample:
+              size: 1
+        actions:
+          - kill:
+              probability: 1
+              force: true
+    - podAction:
+        matches:
+          - labels:
+              namespace: "default"
+              selector: "hello-openshift"
+        retries:
+          retriesTimeout:
+            timeout: 180
+        actions:
+          - checkPodCount:
+              count: 1
