@@ -19,31 +19,47 @@ def run(scenarios_list, config):
                 config_yaml = yaml.full_load(f)
                 scenario_config = config_yaml["pvc_scenario"]
                 pvc_name = scenario_config.get("pvc_name", "")
+                pod_name = scenario_config.get("pod_name", "")
                 namespace = scenario_config.get("namespace", "")
                 target_fill_percentage = scenario_config.get("fill_percentage", "50")
                 duration = scenario_config.get("duration", 60)
 
+                logging.info(
+                    """Input params:
+                pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\nduration: '%ss'"""
+                    % (str(pvc_name), str(pod_name), str(namespace), str(target_fill_percentage), str(duration))
+                )
+
                 # Check input params
-                if len(pvc_name) == 0:
-                    logging.error("You must specify the pvc_name")
-                    sys.exit(1)
                 if len(namespace) == 0:
                     logging.error("You must specify the namespace where the PVC is")
                     sys.exit(1)
+                if len(pvc_name) == 0 and len(pod_name) == 0:
+                    logging.error("You must specify the pvc_name or the pod_name")
+                    sys.exit(1)
+                if len(pvc_name) > 0 and len(pod_name) > 0:
+                    logging.info(
+                        "pod_name will be ignored, pod_name used will be a retrieved from the pod used in the pvc_name"
+                    )
 
                 # Get pod name
-                command = "kubectl describe pvc %s -n %s | grep -E 'Mounted By:|Used By:' | grep -Eo '[^: ]*$'" % (
-                    str(pvc_name),
-                    str(namespace),
-                )
-                logging.debug("Get pod name command:\n %s" % command)
-                pod_name = runcommand.invoke(command, 60).rstrip()
-                logging.info("Pod name: %s" % pod_name)
-                if pod_name == "<none>":
-                    logging.error(
-                        "Pod associated with %s PVC, on namespace %s, not found" % (str(pvc_name), str(namespace))
+                if len(pvc_name) > 0:
+                    if len(pod_name) > 0:
+                        logging.info(
+                            "pod_name '%s' will be overridden from the pod mounted in the PVC" % (str(pod_name))
+                        )
+                    command = "kubectl describe pvc %s -n %s | grep -E 'Mounted By:|Used By:' | grep -Eo '[^: ]*$'" % (
+                        str(pvc_name),
+                        str(namespace),
                     )
-                    sys.exit(1)
+                    logging.debug("Get pod name command:\n %s" % command)
+                    pod_name = runcommand.invoke(command, 60).rstrip()
+                    logging.info("Pod name: %s" % pod_name)
+                    if pod_name == "<none>":
+                        logging.error(
+                            "Pod associated with %s PVC, on namespace %s, not found" % (str(pvc_name), str(namespace))
+                        )
+                        sys.exit(1)
 
                 # Get volume name
                 command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.volumes"' % (str(pod_name), str(namespace),)
@@ -51,10 +67,10 @@ def run(scenarios_list, config):
                 volumes_list = runcommand.invoke(command, 60).rstrip()
                 volumes_list_json = json.loads(volumes_list)
                 for entry in volumes_list_json:
-                    if "persistentVolumeClaim" in entry:
-                        if entry["persistentVolumeClaim"]["claimName"] == pvc_name:
-                            volume_name = entry["name"]
-                            break
+                    if len(entry["persistentVolumeClaim"]["claimName"]) > 0:
+                        volume_name = entry["name"]
+                        pvc_name = entry["persistentVolumeClaim"]["claimName"] if (len(pvc_name) == 0) else pvc_name
+                        break
                 logging.info("Volumen name: %s" % volume_name)
 
                 # Get container name and mount path
