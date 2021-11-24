@@ -39,6 +39,8 @@ kraken:
             - scenarios/zone_outage.yaml
         -   application_outages:
             - scenarios/app_outage.yaml
+        -   pvc_scenarios:
+            - scenarios/pvc_scenario.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
