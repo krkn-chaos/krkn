@@ -32,7 +32,7 @@ def run(scenarios_list, config):
                     sys.exit(1)
 
                 # Get pod name
-                command = "kubectl describe pvc %s -n %s | grep \"Mounted By:\" | grep -Eo '[^: ]*$'" % (
+                command = "kubectl describe pvc %s -n %s | grep -E 'Mounted By:|Used By:' | grep -Eo '[^: ]*$'" % (
                     str(pvc_name),
                     str(namespace),
                 )
