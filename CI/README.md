@@ -31,4 +31,4 @@ This will run kraken using python, make sure python3 is set up and configured pr
 
     a. This will be the name of the file without ".sh"
 
-5. If any changes to the main config (other than the scenario list), please be sure to add them into the [common_config](config/common_test_config.yaml)  
+5. If any changes to the main config (other than the scenario list), please be sure to add them into the [common_config](config/common_test_config.yaml)
