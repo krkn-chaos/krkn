@@ -5,6 +5,7 @@ import logging
 import kraken.invoke.command as runcommand
 import sys
 import re
+import time
 
 kraken_node_name = ""
 
@@ -12,9 +13,11 @@ kraken_node_name = ""
 # Load kubeconfig and initialize kubernetes python client
 def initialize_clients(kubeconfig_path):
     global cli
+    global batch_cli
     try:
         config.load_kube_config(kubeconfig_path)
         cli = client.CoreV1Api()
+        batch_cli = client.BatchV1Api()
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)
         sys.exit(1)
@@ -164,6 +167,45 @@ def exec_cmd_in_pod(command, pod_name, namespace, container=None):
     return ret
 
 
+def delete_pod(name, namespace):
+    try:
+        cli.delete_namespaced_pod(name=name, namespace=namespace)
+        while cli.read_namespaced_pod(name=name, namespace=namespace):
+            time.sleep(1)
+    except ApiException:
+        logging.info("Pod already deleted")
+
+
+def create_pod(body, namespace, timeout=120):
+    try:
+        pod_stat = None
+        pod_stat = cli.create_namespaced_pod(body=body, namespace=namespace)
+        end_time = time.time() + timeout
+        while True:
+            pod_stat = cli.read_namespaced_pod(name=body["metadata"]["name"], namespace=namespace)
+            if pod_stat.status.phase == "Running":
+                break
+            if time.time() > end_time:
+                raise Exception("Starting pod failed")
+            time.sleep(1)
+    except Exception as e:
+        logging.error("Pod creation failed %s" % e)
+        if pod_stat:
+            logging.error(pod_stat.status.container_statuses)
+        delete_pod(body["metadata"]["name"], namespace)
+        sys.exit(1)
+
+
+def read_pod(name, namespace="default"):
+    return cli.read_namespaced_pod(name=name, namespace=namespace)
+
+
+def get_pod_log(name, namespace="default"):
+    return cli.read_namespaced_pod_log(
+        name=name, namespace=namespace, _return_http_data_only=True, _preload_content=False
+    )
+
+
 def get_containers_in_pod(pod_name, namespace):
     pod_info = cli.read_namespaced_pod(pod_name, namespace)
     container_names = []
@@ -171,6 +213,64 @@ def get_containers_in_pod(pod_name, namespace):
     for cont in pod_info.spec.containers:
         container_names.append(cont.name)
     return container_names
+
+
+def delete_job(name, namespace="default"):
+    try:
+        api_response = batch_cli.delete_namespaced_job(
+            name=name,
+            namespace=namespace,
+            body=client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=0),
+        )
+        logging.debug("Job deleted. status='%s'" % str(api_response.status))
+        return api_response
+    except ApiException as api:
+        logging.warn(
+            "Exception when calling \
+                       BatchV1Api->create_namespaced_job: %s"
+            % api
+        )
+        logging.warn("Job already deleted\n")
+    except Exception as e:
+        logging.error(
+            "Exception when calling \
+                       BatchV1Api->delete_namespaced_job: %s\n"
+            % e
+        )
+        sys.exit(1)
+
+
+def create_job(body, namespace="default"):
+    try:
+        api_response = batch_cli.create_namespaced_job(body=body, namespace=namespace)
+        return api_response
+    except ApiException as api:
+        logging.warn(
+            "Exception when calling \
+                       BatchV1Api->create_job: %s"
+            % api
+        )
+        if api.status == 409:
+            logging.warn("Job already present")
+    except Exception as e:
+        logging.error(
+            "Exception when calling \
+                       BatchV1Api->create_namespaced_job: %s"
+            % e
+        )
+        raise
+
+
+def get_job_status(name, namespace="default"):
+    try:
+        return batch_cli.read_namespaced_job_status(name=name, namespace=namespace)
+    except Exception as e:
+        logging.error(
+            "Exception when calling \
+                       BatchV1Api->read_namespaced_job_status: %s"
+            % e
+        )
+        raise
 
 
 # Obtain node status
