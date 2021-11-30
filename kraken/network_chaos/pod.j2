@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fedtools
+spec:
+  hostNetwork: true
+  nodeName: {{nodename}}
+  containers:
+  - name: fedtools
+    image: docker.io/fedora/tools
+    command:
+    - /bin/sh
+    - -c
+    - |
+      sleep infinity
+    securityContext:
+      privileged: true

@@ -21,6 +21,7 @@ import kraken.kube_burner.client as kube_burner
 import kraken.zone_outage.actions as zone_outages
 import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
+import kraken.network_chaos.actions as network_chaos
 import server as server
 
 
@@ -216,6 +217,11 @@ def main(cfg):
                         elif scenario_type == "pvc_scenarios":
                             logging.info("Running PVC scenario")
                             pvc_scenario.run(scenarios_list, config)
+
+                        # Network scenarios
+                        elif scenario_type == "network_chaos":
+                            logging.info("Running Network Chaos")
+                            network_chaos.run(scenarios_list, config, wait_duration)
 
             iteration += 1
             logging.info("")

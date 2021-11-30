@@ -1,0 +1,6 @@
+network_chaos:                   # Scenario to create an outage by simulating random variations in the network.
+  duration: 10                   # seconds
+  instance_count: 1
+  execution: serial
+  egress:
+    bandwidth: 100mbit
