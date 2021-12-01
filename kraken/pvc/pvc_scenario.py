@@ -31,20 +31,20 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 )
 
                 # Check input params
-                if len(namespace) == 0:
+                if namespace is None:
                     logging.error("You must specify the namespace where the PVC is")
                     sys.exit(1)
-                if len(pvc_name) == 0 and len(pod_name) == 0:
+                if pvc_name is None and pod_name is None:
                     logging.error("You must specify the pvc_name or the pod_name")
                     sys.exit(1)
-                if len(pvc_name) > 0 and len(pod_name) > 0:
+                if pvc_name and pod_name:
                     logging.info(
                         "pod_name will be ignored, pod_name used will be a retrieved from the pod used in the pvc_name"
                     )
 
                 # Get pod name
-                if len(pvc_name) > 0:
-                    if len(pod_name) > 0:
+                if pvc_name:
+                    if pod_name:
                         logging.info(
                             "pod_name '%s' will be overridden from the pod mounted in the PVC" % (str(pod_name))
                         )
@@ -69,7 +69,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 for entry in volumes_list_json:
                     if len(entry["persistentVolumeClaim"]["claimName"]) > 0:
                         volume_name = entry["name"]
-                        pvc_name = entry["persistentVolumeClaim"]["claimName"] if (len(pvc_name) == 0) else pvc_name
+                        pvc_name = entry["persistentVolumeClaim"]["claimName"] if pvc_name else pvc_name
                         break
                 logging.info("Volume name: %s" % volume_name)
 
@@ -154,7 +154,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 logging.debug("Check temp file is removed command:\n %s" % command)
                 response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
                 logging.info("\n" + str(response))
-                if not (file_name in response.lower()):
+                if not (file_name in str(response).lower()):
                     logging.info("Temp file successfully removed")
                 else:
                     logging.error("Failed to delete tmp file with %s size" % (str(file_size)))
