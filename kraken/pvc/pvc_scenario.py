@@ -31,13 +31,13 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 )
 
                 # Check input params
-                if len(namespace) == 0:
+                if namespace is None:
                     logging.error("You must specify the namespace where the PVC is")
                     sys.exit(1)
-                if len(pvc_name) == 0 and len(pod_name) == 0:
+                if pvc_name is None and pod_name is None:
                     logging.error("You must specify the pvc_name or the pod_name")
                     sys.exit(1)
-                if len(pvc_name) > 0 and len(pod_name) > 0:
+                if pvc_name and pod_name:
                     logging.info(
                         "pod_name will be ignored, pod_name used will be a retrieved from the pod used in the pvc_name"
                     )
