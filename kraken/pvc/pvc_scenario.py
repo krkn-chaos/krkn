@@ -154,7 +154,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 logging.debug("Check temp file is removed command:\n %s" % command)
                 response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
                 logging.info("\n" + str(response))
-                if not (file_name in response.lower()):
+                if not (file_name in str(response).lower()):
                     logging.info("Temp file successfully removed")
                 else:
                     logging.error("Failed to delete tmp file with %s size" % (str(file_size)))
