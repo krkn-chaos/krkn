@@ -43,8 +43,8 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                     )
 
                 # Get pod name
-                if len(pvc_name) > 0:
-                    if len(pod_name) > 0:
+                if pvc_name:
+                    if pod_name:
                         logging.info(
                             "pod_name '%s' will be overridden from the pod mounted in the PVC" % (str(pod_name))
                         )
@@ -69,7 +69,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 for entry in volumes_list_json:
                     if len(entry["persistentVolumeClaim"]["claimName"]) > 0:
                         volume_name = entry["name"]
-                        pvc_name = entry["persistentVolumeClaim"]["claimName"] if (len(pvc_name) == 0) else pvc_name
+                        pvc_name = entry["persistentVolumeClaim"]["claimName"] if pvc_name else pvc_name
                         break
                 logging.info("Volume name: %s" % volume_name)
 
