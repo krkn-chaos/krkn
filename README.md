@@ -8,6 +8,9 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 ### Workflow
 ![Kraken workflow](media/kraken-workflow.png)
 
+### Demo
+[![Kraken demo](media/KrakenStarting.png)](https://youtu.be/LN-fZywp_mo "Kraken Demo - Click to Watch!")
+
 
 ### How to Get Started
 Instructions on how to setup, configure and run Kraken can be found at [Installation](docs/installation.md).
