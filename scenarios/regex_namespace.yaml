@@ -1,6 +1,7 @@
 scenarios:
 - action: delete
   namespace: "^.*$"
+  delete_count: 1
   runs: 2
   sleep: 15
   wait_time: 300

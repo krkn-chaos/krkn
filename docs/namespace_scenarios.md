@@ -6,11 +6,15 @@ Configuration Options:
 
 **action:** default is `delete`
 
-**namespace:** specific namespace or regex style namespace of what you want to delete, gets all namespaces if not specified
+**namespace:** specific namespace or regex style namespace of what you want to delete, gets all namespaces if not specified; set to "" if you want to use the label_selector field
 
-**label_selector:** label on the namespace you want to delete
+Set to '^.*$' and label_selector to "" to randomly select any namespace in your cluster
 
-**runs:** number of runs to kill namespaces, based on matching namespace and label specified, default is 1
+**label_selector:** label on the namespace you want to delete, set to "" if you are using the namespace variable
+
+**delete_count:** number of namespaces to kill in each run, based on matching namespace and label specified, default is 1
+
+**runs:** number of runs/iterations to kill namespaces, default is 1
 
 **sleep:** number of seconds to wait between each iteration/count of killing namespaces. Defaults to 10 seconds if not set
 
