@@ -124,15 +124,20 @@ def skew_time(scenario):
 # From kubectl/oc command get time output
 def parse_string_date(obj_datetime):
     try:
-        logging.info("obj_date time " + str(obj_datetime))
-        date_line = re.search(
-            r"[\s\S\n]*\w{3}\s{1,}\w{3}\s{1,}\d{2}\s{1,}\d{2}:\d{2}:\d{2}\s{1,}\w{3} " r"\d{4}\W*", obj_datetime
-        )
-        search_response = date_line.group().strip()
-        logging.info("search_res" + str(search_response))
-        return search_response
-    except Exception:
-        logging.info("exception")
+        logging.info("Obj_date time " + str(obj_datetime))
+        obj_datetime = re.sub(r"\s\s+", " ", obj_datetime).strip()
+        logging.info("Obj_date sub time " + str(obj_datetime))
+        date_line = re.match(
+            r"[\s\S\n]*\w{3} \w{3} \d{1,} \d{2}:\d{2}:\d{2} \w{3} \d{4}[\s\S\n]*", obj_datetime
+        )  # noqa
+        if date_line is not None:
+            search_response = date_line.group().strip()
+            logging.info("Search response: " + str(search_response))
+            return search_response
+        else:
+            return ""
+    except Exception as e:
+        logging.info("Exception %s when trying to parse string to date" % str(e))
         return ""
 
 
@@ -143,6 +148,7 @@ def string_to_date(obj_datetime):
         date_time_obj = datetime.datetime.strptime(obj_datetime, "%a %b %d %H:%M:%S %Z %Y")
         return date_time_obj
     except Exception:
+        logging.info("Couldn't parse string to datetime object")
         return datetime.datetime(datetime.MINYEAR, 1, 1)
 
 
@@ -177,7 +183,6 @@ def check_date_time(object_type, names):
             while not first_date_time < pod_datetime < datetime.datetime.utcnow():
                 time.sleep(10)
                 logging.info("Date/time on pod %s still not reset, waiting 10 seconds and retrying" % pod_name[0])
-                first_date_time = datetime.datetime.utcnow()
                 pod_datetime = pod_exec(pod_name[0], skew_command, pod_name[1], pod_name[2])
                 pod_datetime = string_to_date(pod_datetime)
                 counter += 1
