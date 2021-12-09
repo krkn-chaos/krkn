@@ -69,9 +69,10 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 for entry in volumes_list_json:
                     if len(entry["persistentVolumeClaim"]["claimName"]) > 0:
                         volume_name = entry["name"]
-                        pvc_name = entry["persistentVolumeClaim"]["claimName"] if pvc_name else pvc_name
+                        pvc_name = entry["persistentVolumeClaim"]["claimName"]
                         break
                 logging.info("Volume name: %s" % volume_name)
+                logging.info("PVC name: %s" % pvc_name)
 
                 # Get container name and mount path
                 command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.containers"' % (
