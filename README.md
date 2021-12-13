@@ -12,6 +12,16 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 [![Kraken demo](media/KrakenStarting.png)](https://youtu.be/LN-fZywp_mo "Kraken Demo - Click to Watch!")
 
 
+### Chaos Testing Guide
+TODO: add a link to the hosted github pages once setup
+[Guide](docs/index.md) encapsulates:
+- Test methodology that needs to be embraced
+- Best practices that an OpenShift cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability.
+- Tooling
+- Scenarios supported
+- Test environment recommendations as to how and where to run chaos tests.
+
+
 ### How to Get Started
 Instructions on how to setup, configure and run Kraken can be found at [Installation](docs/installation.md).
 
