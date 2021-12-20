@@ -1,6 +1,7 @@
 scenarios:
 - action: delete
-  namespace: "^.*etcd.*$"
+  namespace: "^.*ingress.*$"
+  label_selector:
   runs: 1
   sleep: 15
   wait_time: 30
