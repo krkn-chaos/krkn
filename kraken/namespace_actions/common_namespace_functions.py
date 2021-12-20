@@ -20,8 +20,8 @@ def run(scenarios_list, config, wait_duration, failed_post_scenarios, kubeconfig
             for scenario in scenario_config_yaml["scenarios"]:
                 scenario_namespace = scenario.get("namespace", "")
                 scenario_label = scenario.get("label_selector", "")
-                if scenario_namespace.strip() != "":
-                    if scenario_label.strip() != "":
+                if scenario_namespace is not None and scenario_namespace.strip() != "":
+                    if scenario_label is not None and scenario_label.strip() != "":
                         logging.error("You can only have namespace or label set in your namespace scenario")
                         logging.error(
                             "Current scenario config has namespace '%s' and label selector '%s'"
