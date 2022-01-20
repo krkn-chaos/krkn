@@ -108,6 +108,15 @@ In addition to checking the recovery and health of the cluster and components un
 - Blog post emphasizing the importance of making Chaos part of Performance and Scale runs to mimic the production environments: https://www.openshift.com/blog/making-chaos-part-of-kubernetes/openshift-performance-and-scalability-tests
 
 
+### Roadmap
+Following is a list of enhancements that we are planning to work on adding support in Kraken. Of course any help/contributions are greatly appreciated.
+- [Ability to visualize the metrics that are being captured by Kraken and stored in Elasticsearch](https://github.com/cloud-bulldozer/kraken/issues/124)
+- Ability to shape the ingress network similar to how Kraken supports [egress traffic shaping](https://github.com/cloud-bulldozer/kraken/blob/master/docs/network_chaos.md) today
+- Continue to improve [Chaos Testing Guide](https://cloud-bulldozer.github.io/kraken/) in terms of adding more best practices, test environment recommendations and scenarios to make sure OpenShift platform, as well the applications running on top it, are resilient and performant under chaotic conditions
+- Support for running Kraken on Kubernetes distribution - see https://github.com/cloud-bulldozer/kraken/issues/185, https://github.com/cloud-bulldozer/kraken/issues/186
+- Sweet logo for Kraken - see https://github.com/cloud-bulldozer/kraken/issues/195
+
+
 ### Contributions
 We are always looking for more enhancements, fixes to make it better, any contributions are most welcome. Feel free to report or work on the issues filed on github.
 
