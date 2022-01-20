@@ -23,7 +23,7 @@ Topology never changes.
 The network is homogeneous.
 Consistent resource usage with no spikes
 
-The assumptions led to a number of outages in production environments in the past.  The services suffered from poor performance or were inaccessible to the customers, leadingto missing Service Level Agreement uptime promises, revenue loss, and a degradation in the perceived reliability of said services..
+The assumptions led to a number of outages in production environments in the past.  The services suffered from poor performance or were inaccessible to the customers, leading to missing Service Level Agreement uptime promises, revenue loss, and a degradation in the perceived reliability of said services..
 
 How can we best avoid this from happening? This is exactly where Chaos testing can add value
 
