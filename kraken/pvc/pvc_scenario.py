@@ -62,7 +62,10 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                         sys.exit(1)
 
                 # Get volume name
-                command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.volumes"' % (str(pod_name), str(namespace),)
+                command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.volumes"' % (
+                    str(pod_name),
+                    str(namespace),
+                )
                 logging.debug("Get mount path command:\n %s" % command)
                 volumes_list = runcommand.invoke(command, 60).rstrip()
                 volumes_list_json = json.loads(volumes_list)
@@ -96,7 +99,10 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                     str(pvc_name),
                     str(namespace),
                 )
-                pvc_capacity = runcommand.invoke(command, 60,).rstrip()
+                pvc_capacity = runcommand.invoke(
+                    command,
+                    60,
+                ).rstrip()
                 logging.debug("Get PVC capacity command:\n %s" % command)
                 pvc_capacity_bytes = toKbytes(pvc_capacity)
                 logging.info("PVC capacity: %s KB" % pvc_capacity_bytes)
@@ -172,5 +178,5 @@ def toKbytes(value):
     unit = {"K": 0, "M": 1, "G": 2, "T": 3}
     base = 1024 if ("i" in value) else 1000
     exp = unit[value[-2:-1]]
-    res = int(value[:-2]) * (base ** exp)
+    res = int(value[:-2]) * (base**exp)
     return res
