@@ -189,7 +189,11 @@ def main(cfg):
                                 common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
                                 litmus_installed = True
                                 common_litmus.run(
-                                    scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespace,
+                                    scenarios_list,
+                                    config,
+                                    litmus_uninstall,
+                                    wait_duration,
+                                    litmus_namespace,
                                 )
 
                         # Inject cluster shutdown scenarios
@@ -250,7 +254,12 @@ def main(cfg):
             kube_burner.setup(kube_burner_url)
             if alert_profile:
                 kube_burner.alerts(
-                    distribution, prometheus_url, prometheus_bearer_token, start_time, end_time, alert_profile,
+                    distribution,
+                    prometheus_url,
+                    prometheus_bearer_token,
+                    start_time,
+                    end_time,
+                    alert_profile,
                 )
             else:
                 logging.error("Alert profile is not defined")
@@ -279,7 +288,11 @@ if __name__ == "__main__":
     # Initialize the parser to read the config
     parser = optparse.OptionParser()
     parser.add_option(
-        "-c", "--config", dest="cfg", help="config location", default="config/config.yaml",
+        "-c",
+        "--config",
+        dest="cfg",
+        help="config location",
+        default="config/config.yaml",
     )
     (options, args) = parser.parse_args()
     logging.basicConfig(

@@ -4,7 +4,7 @@ Supported Cloud Providers:
 * [GCP](#gcp)
 * [Openstack](#openstack)
 * [Azure](#azure)
-
+* [Alibaba](#alibaba)
 
 ## AWS
 
@@ -39,3 +39,17 @@ Before running you'll need to set the following:
 3. ```export AZURE_CLIENT_SECRET=<client secret>```
 
 4. ```export AZURE_CLIENT_ID=<client id>```
+
+## Alibaba
+
+See the [Installation guide](https://www.alibabacloud.com/help/en/doc-detail/121988.html?spm=a2c63.p38356.0.0.13f868799CwZPL) to install alicloud cli
+
+1. ```export ALIBABA_ID=<access_key_id>```
+
+2. ```export ALIBABA_SECRET=<access key secret>```
+
+3. ```export ALIBABA_REGION_ID=<region id>```
+
+Refer to [region and zone page](https://www.alibabacloud.com/help/en/doc-detail/188196.htm?spm=a2c63.p38356.0.0.440c5aa4G3MxVt#concept-2459516) to get the region id for the region your running on
+
+Set cloud_type to either alibaba or alicloud in your node scenario yaml file
