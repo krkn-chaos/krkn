@@ -23,6 +23,7 @@ import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import server as server
+from urllib.parse import urlparse
 
 
 def publish_kraken_status(status):
@@ -35,6 +36,10 @@ def main(cfg):
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
+
+    if urlparse(cfg):
+	o=urlparse(cfg)
+	cfg=o.path
 
     # Parse and read the config
     if os.path.isfile(cfg):
