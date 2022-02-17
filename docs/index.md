@@ -204,3 +204,24 @@ Let’s take a look at few recommendations on how and where to run the chaos tes
 - Run multiple chaos tests at once to mimic the production outages
   - For example, hogging both IO and Network at the same time instead of running them separately to observe the impact.
   - You might have existing test cases, be it related to Performance, Scalability or QE, run the chaos in the background during the test runs to observe the impact. Signaling feature in Kraken can help with coordinating the chaos runs i.e start, stop, pause the scenarios based on the state of the other test jobs.
+
+
+#### Chaos testing in Practice within the OpenShift Organization
+
+Within the OpenShift organization we use kraken to perform chaos testing throughout a release before the code is available to customers
+
+    1. We execute kraken during our regression test suite
+
+        i. We cover each of the chaos scenarios across different clouds
+
+            a. Our testing is predominantly done on AWS, Azure and GCP
+
+    2. We run the chaos scenarios during a long running reliability test
+
+        i. During this test we perform different types of tasks by different users on the cluster
+
+        ii. We have added the execution of kraken to perform a certain times throughout the long running test and monitor the health of the cluster
+
+        iii. This test can be seen here: https://github.com/openshift/svt/tree/master/reliability-v2
+
+    3. We are starting to add in test cases that perform chaos testing during an upgrade (not many iterations of this have been completed)
