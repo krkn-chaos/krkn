@@ -24,6 +24,7 @@ import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import server as server
 from urllib.parse import urlparse
+import requests
 #import webbrowser
 
 
@@ -304,9 +305,11 @@ if __name__ == "__main__":
         logging.error("Please check if you have passed the config")
         sys.exit(1)
     else:
-	if urlparse(options.cfg):
+	'''if urlparse(options.cfg):
 	    o=urlparse(options.cfg)
 	    path=o.path
 	    res=os.path.split(path)
-	    options.cfg=res[1]
+	    options.cfg=res[1]'''
+	f = requests.get(options.cfg)
+	options.cfg=f.text
         main(options.cfg)
