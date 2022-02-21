@@ -310,6 +310,7 @@ if __name__ == "__main__":
 	    path=o.path
 	    res=os.path.split(path)
 	    options.cfg=res[1]'''
+	print(options.cfg)
 	f = requests.get(options.cfg)
 	options.cfg=f.text
         main(options.cfg)
