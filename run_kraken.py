@@ -37,13 +37,12 @@ def main(cfg):
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
-    new=2
-    webbrowser.open(url,new=new)
-    #if urlparse(cfg):
-	#o=urlparse(cfg)
-	#path=o.path
-	#res=os.path.split(path)
-	#cfg=res[1]
+
+    if urlparse(cfg):
+	o=urlparse(cfg)
+	path=o.path
+	res=os.path.split(path)
+	cfg=res[1]
 
     # Parse and read the config
     if os.path.isfile(cfg):
