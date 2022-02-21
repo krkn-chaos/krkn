@@ -38,7 +38,7 @@ def main(cfg):
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
-
+    print(cfg)
     #if urlparse(cfg):
 	#o=urlparse(cfg)
 	#path=o.path
