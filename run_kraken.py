@@ -24,7 +24,7 @@ import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import server as server
 from urllib.parse import urlparse
-import webbrowser
+#import webbrowser
 
 
 def publish_kraken_status(status):
@@ -46,11 +46,11 @@ def main(cfg):
 
     # Parse and read the config
     if os.path.isfile(cfg):
-	if urlparse(cfg):
-	    o=urlparse(cfg)
-	    path=o.path
-	    res=os.path.split(path)
-	    cfg=res[1]
+	#if urlparse(cfg):
+	    #o=urlparse(cfg)
+	    #path=o.path
+	    #res=os.path.split(path)
+	    #cfg=res[1]
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration
@@ -304,4 +304,9 @@ if __name__ == "__main__":
         logging.error("Please check if you have passed the config")
         sys.exit(1)
     else:
+	if urlparse(options.cfg):
+	    o=urlparse(options.cfg)
+	    path=o.path
+	    res=os.path.split(path)
+	    options.cfg=res[1]
         main(options.cfg)
