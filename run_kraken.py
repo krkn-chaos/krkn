@@ -38,12 +38,14 @@ def main(cfg):
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
-    print(cfg)
-    #if urlparse(cfg):
-	#o=urlparse(cfg)
-	#path=o.path
-	#res=os.path.split(path)
-	#cfg=res[1]
+    
+    '''if urlparse(cfg):
+	o=urlparse(cfg)
+	path=o.path
+	res=os.path.split(path)
+	cfg=res[1]'''
+    f = requests.get(cfg)
+    cfg=f.text
 
     # Parse and read the config
     if os.path.isfile(cfg):
@@ -310,7 +312,4 @@ if __name__ == "__main__":
 	    path=o.path
 	    res=os.path.split(path)
 	    options.cfg=res[1]'''
-	print(options.cfg)
-	f = requests.get(options.cfg)
-	options.cfg=f.text
         main(options.cfg)
