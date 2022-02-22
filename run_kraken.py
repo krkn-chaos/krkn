@@ -36,7 +36,6 @@ def publish_kraken_status(status):
 # Main function
 def main(cfg):
     # Start kraken
-    print(cfg)
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
     
@@ -49,14 +48,14 @@ def main(cfg):
     cfg=f.text'''
 
     # Parse and read the config
-    #if os.path.isfile(cfg):
-    if urlparse(cfg):
+    if not os.path.isfile(cfg):
+            #if urlparse(cfg):
 	    #o=urlparse(cfg)
 	    #path=o.path
 	    #res=os.path.split(path)
 	    #cfg=res[1]
-	f = requests.get(cfg)
-        cfg=f.text
+	'''f = requests.get(cfg)
+        cfg=f.text'''
 
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
@@ -316,4 +315,7 @@ if __name__ == "__main__":
 	    path=o.path
 	    res=os.path.split(path)
 	    options.cfg=res[1]'''
+	'''f = requests.get(options.cfg)
+    	texts=f.text
+        main(texts)'''
         main(options.cfg)
