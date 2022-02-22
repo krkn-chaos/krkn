@@ -36,6 +36,7 @@ def publish_kraken_status(status):
 # Main function
 def main(cfg):
     # Start kraken
+    print(cfg)
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
     
