@@ -56,7 +56,7 @@ def main(cfg):
 	    #cfg=res[1]
 	'''f = requests.get(cfg)
         cfg=f.text'''
-	cfg=texts
+	    cfg=texts
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration
