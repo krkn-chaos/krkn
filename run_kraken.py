@@ -44,16 +44,19 @@ def main(cfg):
 	path=o.path
 	res=os.path.split(path)
 	cfg=res[1]'''
-    f = requests.get(cfg)
-    cfg=f.text
+    '''f = requests.get(cfg)
+    cfg=f.text'''
 
     # Parse and read the config
-    if os.path.isfile(cfg):
-	#if urlparse(cfg):
+    #if os.path.isfile(cfg):
+    if urlparse(cfg):
 	    #o=urlparse(cfg)
 	    #path=o.path
 	    #res=os.path.split(path)
 	    #cfg=res[1]
+	f = requests.get(cfg)
+        cfg=f.text
+
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration
