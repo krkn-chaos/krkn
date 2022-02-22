@@ -44,8 +44,8 @@ def main(cfg):
 	path=o.path
 	res=os.path.split(path)
 	cfg=res[1]'''
-    f = requests.get(cfg)
-    texts=f.text
+    '''f = requests.get(cfg)
+    texts=f.text'''
 
     # Parse and read the config
     #if os.path.isfile(cfg):
@@ -56,9 +56,11 @@ def main(cfg):
 	    #cfg=res[1]
 	'''f = requests.get(cfg)
         cfg=f.text'''
-	    cfg=texts
-        with open(cfg, "r") as f:
-            config = yaml.full_load(f)
+	#cfg=texts
+        '''with open(cfg, "r") as f:
+            config = yaml.full_load(f)'''
+	f = requests.get(cfg)
+    	config=f.text
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
