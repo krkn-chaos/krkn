@@ -133,7 +133,7 @@ Let’s take a look at how to run the chaos scenarios on your OpenShift clusters
 - Zone Outages ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/zone-outages.md))
   - Creates outage of availability zone(s) in a targeted region in the public cloud where the OpenShift cluster is running by tweaking the network acl of the zone to simulate the failure and that in turn will stop both ingress and egress traffic from all the nodes in a particular zone for the specified duration and reverts it back to the previous state
     - Helps understand the impact on both Kubernetes/OpenShift control plane as well as applications, services running on the worker nodes in that zone.
-    - Currently only set up for AWS cloud platform: 1 VPC and multiples subnets within the VPC can be specify
+    - Currently only set up for AWS cloud platform: 1 VPC and multiples subnets within the VPC can be specified
     - [Demo](https://asciinema.org/a/452672?speed=3&theme=solarized-dark)
 
 - Application outages ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/application-outages.md))
@@ -164,7 +164,7 @@ Let’s take a look at how to run the chaos scenarios on your OpenShift clusters
     - Helps understand the  impact on other components and test/improve recovery time of the components in the targeted namespace
 
 - Persistent volume fill ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/pvc-scenarios.md))
-  - Fills up the persistent volumes, up to a givien percentage, used by the pod for the specified duration
+  - Fills up the persistent volumes, up to a given percentage, used by the pod for the specified duration
     - Helps understand how an application deals when it’s no longer able to write data to the disk. For example kafka’s behavior when it’s not able to commit data to the disk.
 
 - Network Chaos ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/network-chaos.md))
@@ -199,7 +199,7 @@ Let’s take a look at few recommendations on how and where to run the chaos tes
   - Chaos Engineering Without Observability ... Is Just Chaos
   - Make sure to have logging and monitoring installed on the cluster to help with understanding the behaviour as to why it’s happening. In case of running the tests in the CI where it’s not humanly possible to monitor the cluster all the time, it’s recommended to leverage Cerberus to capture the state during the runs and metrics collection in Kraken to store metrics long term even after the cluster is gone.
   - Kraken ships with dashboards that will help understand API, Etcd and OpenShift cluster level stats and performance metrics.
-  - Pay attention to Prometheus alerts. Check they are firing as expected.
+  - Pay attention to Prometheus alerts. Check if they are firing as expected.
 
 - Run multiple chaos tests at once to mimic the production outages
   - For example, hogging both IO and Network at the same time instead of running them separately to observe the impact.
