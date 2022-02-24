@@ -21,7 +21,8 @@ Bandwidth is infinite.
 The network is secure.
 Topology never changes.
 The network is homogeneous.
-Consistent resource usage with no spikes
+Consistent resource usage with no spikes.
+All shared resources are available from all places.
 
 The assumptions led to a number of outages in production environments in the past.  The services suffered from poor performance or were inaccessible to the customers, leading to missing Service Level Agreement uptime promises, revenue loss, and a degradation in the perceived reliability of said services..
 
@@ -73,7 +74,7 @@ We want to look at this in terms of CPU, Memory, Disk, Throughput, Network etc.
   - The controller watching the component should recognize a failure as soon as possible. The component needs to have minimal initialization time to avoid extended downtime or overloading the replicas if it is a highly available configuration. The cause of failure can be because of issues with the infrastructure on top of which it’s running, application failures or because of service failures that it depends on.
 
 - High Availability deployment strategy
-  - There should be multiple replicas ( both OpenShift and application control planes ) running preferably in different availability zones to survive outages while still serving the user/system requests.
+  - There should be multiple replicas ( both OpenShift and application control planes ) running preferably in different availability zones to survive outages while still serving the user/system requests. Avoid single points of failure.
 - Backed by persistent storage
   - It’s important to have the system/application backed by persistent storage. This is especially important in cases where the application is a database or a stateful application given that a node, pod or container failure will wipe off the data.
 
@@ -132,7 +133,7 @@ Let’s take a look at how to run the chaos scenarios on your OpenShift clusters
 - Zone Outages ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/zone-outages.md))
   - Creates outage of availability zone(s) in a targeted region in the public cloud where the OpenShift cluster is running by tweaking the network acl of the zone to simulate the failure and that in turn will stop both ingress and egress traffic from all the nodes in a particular zone for the specified duration and reverts it back to the previous state
     - Helps understand the impact on both Kubernetes/OpenShift control plane as well as applications, services running on the worker nodes in that zone.
-    - Currently only set up for AWS cloud platform
+    - Currently only set up for AWS cloud platform: 1 VPC and multiples subnets within the VPC can be specified
     - [Demo](https://asciinema.org/a/452672?speed=3&theme=solarized-dark)
 
 - Application outages ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/application-outages.md))
@@ -162,8 +163,8 @@ Let’s take a look at how to run the chaos scenarios on your OpenShift clusters
   - Delete namespaces for the specified duration
     - Helps understand the  impact on other components and test/improve recovery time of the components in the targeted namespace
 
-- Persistent volume fill ([Documentation]())
-  - Fills up the persistent volumes used by the pod for the specified duration
+- Persistent volume fill ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/pvc-scenarios.md))
+  - Fills up the persistent volumes, up to a given percentage, used by the pod for the specified duration
     - Helps understand how an application deals when it’s no longer able to write data to the disk. For example kafka’s behavior when it’s not able to commit data to the disk.
 
 - Network Chaos ([Documentation](https://github.com/cloud-bulldozer/kraken-hub/blob/main/docs/network-chaos.md))
@@ -185,6 +186,10 @@ Let’s take a look at few recommendations on how and where to run the chaos tes
 - Run the chaos tests continuously in your test pipelines
   - Software, systems, and infrastructure does change – and the condition/health of each can change pretty rapidly. A good place to run the tests is in your CI/CD pipeline running on a regular cadence.
 
+- Run the chaos tests manually to learn from the system
+  - When running a Chaos scenario or a Fault tests, it’s more important to understand how the system respond and reacts rather than mark the execution as pass or failed.
+  - It’s important to define the scope of the test before the execution to avoid some issues from masking others.
+
 - Run the chaos tests in production environments or mimic the load in staging environments:
   - As scary as a thought about testing in production is, production is the environment that users are in and traffic spikes/load are real. To fully test the robustness/resilience of a production system, running Chaos Engineering experiments in a production environment will provide needed insights. A couple of things to keep in mind:
     - Minimize blast radius and have a backup plan in place to make sure the users and customers do not undergo downtime.
@@ -194,6 +199,7 @@ Let’s take a look at few recommendations on how and where to run the chaos tes
   - Chaos Engineering Without Observability ... Is Just Chaos
   - Make sure to have logging and monitoring installed on the cluster to help with understanding the behaviour as to why it’s happening. In case of running the tests in the CI where it’s not humanly possible to monitor the cluster all the time, it’s recommended to leverage Cerberus to capture the state during the runs and metrics collection in Kraken to store metrics long term even after the cluster is gone.
   - Kraken ships with dashboards that will help understand API, Etcd and OpenShift cluster level stats and performance metrics.
+  - Pay attention to Prometheus alerts. Check if they are firing as expected.
 
 - Run multiple chaos tests at once to mimic the production outages
   - For example, hogging both IO and Network at the same time instead of running them separately to observe the impact.
