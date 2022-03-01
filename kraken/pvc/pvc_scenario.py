@@ -104,7 +104,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 # Get used bytes in PVC
                 command = "du -sk %s | grep -Eo '^[0-9]*'" % (str(mount_path))
                 logging.debug("Get used bytes in PVC command:\n %s" % command)
-                pvc_used = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
+                pvc_used = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
                 logging.info("PVC used: %s KB" % pvc_used)
 
                 # Check valid fill percentage
@@ -134,7 +134,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 full_path = "%s/%s" % (str(mount_path), str(file_name))
                 command = "dd bs=1024 count=%s </dev/urandom >%s" % (str(file_size), str(full_path))
                 logging.debug("Create temp file in the PVC command:\n %s" % command)
-                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
+                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
                 logging.info("\n" + str(response))
                 if "copied" in str(response).lower():
                     logging.info("%s file successfully created" % (str(full_path)))
@@ -150,10 +150,10 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 # Remove the temp file from the PVC
                 command = "rm %s" % (str(full_path))
                 logging.debug("Remove temp file from the PVC command:\n %s" % command)
-                kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
+                kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
                 command = "ls %s" % (str(mount_path))
                 logging.debug("Check temp file is removed command:\n %s" % command)
-                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
+                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
                 logging.info("\n" + str(response))
                 if not (file_name in str(response).lower()):
                     logging.info("Temp file successfully removed")
