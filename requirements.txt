@@ -18,4 +18,4 @@ openshift-client
 python-ipmi
 podman-compose
 docker-compose
-jinja2
+jinja2>=3.0.1
