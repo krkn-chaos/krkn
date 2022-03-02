@@ -135,9 +135,9 @@ def get_all_pods(label_selector=None):
 
 
 # Execute command in pod
-def exec_cmd_in_pod(command, pod_name, namespace, container=None):
+def exec_cmd_in_pod(command, pod_name, namespace, container=None, base_command="bash"):
 
-    exec_command = ["bash", "-c", command]
+    exec_command = [base_command, "-c", command]
     try:
         if container:
             ret = stream(
