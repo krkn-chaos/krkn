@@ -60,12 +60,12 @@ def main(cfg):
 	#cfg=texts
         '''with open(cfg, "r") as f:
             config = yaml.full_load(f)'''
-	f = requests.get(cfg)
+	    f = requests.get(cfg)
     	texts=f.text
 	'''with open(texts,'r') as file:
             config = yaml.full_load(file)'''
        
-	config=yaml.safe_load(texts)
+	    config=yaml.safe_load(texts)
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
