@@ -42,7 +42,10 @@ def main(cfg):
     logging.info("Starting kraken")
 
     # Parse and read the config
-    #if os.path.isfile(path):
+    if os.path.isfile(cfg):
+        with open(cfg, "r") as f:
+            config = yaml.full_load(f)
+   
     if urlparse(cfg):
 	f = requests.get(cfg)
     	texts=f.text
