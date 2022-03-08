@@ -25,6 +25,7 @@ import kraken.network_chaos.actions as network_chaos
 import server as server
 from urllib.parse import urlparse
 import requests
+import pdb
 #import webbrowser
 
 
@@ -326,5 +327,6 @@ if __name__ == "__main__":
 	'''f = requests.get(options.cfg)
     	texts=f.text
         main(texts)'''
+	pdb.set_trace()
 	print(options.cfg)
         main(options.cfg)
