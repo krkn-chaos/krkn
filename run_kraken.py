@@ -25,7 +25,7 @@ import kraken.network_chaos.actions as network_chaos
 import server as server
 from urllib.parse import urlparse
 import requests
-import pdb
+#import pdb
 #import webbrowser
 
 
@@ -40,33 +40,12 @@ def main(cfg):
     print(cfg)
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
-    
-    '''path=cfg
-    if urlparse(cfg):
-	o=urlparse(cfg)
-	path=o.path'''
-	'''res=os.path.split(path)
-	cfg=res[1]'''
-    '''f = requests.get(cfg)
-    texts=f.text'''
 
     # Parse and read the config
     #if os.path.isfile(path):
     if urlparse(cfg):
-	    #o=urlparse(cfg)
-	    #path=o.path
-	    #res=os.path.split(path)
-	    #cfg=res[1]
-	'''f = requests.get(cfg)
-        cfg=f.text'''
-	#cfg=texts
-        '''with open(cfg, "r") as f:
-            config = yaml.full_load(f)'''
 	f = requests.get(cfg)
     	texts=f.text
-	'''with open(texts,'r') as file:
-            config = yaml.full_load(file)'''
-       
 	config=yaml.safe_load(texts)
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
@@ -319,14 +298,6 @@ if __name__ == "__main__":
         logging.error("Please check if you have passed the config")
         sys.exit(1)
     else:
-	'''if urlparse(options.cfg):
-	    o=urlparse(options.cfg)
-	    path=o.path
-	    res=os.path.split(path)
-	    options.cfg=res[1]'''
-	'''f = requests.get(options.cfg)
-    	texts=f.text
-        main(texts)'''
-	pdb.set_trace()
+	#pdb.set_trace()
 	print(options.cfg)
         main(options.cfg)
