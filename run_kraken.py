@@ -47,9 +47,9 @@ def main(cfg):
             config = yaml.full_load(f)
    
     if urlparse(cfg):
-	    f = requests.get(cfg)
-    	texts=f.text
-	    config=yaml.safe_load(texts)
+        f = requests.get(cfg)
+        texts=f.text
+        config=yaml.safe_load(texts)
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
@@ -301,6 +301,6 @@ if __name__ == "__main__":
         logging.error("Please check if you have passed the config")
         sys.exit(1)
     else:
-	#pdb.set_trace()
-	    print(options.cfg)
+       # pdb.set_trace()
+        print(options.cfg)
         main(options.cfg)
