@@ -43,10 +43,12 @@ def main(cfg):
 
     # Parse and read the config
     if os.path.isfile(cfg):
+        logging.info("in os.path.isfile(cfg)")
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
    
     if urlparse(cfg):
+        logging.info("in urlparse(cfg)")
         f = requests.get(cfg)
         texts=f.text
         config=yaml.safe_load(texts)
