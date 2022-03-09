@@ -50,7 +50,7 @@ Now that we understand the test methodology, let’s take a look at the best pra
 - Alerts with appropriate severity should get fired
   - Alerts are key to identify when a component starts degrading,  and can help focus the investigation effort on affected system components.
   - Alerts should have proper severity,description, notification policy, escalation policy, and SOPin order to reduce MTTR for responding SRE or Ops resources.
-
+  - Detailed information on the alerts consistency can be found [here](https://github.com/openshift/enhancements/blob/master/enhancements/monitoring/alerting-consistency.md).
 
 - Minimal performance impact - Network, CPU, Memory, Disk, Throughput etc.
   - The system, as well as the applications, should be designed to have minimal performance impact during disruptions to ensure stability and also to avoid hogging resources that other applications can use.
