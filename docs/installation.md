@@ -20,6 +20,8 @@ $ cd kraken
 
 #### Install the dependencies
 ```
+$ python3 -m venv chaos
+$ source chaos/bin/activate
 $ pip3 install -r requirements.txt
 ```
 
