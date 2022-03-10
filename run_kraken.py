@@ -25,7 +25,7 @@ import kraken.network_chaos.actions as network_chaos
 import server as server
 from urllib.parse import urlparse
 import requests
-#import pdb
+import pdb
 #import webbrowser
 
 
@@ -303,6 +303,6 @@ if __name__ == "__main__":
         logging.error("Please check if you have passed the config")
         sys.exit(1)
     else:
-       # pdb.set_trace()
+        pdb.set_trace()
         print(options.cfg)
         main(options.cfg)
