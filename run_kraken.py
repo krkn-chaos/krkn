@@ -25,8 +25,6 @@ import kraken.network_chaos.actions as network_chaos
 import server as server
 from urllib.parse import urlparse
 import requests
-import pdb
-#import webbrowser
 
 
 def publish_kraken_status(status):
@@ -37,21 +35,23 @@ def publish_kraken_status(status):
 # Main function
 def main(cfg):
     # Start kraken
-    print(cfg)
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
 
     # Parse and read the config
+    flag=0
     if os.path.isfile(cfg):
-        logging.info("in os.path.isfile(cfg)")
+        flag=1
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
    
     if urlparse(cfg):
-        logging.info("in urlparse(cfg)")
+        flag=1
         f = requests.get(cfg)
         texts=f.text
         config=yaml.safe_load(texts)
+
+    if flag==1:
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
@@ -303,6 +303,4 @@ if __name__ == "__main__":
         logging.error("Please check if you have passed the config")
         sys.exit(1)
     else:
-        pdb.set_trace()
-        print(options.cfg)
         main(options.cfg)
