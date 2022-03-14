@@ -39,19 +39,19 @@ def main(cfg):
     logging.info("Starting kraken")
 
     # Parse and read the config
-    flag=0
+    flag = 0
     if os.path.isfile(cfg):
-        flag=1
+        flag = 1
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
    
     if urlparse(cfg):
-        flag=1
+        flag = 1
         f = requests.get(cfg)
-        texts=f.text
-        config=yaml.safe_load(texts)
+        texts = f.text
+        config = yaml.safe_load(texts)
 
-    if flag==1:
+    if flag == 1:
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
