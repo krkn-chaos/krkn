@@ -39,9 +39,9 @@ def main(cfg):
     logging.info("Starting kraken")
 
     # Parse and read the config
-    flag=0
+    flag = 0
     if os.path.isfile(cfg):
-        flag=1
+        flag = 1
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
 
