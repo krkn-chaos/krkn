@@ -44,7 +44,7 @@ def main(cfg):
         flag=1
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
-    
+
     if urlparse(cfg):
         flag = 1
         f = requests.get(cfg)
