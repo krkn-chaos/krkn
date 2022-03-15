@@ -38,9 +38,8 @@ def main(cfg):
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
 
-    # Parse and read the config 
-    flag = 0   
-                    
+    # Parse and read the config
+    flag = 0
     if os.path.isfile(cfg):
         flag = 1
         with open(cfg, "r") as f:
