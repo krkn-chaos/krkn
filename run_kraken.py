@@ -38,7 +38,7 @@ def main(cfg):
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
 
-    # flag variable to check whether cfg is a file path or a http server
+    # flag variable to check whether cfg is a file path or on a http server
     flag = 0   
 
     # Parse and read the config                      
