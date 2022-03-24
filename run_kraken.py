@@ -39,18 +39,25 @@ def main(cfg):
     logging.info("Starting kraken")
 
     # Parse and read the config
+    # Initializing flag variable as 0 to test config is a file or not
     flag = 0
+
+    # For config as local file
     if os.path.isfile(cfg):
+        # Set flag as 1 since config is local file
         flag = 1
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
 
+    # For config as remote file
     if urlparse(cfg):
+        # Set flag as 1 since config is remote file
         flag = 1
         f = requests.get(cfg)
         texts = f.text
         config = yaml.safe_load(texts)
 
+    # Found the config
     if flag == 1:
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
