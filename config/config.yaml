@@ -10,40 +10,63 @@ kraken:
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   container_scenarios:                                 # List of chaos pod scenarios to load
-            - -    scenarios/container_etcd.yml
+          # - -  scenarios/container_etcd.yml
+            - -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/container_etcd.yml
         -   pod_scenarios:
-            - -    scenarios/etcd.yml
-            - -    scenarios/regex_openshift_pod_kill.yml
-              -    scenarios/post_action_regex.py
+          # - -    scenarios/etcd.yml
+            - -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/etcd.yml
+          # - -    scenarios/regex_openshift_pod_kill.yml
+            - -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/regex_openshift_pod_kill.yml
+          #   -    scenarios/post_action_regex.py
+              -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/post_action_regex.py
         -   node_scenarios:                                # List of chaos node scenarios to load
-            -   scenarios/node_scenarios_example.yml
+          # -   scenarios/node_scenarios_example.yml
+            -   https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/node_scenarios_example.yml
         -   pod_scenarios:
-            - -    scenarios/openshift-apiserver.yml
-            - -    scenarios/openshift-kube-apiserver.yml
+          # - -    scenarios/openshift-apiserver.yml
+            - -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/openshift-apiserver.yml
+          # - -    scenarios/openshift-kube-apiserver.yml
+            - -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/openshift-kube-apiserver.yml
         -   time_scenarios:                                # List of chaos time scenarios to load
-            - scenarios/time_scenarios_example.yml
+          # - scenarios/time_scenarios_example.yml
+            - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/time_scenarios_example.yml
         -   litmus_scenarios:                              # List of litmus scenarios to load
-            - - scenarios/templates/litmus-rbac.yaml
-              - scenarios/node_cpu_hog_engine.yaml
-            - - scenarios/templates/litmus-rbac.yaml
-              - scenarios/node_mem_engine.yaml
-            - - scenarios/templates/litmus-rbac.yaml
-              - scenarios/node_io_engine.yaml
+          # - - scenarios/templates/litmus-rbac.yaml
+            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
+          #   - scenarios/node_cpu_hog_engine.yaml
+              - https://raw.githubusercontent.com/cloud-bulldozer/kraken/blob/master/scenarios/node_cpu_hog_engine.yaml
+          # - - scenarios/templates/litmus-rbac.yaml
+            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
+          #   - scenarios/node_mem_engine.yaml
+              - https://raw.githubusercontent.com/cloud-bulldozer/kraken/blob/master/scenarios/node_mem_engine.yaml
+          # - - scenarios/templates/litmus-rbac.yaml
+            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
+          #   - scenarios/node_io_engine.yaml
+              - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/node_io_engine.yaml
         -   cluster_shut_down_scenarios:
-            - - scenarios/cluster_shut_down_scenario.yml
-              - scenarios/post_action_shut_down.py
+          # - - scenarios/cluster_shut_down_scenario.yml
+            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/cluster_shut_down_scenario.yml
+          #   - scenarios/post_action_shut_down.py
+              - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/post_action_shut_down.py
         -   namespace_scenarios:
-             - - scenarios/regex_namespace.yaml
-             - - scenarios/ingress_namespace.yaml
-               - scenarios/post_action_namespace.py
+          #  - - scenarios/regex_namespace.yaml
+             - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/regex_namespace.yaml
+          #  - - scenarios/ingress_namespace.yaml
+             - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/ingress_namespace.yaml
+          #    - scenarios/post_action_namespace.py
+               - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/post_action_namespace.py
         -   zone_outages:
-            - scenarios/zone_outage.yaml
+          # - scenarios/zone_outage.yaml
+            - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/zone_outage.yaml
         -   application_outages:
-            - scenarios/app_outage.yaml
+          # - scenarios/app_outage.yaml
+            - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/app_outage.yaml
         -   pvc_scenarios:
-            - scenarios/pvc_scenario.yaml
+          # - scenarios/pvc_scenario.yaml
+            - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/pvc_scenario.yaml
         -   network_chaos:
-            - scenarios/network_chaos.yaml
+          # - scenarios/network_chaos.yaml
+            - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/network_chaos.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
