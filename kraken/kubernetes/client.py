@@ -282,16 +282,16 @@ def get_job_status(name, namespace="default"):
 
 
 # Obtain node status
-def get_node_status(node):
+def get_node_status(node, timeout=60):
     try:
-        node_info = cli.read_node_status(node, pretty=True)
+        node_info = cli.read_node_status(node, pretty=True, _request_timeout=timeout)
     except ApiException as e:
         logging.error(
             "Exception when calling \
                        CoreV1Api->read_node_status: %s\n"
             % e
         )
-        raise e
+        return None
     for condition in node_info.status.conditions:
         if condition.type == "Ready":
             return condition.status
