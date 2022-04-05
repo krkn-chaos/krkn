@@ -8,6 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 import kraken.cerberus.setup as cerberus
 import kraken.kubernetes.client as kubecli
 import kraken.node_actions.common_node_functions as common_node_functions
+import requests
 
 
 # Reads the scenario config and introduces traffic variations in Node's host network interface.
@@ -15,80 +16,102 @@ def run(scenarios_list, config, wait_duration):
     failed_post_scenarios = ""
     logging.info("Runing the Network Chaos tests")
     for net_config in scenarios_list:
-        with open(net_config, "r") as file:
-            param_lst = ["latency", "loss", "bandwidth"]
-            test_config = yaml.safe_load(file)
-            test_dict = test_config["network_chaos"]
-            test_duration = int(test_dict.get("duration", 300))
-            test_interface = test_dict.get("interfaces", [])
-            test_node = test_dict.get("node_name", "")
-            test_node_label = test_dict.get("label_selector", "node-role.kubernetes.io/master")
-            test_execution = test_dict.get("execution", "serial")
-            test_instance_count = test_dict.get("instance_count", 1)
-            test_egress = test_dict.get("egress", {"bandwidth": "100mbit"})
-            if test_node:
-                node_name_list = test_node.split(",")
+        # Parse and read the config
+        try:
+            # For config as local file
+            if os.path.isfile(net_config):
+                with open(net_config, "r") as f:
+                    param_lst = ["latency", "loss", "bandwidth"]
+                    test_config = yaml.full_load(f)
+
+            # For config as remote file
             else:
-                node_name_list = [test_node]
-            nodelst = []
-            for single_node_name in node_name_list:
-                nodelst.extend(common_node_functions.get_node(single_node_name, test_node_label, test_instance_count))
-            file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
-            env = Environment(loader=file_loader)
-            pod_template = env.get_template("pod.j2")
-            test_interface = verify_interface(test_interface, nodelst, pod_template)
-            joblst = []
-            egress_lst = [i for i in param_lst if i in test_egress]
-            chaos_config = {
-                "network_chaos": {
-                    "duration": test_duration,
-                    "interfaces": test_interface,
-                    "node_name": ",".join(nodelst),
-                    "execution": test_execution,
-                    "instance_count": test_instance_count,
-                    "egress": test_egress,
-                }
+                content = requests.get(net_config)
+                # Checking the status code if it is OK and the request is successful
+                if content.status_code == 200:
+                    param_lst = ["latency", "loss", "bandwidth"]
+                    texts = content.text
+                    test_config = yaml.full_load(texts)
+
+                else:
+                    # Raising the exception since config file can't be loaded as a yaml
+                    raise Exception
+
+        except Exception:
+            logging.error("Cannot find a yaml file at %s, please check" % (net_config))
+            sys.exit(1)
+
+        test_dict = test_config["network_chaos"]
+        test_duration = int(test_dict.get("duration", 300))
+        test_interface = test_dict.get("interfaces", [])
+        test_node = test_dict.get("node_name", "")
+        test_node_label = test_dict.get("label_selector", "node-role.kubernetes.io/master")
+        test_execution = test_dict.get("execution", "serial")
+        test_instance_count = test_dict.get("instance_count", 1)
+        test_egress = test_dict.get("egress", {"bandwidth": "100mbit"})
+        if test_node:
+            node_name_list = test_node.split(",")
+        else:
+            node_name_list = [test_node]
+        nodelst = []
+        for single_node_name in node_name_list:
+            nodelst.extend(common_node_functions.get_node(single_node_name, test_node_label, test_instance_count))
+        file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
+        env = Environment(loader=file_loader)
+        pod_template = env.get_template("pod.j2")
+        test_interface = verify_interface(test_interface, nodelst, pod_template)
+        joblst = []
+        egress_lst = [i for i in param_lst if i in test_egress]
+        chaos_config = {
+            "network_chaos": {
+                "duration": test_duration,
+                "interfaces": test_interface,
+                "node_name": ",".join(nodelst),
+                "execution": test_execution,
+                "instance_count": test_instance_count,
+                "egress": test_egress,
             }
-            logging.info("Executing network chaos with config \n %s" % yaml.dump(chaos_config))
-            job_template = env.get_template("job.j2")
-            try:
-                for i in egress_lst:
-                    for node in nodelst:
-                        exec_cmd = get_egress_cmd(
-                            test_execution, test_interface, i, test_dict["egress"], duration=test_duration
-                        )
-                        logging.info("Executing %s on node %s" % (exec_cmd, node))
-                        job_body = yaml.safe_load(
-                            job_template.render(jobname=i + str(hash(node))[:5], nodename=node, cmd=exec_cmd)
-                        )
-                        joblst.append(job_body["metadata"]["name"])
-                        api_response = kubecli.create_job(job_body)
-                        if api_response is None:
-                            raise Exception("Error creating job")
-                    if test_execution == "serial":
-                        logging.info("Waiting for serial job to finish")
-                        start_time = int(time.time())
-                        wait_for_job(joblst[:], test_duration + 300)
-                        logging.info("Waiting for wait_duration %s" % wait_duration)
-                        time.sleep(wait_duration)
-                        end_time = int(time.time())
-                        cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
-                    if test_execution == "parallel":
-                        break
-                if test_execution == "parallel":
-                    logging.info("Waiting for parallel job to finish")
+        }
+        logging.info("Executing network chaos with config \n %s" % yaml.dump(chaos_config))
+        job_template = env.get_template("job.j2")
+        try:
+            for i in egress_lst:
+                for node in nodelst:
+                    exec_cmd = get_egress_cmd(
+                        test_execution, test_interface, i, test_dict["egress"], duration=test_duration
+                    )
+                    logging.info("Executing %s on node %s" % (exec_cmd, node))
+                    job_body = yaml.safe_load(
+                        job_template.render(jobname=i + str(hash(node))[:5], nodename=node, cmd=exec_cmd)
+                    )
+                    joblst.append(job_body["metadata"]["name"])
+                    api_response = kubecli.create_job(job_body)
+                    if api_response is None:
+                        raise Exception("Error creating job")
+                if test_execution == "serial":
+                    logging.info("Waiting for serial job to finish")
                     start_time = int(time.time())
                     wait_for_job(joblst[:], test_duration + 300)
                     logging.info("Waiting for wait_duration %s" % wait_duration)
                     time.sleep(wait_duration)
                     end_time = int(time.time())
                     cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
-            except Exception as e:
-                logging.error("Network Chaos exiting due to Exception %s" % e)
-                sys.exit(1)
-            finally:
-                logging.info("Deleting jobs")
-                delete_job(joblst[:])
+                if test_execution == "parallel":
+                    break
+            if test_execution == "parallel":
+                logging.info("Waiting for parallel job to finish")
+                start_time = int(time.time())
+                wait_for_job(joblst[:], test_duration + 300)
+                logging.info("Waiting for wait_duration %s" % wait_duration)
+                time.sleep(wait_duration)
+                end_time = int(time.time())
+                cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
+        except Exception as e:
+            logging.error("Network Chaos exiting due to Exception %s" % e)
+            sys.exit(1)
+        finally:
+            logging.info("Deleting jobs")
+            delete_job(joblst[:])
 
 
 def verify_interface(test_interface, nodelst, template):

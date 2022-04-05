@@ -7,6 +7,8 @@ import time
 import yaml
 import sys
 import random
+import os
+import requests
 
 
 # Run pod based scenarios
@@ -60,35 +62,54 @@ def container_run(kubeconfig_path, scenarios_list, config, failed_post_scenarios
             pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
         else:
             pre_action_output = ""
-        with open(container_scenario_config[0], "r") as f:
-            cont_scenario_config = yaml.full_load(f)
-            for cont_scenario in cont_scenario_config["scenarios"]:
-                # capture start time
-                start_time = int(time.time())
-                killed_containers = container_killing_in_pod(cont_scenario)
+        # Parse and read the config
+        try:
+            # For config as local file
+            if os.path.isfile(container_scenario_config[0]):
+                with open(container_scenario_config[0], "r") as f:
+                    cont_scenario_config = yaml.full_load(f)
 
-                if len(container_scenario_config) > 1:
-                    try:
-                        failed_post_scenarios = post_actions.check_recovery(
-                            kubeconfig_path, container_scenario_config, failed_post_scenarios, pre_action_output
-                        )
-                    except Exception as e:
-                        logging.error("Failed to run post action checks: %s" % e)
-                        sys.exit(1)
+            # For config as remote file
+            else:
+                content = requests.get(container_scenario_config[0])
+                # Checking the status code if it is OK and the request is successful
+                if content.status_code == 200:
+                    texts = content.text
+                    cont_scenario_config = yaml.full_load(texts)
+
                 else:
-                    failed_post_scenarios = check_failed_containers(
-                        killed_containers, cont_scenario.get("retry_wait", 120)
+                    # Raising the exception since config file can't be loaded as a yaml
+                    raise Exception
+
+        except Exception:
+            logging.error("Cannot find a yaml file at %s, please check" % (container_scenario_config[0]))
+            sys.exit(1)
+
+        for cont_scenario in cont_scenario_config["scenarios"]:
+            # capture start time
+            start_time = int(time.time())
+            killed_containers = container_killing_in_pod(cont_scenario)
+
+            if len(container_scenario_config) > 1:
+                try:
+                    failed_post_scenarios = post_actions.check_recovery(
+                        kubeconfig_path, container_scenario_config, failed_post_scenarios, pre_action_output
                     )
+                except Exception as e:
+                    logging.error("Failed to run post action checks: %s" % e)
+                    sys.exit(1)
+            else:
+                failed_post_scenarios = check_failed_containers(killed_containers, cont_scenario.get("retry_wait", 120))
 
-                logging.info("Waiting for the specified duration: %s" % (wait_duration))
-                time.sleep(wait_duration)
+            logging.info("Waiting for the specified duration: %s" % (wait_duration))
+            time.sleep(wait_duration)
 
-                # capture end time
-                end_time = int(time.time())
+            # capture end time
+            end_time = int(time.time())
 
-                # publish cerberus status
-                cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
-                logging.info("")
+            # publish cerberus status
+            cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
+            logging.info("")
 
 
 def container_killing_in_pod(cont_scenario):

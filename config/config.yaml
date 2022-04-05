@@ -10,38 +10,38 @@ kraken:
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   container_scenarios:                                 # List of chaos pod scenarios to load
-            - -  scenarios/container_etcd.yml
+            - -    https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/container_etcd.yml
         -   pod_scenarios:
-            - -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/etcd.yml
-            - -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/regex_openshift_pod_kill.yml
-              -    https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/post_action_regex.py
+            - -    https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/etcd.yml
+            - -    scenarios/regex_openshift_pod_kill.yml
+              -    scenarios/post_action_regex.py          # NOTE: Post actions are not supported if using the remote config option
         -   node_scenarios:                                # List of chaos node scenarios to load
-            -   https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/node_scenarios_example.yml
+            -   https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/node_scenarios_example.yml
         -   pod_scenarios:
             - -    scenarios/openshift-apiserver.yml
-            - -    scenarios/openshift-kube-apiserver.yml
+            - -    https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/openshift-kube-apiserver.yml
         -   time_scenarios:                                # List of chaos time scenarios to load
             - scenarios/time_scenarios_example.yml
         -   litmus_scenarios:                              # List of litmus scenarios to load
-            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
-              - https://raw.githubusercontent.com/cloud-bulldozer/kraken/blob/master/scenarios/node_cpu_hog_engine.yaml
-            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
-              - https://raw.githubusercontent.com/cloud-bulldozer/kraken/blob/master/scenarios/node_mem_engine.yaml
-            - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/templates/litmus-rbac.yaml
-              - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/node_io_engine.yaml
+            - - scenarios/templates/litmus-rbac.yaml
+              - https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/node_cpu_hog_engine.yaml
+            - - https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/templates/litmus-rbac.yaml
+              - scenarios/node_mem_engine.yaml
+            - - https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/templates/litmus-rbac.yaml
+              - scenarios/node_io_engine.yaml
         -   cluster_shut_down_scenarios:
-            - - scenarios/cluster_shut_down_scenario.yml
-              - scenarios/post_action_shut_down.py
+            - - https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/cluster_shut_down_scenario.yml
+              - scenarios/post_action_shut_down.py         # NOTE: Post actions are not supported if using the remote config option
         -   namespace_scenarios:
-             - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/regex_namespace.yaml
-             - - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/ingress_namespace.yaml
-               - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/post_action_namespace.py
+             - - scenarios/regex_namespace.yaml
+             - - https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/ingress_namespace.yaml
+               - scenarios/post_action_namespace.py        # NOTE: Post actions are not supported if using the remote config option
         -   zone_outages:
             - scenarios/zone_outage.yaml
         -   application_outages:
             - scenarios/app_outage.yaml
         -   pvc_scenarios:
-            - https://raw.githubusercontent.com/cloud-bulldozer/kraken/master/scenarios/pvc_scenario.yaml
+            - https://raw.githubusercontent.com/chaos-kubox/krkn/main/scenarios/pvc_scenario.yaml
         -   network_chaos:
             - scenarios/network_chaos.yaml
 
