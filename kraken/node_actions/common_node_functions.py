@@ -43,11 +43,17 @@ def wait_for_ready_status(node, timeout):
 # Wait till node status becomes NotReady
 def wait_for_unknown_status(node, timeout):
     for _ in range(timeout):
-        if kubecli.get_node_status(node) == "Unknown":
-            break
+        try:
+            node_status = kubecli.get_node_status(node, timeout)
+            if node_status is None or node_status == "Unknown":
+                break
+        except Exception:
+            logging.error("Encountered error while getting node status, waiting 3 seconds and retrying")
         time.sleep(3)
-    if kubecli.get_node_status(node) != "Unknown":
-        raise Exception("Node condition status isn't Unknown")
+    node_status = kubecli.get_node_status(node, timeout)
+    logging.info("node status " + str(node_status))
+    if node_status is not None and node_status != "Unknown":
+        raise Exception("Node condition status isn't Unknown after %s seconds" % str(timeout))
 
 
 # Get the ip of the cluster node
