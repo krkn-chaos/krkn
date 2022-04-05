@@ -50,6 +50,7 @@ def main(cfg):
             content = requests.get(cfg)
             texts = content.text
             config = yaml.safe_load(texts)
+
     except:
         # For config as local file
         if os.path.isfile(cfg):
