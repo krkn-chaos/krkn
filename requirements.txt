@@ -18,7 +18,8 @@ openshift-client
 python-ipmi
 podman-compose
 docker-compose
-jinja2>=3.0.1
+jinja2==3.0.3
 itsdangerous==2.0.1
+werkzeug==2.0.3
 aliyun-python-sdk-core-v3
 aliyun-python-sdk-ecs
