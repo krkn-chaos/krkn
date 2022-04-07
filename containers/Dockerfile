@@ -4,7 +4,7 @@ FROM quay.io/openshift/origin-tests:latest as origintests
 
 FROM quay.io/centos/centos:stream9
 
-LABEL org.opencontainers.image.authors="Red Hat OpenShift Performance and Scale"
+LABEL org.opencontainers.image.authors="Red Hat OpenShift Chaos Engineering"
 
 ENV KUBECONFIG /root/.kube/config
 
