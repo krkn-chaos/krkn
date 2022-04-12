@@ -25,17 +25,16 @@ TODO: add a link to the hosted github pages once setup
 ### How to Get Started
 Instructions on how to setup, configure and run Kraken can be found at [Installation](docs/installation.md).
 
-See the [getting started doc](docs/getting_started.md) on support on how to get started with your own custom scenario or editing current scenarios for your specific usage
+See the [getting started doc](docs/getting_started.md) on support on how to get started with your own custom scenario or editing current scenarios for your specific usage.
 
-After installation, refer back to the below sections for supported scenarios and how to tweak the kraken config to load them on your cluster
+After installation, refer back to the below sections for supported scenarios and how to tweak the kraken config to load them on your cluster.
 
 
 #### Running Kraken with minimal configuration tweaks
-For cases where you want to run Kraken with minimal configuration changes, refer [Kraken-hub](https://github.com/cloud-bulldozer/kraken-hub). The use cases can be CI integration where you don't want to carry around different configuration files for the scenarios.
-
+For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/cloud-bulldozer/kraken-hub). One use case is CI integration where you don't want to carry around different configuration files for the scenarios.
 
 ### Setting up infrastructure dependencies
-Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastruture pieces can be easily installed, uninstalled by running:
+Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastruture pieces can be easily installed and uninstalled by running:
 
 ```
 $ cd kraken
@@ -44,7 +43,7 @@ $ podman-compose down or $ docker-compose down  # Delete the containers installe
 ```
 This will manage the Cerberus and Elasticsearch containers on the host on which you are running Kraken.
 
-**NOTE**: Make sure to have enough resources ( memory and disk ) on the machine on top of which the containers are running as Elasticsearch is resource intensive. Cerberus monitors the system components by default, the [config](config/cerberus.yaml) can be tweaked to add applications namespaces, routes and other components to monitor as well. Also the command will keep running until killed as detached mode is not supported as of now.
+**NOTE**: Make sure you have enough resources (memory and disk) on the machine on top of which the containers are running as Elasticsearch is resource intensive. Cerberus monitors the system components by default, the [config](config/cerberus.yaml) can be tweaked to add applications namespaces, routes and other components to monitor as well. The command will keep running until killed since detached mode is not supported as of now.
 
 
 ### Config
