@@ -142,7 +142,13 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 logging.debug("Create temp file in the PVC command:\n %s" % command)
                 response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
                 logging.info("\n" + str(response))
-                if "copied" in str(response).lower():
+
+                # Check if file is created
+                command = "ls %s" % (str(mount_path))
+                logging.debug("Check file is created command:\n %s" % command)
+                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
+                logging.info("\n" + str(response))
+                if str(file_name).lower() in str(response).lower():
                     logging.info("%s file successfully created" % (str(full_path)))
                 else:
                     logging.error("Failed to create tmp file with %s size" % (str(file_size)))
@@ -161,7 +167,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 logging.debug("Check temp file is removed command:\n %s" % command)
                 response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
                 logging.info("\n" + str(response))
-                if not (file_name in str(response).lower()):
+                if not (str(file_name).lower() in str(response).lower()):
                     logging.info("Temp file successfully removed")
                 else:
                     logging.error("Failed to delete tmp file with %s size" % (str(file_size)))
