@@ -1,4 +1,4 @@
-# Kraken
+# Krkn aka Kraken
 [![Docker Repository on Quay](https://quay.io/repository/openshift-scale/kraken/status "Docker Repository on Quay")](https://quay.io/repository/openshift-scale/kraken)
 
 Chaos and resiliency testing tool for Kubernetes and OpenShift.
