@@ -13,13 +13,15 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 
 
 ### Chaos Testing Guide
-TODO: add a link to the hosted github pages once setup
 [Guide](docs/index.md) encapsulates:
 - Test methodology that needs to be embraced
-- Best practices that an OpenShift cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability.
+- Best practices that an OpenShift cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability
 - Tooling
 - Scenarios supported
-- Test environment recommendations as to how and where to run chaos tests.
+- Test environment recommendations as to how and where to run chaos tests
+- Chaos testing in practice
+
+The guide is hosted at [https://cloud-bulldozer.github.io/krkn/](https://cloud-bulldozer.github.io/krkn/).
 
 
 ### How to Get Started
