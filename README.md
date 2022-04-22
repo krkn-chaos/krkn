@@ -1,5 +1,5 @@
 # Krkn aka Kraken
-[![Docker Repository on Quay](https://quay.io/repository/openshift-scale/kraken/status "Docker Repository on Quay")](https://quay.io/repository/openshift-scale/kraken)
+[![Docker Repository on Quay](https://quay.io/repository/openshift-scale/kraken/status "Docker Repository on Quay")](https://quay.io/chaos-kubox/krkn)
 
 Chaos and resiliency testing tool for Kubernetes and OpenShift.
 Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check if it is resilient to turbulent conditions.

@@ -18,12 +18,12 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
     - name: Build the Docker images
-      run:  docker build --no-cache -t quay.io/openshift-scale/kraken containers/
+      run:  docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
     - name: Push the Docker images
       if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-      run: docker push quay.io/openshift-scale/kraken
+      run: docker push quay.io/chaos-kubox/krkn
     - name: Remove Image
-      run: docker rmi -f quay.io/openshift-scale/kraken | exit 0
+      run: docker rmi -f quay.io/chaos-kubox/krkn | exit 0
     - name: Build Kraken-hub Image
       if: github.ref == 'refs/heads/master' && github.event_name == 'push'
       uses: convictional/trigger-workflow-and-wait@v1.5.0
