@@ -1,6 +1,8 @@
 # Krkn aka Kraken
 [![Docker Repository on Quay](https://quay.io/repository/openshift-scale/kraken/status "Docker Repository on Quay")](https://quay.io/chaos-kubox/krkn)
 
+![Krkn logo](media/logo.png)
+
 Chaos and resiliency testing tool for Kubernetes and OpenShift.
 Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check if it is resilient to turbulent conditions.
 
@@ -21,7 +23,7 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 - Test environment recommendations as to how and where to run chaos tests
 - Chaos testing in practice
 
-The guide is hosted at [https://cloud-bulldozer.github.io/krkn/](https://cloud-bulldozer.github.io/krkn/).
+The guide is hosted at [https://chaos-kubox.github.io/krkn/](https://chaos-kubox.github.io/krkn/).
 
 
 ### How to Get Started
