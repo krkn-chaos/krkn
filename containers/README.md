@@ -1,6 +1,6 @@
 ### Kraken image
 
-Container image gets automatically built by quay.io at [Kraken image](https://quay.io/repository/openshift-scale/kraken).
+Container image gets automatically built by quay.io at [Kraken image](https://quay.io/chaos-kubox/krkn).
 
 ### Run containerized version
 Refer [instructions](https://github.com/cloud-bulldozer/kraken/blob/master/docs/installation.md#run-containerized-version) for information on how to run the containerized version of kraken.
