@@ -28,7 +28,7 @@ jobs:
       if: github.ref == 'refs/heads/master' && github.event_name == 'push'
       uses: convictional/trigger-workflow-and-wait@v1.5.0
       with:
-        owner: cloud-bulldozer
+        owner: chaos-kubox
         repo: krkn-hub
         github_token: ${{ secrets.G_ACCESS_TOKEN }}
         workflow_file_name: docker-image.yml
