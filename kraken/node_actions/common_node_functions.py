@@ -32,7 +32,12 @@ def get_node(node_name, label_selector, instance_kill_count):
 
 # Wait till node status becomes Ready
 def wait_for_ready_status(node, timeout):
-    runcommand.invoke("kubectl wait --for=condition=Ready " "node/" + node + " --timeout=" + str(timeout) + "s")
+    for _ in range(timeout):
+        if kubecli.get_node_status(node) == "Ready":
+            break
+        time.sleep(3)
+        if kubecli.get_node_status(node) != "Ready":
+            raise Exception("Node condition status isn't Ready")
 
 
 # Wait till node status becomes NotReady
