@@ -10,6 +10,7 @@
   * [Cluster recovery checks, metrics evaluation and pass/fail criteria](#cluster-recovery-checks-metrics-evaluation-and-passfail-criteria)
 * [Scenarios](#scenarios)
 * [Test Environment Recommendations - how and where to run chaos tests](#test-environment-recommendations---how-and-where-to-run-chaos-tests)
+* [Chaos testing in Practice within the OpenShift Organization](#chaos-testing-in-practice-within-the-OpenShift-Organization)
 
 
 ### Introduction
