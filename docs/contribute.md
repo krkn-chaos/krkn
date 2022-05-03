@@ -12,7 +12,7 @@ How to:
 
 In order to submit a change or a PR, please fork the project and follow instructions:
 ```bash
-$ git clone http://github.com/<me>/kraken
+$ git clone http://github.com/<me>/krkn
 $ cd kraken
 $ git checkout -b <branch_name>
 $ <make change>
