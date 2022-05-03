@@ -152,6 +152,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                     logging.info("%s file successfully created" % (str(full_path)))
                 else:
                     logging.error("Failed to create tmp file with %s size" % (str(file_size)))
+                    remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size)
                     sys.exit(1)
 
                 # Wait for the specified duration
@@ -159,22 +160,25 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 time.sleep(duration)
                 logging.info("Finish waiting")
 
-                # Remove the temp file from the PVC
-                command = "rm %s" % (str(full_path))
-                logging.debug("Remove temp file from the PVC command:\n %s" % command)
-                kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
-                command = "ls %s" % (str(mount_path))
-                logging.debug("Check temp file is removed command:\n %s" % command)
-                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
-                logging.info("\n" + str(response))
-                if not (str(file_name).lower() in str(response).lower()):
-                    logging.info("Temp file successfully removed")
-                else:
-                    logging.error("Failed to delete tmp file with %s size" % (str(file_size)))
-                    sys.exit(1)
+                remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size)
 
                 end_time = int(time.time())
                 cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
+
+
+def remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size):
+    command = "rm %s" % (str(full_path))
+    logging.debug("Remove temp file from the PVC command:\n %s" % command)
+    kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
+    command = "ls %s" % (str(mount_path))
+    logging.debug("Check temp file is removed command:\n %s" % command)
+    response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
+    logging.info("\n" + str(response))
+    if not (str(file_name).lower() in str(response).lower()):
+        logging.info("Temp file successfully removed")
+    else:
+        logging.error("Failed to delete tmp file with %s size" % (str(file_size)))
+        sys.exit(1)
 
 
 def toKbytes(value):
