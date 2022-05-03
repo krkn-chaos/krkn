@@ -18,7 +18,7 @@ Set to '^.*$' and label_selector to "" to randomly select any namespace in your 
 
 **sleep:** number of seconds to wait between each iteration/count of killing namespaces. Defaults to 10 seconds if not set
 
-Refer to [namespace_scenarios_example](https://github.com/openshift-scale/kraken/blob/master/scenarios/regex_namespace) config file.
+Refer to [namespace_scenarios_example](https://github.com/chaos-kubox/krkn/blob/main/scenarios/regex_namespace.yaml) config file.
 
 ```
 scenarios:

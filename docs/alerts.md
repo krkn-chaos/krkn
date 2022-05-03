@@ -1,13 +1,13 @@
 ## Alerts
 
-Pass/fail based on metrics captured from the cluster is important in addition to checking the health status and recovery. Kraken supports alerting based on the queries defined by the user and modifies the return code of the run to determine pass/fail. It's especially useful in case of automated runs in CI where user won't be able to monitor the system. It uses [Kube-burner](https://kube-burner.readthedocs.io/en/latest/alerting.html) under the hood. This feature can be enabled in the [config](https://github.com/cloud-bulldozer/kraken/blob/master/config/config.yaml) by setting the following:
+Pass/fail based on metrics captured from the cluster is important in addition to checking the health status and recovery. Kraken supports alerting based on the queries defined by the user and modifies the return code of the run to determine pass/fail. It's especially useful in case of automated runs in CI where user won't be able to monitor the system. It uses [Kube-burner](https://kube-burner.readthedocs.io/en/latest/) under the hood. This feature can be enabled in the [config](https://github.com/cloud-bulldozer/kraken/blob/master/config/config.yaml) by setting the following:
 
 ```
 performance_monitoring:
     kube_burner_binary_url: "https://github.com/cloud-bulldozer/kube-burner/releases/download/v0.9.1/kube-burner-0.9.1-Linux-x86_64.tar.gz"
     prometheus_url:                                       # The prometheus url/route is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.
     prometheus_bearer_token:                              # The bearer token is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes. This is needed to authenticate with prometheus.
-    enable_alerts: True                                  # Runs the queries specified in the alert profile and displays the info or exits 1 when severity=error
+    enable_alerts: True                                   # Runs the queries specified in the alert profile and displays the info or exits 1 when severity=error
     alert_profile: config/alerts                          # Path to alert profile with the prometheus queries
 ```
 
