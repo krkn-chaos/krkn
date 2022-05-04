@@ -1,30 +1,30 @@
 ### Signaling to Kraken
-This functionality allows a user to be able to pause or stop the kraken run at any time no matter the number of iterations or daemon_mode set in the config
+This functionality allows a user to be able to pause or stop the kraken run at any time no matter the number of iterations or daemon_mode set in the config.
 
-If publish_kraken_status is set to True in the config, kraken will start up a connection to a url at a certain port to decide if it should continue running
+If publish_kraken_status is set to True in the config, kraken will start up a connection to a url at a certain port to decide if it should continue running.
 
-By default it will get posted to http://0.0.0.0:8081/
+By default, it will get posted to http://0.0.0.0:8081/
 
-An example use case for this feature would be coordinating kraken runs based on the status of the service installation or load on the cluster
+An example use case for this feature would be coordinating kraken runs based on the status of the service installation or load on the cluster.
 
 
 
 #### States
-There are 3 states in the kraken status
+There are 3 states in the kraken status:
 
-```PAUSE```: When the Kraken signal is 'PAUSE', this will pause the kraken test and wait for the wait_duration until the signal returns to RUN
+```PAUSE```: When the Kraken signal is 'PAUSE', this will pause the kraken test and wait for the wait_duration until the signal returns to RUN.
 
-```STOP```: When the Kraken signal is 'STOP', end the kraken run and print out report
+```STOP```: When the Kraken signal is 'STOP', end the kraken run and print out report.
 
-```RUN```: When the Kraken signal is 'RUN', continue kraken run based on iterations
+```RUN```: When the Kraken signal is 'RUN', continue kraken run based on iterations.
 
 
 
 #### Configuration
 
-In the config you need to set these parameters to tell kraken which port to post the kraken run status to
-As well if you want to publish and stop running based on the kraken status or not
-The signal is set to `RUN` by default meaning it will continue to run the scenarios, it can set to `PAUSE` for Kraken to act as listener and wait until set to `RUN` before injecting chaos
+In the config you need to set these parameters to tell kraken which port to post the kraken run status to.
+As well if you want to publish and stop running based on the kraken status or not.
+The signal is set to `RUN` by default, meaning it will continue to run the scenarios. It can set to `PAUSE` for Kraken to act as listener and wait until set to `RUN` before injecting chaos.
 ```
     port: 8081
     publish_kraken_status: True
@@ -34,9 +34,9 @@ The signal is set to `RUN` by default meaning it will continue to run the scenar
 
 #### Setting Signal
 
-See [set_stop_signal.py](https://github.com/cloud-bulldozer/kraken/tree/master/set_stop_signal.py) for an example of how to reset the kraken status during kraken execution
+See [set_stop_signal.py](https://github.com/chaos-kubox/krkn/blob/main/set_stop_signal.py) for an example of how to reset the kraken status during kraken execution.
 
-Make sure to set the correct port number in your set_stop_signal script
+Make sure to set the correct port number in your set_stop_signal script.
 
 
 

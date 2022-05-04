@@ -1,22 +1,22 @@
 ###  Time/Date Skew Scenarios
 
-Using this type of scenario configuration, one is able to change the time and/or date of the system for pods or nodes
+Using this type of scenario configuration, one is able to change the time and/or date of the system for pods or nodes.
 
 Configuration Options:
 
-**action:** skew_time or skew_date
+**action:** skew_time or skew_date.
 
-**object_type:** pod or node
+**object_type:** pod or node.
 
-**namespace:** namespace of the pods you want to skew, need to be set if setting a specific pod name
+**namespace:** namespace of the pods you want to skew. Needs to be set if setting a specific pod name.
 
-**label_selector:** label on the nodes or pods you want to skew
+**label_selector:** Label on the nodes or pods you want to skew.
 
-**container_name:** container name in pod you want to reset time on, if left blank it will randomly select one
+**container_name:** Container name in pod you want to reset time on. If left blank it will randomly select one.
 
-**object_name:** list of the names of pods or nodes you want to skew
+**object_name:** List of the names of pods or nodes you want to skew.
 
-Refer to [time_scenarios_example](https://github.com/openshift-scale/kraken/blob/master/scenarios/time_scenarios_example.yml) config file.
+Refer to [time_scenarios_example](https://github.com/chaos-kubox/krkn/blob/main/scenarios/time_scenarios_example.yml) config file.
 
 ```
 time_scenarios:
