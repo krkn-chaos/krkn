@@ -1,5 +1,5 @@
 ### Application outages
-Scenario to block the traffic ( Ingress/Egress ) of an application matching the labels for the specified duration of time to understand the behavior of the service/other services which depend it during the downtime. This helps with the planning the requirements accordingly be it improving the timeouts or tweaking the alerts etc.
+Scenario to block the traffic ( Ingress/Egress ) of an application matching the labels for the specified duration of time to understand the behavior of the service/other services which depend on it during downtime. This helps with planning the requirements accordingly, be it improving the timeouts or tweaking the alerts etc.
 
 ##### Sample scenario config
 ```

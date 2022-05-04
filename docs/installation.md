@@ -1,15 +1,15 @@
 ## Installation
 
-Following ways are supported to run Kraken:
+The following ways are supported to run Kraken:
 
-- Standalone python program through Git
-- Containerized version using either Podman or Docker as the runtime
-- Kubernetes or OpenShift deployment
+- Standalone python program through Git.
+- Containerized version using either Podman or Docker as the runtime.
+- Kubernetes or OpenShift deployment.
 
 **NOTE**: It is recommended to run Kraken external to the cluster ( Standalone or Containerized ) hitting the Kubernetes/OpenShift API as running it internal to the cluster might be disruptive to itself and also might not report back the results if the chaos leads to cluster's API server instability.
 
 **NOTE**: To run Kraken on Power (ppc64le) architecture, build and run a containerized version by following the
- instructions given [here](https://github.com/cloud-bulldozer/krkn/blob/master/containers/build_own_image-README.md).
+ instructions given [here](https://github.com/chaos-kubox/krkn/blob/main/containers/build_own_image-README.md).
 
 ### Git
 
@@ -50,8 +50,8 @@ $ podman run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config
 $ podman logs -f kraken
 ```
 
-If you want to build your own kraken image see [here](https://github.com/cloud-bulldozer/krkn/blob/master/containers/build_own_image-README.md)
+If you want to build your own kraken image see [here](https://github.com/chaos-kubox/krkn/blob/main/containers/build_own_image-README.md)
 
 
 ### Run Kraken as a Kubernetes deployment
-Refer [Instructions](https://github.com/openshift-scale/kraken/blob/master/containers/README.md) on how to deploy and run Kraken as a Kubernetes/OpenShift deployment.
+Refer [Instructions](https://github.com/chaos-kubox/krkn/blob/main/containers/README.md) on how to deploy and run Kraken as a Kubernetes/OpenShift deployment.
