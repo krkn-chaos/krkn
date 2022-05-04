@@ -9,23 +9,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Check out code
-      uses: actions/checkout@v3
-    - name: Build the Docker images
-      run:  docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
-    
-    - name: Login in quay
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
-      env:
-        QUAY_USER: ${{ secrets.QUAY_USER_1 }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
-    - name: Push the Docker images
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: docker push quay.io/chaos-kubox/krkn
-    - name: Rebuild krkn-hub
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      uses: chaos-kubox/actions./.github/workflows/krkn-hub.yml@main
-      secrets:
-        QUAY_USER: ${{ secrets.QUAY_USER_1 }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Build the Docker images
+        run: docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
+
+      - name: Login in quay
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
+        env:
+          QUAY_USER: ${{ secrets.QUAY_USER_1 }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
+      - name: Push the Docker images
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: docker push quay.io/chaos-kubox/krkn
+      - name: Rebuild krkn-hub
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: chaos-kubox/actions/krkn-hub@main
+        with:
+          QUAY_USER: ${{ secrets.QUAY_USER_1 }}
+          QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
