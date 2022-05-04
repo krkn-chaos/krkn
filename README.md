@@ -1,5 +1,7 @@
 # Krkn aka Kraken
-[![Docker Repository on Quay](https://quay.io/repository/openshift-scale/kraken/status "Docker Repository on Quay")](https://quay.io/chaos-kubox/krkn)
+[![Docker Repository on Quay](https://quay.io/repository/chaos-kubox/krkn?tab=tags&tag=latest "Docker Repository on Quay")](https://quay.io/chaos-kubox/krkn)
+
+![Krkn logo](media/logo.png)
 
 Chaos and resiliency testing tool for Kubernetes and OpenShift.
 Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check if it is resilient to turbulent conditions.
@@ -14,14 +16,14 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 
 ### Chaos Testing Guide
 [Guide](docs/index.md) encapsulates:
-- Test methodology that needs to be embraced
-- Best practices that an OpenShift cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability
-- Tooling
-- Scenarios supported
-- Test environment recommendations as to how and where to run chaos tests
-- Chaos testing in practice
+- Test methodology that needs to be embraced.
+- Best practices that an OpenShift cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability.
+- Tooling.
+- Scenarios supported.
+- Test environment recommendations as to how and where to run chaos tests.
+- Chaos testing in practice.
 
-The guide is hosted at [https://cloud-bulldozer.github.io/krkn/](https://cloud-bulldozer.github.io/krkn/).
+The guide is hosted at [https://chaos-kubox.github.io/krkn/](https://chaos-kubox.github.io/krkn/).
 
 
 ### How to Get Started
@@ -33,15 +35,15 @@ After installation, refer back to the below sections for supported scenarios and
 
 
 #### Running Kraken with minimal configuration tweaks
-For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/cloud-bulldozer/kraken-hub). One use case is CI integration where you don't want to carry around different configuration files for the scenarios.
+For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/chaos-kubox/krkn-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
 
 ### Setting up infrastructure dependencies
-Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastruture pieces can be easily installed and uninstalled by running:
+Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastructure pieces can be easily installed and uninstalled by running:
 
 ```
 $ cd kraken
-$ podman-compose up or $ docker-compose up      # Spins up the containers specified in the docker-compose.yml file present in the run directory
-$ podman-compose down or $ docker-compose down  # Delete the containers installed
+$ podman-compose up or $ docker-compose up      # Spins up the containers specified in the docker-compose.yml file present in the run directory.
+$ podman-compose down or $ docker-compose down  # Delete the containers installed.
 ```
 This will manage the Cerberus and Elasticsearch containers on the host on which you are running Kraken.
 
@@ -78,21 +80,21 @@ Instructions on how to setup the config and the options supported can be found a
 
 
 ### Kraken scenario pass/fail criteria and report
-It's important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
+It is important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
 - Having built in checks for pod and node based scenarios to ensure the expected number of replicas and nodes are up. It also supports running custom scripts with the checks.
-- Leveraging [Cerberus](https://github.com/openshift-scale/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail post chaos. It is highly recommended to turn on the Cerberus health check feature avaliable in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation) or can be installed from Kraken using the [instructions](https://github.com/cloud-bulldozer/kraken#setting-up-infrastructure-dependencies). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file. Cerberus can monitor [application routes](https://github.com/cloud-bulldozer/cerberus/blob/master/docs/config.md#watch-routes) during the chaos and fails the run if it encounters downtime as it's a potential downtime in customer, users environment as well. It is especially important during the control plane chaos scenarios including the API server, Etcd, Ingress etc. It can be enabled by setting `check_applicaton_routes: True` in the [Kraken config](https://github.com/cloud-bulldozer/kraken/blob/master/config/config.yaml) provided application routes are being monitored in the [cerberus config](https://github.com/cloud-bulldozer/kraken/blob/master/config/cerberus.yaml)
+- Leveraging [Cerberus](https://github.com/openshift-scale/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail post chaos. It is highly recommended to turn on the Cerberus health check feature available in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation) or can be installed from Kraken using the [instructions](https://github.com/chaos-kubox/krkn#setting-up-infrastructure-dependencies). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file. Cerberus can monitor [application routes](https://github.com/chaos-kubox/cerberus/blob/main/docs/config.md#watch-routes) during the chaos and fails the run if it encounters downtime as it is a potential downtime in a customers, or users environment as well. It is especially important during the control plane chaos scenarios including the API server, Etcd, Ingress etc. It can be enabled by setting `check_applicaton_routes: True` in the [Kraken config](https://github.com/chaos-kubox/krkn/blob/main/config/config.yaml) provided application routes are being monitored in the [cerberus config](https://github.com/chaos-kubox/krkn/blob/main/config/cerberus.yaml).
 - Leveraging [kube-burner](docs/alerts.md) alerting feature to fail the runs in case of critical alerts.
 
 ### Signaling
-In CI runs or any external job it is useful to stop Kraken once a certain test or state gets reached. We created a way to signal to kraken to pause the chaos or stop it completely using a signal posted to a port of your choice
+In CI runs or any external job it is useful to stop Kraken once a certain test or state gets reached. We created a way to signal to kraken to pause the chaos or stop it completely using a signal posted to a port of your choice.
 
-For example if we have a test run loading the cluster running and kraken separately running; we want to be able to know when to start/stop the kraken run based on when the test run completes or gets to a certain loaded state
+For example if we have a test run loading the cluster running and kraken separately running; we want to be able to know when to start/stop the kraken run based on when the test run completes or gets to a certain loaded state.
 
 More detailed information on enabling and leveraging this feature can be found [here](docs/signal.md).
 
 
 ### Performance monitoring
-Monitoring the Kubernetes/OpenShift cluster to observe the impact of Kraken chaos scenarios on various components is key to find out the bottlenecks as it's important to make sure the cluster is healthy in terms if both recovery as well as performance during/after the failure has been injected. Instructions on enabling it can be found [here](docs/performance_dashboards.md).
+Monitoring the Kubernetes/OpenShift cluster to observe the impact of Kraken chaos scenarios on various components is key to find out the bottlenecks as it is important to make sure the cluster is healthy in terms if both recovery as well as performance during/after the failure has been injected. Instructions on enabling it can be found [here](docs/performance_dashboards.md).
 
 
 ### Scraping and storing metrics long term
@@ -111,11 +113,11 @@ In addition to checking the recovery and health of the cluster and components un
 
 ### Roadmap
 Following is a list of enhancements that we are planning to work on adding support in Kraken. Of course any help/contributions are greatly appreciated.
-- [Ability to visualize the metrics that are being captured by Kraken and stored in Elasticsearch](https://github.com/cloud-bulldozer/kraken/issues/124)
-- Ability to shape the ingress network similar to how Kraken supports [egress traffic shaping](https://github.com/cloud-bulldozer/kraken/blob/master/docs/network_chaos.md) today
-- Continue to improve [Chaos Testing Guide](https://cloud-bulldozer.github.io/kraken/) in terms of adding more best practices, test environment recommendations and scenarios to make sure OpenShift platform, as well the applications running on top it, are resilient and performant under chaotic conditions
-- Support for running Kraken on Kubernetes distribution - see https://github.com/cloud-bulldozer/kraken/issues/185, https://github.com/cloud-bulldozer/kraken/issues/186
-- Sweet logo for Kraken - see https://github.com/cloud-bulldozer/kraken/issues/195
+- [Ability to visualize the metrics that are being captured by Kraken and stored in Elasticsearch](https://github.com/chaos-kubox/krkn/issues/124)
+- Ability to shape the ingress network similar to how Kraken supports [egress traffic shaping](https://github.com/chaos-kubox/krkn/blob/main/docs/network_chaos.md) today.
+- Continue to improve [Chaos Testing Guide](https://cloud-bulldozer.github.io/kraken/) in terms of adding best practices, test environment recommendations and scenarios to make sure the OpenShift platform, as well the applications running on top it, are resilient and performant under chaotic conditions.
+- Support for running Kraken on Kubernetes distribution - see https://github.com/chaos-kubox/krkn/issues/185, https://github.com/chaos-kubox/krkn/issues/186
+- Sweet logo for Kraken - see https://github.com/chaos-kubox/krkn/issues/195
 
 
 ### Contributions
@@ -123,11 +125,11 @@ We are always looking for more enhancements, fixes to make it better, any contri
 
 [More information on how to Contribute](docs/contribute.md)
 
-If adding a new scenario or tweaking the main config, be sure to add in updates into the CI to be sure the CI is up to date
-Please read [this file]((CI/README.md#adding-a-test-case)) for more information on updates
+If adding a new scenario or tweaking the main config, be sure to add in updates into the CI to be sure the CI is up to date.
+Please read [this file]((CI/README.md#adding-a-test-case)) for more information on updates.
 
 
 ### Community
-Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, ravielluri/Naga Ravi Chaitanya Elluri
+Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, ravielluri/Naga Ravi Chaitanya Elluri.
 * [**#sig-scalability on Kubernetes Slack**](https://kubernetes.slack.com)
 * [**#forum-chaos on CoreOS Slack internal to Red Hat**](https://coreos.slack.com)
