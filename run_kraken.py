@@ -49,6 +49,7 @@ def main(cfg):
         run_signal = config["kraken"].get("signal_state", "RUN")
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
         litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
+        litmus_uninstall_before_run = config["kraken"].get("litmus_uninstall_before_run", True)
         wait_duration = config["tunings"].get("wait_duration", 60)
         iterations = config["tunings"].get("iterations", 1)
         daemon_mode = config["tunings"].get("daemon_mode", False)
@@ -181,10 +182,11 @@ def main(cfg):
                             logging.info("Running litmus scenarios")
                             litmus_namespace = "litmus"
                             if not litmus_installed:
-                                # Will always uninstall first
+                                # Remove Litmus resources before running the scenarios
                                 common_litmus.delete_chaos(litmus_namespace)
                                 common_litmus.delete_chaos_experiments(litmus_namespace)
-                                common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
+                                if litmus_uninstall_before_run:
+                                    common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
                                 common_litmus.install_litmus(litmus_version, litmus_namespace)
                                 common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
                                 litmus_installed = True
