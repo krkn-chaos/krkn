@@ -38,22 +38,22 @@ def scrape_metrics(
         prometheus_url, prometheus_bearer_token = prometheus.instance(
             distribution, prometheus_url, prometheus_bearer_token
         )
-        command = (
-            "./kube-burner index --uuid "
-            + str(uuid)
-            + " -u "
-            + str(prometheus_url)
-            + " -t "
-            + str(prometheus_bearer_token)
-            + " -m "
-            + str(metrics_profile)
-            + " --start "
-            + str(start_time)
-            + " --end "
-            + str(end_time)
-            + " -c "
-            + str(config_path)
-        )
+    command = (
+        "./kube-burner index --uuid "
+        + str(uuid)
+        + " -u "
+        + str(prometheus_url)
+        + " -t "
+        + str(prometheus_bearer_token)
+        + " -m "
+        + str(metrics_profile)
+        + " --start "
+        + str(start_time)
+        + " --end "
+        + str(end_time)
+        + " -c "
+        + str(config_path)
+    )
     try:
         logging.info("Running kube-burner to capture the metrics: %s" % command)
         logging.info("UUID for the run: %s" % uuid)
@@ -73,19 +73,19 @@ def alerts(distribution, prometheus_url, prometheus_bearer_token, start_time, en
         prometheus_url, prometheus_bearer_token = prometheus.instance(
             distribution, prometheus_url, prometheus_bearer_token
         )
-        command = (
-            "./kube-burner check-alerts "
-            + " -u "
-            + str(prometheus_url)
-            + " -t "
-            + str(prometheus_bearer_token)
-            + " -a "
-            + str(alert_profile)
-            + " --start "
-            + str(start_time)
-            + " --end "
-            + str(end_time)
-        )
+    command = (
+        "./kube-burner check-alerts "
+        + " -u "
+        + str(prometheus_url)
+        + " -t "
+        + str(prometheus_bearer_token)
+        + " -a "
+        + str(alert_profile)
+        + " --start "
+        + str(start_time)
+        + " --end "
+        + str(end_time)
+    )
     try:
         logging.info("Running kube-burner to capture the metrics: %s" % command)
         subprocess.run(command, shell=True, universal_newlines=True)
