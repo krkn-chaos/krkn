@@ -23,3 +23,4 @@ itsdangerous==2.0.1
 werkzeug==2.0.3
 aliyun-python-sdk-core-v3
 aliyun-python-sdk-ecs
+cryptography==36.0.2 # Remove once https://github.com/paramiko/paramiko/issues/2038 gets fixed.
