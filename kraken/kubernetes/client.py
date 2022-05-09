@@ -33,6 +33,7 @@ def list_namespaces(label_selector=None):
             ret = cli.list_namespace(pretty=True)
     except ApiException as e:
         logging.error("Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e)
+        raise e
     for namespace in ret.items:
         namespaces.append(namespace.metadata.name)
     return namespaces
@@ -81,6 +82,7 @@ def list_nodes(label_selector=None):
             ret = cli.list_node(pretty=True)
     except ApiException as e:
         logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
+        raise e
     for node in ret.items:
         nodes.append(node.metadata.name)
     return nodes
@@ -96,6 +98,7 @@ def list_killable_nodes(label_selector=None):
             ret = cli.list_node(pretty=True)
     except ApiException as e:
         logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
+        raise e
     for node in ret.items:
         if kraken_node_name != node.metadata.name:
             for cond in node.status.conditions:
@@ -118,6 +121,7 @@ def list_pods(namespace, label_selector=None):
                        CoreV1Api->list_namespaced_pod: %s\n"
             % e
         )
+        raise e
     for pod in ret.items:
         pods.append(pod.metadata.name)
     return pods
@@ -172,8 +176,12 @@ def delete_pod(name, namespace):
         cli.delete_namespaced_pod(name=name, namespace=namespace)
         while cli.read_namespaced_pod(name=name, namespace=namespace):
             time.sleep(1)
-    except ApiException:
-        logging.info("Pod already deleted")
+    except ApiException as e:
+        if e.status == 404:
+            logging.info("Pod already deleted")
+        else:
+            logging.error("Failed to delete pod %s" % e)
+            raise e
 
 
 def create_pod(body, namespace, timeout=120):
@@ -283,6 +291,7 @@ def get_node_status(node):
                        CoreV1Api->read_node_status: %s\n"
             % e
         )
+        raise e
     for condition in node_info.status.conditions:
         if condition.type == "Ready":
             return condition.status
@@ -302,6 +311,7 @@ def monitor_nodes():
                            CoreV1Api->read_node_status: %s\n"
                 % e
             )
+            raise e
         for condition in node_info.status.conditions:
             if condition.type == "KernelDeadlock":
                 node_kerneldeadlock_status = condition.status
@@ -332,6 +342,7 @@ def monitor_namespace(namespace):
                            CoreV1Api->read_namespaced_pod_status: %s\n"
                 % e
             )
+            raise e
         pod_status = pod_info.status.phase
         if pod_status != "Running" and pod_status != "Completed" and pod_status != "Succeeded":
             notready_pods.append(pod)
