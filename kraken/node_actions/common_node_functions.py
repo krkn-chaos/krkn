@@ -4,7 +4,6 @@ import logging
 import paramiko
 import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
-from kubernetes import client, watch
 
 node_general = False
 
@@ -32,56 +31,20 @@ def get_node(node_name, label_selector, instance_kill_count):
 
 # Wait until the node status becomes Ready
 def wait_for_ready_status(node, timeout):
-    w = watch.Watch()
-    v1 = client.CoreV1Api()
-    for event in w.stream(
-        v1.list_node,
-        field_selector=f"metadata.name={node}",
-        timeout_seconds=timeout,
-        limit=1,
-    ):
-        conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
-        if conditions[0].status == "True":
-            w.stop()
-            break
-        else:
-            logging.info("node status " + str(conditions[0].status))
-
-
-# Wait until the node status becomes Unknown
-def wait_for_unknown_status(node, timeout):
-    w = watch.Watch()
-    v1 = client.CoreV1Api()
-    for event in w.stream(
-        v1.list_node,
-        field_selector=f"metadata.name={node}",
-        timeout_seconds=timeout,
-        limit=1,
-    ):
-        conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
-        if conditions[0].status == "Unknown":
-            w.stop()
-            break
-        else:
-            logging.info("node status " + str(conditions[0].status))
+    resource_version = kubecli.get_node_resource_version(node)
+    kubecli.watch_node_status(node, "True", timeout, resource_version)
 
 
 # Wait until the node status becomes Not Ready
 def wait_for_not_ready_status(node, timeout):
-    w = watch.Watch()
-    v1 = client.CoreV1Api()
-    for event in w.stream(
-        v1.list_node,
-        field_selector=f"metadata.name={node}",
-        timeout_seconds=timeout,
-        limit=1,
-    ):
-        conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
-        if conditions[0].status == "False":
-            w.stop()
-            break
-        else:
-            logging.info("node status " + str(conditions[0].status))
+    resource_version = kubecli.get_node_resource_version(node)
+    kubecli.watch_node_status(node, "False", timeout, resource_version)
+
+
+# Wait until the node status becomes Unknown
+def wait_for_unknown_status(node, timeout):
+    resource_version = kubecli.get_node_resource_version(node)
+    kubecli.watch_node_status(node, "Unknown", timeout, resource_version)
 
 
 # Get the ip of the cluster node
