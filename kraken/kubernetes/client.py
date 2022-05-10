@@ -1,4 +1,4 @@
-from kubernetes import client, config, utils
+from kubernetes import client, config, utils, watch
 from kubernetes.dynamic.client import DynamicClient
 from kubernetes.stream import stream
 from kubernetes.client.rest import ApiException
@@ -19,6 +19,7 @@ def initialize_clients(kubeconfig_path):
     global api_client
     global dyn_client
     global custom_object_client
+    global watch
     try:
         config.load_kube_config(kubeconfig_path)
         cli = client.CoreV1Api()
@@ -27,6 +28,7 @@ def initialize_clients(kubeconfig_path):
         custom_object_client = client.CustomObjectsApi()
         k8s_client = config.new_client_from_config()
         dyn_client = DynamicClient(k8s_client)
+        watch = watch.Watch()
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)
         sys.exit(1)
@@ -584,3 +586,24 @@ def find_kraken_node():
         except Exception as e:
             logging.info("%s" % (e))
             sys.exit(1)
+
+
+# Watch for a specific node status
+def watch_node_status(node, status, timeout, resource_version):
+    for event in watch(
+        cli.list_node,
+        field_selector=f"metadata.name={node}",
+        timeout_seconds=timeout,
+        resource_version=f"{resource_version}",
+    ):
+        conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
+        if conditions[0].status == status:
+            watch.stop()
+            break
+        else:
+            logging.info("node status " + str(conditions[0].status))
+
+
+# Get the resource version for the specified node
+def get_node_resource_version(node):
+    return cli.read_node(name=node).metadata.resource_version
