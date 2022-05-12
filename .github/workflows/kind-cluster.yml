@@ -1,0 +1,46 @@
+name: Kind Cluster
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+      
+jobs:
+  build:
+    name: kind-cluster
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+      - name: Install KinD
+        run: |
+          sudo curl -Lo /usr/local/bin/kind https://kind.sigs.k8s.io/dl/v0.11.1/kind-linux-amd64
+          sudo curl -Lo /usr/local/bin/kubectl "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          sudo chmod +x /usr/local/bin/kind /usr/local/bin/kubectl
+      - name: Bring up KinD cluster
+        run: |
+          kind create cluster --wait 300s
+      - name: Wait for KinD
+        run: |
+          set -ex
+          UP=0
+          for i in $(seq 1 30); do
+            kubectl get nodes
+            NODECOUNT=$(kubectl get nodes | grep kind-control-plane | grep -v NotReady | wc -l)
+            if [ $NODECOUNT -eq "1" ]; then
+              UP=1
+              break
+            fi
+            sleep 5
+          done
+          if [ $UP -eq "0" ]; then
+            echo "KinD cluster failed to come up"
+            exit 1
+          fi
+          echo "KinD is ready for use."
