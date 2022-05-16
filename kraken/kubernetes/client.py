@@ -16,6 +16,7 @@ kraken_node_name = ""
 def initialize_clients(kubeconfig_path):
     global cli
     global batch_cli
+    global watch_resource
     global api_client
     global dyn_client
     global custom_object_client
@@ -24,6 +25,7 @@ def initialize_clients(kubeconfig_path):
         config.load_kube_config(kubeconfig_path)
         cli = client.CoreV1Api()
         batch_cli = client.BatchV1Api()
+        watch_resource = watch.Watch()
         api_client = client.ApiClient()
         custom_object_client = client.CustomObjectsApi()
         k8s_client = config.new_client_from_config()
@@ -331,20 +333,18 @@ def get_job_status(name, namespace="default"):
         raise
 
 
-# Obtain node status
-def get_node_status(node, timeout=60):
-    try:
-        node_info = cli.read_node_status(node, pretty=True, _request_timeout=timeout)
-    except ApiException as e:
-        logging.error(
-            "Exception when calling \
-                       CoreV1Api->read_node_status: %s\n"
-            % e
-        )
-        return None
-    for condition in node_info.status.conditions:
-        if condition.type == "Ready":
-            return condition.status
+# Obtain the node status
+def get_node_status(node, status, timeout):
+    v1 = client.CoreV1Api()
+    count = timeout
+    for event in watch_resource.stream(v1.read_node_status(node, timeout_seconds=count)):
+        if event["object"].status == status:
+            watch_resource.stop()
+        else:
+            count -= 1
+        if not count:
+            watch_resource.stop()
+    print("Finished read node status stream.")
 
 
 # Monitor the status of the cluster nodes and set the status to true or false
@@ -590,7 +590,7 @@ def find_kraken_node():
 
 # Watch for a specific node status
 def watch_node_status(node, status, timeout, resource_version):
-    for event in watch(
+    for event in watch_resource.stream(
         cli.list_node,
         field_selector=f"metadata.name={node}",
         timeout_seconds=timeout,
@@ -598,7 +598,7 @@ def watch_node_status(node, status, timeout, resource_version):
     ):
         conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
         if conditions[0].status == status:
-            watch.stop()
+            watch_resource.stop()
             break
         else:
             logging.info("node status " + str(conditions[0].status))
