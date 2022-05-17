@@ -1,0 +1,32 @@
+config:
+  runStrategy:
+    runs: 1
+    maxSecondsBetweenRuns: 30
+    minSecondsBetweenRuns: 1
+scenarios:
+  - name: "delete scheduler pods"
+    steps:
+    - podAction:
+        matches:
+          - labels:
+              namespace: "kube-system"
+              selector: "k8s-app=kube-scheduler"
+        filters:
+          - randomSample:
+              size: 1
+        actions:
+          - kill:
+              probability: 1
+              force: true
+    - podAction:
+        matches:
+          - labels:
+              namespace: "kube-system"
+              selector: "k8s-app=kube-scheduler"
+        retries:
+          retriesTimeout:
+            timeout: 180
+
+        actions:
+          - checkPodCount:
+              count: 3

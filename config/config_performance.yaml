@@ -10,33 +10,34 @@ kraken:
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   pod_scenarios:                                 # List of chaos pod scenarios to load
-            - -    scenarios/etcd.yml
-            - -    scenarios/regex_openshift_pod_kill.yml
-              -    scenarios/post_action_regex.py
+            - -    scenarios/openshift/etcd.yml
+            - -    scenarios/openshift/regex_openshift_pod_kill.yml
+              -    scenarios/openshift/post_action_regex.py
         -   node_scenarios:                                # List of chaos node scenarios to load
-            -   scenarios/node_scenarios_example.yml
+            -   scenarios/openshift/node_scenarios_example.yml
         -   pod_scenarios:
-            - -    scenarios/openshift-apiserver.yml
-            - -    scenarios/openshift-kube-apiserver.yml
+            - -    scenarios/openshift/openshift-apiserver.yml
+            - -    scenarios/openshift/openshift-kube-apiserver.yml
         -   time_scenarios:                                # List of chaos time scenarios to load
-            - scenarios/time_scenarios_example.yml
+            - scenarios/openshift/time_scenarios_example.yml
         -   litmus_scenarios:                              # List of litmus scenarios to load
             - - https://hub.litmuschaos.io/api/chaos/1.10.0?file=charts/generic/node-cpu-hog/rbac.yaml
-              - scenarios/node_cpu_hog_engine.yaml
+              - scenarios/openshift/node_cpu_hog_engine.yaml
         -   cluster_shut_down_scenarios:
-            - - scenarios/cluster_shut_down_scenario.yml
-              - scenarios/post_action_shut_down.py
+            - - scenarios/openshift/cluster_shut_down_scenario.yml
+              - scenarios/openshift/post_action_shut_down.py
         -   namespace_scenarios:
-            - scenarios/regex_namespace.yaml
-            - scenarios/ingress_namespace.yaml
+            - scenarios/openshift/regex_namespace.yaml
+            - scenarios/openshift/ingress_namespace.yaml
         -   zone_outages:
-            - scenarios/zone_outage.yaml
+            - scenarios/openshift/zone_outage.yaml
         -   application_outages:
-            - scenarios/app_outage.yaml
+            - scenarios/openshift/app_outage.yaml
         -   pvc_scenarios:
-            - scenarios/pvc_scenario.yaml
+            - scenarios/openshift/pvc_scenario.yaml
         -   network_chaos:
-            - scenarios/network_chaos.yaml
+            - scenarios/openshift/network_chaos.yaml
+
 cerberus:
     cerberus_enabled: True                                # Enable it when cerberus is previously installed
     cerberus_url: http://0.0.0.0:8080                     # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal

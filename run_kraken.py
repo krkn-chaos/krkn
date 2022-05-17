@@ -175,29 +175,37 @@ def main(cfg):
 
                         # Inject time skew chaos scenarios specified in the config
                         elif scenario_type == "time_scenarios":
-                            logging.info("Running time skew scenarios")
-                            time_actions.run(scenarios_list, config, wait_duration)
+                            if distribution == "openshift":
+                                logging.info("Running time skew scenarios")
+                                time_actions.run(scenarios_list, config, wait_duration)
+                            else:
+                                logging.error("Litmus scenarios are currently supported only on openshift")
+                                sys.exit(1)
 
                         # Inject litmus based chaos scenarios
                         elif scenario_type == "litmus_scenarios":
-                            logging.info("Running litmus scenarios")
-                            litmus_namespace = "litmus"
-                            if not litmus_installed:
-                                # Remove Litmus resources before running the scenarios
-                                common_litmus.delete_chaos(litmus_namespace)
-                                common_litmus.delete_chaos_experiments(litmus_namespace)
-                                if litmus_uninstall_before_run:
-                                    common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
-                                common_litmus.install_litmus(litmus_version, litmus_namespace)
-                                common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
-                                litmus_installed = True
-                                common_litmus.run(
-                                    scenarios_list,
-                                    config,
-                                    litmus_uninstall,
-                                    wait_duration,
-                                    litmus_namespace,
-                                )
+                            if distribution == "openshift":
+                                logging.info("Running litmus scenarios")
+                                litmus_namespace = "litmus"
+                                if not litmus_installed:
+                                    # Remove Litmus resources before running the scenarios
+                                    common_litmus.delete_chaos(litmus_namespace)
+                                    common_litmus.delete_chaos_experiments(litmus_namespace)
+                                    if litmus_uninstall_before_run:
+                                        common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
+                                    common_litmus.install_litmus(litmus_version, litmus_namespace)
+                                    common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
+                                    litmus_installed = True
+                                    common_litmus.run(
+                                        scenarios_list,
+                                        config,
+                                        litmus_uninstall,
+                                        wait_duration,
+                                        litmus_namespace,
+                                    )
+                            else:
+                                logging.error("Litmus scenarios are currently only supported on openshift")
+                                sys.exit(1)
 
                         # Inject cluster shutdown scenarios
                         elif scenario_type == "cluster_shut_down_scenarios":

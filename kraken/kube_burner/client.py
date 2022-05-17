@@ -34,10 +34,14 @@ def scrape_metrics(
     """
 
     if not prometheus_url:
-        logging.info("Looks like prometheus_url is not defined, trying to use the default instance on the cluster")
-        prometheus_url, prometheus_bearer_token = prometheus.instance(
-            distribution, prometheus_url, prometheus_bearer_token
-        )
+        if distribution == "openshift":
+            logging.info("Looks like prometheus_url is not defined, trying to use the default instance on the cluster")
+            prometheus_url, prometheus_bearer_token = prometheus.instance(
+                distribution, prometheus_url, prometheus_bearer_token
+            )
+        else:
+            logging.error("Looks like proemtheus url is not defined, exiting")
+            sys.exit(1)
     command = (
         "./kube-burner index --uuid "
         + str(uuid)
@@ -69,10 +73,14 @@ def alerts(distribution, prometheus_url, prometheus_bearer_token, start_time, en
     """
 
     if not prometheus_url:
-        logging.info("Looks like prometheus_url is not defined, trying to use the default instance on the cluster")
-        prometheus_url, prometheus_bearer_token = prometheus.instance(
-            distribution, prometheus_url, prometheus_bearer_token
-        )
+        if distribution == "openshift":
+            logging.info("Looks like prometheus_url is not defined, trying to use the default instance on the cluster")
+            prometheus_url, prometheus_bearer_token = prometheus.instance(
+                distribution, prometheus_url, prometheus_bearer_token
+            )
+        else:
+            logging.error("Looks like proemtheus url is not defined, exiting")
+            sys.exit(1)
     command = (
         "./kube-burner check-alerts "
         + " -u "

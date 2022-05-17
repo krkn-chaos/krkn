@@ -120,7 +120,7 @@ def container_killing_in_pod(cont_scenario):
     for pod in pods:
         if type(pod) == list:
             container_names = runcommand.invoke(
-                'oc get pods %s -n %s -o jsonpath="{.spec.containers[*].name}"' % (pod[0], pod[1])
+                'kubectl get pods %s -n %s -o jsonpath="{.spec.containers[*].name}"' % (pod[0], pod[1])
             ).split(" ")
             container_pod_list.append([pod[0], pod[1], container_names])
         else:
@@ -176,7 +176,9 @@ def check_failed_containers(killed_container_list, wait_time):
     while timer <= wait_time:
         for killed_container in killed_container_list:
             # pod namespace contain name
-            pod_output = runcommand.invoke("oc get pods %s -n %s -o yaml" % (killed_container[0], killed_container[1]))
+            pod_output = runcommand.invoke(
+                "kubectl get pods %s -n %s -o yaml" % (killed_container[0], killed_container[1])
+            )
             pod_output_yaml = yaml.full_load(pod_output)
             for statuses in pod_output_yaml["status"]["containerStatuses"]:
                 if statuses["name"] == killed_container[2]:
