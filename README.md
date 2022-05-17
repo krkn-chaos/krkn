@@ -56,27 +56,19 @@ Instructions on how to setup the config and the options supported can be found a
 
 ### Kubernetes/OpenShift chaos scenarios supported
 
-- [Pod Scenarios](docs/pod_scenarios.md)
-
-- [Container Scenarios](docs/container_scenarios.md)
-
-- [Node Scenarios](docs/node_scenarios.md)
-
-- [Time Scenarios](docs/time_scenarios.md)
-
-- [Litmus Scenarios](docs/litmus_scenarios.md)
-
-- [Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md)
-
-- [Namespace Scenarios](docs/namespace_scenarios.md)
-
-- [Zone Outage Scenarios](docs/zone_outage.md)
-
-- [Application_outages](docs/application_outages.md)
-
-- [PVC scenario](docs/pvc_scenario.md)
-
-- [Network_Chaos](docs/network_chaos.md)
+Scenario type               | Kubernetes    | OpenShift
+--------------------------- | ------------- | -------------------- |  
+[Pod Scenarios](docs/pod_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Container Scenarios](docs/container_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Node Scenarios](docs/node_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Time Scenarios](docs/time_scenarios.md) | :x: | :heavy_check_mark: |
+[Litmus Scenarios](docs/litmus_scenarios.md) | :x: | :heavy_check_mark: |
+[Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Namespace Scenarios](docs/namespace_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Zone Outage Scenarios](docs/zone_outage.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Application_outages](docs/application_outages.md) | :heavy_check_mark: | :heavy_check_mark: |
+[PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: | :heavy_check_mark: |
 
 
 ### Kraken scenario pass/fail criteria and report
