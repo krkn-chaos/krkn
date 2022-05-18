@@ -13,12 +13,6 @@ repos:
       - id: detect-private-key
       - id: check-ast
 
-  - repo: https://github.com/psf/black
-    rev: 22.3.0
-    hooks:
-      - id: black
-        args: ['--line-length', '120']
-
   - repo: https://gitlab.com/PyCQA/flake8
     rev: '3.7.8'
     hooks:
