@@ -23,6 +23,32 @@ def initialize_clients(kubeconfig_path):
         sys.exit(1)
 
 
+def get_host() -> str:
+    """Returns the Kubernetes server URL"""
+    return client.configuration.Configuration.get_default_copy().host
+
+
+def get_clusterversion_string() -> str:
+    """Returns clusterversion status text on OpenShift, empty string on other distributions"""
+    try:
+        custom_objects_api = client.CustomObjectsApi()
+        cvs = custom_objects_api.list_cluster_custom_object(
+            "config.openshift.io",
+            "v1",
+            "clusterversions",
+        )
+        for cv in cvs["items"]:
+            for condition in cv["status"]["conditions"]:
+                if condition["type"] == "Progressing":
+                    return condition["message"]
+        return ""
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            return ""
+        else:
+            raise
+
+
 # List all namespaces
 def list_namespaces(label_selector=None):
     namespaces = []

@@ -9,7 +9,6 @@ import pyfiglet
 import uuid
 import time
 import kraken.kubernetes.client as kubecli
-import kraken.invoke.command as runcommand
 import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
@@ -97,11 +96,13 @@ def main(cfg):
 
         # Cluster info
         logging.info("Fetching cluster info")
-        cluster_version = runcommand.invoke("kubectl get clusterversion", 60)
-        cluster_info = runcommand.invoke(
-            "kubectl cluster-info | awk 'NR==1' | sed -r " "'s/\x1B\[([0-9]{1,3}(;[0-9]{1,2})?)?[mGK]//g'", 60
-        )  # noqa
-        logging.info("\n%s%s" % (cluster_version, cluster_info))
+        cv = kubecli.get_clusterversion_string()
+        if cv != "":
+            logging.info(cv)
+        else:
+            logging.info("Cluster version CRD not detected, skipping")
+
+        logging.info("Server URL: %s" % kubecli.get_host())
 
         # Deploy performance dashboards
         if deploy_performance_dashboards:
