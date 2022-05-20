@@ -106,7 +106,7 @@ def main(cfg):
 
         # Deploy performance dashboards
         if deploy_performance_dashboards:
-            performance_dashboards.setup(dashboard_repo)
+            performance_dashboards.setup(dashboard_repo, distribution)
 
         # Generate uuid for the run
         if run_uuid:
