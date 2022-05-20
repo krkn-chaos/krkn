@@ -1,11 +1,18 @@
 import subprocess
 import logging
 import git
+import sys
 
 
 # Installs a mutable grafana on the Kubernetes/OpenShift cluster and loads the performance dashboards
-def setup(repo):
-    command = "cd /tmp/performance-dashboards/dittybopper && ./deploy.sh"
+def setup(repo, distribution):
+    if distribution == "kubernetes":
+        command = "cd /tmp/performance-dashboards/dittybopper && ./k8s-deploy.sh"
+    elif distribution == "openshift":
+        command = "cd /tmp/performance-dashboards/dittybopper && ./deploy.sh"
+    else:
+        logging.error("Provided distribution: %s is not supported" % (distribution))
+        sys.exit(1)
     delete_repo = "rm -rf /tmp/performance-dashboards || exit 0"
     logging.info("Cloning, installing mutable grafana on the cluster and loading the dashboards")
     try:
