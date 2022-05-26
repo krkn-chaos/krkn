@@ -1,6 +1,5 @@
 scenarios:
-- action: delete
-  namespace: "^.*ingress.*$"
+- namespace: "^.*ingress.*$"
   runs: 1
   sleep: 15
   wait_time: 300

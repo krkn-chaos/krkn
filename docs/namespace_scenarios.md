@@ -4,8 +4,6 @@ Using this type of scenario configuration one is able to delete a specific names
 
 Configuration Options:
 
-**action:** Default is `delete`
-
 **namespace:** Specific namespace or regex style namespace of what you want to delete. Gets all namespaces if not specified; set to "" if you want to use the label_selector field.
 
 Set to '^.*$' and label_selector to "" to randomly select any namespace in your cluster.
@@ -22,11 +20,9 @@ Refer to [namespace_scenarios_example](https://github.com/chaos-kubox/krkn/blob/
 
 ```
 scenarios:
-- action: delete
-  namespace: "^.*$"
+- namespace: "^.*$"
   runs: 1
-- action: delete
-  namespace: "^.*ingress.*$"
+- namespace: "^.*ingress.*$"
   runs: 1
   sleep: 15
 ```
