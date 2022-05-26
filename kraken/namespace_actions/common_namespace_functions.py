@@ -1,7 +1,6 @@
 import time
 import random
 import logging
-import kraken.invoke.command as runcommand
 import kraken.kubernetes.client as kubecli
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
@@ -33,7 +32,6 @@ def run(scenarios_list, config, wait_duration, failed_post_scenarios, kubeconfig
                         sys.exit(1)
                 delete_count = scenario.get("delete_count", 1)
                 run_count = scenario.get("runs", 1)
-                namespace_action = scenario.get("action", "delete")
                 run_sleep = scenario.get("sleep", 10)
                 wait_time = scenario.get("wait_time", 30)
                 killed_namespaces = []
@@ -43,21 +41,17 @@ def run(scenarios_list, config, wait_duration, failed_post_scenarios, kubeconfig
                     for j in range(delete_count):
                         if len(namespaces) == 0:
                             logging.error(
-                                "Couldn't %s %s namespaces, not enough namespaces matching %s with label %s"
-                                % (namespace_action, str(run_count), scenario_namespace, str(scenario_label))
+                                "Couldn't delete %s namespaces, not enough namespaces matching %s with label %s"
+                                % (str(run_count), scenario_namespace, str(scenario_label))
                             )
                             sys.exit(1)
                         selected_namespace = namespaces[random.randint(0, len(namespaces) - 1)]
                         killed_namespaces.append(selected_namespace)
                         try:
-                            runcommand.invoke("oc %s project %s" % (namespace_action, selected_namespace))
-                            logging.info(
-                                namespace_action + " on namespace " + str(selected_namespace) + " was successful"
-                            )
+                            kubecli.delete_namespace(selected_namespace)
+                            logging.info("Delete on namespace %s was successful" % str(selected_namespace))
                         except Exception as e:
-                            logging.info(
-                                namespace_action + " on namespace " + str(selected_namespace) + " was unsuccessful"
-                            )
+                            logging.info("Delete on namespace %s was unsuccessful" % str(selected_namespace))
                             logging.info("Namespace action error: " + str(e))
                             sys.exit(1)
                         namespaces.remove(selected_namespace)

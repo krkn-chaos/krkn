@@ -65,8 +65,8 @@ def list_namespaces(label_selector=None):
     return namespaces
 
 
-# Get namespace status
 def get_namespace_status(namespace_name):
+    """Get status of a given namespace"""
     ret = ""
     try:
         ret = cli.read_namespace_status(namespace_name)
@@ -75,8 +75,22 @@ def get_namespace_status(namespace_name):
     return ret.status.phase
 
 
-# Check if all the watch_namespaces are valid
+def delete_namespace(namespace):
+    """Deletes a given namespace using kubernetes python client"""
+    try:
+        api_response = cli.delete_namespace(namespace)
+        logging.debug("Namespace deleted. status='%s'" % str(api_response.status))
+        return api_response
+    except Exception as e:
+        logging.error(
+            "Exception when calling \
+                       CoreV1Api->delete_namespace: %s\n"
+            % e
+        )
+
+
 def check_namespaces(namespaces, label_selectors=None):
+    """Check if all the watch_namespaces are valid"""
     try:
         valid_namespaces = list_namespaces(label_selectors)
         regex_namespaces = set(namespaces) - set(valid_namespaces)
