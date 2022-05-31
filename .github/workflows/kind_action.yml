@@ -1,0 +1,14 @@
+name: KinD Cluster
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create KinD cluster
+        uses: chaos-kubox/actions/kind@main
