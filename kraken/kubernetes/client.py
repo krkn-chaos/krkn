@@ -20,7 +20,6 @@ def initialize_clients(kubeconfig_path):
     global api_client
     global dyn_client
     global custom_object_client
-    global watch
     try:
         config.load_kube_config(kubeconfig_path)
         cli = client.CoreV1Api()
@@ -30,7 +29,6 @@ def initialize_clients(kubeconfig_path):
         custom_object_client = client.CustomObjectsApi()
         k8s_client = config.new_client_from_config()
         dyn_client = DynamicClient(k8s_client)
-        watch = watch.Watch()
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)
         sys.exit(1)
@@ -333,20 +331,6 @@ def get_job_status(name, namespace="default"):
         raise
 
 
-# Obtain the node status
-def get_node_status(node, status, timeout):
-    v1 = client.CoreV1Api()
-    count = timeout
-    for event in watch_resource.stream(v1.read_node_status(node, timeout_seconds=count)):
-        if event["object"].status == status:
-            watch_resource.stop()
-        else:
-            count -= 1
-        if not count:
-            watch_resource.stop()
-    print("Finished read node status stream.")
-
-
 # Monitor the status of the cluster nodes and set the status to true or false
 def monitor_nodes():
     nodes = list_nodes()
@@ -590,6 +574,7 @@ def find_kraken_node():
 
 # Watch for a specific node status
 def watch_node_status(node, status, timeout, resource_version):
+    count = timeout
     for event in watch_resource.stream(
         cli.list_node,
         field_selector=f"metadata.name={node}",
@@ -601,7 +586,10 @@ def watch_node_status(node, status, timeout, resource_version):
             watch_resource.stop()
             break
         else:
-            logging.info("node status " + str(conditions[0].status))
+            count -= 1
+            logging.info("Status of node " + node + ": " + str(conditions[0].status))
+        if not count:
+            watch_resource.stop()
 
 
 # Get the resource version for the specified node
