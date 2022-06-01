@@ -34,11 +34,24 @@ The signal is set to `RUN` by default, meaning it will continue to run the scena
 
 #### Setting Signal
 
-See [set_stop_signal.py](https://github.com/chaos-kubox/krkn/blob/main/set_stop_signal.py) for an example of how to reset the kraken status during kraken execution.
+You can reset the kraken status during kraken execution with a `set_stop_signal.py` script with the following contents:
+
+```
+import http.client as cli
+
+conn = cli.HTTPConnection("0.0.0.0", "<port>")
+
+conn.request("POST", "/STOP", {})
+
+# conn.request('POST', '/PAUSE', {})
+
+# conn.request('POST', '/RUN', {})
+
+response = conn.getresponse()
+print(response.read().decode())
+```
 
 Make sure to set the correct port number in your set_stop_signal script.
-
-
 
 ##### Url Examples
 To stop run:
