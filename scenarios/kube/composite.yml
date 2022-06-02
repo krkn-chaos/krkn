@@ -1,0 +1,5 @@
+iterations: 1
+steps:
+  - pod:
+      name_pattern:
+      namespace_pattern:

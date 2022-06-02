@@ -1,14 +1,13 @@
 datetime
 pyfiglet
 PyYAML>=5.1
-git+https://github.com/powerfulseal/powerfulseal.git@3.3.0
 requests
 boto3
 google-api-python-client
 azure-mgmt-compute
 azure-keyvault
 azure-identity
-kubernetes==18.20.0
+kubernetes
 oauth2client>=4.1.3
 python-openstackclient
 gitpython

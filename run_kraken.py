@@ -2,6 +2,8 @@
 
 import os
 import sys
+from typing import List
+
 import yaml
 import logging
 import optparse
@@ -22,6 +24,9 @@ import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import server as server
+from kraken.scenarios.base import Scenario
+from kraken.scenarios.pod import PodScenario
+from kraken.scenarios.runner import ScenarioRunner
 
 
 def publish_kraken_status(status):
@@ -115,6 +120,12 @@ def main(cfg):
             run_uuid = str(uuid.uuid4())
             logging.info("Generated a uuid for the run: %s" % run_uuid)
 
+        logger = logging.getLogger(__name__)
+        scenarios: List[Scenario] = [
+            PodScenario(logger),
+        ]
+        health_checker = CerberusHealthChecker(config)
+        runner = ScenarioRunner(scenarios, health_checker)
         # Initialize the start iteration to 0
         iteration = 0
 

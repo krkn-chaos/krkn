@@ -1,0 +1,89 @@
+{
+    "$schema": "https://json-schema.org/draft/2019-09/schema",
+    "$id": "https://github.com/chaos-kubox/krkn/",
+    "type": "object",
+    "default": {},
+    "title": "Composite scenario for Krkn",
+    "required": [
+        "steps"
+    ],
+    "properties": {
+        "iterations": {
+            "type": "integer",
+            "default": 1,
+            "title": "How many iterations to execute",
+            "examples": [
+                3
+            ]
+        },
+        "steps": {
+            "type": "array",
+            "default": [],
+            "title": "The steps Schema",
+            "items": {
+                "type": "object",
+                "default": {},
+                "title": "A Schema",
+                "required": [
+                    "pod"
+                ],
+                "properties": {
+                    "pod": {
+                        "type": "object",
+                        "default": {},
+                        "title": "The pod Schema",
+                        "required": [
+                            "name_pattern",
+                            "namespace_pattern"
+                        ],
+                        "properties": {
+                            "name_pattern": {
+                                "type": "string",
+                                "default": "",
+                                "title": "The name_pattern Schema",
+                                "examples": [
+                                    ""
+                                ]
+                            },
+                            "namespace_pattern": {
+                                "type": "string",
+                                "default": "",
+                                "title": "The namespace_pattern Schema",
+                                "examples": [
+                                    ""
+                                ]
+                            }
+                        },
+                        "examples": [{
+                        "name_pattern": "test-.*",
+                        "namespace_pattern": "default"
+                        }]
+                    }
+                },
+                "examples": [{
+                    "pod": {
+                        "name_pattern": "test-.*",
+                        "namespace_pattern": "default"
+                    }
+                }]
+            },
+            "examples": [
+                [{
+                    "pod": {
+                        "name_pattern": "test-.*",
+                        "namespace_pattern": "default"
+                    }
+                }]
+            ]
+        }
+    },
+    "examples": [{
+        "iterations": 1,
+        "steps": [{
+            "pod": {
+                "name_pattern": "test-.*",
+                "namespace_pattern": "default"
+            }
+        }]
+    }]
+}
