@@ -130,10 +130,7 @@ def verify_interface(test_interface, nodelst, template):
             interface_lst = output[:-1].split(",")
             for interface in test_interface:
                 if interface not in interface_lst:
-                    logging.error(
-                        "Interface %s not found in node %s interface list %s" % (interface, nodelst[pod_index]),
-                        interface_lst,
-                    )
+                    logging.error("Interface %s not found in node %s interface list %s" % (interface, nodelst[pod_index], interface_lst))
                     sys.exit(1)
         return test_interface
     finally:
