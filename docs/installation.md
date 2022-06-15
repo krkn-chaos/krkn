@@ -15,7 +15,7 @@ The following ways are supported to run Kraken:
 
 #### Clone the repository
 ```
-$ git clone https://github.com/openshift-scale/krkn.git
+$ git clone https://github.com/chaos-kubox/krkn.git
 $ cd kraken
 ```
 
