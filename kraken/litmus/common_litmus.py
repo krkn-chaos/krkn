@@ -5,6 +5,7 @@ import sys
 import requests
 import yaml
 import kraken.cerberus.setup as cerberus
+import os
 
 
 # Inject litmus scenarios defined in the config
@@ -15,12 +16,35 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
         try:
             for item in l_scenario:
                 runcommand.invoke("kubectl apply -f %s -n %s" % (item, litmus_namespace))
-                if "http" in item:
+                # Parse and read the config
+                try:
+                    # For config as local file
+                    if os.path.isfile(item):
+                        with open(item, "r") as f:
+                            yaml_item = list(yaml.safe_load_all(f))[0]
+
+                    # For config as remote file
+                    else:
+                        f = requests.get(item)
+                        # Checking the status code if it is OK and the request is successful
+                        if f.status_code == 200:
+                            texts = f.content
+                            yaml_item = list(yaml.safe_load_all(texts))[0]
+
+                        else:
+                            # Raising the exception since config file can't be loaded as a yaml
+                            raise Exception
+
+                except Exception:
+                    logging.error("Cannot find a yaml file at %s, please check" % (item))
+                    sys.exit(1)
+
+                """if "http" in item:
                     f = requests.get(item)
                     yaml_item = list(yaml.safe_load_all(f.content))[0]
                 else:
                     with open(item, "r") as f:
-                        yaml_item = list(yaml.safe_load_all(f))[0]
+                        yaml_item = list(yaml.safe_load_all(f))[0]"""
 
                 if yaml_item["kind"] == "ChaosEngine":
                     engine_name = yaml_item["metadata"]["name"]

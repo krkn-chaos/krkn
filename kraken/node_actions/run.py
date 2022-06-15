@@ -11,6 +11,8 @@ from kraken.node_actions.alibaba_node_scenarios import alibaba_node_scenarios
 from kraken.node_actions.bm_node_scenarios import bm_node_scenarios
 import kraken.node_actions.common_node_functions as common_node_functions
 import kraken.cerberus.setup as cerberus
+import os
+import requests
 
 
 node_general = False
@@ -48,19 +50,40 @@ def get_node_scenario_object(node_scenario):
 # Run defined scenarios
 def run(scenarios_list, config, wait_duration):
     for node_scenario_config in scenarios_list:
-        with open(node_scenario_config, "r") as f:
-            node_scenario_config = yaml.full_load(f)
-            for node_scenario in node_scenario_config["node_scenarios"]:
-                node_scenario_object = get_node_scenario_object(node_scenario)
-                if node_scenario["actions"]:
-                    for action in node_scenario["actions"]:
-                        start_time = int(time.time())
-                        inject_node_scenario(action, node_scenario, node_scenario_object)
-                        logging.info("Waiting for the specified duration: %s" % (wait_duration))
-                        time.sleep(wait_duration)
-                        end_time = int(time.time())
-                        cerberus.get_status(config, start_time, end_time)
-                        logging.info("")
+        # Parse and read the config
+        try:
+            # For config as local file
+            if os.path.isfile(node_scenario_config):
+                with open(node_scenario_config, "r") as f:
+                    node_scenario_config = yaml.full_load(f)
+
+            # For config as remote file
+            else:
+                content = requests.get(node_scenario_config)
+                # Checking the status code if it is OK and the request is successful
+                if content.status_code == 200:
+                    texts = content.text
+                    node_scenario_config = yaml.full_load(texts)
+
+                else:
+                    # Raising the exception since config file can't be loaded as a yaml
+                    raise Exception
+
+        except Exception:
+            logging.error("Cannot find a yaml file at %s, please check" % (node_scenario_config))
+            sys.exit(1)
+
+        for node_scenario in node_scenario_config["node_scenarios"]:
+            node_scenario_object = get_node_scenario_object(node_scenario)
+            if node_scenario["actions"]:
+                for action in node_scenario["actions"]:
+                    start_time = int(time.time())
+                    inject_node_scenario(action, node_scenario, node_scenario_object)
+                    logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                    time.sleep(wait_duration)
+                    end_time = int(time.time())
+                    cerberus.get_status(config, start_time, end_time)
+                    logging.info("")
 
 
 # Inject the specified node scenario

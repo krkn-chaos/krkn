@@ -12,6 +12,8 @@ from kraken.node_actions.aws_node_scenarios import AWS
 from kraken.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
 from kraken.node_actions.az_node_scenarios import Azure
 from kraken.node_actions.gcp_node_scenarios import GCP
+import os
+import requests
 
 
 def multiprocess_nodes(cloud_object_function, nodes):
@@ -109,15 +111,36 @@ def run(scenarios_list, config, wait_duration):
             pre_action_output = post_actions.run("", shut_down_config[1])
         else:
             pre_action_output = ""
-        with open(shut_down_config[0], "r") as f:
-            shut_down_config_yaml = yaml.full_load(f)
-            shut_down_config_scenario = shut_down_config_yaml["cluster_shut_down_scenario"]
-            start_time = int(time.time())
-            cluster_shut_down(shut_down_config_scenario)
-            logging.info("Waiting for the specified duration: %s" % (wait_duration))
-            time.sleep(wait_duration)
-            failed_post_scenarios = post_actions.check_recovery(
-                "", shut_down_config, failed_post_scenarios, pre_action_output
-            )
-            end_time = int(time.time())
-            cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
+        # Parse and read the config
+        try:
+            # For config as local file
+            if os.path.isfile(shut_down_config[0]):
+                with open(shut_down_config[0], "r") as f:
+                    shut_down_config_yaml = yaml.full_load(f)
+
+            # For config as remote file
+            else:
+                content = requests.get(shut_down_config[0])
+                # Checking the status code if it is OK and the request is successful
+                if content.status_code == 200:
+                    texts = content.text
+                    shut_down_config_yaml = yaml.full_load(texts)
+
+                else:
+                    # Raising the exception since config file can't be loaded as a yaml
+                    raise Exception
+
+        except Exception:
+            logging.error("Cannot find a yaml file at %s, please check" % (shut_down_config[0]))
+            sys.exit(1)
+
+        shut_down_config_scenario = shut_down_config_yaml["cluster_shut_down_scenario"]
+        start_time = int(time.time())
+        cluster_shut_down(shut_down_config_scenario)
+        logging.info("Waiting for the specified duration: %s" % (wait_duration))
+        time.sleep(wait_duration)
+        failed_post_scenarios = post_actions.check_recovery(
+            "", shut_down_config, failed_post_scenarios, pre_action_output
+        )
+        end_time = int(time.time())
+        cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)

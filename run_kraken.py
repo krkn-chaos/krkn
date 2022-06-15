@@ -22,6 +22,8 @@ import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import server as server
+from urllib.parse import urlparse
+import requests
 
 
 def publish_kraken_status(status):
@@ -36,9 +38,26 @@ def main(cfg):
     logging.info("Starting kraken")
 
     # Parse and read the config
+    # Initializing flag variable as 0 to test config is a file or not
+    flag = 0
+
+    # For config as local file
     if os.path.isfile(cfg):
+        # Set flag as 1 since config is local file
+        flag = 1
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
+
+    # For config as remote file
+    if urlparse(cfg):
+        # Set flag as 1 since config is remote file
+        flag = 1
+        f = requests.get(cfg)
+        texts = f.text
+        config = yaml.safe_load(texts)
+
+    # Found the config
+    if flag == 1:
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = config["kraken"].get("kubeconfig_path", "")

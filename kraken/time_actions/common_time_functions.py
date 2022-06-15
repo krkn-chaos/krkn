@@ -8,6 +8,8 @@ import sys
 import kraken.cerberus.setup as cerberus
 import yaml
 import random
+import os
+import requests
 
 
 def pod_exec(pod_name, command, namespace, container_name):
@@ -197,15 +199,36 @@ def check_date_time(object_type, names):
 
 def run(scenarios_list, config, wait_duration):
     for time_scenario_config in scenarios_list:
-        with open(time_scenario_config, "r") as f:
-            scenario_config = yaml.full_load(f)
-            for time_scenario in scenario_config["time_scenarios"]:
-                start_time = int(time.time())
-                object_type, object_names = skew_time(time_scenario)
-                not_reset = check_date_time(object_type, object_names)
-                if len(not_reset) > 0:
-                    logging.info("Object times were not reset")
-                logging.info("Waiting for the specified duration: %s" % (wait_duration))
-                time.sleep(wait_duration)
-                end_time = int(time.time())
-                cerberus.publish_kraken_status(config, not_reset, start_time, end_time)
+        # Parse and read the config
+        try:
+            # For config as local file
+            if os.path.isfile(time_scenario_config):
+                with open(time_scenario_config, "r") as f:
+                    scenario_config = yaml.full_load(f)
+
+            # For config as remote file
+            else:
+                content = requests.get(time_scenario_config)
+                # Checking the status code if it is OK and the request is successful
+                if content.status_code == 200:
+                    texts = content.text
+                    scenario_config = yaml.full_load(texts)
+
+                else:
+                    # Raising the exception since config file can't be loaded as a yaml
+                    raise Exception
+
+        except Exception:
+            logging.error("Cannot find a yaml file at %s, please check" % (time_scenario_config))
+            sys.exit(1)
+
+        for time_scenario in scenario_config["time_scenarios"]:
+            start_time = int(time.time())
+            object_type, object_names = skew_time(time_scenario)
+            not_reset = check_date_time(object_type, object_names)
+            if len(not_reset) > 0:
+                logging.info("Object times were not reset")
+            logging.info("Waiting for the specified duration: %s" % (wait_duration))
+            time.sleep(wait_duration)
+            end_time = int(time.time())
+            cerberus.publish_kraken_status(config, not_reset, start_time, end_time)
