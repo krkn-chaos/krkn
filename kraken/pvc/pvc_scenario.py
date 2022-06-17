@@ -104,17 +104,17 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                     60,
                 ).rstrip()
                 logging.debug("Get PVC capacity command:\n %s" % command)
-                pvc_capacity_bytes = toKbytes(pvc_capacity)
-                logging.info("PVC capacity: %s KB" % pvc_capacity_bytes)
+                pvc_capacity_kb = toKbytes(pvc_capacity)
+                logging.info("PVC capacity: %s KB" % pvc_capacity_kb)
 
                 # Get used bytes in PVC
-                command = "du -sk %s | grep -Eo '^[0-9]*'" % (str(mount_path))
+                command = "df %s -B 1024 | sed 1d | awk -F' ' '{print $3}'" % (str(mount_path))
                 logging.debug("Get used bytes in PVC command:\n %s" % command)
-                pvc_used = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
-                logging.info("PVC used: %s KB" % pvc_used)
+                pvc_used_kb = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
+                logging.info("PVC used: %s KB" % pvc_used_kb)
 
                 # Check valid fill percentage
-                current_fill_percentage = float(pvc_used) / float(pvc_capacity_bytes)
+                current_fill_percentage = float(pvc_used_kb) / float(pvc_capacity_kb)
                 if not (current_fill_percentage * 100 < float(target_fill_percentage) <= 99):
                     logging.error(
                         """
@@ -126,33 +126,32 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                     sys.exit(1)
 
                 # Calculate file size
-                file_size = int((float(target_fill_percentage / 100) * float(pvc_capacity_bytes)) - float(pvc_used))
-                logging.debug("File size: %s KB" % file_size)
+                file_size_kb = int((float(target_fill_percentage / 100) * float(pvc_capacity_kb)) - float(pvc_used_kb))
+                logging.debug("File size: %s KB" % file_size_kb)
 
                 file_name = "kraken.tmp"
                 logging.info(
                     "Creating %s file, %s KB size, in pod %s at %s (ns %s)"
-                    % (str(file_name), str(file_size), str(pod_name), str(mount_path), str(namespace))
+                    % (str(file_name), str(file_size_kb), str(pod_name), str(mount_path), str(namespace))
                 )
 
                 start_time = int(time.time())
                 # Create temp file in the PVC
                 full_path = "%s/%s" % (str(mount_path), str(file_name))
-                command = "dd bs=1024 count=%s </dev/urandom >%s" % (str(file_size), str(full_path))
+                command = "fallocate -l $((%s*1024)) %s" % (str(file_size_kb), str(full_path))
                 logging.debug("Create temp file in the PVC command:\n %s" % command)
-                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
-                logging.info("\n" + str(response))
+                kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
 
                 # Check if file is created
-                command = "ls %s" % (str(mount_path))
+                command = "ls -lh %s" % (str(mount_path))
                 logging.debug("Check file is created command:\n %s" % command)
                 response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
                 logging.info("\n" + str(response))
                 if str(file_name).lower() in str(response).lower():
                     logging.info("%s file successfully created" % (str(full_path)))
                 else:
-                    logging.error("Failed to create tmp file with %s size" % (str(file_size)))
-                    remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size)
+                    logging.error("Failed to create tmp file with %s size" % (str(file_size_kb)))
+                    remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size_kb)
                     sys.exit(1)
 
                 # Wait for the specified duration
@@ -160,24 +159,24 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 time.sleep(duration)
                 logging.info("Finish waiting")
 
-                remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size)
+                remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size_kb)
 
                 end_time = int(time.time())
                 cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
 
 
-def remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size):
-    command = "rm %s" % (str(full_path))
+def remove_temp_file(file_name, full_path, pod_name, namespace, container_name, mount_path, file_size_kb):
+    command = "rm -f %s" % (str(full_path))
     logging.debug("Remove temp file from the PVC command:\n %s" % command)
     kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
-    command = "ls %s" % (str(mount_path))
+    command = "ls -lh %s" % (str(mount_path))
     logging.debug("Check temp file is removed command:\n %s" % command)
     response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
     logging.info("\n" + str(response))
     if not (str(file_name).lower() in str(response).lower()):
         logging.info("Temp file successfully removed")
     else:
-        logging.error("Failed to delete tmp file with %s size" % (str(file_size)))
+        logging.error("Failed to delete tmp file with %s size" % (str(file_size_kb)))
         sys.exit(1)
 
 
