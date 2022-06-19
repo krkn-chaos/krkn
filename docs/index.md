@@ -2,15 +2,21 @@
 
 
 ### Table of Contents
-* [Introduction](#introduction)
-* [Test Stratagies and Methodology](#test-strategies-and-methodology)
-* [Best Practices](#best-practices)
-* [Tooling](#tooling)
-  * [Workflow](#workflow)
-  * [Cluster recovery checks, metrics evaluation and pass/fail criteria](#cluster-recovery-checks-metrics-evaluation-and-passfail-criteria)
-* [Scenarios](#scenarios)
-* [Test Environment Recommendations - how and where to run chaos tests](#test-environment-recommendations---how-and-where-to-run-chaos-tests)
-* [Chaos testing in Practice within the OpenShift Organization](#chaos-testing-in-practice-within-the-OpenShift-Organization)
+- [Chaos Testing Guide](#chaos-testing-guide)
+  - [Table of Contents](#table-of-contents)
+  - [Introduction](#introduction)
+  - [Test Strategies and Methodology](#test-strategies-and-methodology)
+  - [Best Practices](#best-practices)
+  - [Tooling](#tooling)
+    - [Workflow](#workflow)
+    - [Cluster recovery checks, metrics evaluation and pass/fail criteria](#cluster-recovery-checks-metrics-evaluation-and-passfail-criteria)
+  - [Scenarios](#scenarios)
+  - [Test Environment Recommendations - how and where to run chaos tests](#test-environment-recommendations---how-and-where-to-run-chaos-tests)
+    - [Chaos testing in Practice within the OpenShift Organization](#chaos-testing-in-practice-within-the-openshift-organization)
+  - [Using kraken as part of a tekton pipeline](#using-kraken-as-part-of-a-tekton-pipeline)
+    - [Start as a single taskrun](#start-as-a-single-taskrun)
+    - [Start as a pipelinerun](#start-as-a-pipelinerun)
+  - [Deploying kraken using a helm-chart](#deploying-kraken-using-a-helm-chart)
 
 
 ### Introduction
@@ -226,3 +232,79 @@ Within the OpenShift organization we use kraken to perform chaos testing through
         iii. This test can be seen here: https://github.com/openshift/svt/tree/master/reliability-v2
 
     3. We are starting to add in test cases that perform chaos testing during an upgrade (not many iterations of this have been completed).
+
+### Using kraken as part of a tekton pipeline
+
+You can find on [artifacthub.io](https://artifacthub.io/packages/search?kind=7&ts_query_web=kraken) the 
+[kraken-scenario](https://artifacthub.io/packages/tekton-task/startx-tekton-catalog/kraken-scenario) `tekton-task`
+which can be used to start a kraken chaos scenarios as part of a chaos pipeline.
+
+To use this task, you must have :
+
+  - Openshift pipeline enabled (or tekton CRD loaded for Kubernetes clusters)
+  - 1 Secret named `kraken-aws-creds` for scenarios using aws
+  - 1 ConfigMap named `kraken-kubeconfig` with credentials to the targeted cluster
+  - 1 ConfigMap named `kraken-config-example` with kraken configuration file (config.yaml)
+  - 1 ConfigMap named `kraken-common-example` with all kraken related files
+  - The `pipeline` SA with be autorized to run with priviveged SCC
+
+You can create theses resources using the following sequence :
+
+```bash
+oc project default
+oc adm policy add-scc-to-user privileged -z pipeline
+oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-scenario/0.1/samples/common.yaml
+```
+
+Then you must change content of `kraken-aws-creds` secret, `kraken-kubeconfig` and `kraken-config-example` configMap
+to reflect your cluster configuration. Refer to the [kraken-scenario manpage](https://artifacthub.io/packages/tekton-task/startx-tekton-catalog/kraken-scenario)
+for details on how to configure theses resources.
+
+#### Start as a single taskrun
+
+```bash
+oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-scenario/0.1/samples/taskrun.yaml
+```
+
+#### Start as a pipelinerun
+
+```yaml
+oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-scenario/0.1/samples/pipelinerun.yaml
+```
+
+### Deploying kraken using a helm-chart
+
+You can find on [artifacthub.io](https://artifacthub.io/packages/search?kind=0&ts_query_web=kraken) the 
+[chaos-kraken](https://artifacthub.io/packages/helm/startx/chaos-kraken) `helm-chart`
+which can be used to deploy a kraken chaos scenarios.
+
+Default configuration create the following resources :
+
+  - 1 project named **chaos-kraken**
+  - 1 scc with privileged context for kraken deployment
+  - 1 configmap with kraken 21 generic scenarios, various scripts and configuration
+  - 1 configmap with kubeconfig of the targeted cluster
+  - 1 job named kraken-test-xxx
+  - 1 service to the kraken pods
+  - 1 route to the kraken service
+
+```bash
+# Install the startx helm repository
+helm repo add startx https://startxfr.github.io/helm-repository/packages/
+# Install the kraken project
+helm install --set project.enabled=true chaos-kraken-project  startx/chaos-kraken
+# Deploy the kraken instance
+helm install \
+--set kraken.enabled=true \
+--set kraken.aws.credentials.region="eu-west-3" \
+--set kraken.aws.credentials.key_id="AKIAXXXXXXXXXXXXXXXX" \
+--set kraken.aws.credentials.secret="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
+--set kraken.kubeconfig.token.server="https://api.mycluster:6443" \
+--set kraken.kubeconfig.token.token="sha256~XXXXXXXXXX_PUT_YOUR_TOKEN_HERE_XXXXXXXXXXXX" \
+-n chaos-kraken \
+chaos-kraken-instance startx/chaos-kraken
+```
+
+Refer to the [chaos-kraken chart manpage](https://artifacthub.io/packages/helm/startx/chaos-kraken)
+and especially the [kraken configuration values](https://artifacthub.io/packages/helm/startx/chaos-kraken#chaos-kraken-values-dictionary) 
+for details on how to configure this chart.
