@@ -16,7 +16,6 @@
   - [Using kraken as part of a tekton pipeline](#using-kraken-as-part-of-a-tekton-pipeline)
     - [Start as a single taskrun](#start-as-a-single-taskrun)
     - [Start as a pipelinerun](#start-as-a-pipelinerun)
-  - [Deploying kraken using a helm-chart](#deploying-kraken-using-a-helm-chart)
 
 
 ### Introduction
@@ -257,7 +256,8 @@ oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-sc
 ```
 
 Then you must change content of `kraken-aws-creds` secret, `kraken-kubeconfig` and `kraken-config-example` configMap
-to reflect your cluster configuration. Refer to the [kraken-scenario manpage](https://artifacthub.io/packages/tekton-task/startx-tekton-catalog/kraken-scenario)
+to reflect your cluster configuration. Refer to the [kraken configuration](https://github.com/chaos-kubox/krkn/blob/main/config/config.yaml)
+and [configuration examples](https://github.com/startxfr/tekton-catalog/blob/stable/task/kraken-scenario/0.1/samples/common.yaml) 
 for details on how to configure theses resources.
 
 #### Start as a single taskrun
@@ -271,40 +271,3 @@ oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-sc
 ```yaml
 oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-scenario/0.1/samples/pipelinerun.yaml
 ```
-
-### Deploying kraken using a helm-chart
-
-You can find on [artifacthub.io](https://artifacthub.io/packages/search?kind=0&ts_query_web=kraken) the 
-[chaos-kraken](https://artifacthub.io/packages/helm/startx/chaos-kraken) `helm-chart`
-which can be used to deploy a kraken chaos scenarios.
-
-Default configuration create the following resources :
-
-  - 1 project named **chaos-kraken**
-  - 1 scc with privileged context for kraken deployment
-  - 1 configmap with kraken 21 generic scenarios, various scripts and configuration
-  - 1 configmap with kubeconfig of the targeted cluster
-  - 1 job named kraken-test-xxx
-  - 1 service to the kraken pods
-  - 1 route to the kraken service
-
-```bash
-# Install the startx helm repository
-helm repo add startx https://startxfr.github.io/helm-repository/packages/
-# Install the kraken project
-helm install --set project.enabled=true chaos-kraken-project  startx/chaos-kraken
-# Deploy the kraken instance
-helm install \
---set kraken.enabled=true \
---set kraken.aws.credentials.region="eu-west-3" \
---set kraken.aws.credentials.key_id="AKIAXXXXXXXXXXXXXXXX" \
---set kraken.aws.credentials.secret="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
---set kraken.kubeconfig.token.server="https://api.mycluster:6443" \
---set kraken.kubeconfig.token.token="sha256~XXXXXXXXXX_PUT_YOUR_TOKEN_HERE_XXXXXXXXXXXX" \
--n chaos-kraken \
-chaos-kraken-instance startx/chaos-kraken
-```
-
-Refer to the [chaos-kraken chart manpage](https://artifacthub.io/packages/helm/startx/chaos-kraken)
-and especially the [kraken configuration values](https://artifacthub.io/packages/helm/startx/chaos-kraken#chaos-kraken-values-dictionary) 
-for details on how to configure this chart.
