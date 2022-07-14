@@ -1,6 +1,8 @@
-from kubernetes import client, config
+from kubernetes import client, config, utils
 from kubernetes.stream import stream
 from kubernetes.client.rest import ApiException
+from dataclasses import dataclass
+from typing import List
 import logging
 import kraken.invoke.command as runcommand
 import sys
@@ -14,10 +16,12 @@ kraken_node_name = ""
 def initialize_clients(kubeconfig_path):
     global cli
     global batch_cli
+    global api_client
     try:
         config.load_kube_config(kubeconfig_path)
         cli = client.CoreV1Api()
         batch_cli = client.BatchV1Api()
+        api_client = client.ApiClient()
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)
         sys.exit(1)
@@ -399,6 +403,60 @@ def monitor_component(iteration, component_namespace):
     logging.info("Iteration %s: %s: %s" % (iteration, component_namespace, watch_component_status))
     return watch_component_status, failed_component_pods
 
+# Apply yaml config to create kuberenetes resources
+def apply_yaml(path, namespace='default'):
+    return utils.create_from_yaml(api_client, yaml_file=path, namespace=namespace)
+
+
+#Data class to hold information regarding containers in a pod
+@dataclass(frozen=True, order=False)
+class Container:
+    image: str
+    name: str
+    ready: bool
+
+
+#Data class to hold information regarding a pod
+@dataclass(frozen=True, order=False)
+class Pod:
+    name: str
+    podIP: str
+    namespace: str
+    containers: List[Container]
+    nodeName: str
+
+
+def get_pod_info(pod_name, namespace='default'):
+    """
+    Function to retrieve information about a specific pod
+    in a given namespace. The kubectl command is given by:
+        kubectl get pods <pod_name> -n <namespace>
+
+
+    Args:
+        pod_name (string)
+            - Name of the pod
+
+        namespace (string)
+            - Namespace to look for the pod
+
+    Returns:
+        Data class object with the output of the above kubectl command
+        in the given format
+    """
+
+
+    response = cli.read_namespaced_pod(name=pod_name, namespace=namespace, pretty = 'true')
+    container_list = []
+
+    for container in response.status.container_statuses:
+        container_list.append(Container(name=container.name, image=container.image, ready=container.ready)) 
+    
+    pod_info = Pod(name=response.metadata.name, podIP=response.status.pod_ip, namespace=response.metadata.namespace,
+                containers = container_list, nodeName=response.spec.node_name)
+    
+    return pod_info
+
 
 # Find the node kraken is deployed on
 # Set global kraken node to not delete
@@ -415,14 +473,7 @@ def find_kraken_node():
     if kraken_pod_name:
         # get kraken-deployment pod, find node name
         try:
-            node_name = runcommand.invoke(
-                "kubectl get pods/"
-                + str(kraken_pod_name)
-                + ' -o jsonpath="{.spec.nodeName}"'
-                + " -n"
-                + str(kraken_project)
-            )
-
+            node_name = get_pod_info(kraken_pod_name, kraken_project).nodeName
             global kraken_node_name
             kraken_node_name = node_name
         except Exception as e:
