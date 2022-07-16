@@ -435,9 +435,9 @@ class Container:
     ready: bool
 
 
-# Data class to hold information regarding a pod
 @dataclass(frozen=True, order=False)
 class Pod:
+    """Data class to hold information regarding a pod"""
     name: str
     podIP: str
     namespace: str
@@ -445,9 +445,9 @@ class Pod:
     nodeName: str
 
 
-# Data class to hold information regarding a custom object of litmus project
 @dataclass(frozen=True, order=False)
 class LitmusChaosObject:
+    """Data class to hold information regarding a custom object of litmus project"""
     kind: str
     group: str
     namespace: str
@@ -456,16 +456,16 @@ class LitmusChaosObject:
     version: str
 
 
-# Data class to hold information regarding a ChaosEngine object
 @dataclass(frozen=True, order=False)
 class ChaosEngine(LitmusChaosObject):
+    """Data class to hold information regarding a ChaosEngine object"""
     engineStatus: str
     expStatus: str
 
 
-# Data class to hold information regarding a ChaosResult object
 @dataclass(frozen=True, order=False)
 class ChaosResult(LitmusChaosObject):
+    """Data class to hold information regarding a ChaosResult object"""
     verdict: str
     failStep: str
 

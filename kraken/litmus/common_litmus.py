@@ -10,7 +10,6 @@ import kraken.cerberus.setup as cerberus
 
 # Inject litmus scenarios defined in the config
 def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespace):
-
     # Loop to run the scenarios starts here
     for l_scenario in scenarios_list:
         start_time = int(time.time())
@@ -57,7 +56,6 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
 
 # Install litmus and wait until pod is running
 def install_litmus(version, namespace):
-
     logging.info("Installing version %s of litmus in namespace %s" % (version, namespace))
     litmus_install = runcommand.invoke(
         "kubectl -n %s apply -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % (namespace, version)
