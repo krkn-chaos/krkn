@@ -1,4 +1,5 @@
 import kraken.invoke.command as runcommand
+import kraken.kubernetes.client as kubecli
 import logging
 import time
 import sys
@@ -9,6 +10,7 @@ import kraken.cerberus.setup as cerberus
 
 # Inject litmus scenarios defined in the config
 def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespace):
+
     # Loop to run the scenarios starts here
     for l_scenario in scenarios_list:
         start_time = int(time.time())
@@ -55,6 +57,7 @@ def run(scenarios_list, config, litmus_uninstall, wait_duration, litmus_namespac
 
 # Install litmus and wait until pod is running
 def install_litmus(version, namespace):
+
     logging.info("Installing version %s of litmus in namespace %s" % (version, namespace))
     litmus_install = runcommand.invoke(
         "kubectl -n %s apply -f " "https://litmuschaos.github.io/litmus/litmus-operator-%s.yaml" % (namespace, version)
@@ -86,18 +89,17 @@ def deploy_all_experiments(version_string, namespace):
 
 
 def wait_for_initialized(engine_name, experiment_name, namespace):
-    chaos_engine = runcommand.invoke(
-        "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.engineStatus}'" % (engine_name, namespace)
-    )
+
+    chaos_engine = kubecli.get_litmus_chaos_object(kind='chaosengine', name=engine_name,
+                                                   namespace=namespace).engineStatus
     engine_status = chaos_engine.strip()
     max_tries = 30
     engine_counter = 0
     while engine_status.lower() != "initialized":
         time.sleep(10)
         logging.info("Waiting for " + experiment_name + " to be initialized")
-        chaos_engine = runcommand.invoke(
-            "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.engineStatus}'" % (engine_name, namespace)
-        )
+        chaos_engine = kubecli.get_litmus_chaos_object(kind='chaosengine', name=engine_name,
+                                                       namespace=namespace).engineStatus
         engine_status = chaos_engine.strip()
         if engine_counter >= max_tries:
             logging.error("Chaos engine " + experiment_name + " took longer than 5 minutes to be initialized")
@@ -117,18 +119,16 @@ def wait_for_status(engine_name, expected_status, experiment_name, namespace):
         if not response:
             logging.info("Chaos engine never initialized, exiting")
             return False
-    chaos_engine = runcommand.invoke(
-        "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.experiments[0].status}'" % (engine_name, namespace)
-    )
+    chaos_engine = kubecli.get_litmus_chaos_object(kind='chaosengine', name=engine_name,
+                                                   namespace=namespace).expStatus
     engine_status = chaos_engine.strip()
     max_tries = 30
     engine_counter = 0
     while engine_status.lower() != expected_status:
         time.sleep(10)
         logging.info("Waiting for " + experiment_name + " to be " + expected_status)
-        chaos_engine = runcommand.invoke(
-            "kubectl get chaosengines/%s -n %s -o jsonpath='{.status.experiments[0].status}'" % (engine_name, namespace)
-        )
+        chaos_engine = kubecli.get_litmus_chaos_object(kind='chaosengine', name=engine_name,
+                                                       namespace=namespace).expStatus
         engine_status = chaos_engine.strip()
         if engine_counter >= max_tries:
             logging.error("Chaos engine " + experiment_name + " took longer than 5 minutes to be " + expected_status)
@@ -151,20 +151,14 @@ def check_experiment(engine_name, experiment_name, namespace):
     else:
         sys.exit(1)
 
-    chaos_result = runcommand.invoke(
-        "kubectl get chaosresult %s"
-        "-%s -n %s -o "
-        "jsonpath='{.status.experimentStatus.verdict}'" % (engine_name, experiment_name, namespace)
-    )
+    chaos_result = kubecli.get_litmus_chaos_object(kind='chaosresult', name=engine_name+'-'+experiment_name,
+                                                   namespace=namespace).verdict
     if chaos_result == "Pass":
         logging.info("Engine " + str(engine_name) + " finished with status " + str(chaos_result))
         return True
     else:
-        chaos_result = runcommand.invoke(
-            "kubectl get chaosresult %s"
-            "-%s -n %s -o jsonpath="
-            "'{.status.experimentStatus.failStep}'" % (engine_name, experiment_name, namespace)
-        )
+        chaos_result = kubecli.get_litmus_chaos_object(kind='chaosresult', name=engine_name+'-'+experiment_name,
+                                                       namespace=namespace).failStep
         logging.info("Chaos scenario:" + engine_name + " failed with error: " + str(chaos_result))
         logging.info(
             "See 'kubectl get chaosresult %s"
@@ -176,8 +170,7 @@ def check_experiment(engine_name, experiment_name, namespace):
 # Delete all chaos engines in a given namespace
 def delete_chaos_experiments(namespace):
 
-    namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + namespace + " | xargs")
-    if namespace_exists.strip() != "0":
+    if kubecli.check_if_namespace_exists(namespace):
         chaos_exp_exists = runcommand.invoke_no_exit("kubectl get chaosexperiment")
         if "returned non-zero exit status 1" not in chaos_exp_exists:
             logging.info("Deleting all litmus experiments")
@@ -187,8 +180,7 @@ def delete_chaos_experiments(namespace):
 # Delete all chaos engines in a given namespace
 def delete_chaos(namespace):
 
-    namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + namespace + " | xargs")
-    if namespace_exists.strip() != "0":
+    if kubecli.check_if_namespace_exists(namespace):
         logging.info("Deleting all litmus run objects")
         chaos_engine_exists = runcommand.invoke_no_exit("kubectl get chaosengine")
         if "returned non-zero exit status 1" not in chaos_engine_exists:
@@ -201,8 +193,8 @@ def delete_chaos(namespace):
 
 
 def uninstall_litmus(version, litmus_namespace):
-    namespace_exists = runcommand.invoke("oc get project -o name | grep -c " + litmus_namespace + " | xargs")
-    if namespace_exists.strip() != "0":
+
+    if kubecli.check_if_namespace_exists(litmus_namespace):
         logging.info("Uninstalling Litmus operator")
         runcommand.invoke_no_exit(
             "kubectl delete -n %s -f "

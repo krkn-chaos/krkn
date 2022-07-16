@@ -1,4 +1,5 @@
 from kubernetes import client, config, utils
+from kubernetes.dynamic.client import DynamicClient
 from kubernetes.stream import stream
 from kubernetes.client.rest import ApiException
 from dataclasses import dataclass
@@ -17,11 +18,16 @@ def initialize_clients(kubeconfig_path):
     global cli
     global batch_cli
     global api_client
+    global dyn_client
+    global custom_object_client
     try:
         config.load_kube_config(kubeconfig_path)
         cli = client.CoreV1Api()
         batch_cli = client.BatchV1Api()
         api_client = client.ApiClient()
+        custom_object_client = client.CustomObjectsApi()
+        k8s_client = config.new_client_from_config()
+        dyn_client = DynamicClient(k8s_client)
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)
         sys.exit(1)
@@ -403,12 +409,25 @@ def monitor_component(iteration, component_namespace):
     logging.info("Iteration %s: %s: %s" % (iteration, component_namespace, watch_component_status))
     return watch_component_status, failed_component_pods
 
-# Apply yaml config to create kuberenetes resources
+
 def apply_yaml(path, namespace='default'):
+    """
+    Apply yaml config to create Kubernetes resources
+
+    Args:
+        path (string)
+            - Path to the YAML file
+        namespace (string)
+            - Namespace to create the resource
+
+    Returns:
+        The object created
+    """
+
     return utils.create_from_yaml(api_client, yaml_file=path, namespace=namespace)
 
 
-#Data class to hold information regarding containers in a pod
+# Data class to hold information regarding containers in a pod
 @dataclass(frozen=True, order=False)
 class Container:
     image: str
@@ -416,7 +435,7 @@ class Container:
     ready: bool
 
 
-#Data class to hold information regarding a pod
+# Data class to hold information regarding a pod
 @dataclass(frozen=True, order=False)
 class Pod:
     name: str
@@ -426,12 +445,36 @@ class Pod:
     nodeName: str
 
 
-def get_pod_info(pod_name, namespace='default'):
+# Data class to hold information regarding a custom object of litmus project
+@dataclass(frozen=True, order=False)
+class LitmusChaosObject:
+    kind: str
+    group: str
+    namespace: str
+    name: str
+    plural: str
+    version: str
+
+
+# Data class to hold information regarding a ChaosEngine object
+@dataclass(frozen=True, order=False)
+class ChaosEngine(LitmusChaosObject):
+    engineStatus: str
+    expStatus: str
+
+
+# Data class to hold information regarding a ChaosResult object
+@dataclass(frozen=True, order=False)
+class ChaosResult(LitmusChaosObject):
+    verdict: str
+    failStep: str
+
+
+def get_pod_info(pod_name: str, namespace: str = 'default') -> Pod:
     """
     Function to retrieve information about a specific pod
     in a given namespace. The kubectl command is given by:
         kubectl get pods <pod_name> -n <namespace>
-
 
     Args:
         pod_name (string)
@@ -441,21 +484,85 @@ def get_pod_info(pod_name, namespace='default'):
             - Namespace to look for the pod
 
     Returns:
-        Data class object with the output of the above kubectl command
+        Data class object of type Pod with the output of the above kubectl command
         in the given format
     """
 
-
-    response = cli.read_namespaced_pod(name=pod_name, namespace=namespace, pretty = 'true')
+    response = cli.read_namespaced_pod(name=pod_name, namespace=namespace, pretty='true')
     container_list = []
 
     for container in response.status.container_statuses:
-        container_list.append(Container(name=container.name, image=container.image, ready=container.ready)) 
-    
+        container_list.append(Container(name=container.name, image=container.image, ready=container.ready))
+
     pod_info = Pod(name=response.metadata.name, podIP=response.status.pod_ip, namespace=response.metadata.namespace,
-                containers = container_list, nodeName=response.spec.node_name)
-    
+                   containers=container_list, nodeName=response.spec.node_name)
     return pod_info
+
+
+def get_litmus_chaos_object(kind: str, name: str, namespace: str) -> LitmusChaosObject:
+    """
+    Function that returns an object of a custom resource typer the litmus project. Currently, only
+    ChaosEngine and ChaosResult is supported.
+
+    Args:
+        kind (string)
+            - The custom resource type
+
+        namespace (string)
+            - Namespace where the custom object is present
+
+    Returns:
+        Data class object of a subclass of LitmusChaosObject
+    """
+
+    group = 'litmuschaos.io'
+    version = 'v1alpha1'
+
+    if kind.lower() == 'chaosengine':
+        plural = 'chaosengines'
+        response = custom_object_client.get_namespaced_custom_object(group=group, plural=plural,
+                                            version=version, namespace=namespace, name=name)
+        try:
+            engine_status = response['status']['engineStatus']
+            exp_status = response['status']['experiments'][0]['status']
+        except:
+            engine_status = 'Not Initialized'
+            exp_status = 'Not Initialized'
+        custom_object = ChaosEngine(kind='ChaosEngine', group=group, namespace=namespace, name=name,
+                                    plural=plural, version=version, engineStatus=engine_status,
+                                    expStatus=exp_status)
+    elif kind.lower() == 'chaosresult':
+        plural = 'chaosresults'
+        response = custom_object_client.get_namespaced_custom_object(group=group, plural=plural,
+                                            version=version, namespace=namespace, name=name)
+        try:
+            verdict = response['status']['experimentStatus']['verdict']
+            fail_step = response['status']['experimentStatus']['failStep']
+        except:
+            verdict = 'N/A'
+            fail_step = 'N/A'
+        custom_object = ChaosResult(kind='ChaosResult', group=group, namespace=namespace, name=name,
+                                    plural=plural, version=version, verdict=verdict, failStep=fail_step)
+    else:
+        logging.error("Invalid litmus chaos custom resource name")
+        custom_object = None
+    return custom_object
+
+
+def check_if_namespace_exists(name: str):
+    """
+    Function that checks if a namespace exists by parsing through the list of projects
+    Args:
+        name (string)
+            - Namespace name
+
+    Returns:
+        Boolean value indicating whethere the namespace exists or not
+    """
+
+    v1_projects = dyn_client.resources.get(api_version='project.openshift.io/v1', kind='Project')
+    project_list = v1_projects.get()
+    return True if name in str(project_list) else False
 
 
 # Find the node kraken is deployed on
