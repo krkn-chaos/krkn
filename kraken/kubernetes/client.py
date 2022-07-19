@@ -5,7 +5,6 @@ from kubernetes.client.rest import ApiException
 from dataclasses import dataclass
 from typing import List
 import logging
-import kraken.invoke.command as runcommand
 import sys
 import re
 import time
@@ -41,8 +40,7 @@ def get_host() -> str:
 def get_clusterversion_string() -> str:
     """Returns clusterversion status text on OpenShift, empty string on other distributions"""
     try:
-        custom_objects_api = client.CustomObjectsApi()
-        cvs = custom_objects_api.list_cluster_custom_object(
+        cvs = custom_object_client.list_cluster_custom_object(
             "config.openshift.io",
             "v1",
             "clusterversions",
