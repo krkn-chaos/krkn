@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../plugin.schema.json
 - id: kill-pods
   config:
-    namespace_pattern: ^openshift-.*$
-    name_pattern: .*
-    kill: 3
+    name_pattern: ^nginx-.*$
+    namespace_pattern: ^default$
+    kill: 1
