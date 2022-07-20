@@ -1,35 +1,10 @@
-config:
-  runStrategy:
-    runs: 1
-    maxSecondsBetweenRuns: 30
-    minSecondsBetweenRuns: 1
-scenarios:
-  - name: "delete openshift-apiserver pods"
-    steps:
-    - podAction:
-        matches:
-          - labels:
-              namespace: "openshift-apiserver"
-              selector: "app=openshift-apiserver-a"
-
-        filters:
-          - randomSample:
-              size: 1
-
-        # The actions will be executed in the order specified
-        actions:
-          - kill:
-              probability: 1
-              force: true
-    - podAction:
-        matches:
-          - labels:
-              namespace: "openshift-apiserver"
-              selector: "app=openshift-apiserver-a"
-        retries:
-          retriesTimeout:
-            timeout: 180
-
-        actions:
-          - checkPodCount:
-              count: 3
+# yaml-language-server: $schema=../plugin.schema.json
+- id: kill-pods
+  config:
+    namespace_pattern: ^openshift-apiserver$
+    label_selector: app=openshift-apiserver-a
+- id: wait-for-pods
+  config:
+    namespace_pattern: ^openshift-apiserver$
+    label_selector: app=openshift-apiserver-a
+    count: 3

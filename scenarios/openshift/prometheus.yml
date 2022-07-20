@@ -1,35 +1,11 @@
-config:
-  runStrategy:
-    runs: 1
-    maxSecondsBetweenRuns: 30
-    minSecondsBetweenRuns: 1
-scenarios:
-  - name: "delete prometheus pods"
-    steps:
-    - podAction:
-        matches:
-          - labels:
-              namespace: "openshift-monitoring"
-              selector: "app=prometheus"
-
-        filters:
-          - randomSample:
-              size: 1
-
-        # The actions will be executed in the order specified
-        actions:
-          - kill:
-              probability: 1
-              force: true
-    - podAction:
-        matches:
-          - labels:
-              namespace: "openshift-monitoring"
-              selector: "app=prometheus"
-        retries:
-          retriesTimeout:
-            timeout: 180
-
-        actions:
-          - checkPodCount:
-              count: 2
+# yaml-language-server: $schema=../plugin.schema.json
+- id: kill-pods
+  config:
+    namespace_pattern: ^openshift-monitoring$
+    label_selector: app=prometheus
+- id: wait-for-pods
+  config:
+    namespace_pattern: ^openshift-monitoring$
+    label_selector: app=prometheus
+    count: 2
+    timeout: 180

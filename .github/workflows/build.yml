@@ -11,16 +11,23 @@ jobs:
     steps:
       - name: Check out code
         uses: actions/checkout@v3
-      - name: Build the Docker images
-        run: docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
       - name: Create multi-node KinD cluster
-        uses: chaos-kubox/actions/kind@main
+        uses: redhat-chaos/actions/kind@main
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          architecture: 'x64'
       - name: Install environment
         run: |
           sudo apt-get install build-essential python3-dev
           pip install -r requirements.txt
+      - name: Run unit tests
+        run: python -m unittest discover
       - name: Run CI
         run: ./CI/run.sh
+      - name: Build the Docker images
+        run: docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
       - name: Login in quay
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
@@ -32,7 +39,7 @@ jobs:
         run: docker push quay.io/chaos-kubox/krkn
       - name: Rebuild krkn-hub
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: chaos-kubox/actions/krkn-hub@main
+        uses: redhat-chaos/actions/krkn-hub@main
         with:
           QUAY_USER: ${{ secrets.QUAY_USER_1 }}
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}

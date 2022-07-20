@@ -1,3 +1,7 @@
+# yaml-language-server: $schema=../pod.schema.json
+namespace_pattern: openshift-kube-apiserver
+kill: 1
+
 config:
   runStrategy:
     runs: 1

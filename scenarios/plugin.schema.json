@@ -1,0 +1,157 @@
+{
+	"$id": "https://github.com/chaos-kubox/krkn/",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "Kraken Arcaflow scenarios",
+	"description": "Serial execution of Arcaflow Python plugins. See https://github.com/arcaflow for details.",
+	"type": "array",
+	"minContains": 1,
+	"items": {
+		"oneOf": [
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "kill-pods"
+					},
+					"config": {
+						"type": "object",
+						"properties": {
+							"namespace_pattern": {
+								"type": "string",
+								"format": "regex",
+								"title": "Namespace pattern",
+								"description": "Regular expression for target pod namespaces."
+							},
+							"name_pattern": {
+								"type": "string",
+								"format": "regex",
+								"title": "Name pattern",
+								"description": "Regular expression for target pods. Required if label_selector is not set."
+							},
+							"kill": {
+								"type": "integer",
+								"minimum": 1,
+								"title": "Number of pods to kill",
+								"description": "How many pods should we attempt to kill?"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target pods. Required if name_pattern is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"backoff": {
+								"type": "integer",
+								"title": "Backoff",
+								"description": "How many seconds to wait between checks for the target pod status."
+							}
+						},
+						"additionalProperties": false,
+						"required": [
+							"namespace_pattern"
+						]
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "wait-for-pods"
+					},
+					"config": {
+						"type": "object",
+						"properties": {
+							"namespace_pattern": {
+								"type": "string",
+								"format": "regex",
+								"title": "namespace_pattern"
+							},
+							"name_pattern": {
+								"type": "string",
+								"format": "regex",
+								"title": "name_pattern"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "label_selector"
+							},
+							"count": {
+								"type": "integer",
+								"minimum": 1,
+								"title": "Pod count",
+								"description": "Wait for at least this many pods to exist"
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"title": "Timeout",
+								"description": "How many seconds to wait for?"
+							},
+							"backoff": {
+								"type": "integer",
+								"title": "Backoff",
+								"description": "How many seconds to wait between checks for the target pod status."
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "kubeconfig_path"
+							}
+						},
+						"additionalProperties": false,
+						"required": [
+							"namespace_pattern"
+						]
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "run_python"
+					},
+					"config": {
+						"type": "object",
+						"properties": {
+							"filename": {
+								"type": "string",
+								"title": "filename"
+							}
+						},
+						"additionalProperties": false,
+						"required": [
+							"filename"
+						]
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			}
+		]
+	}
+}

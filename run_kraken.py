@@ -22,6 +22,7 @@ import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import server as server
+from kraken import plugins
 
 
 def publish_kraken_status(status):
@@ -158,10 +159,11 @@ def main(cfg):
                     if scenarios_list:
                         # Inject pod chaos scenarios specified in the config
                         if scenario_type == "pod_scenarios":
-                            logging.info("Running pod scenarios")
-                            failed_post_scenarios = pod_scenarios.run(
-                                kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration
-                            )
+                            logging.error("Pod scenarios have been removed, please use plugin_scenarios with the "
+                                          "kill-pods configuration instead.")
+                            sys.exit(1)
+                        elif scenario_type == "plugin_scenarios":
+                            failed_post_scenarios = plugins.run(scenarios_list, kubeconfig_path, failed_post_scenarios)
                         elif scenario_type == "container_scenarios":
                             logging.info("Running container scenarios")
                             failed_post_scenarios = pod_scenarios.container_run(
