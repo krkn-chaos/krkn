@@ -19,13 +19,13 @@ COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 
 # Install dependencies
 RUN yum install epel-release -y && \
-    yum install -y git python python3-pip jq gettext && \
-    python3 -m pip install -U pip && \
+    yum install -y git python39 python3-pip jq gettext && \
+    python3.9 -m pip install -U pip && \
     git clone https://github.com/openshift-scale/kraken /root/kraken && \
     mkdir -p /root/.kube && cd /root/kraken && \
-    pip3 install -r requirements.txt
+    pip3.9 install -r requirements.txt
 
 WORKDIR /root/kraken
 
-ENTRYPOINT ["python3", "run_kraken.py"]
+ENTRYPOINT ["python3.9", "run_kraken.py"]
 CMD ["--config=config/config.yaml"]
