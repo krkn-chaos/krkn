@@ -18,7 +18,7 @@ spec:
             privileged: true
           image: quay.io/chaos-kubox/krkn
           command: ["/bin/sh", "-c"]
-          args: ["python3 run_kraken.py -c config/config.yaml"]
+          args: ["python3.9 run_kraken.py -c config/config.yaml"]
           volumeMounts:
             - mountPath: "/root/.kube"
               name: config
