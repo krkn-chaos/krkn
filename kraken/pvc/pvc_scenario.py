@@ -1,4 +1,5 @@
 import sys
+import random
 import yaml
 import re
 import json
@@ -6,7 +7,6 @@ import logging
 import time
 import kraken.cerberus.setup as cerberus
 import kraken.kubernetes.client as kubecli
-import kraken.invoke.command as runcommand
 
 # Reads the scenario config and creates a temp file to fill up the PVC
 
@@ -48,62 +48,40 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                         logging.info(
                             "pod_name '%s' will be overridden from the pod mounted in the PVC" % (str(pod_name))
                         )
-                    command = "kubectl describe pvc %s -n %s | grep -E 'Mounted By:|Used By:' | grep -Eo '[^: ]*$'" % (
-                        str(pvc_name),
-                        str(namespace),
-                    )
-                    logging.debug("Get pod name command:\n %s" % command)
-                    pod_name = runcommand.invoke(command, 60).rstrip()
-                    logging.info("Pod name: %s" % pod_name)
-                    if pod_name == "<none>":
+                    pvc = kubecli.get_pvc_info(pvc_name, namespace)
+                    print(pvc)
+                    try:
+                        pod_name = random.choice(pvc.podNames)
+                        logging.info("Pod name: %s" % pod_name)
+                    except IndexError:
                         logging.error(
                             "Pod associated with %s PVC, on namespace %s, not found" % (str(pvc_name), str(namespace))
                         )
                         sys.exit(1)
 
                 # Get volume name
-                command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.volumes"' % (
-                    str(pod_name),
-                    str(namespace),
-                )
-                logging.debug("Get mount path command:\n %s" % command)
-                volumes_list = runcommand.invoke(command, 60).rstrip()
-                volumes_list_json = json.loads(volumes_list)
-                for entry in volumes_list_json:
-                    if len(entry["persistentVolumeClaim"]["claimName"]) > 0:
-                        volume_name = entry["name"]
-                        pvc_name = entry["persistentVolumeClaim"]["claimName"]
+                pod = kubecli.get_pod_info(name=pod_name, namespace=namespace)
+                for volume in pod.volumes:
+                    if volume.pvcName is not None:
+                        volume_name = volume.name
+                        pvc_name = volume.pvcName
+                        pvc = kubecli.get_pvc_info(pvc_name, namespace)
                         break
                 logging.info("Volume name: %s" % volume_name)
                 logging.info("PVC name: %s" % pvc_name)
 
                 # Get container name and mount path
-                command = 'kubectl get pods %s -n %s -o json | jq -r ".spec.containers"' % (
-                    str(pod_name),
-                    str(namespace),
-                )
-                logging.debug("Get mount path command:\n %s" % command)
-                volume_mounts_list = runcommand.invoke(command, 60).rstrip().replace("\n]\n[\n", ",\n")
-                volume_mounts_list_json = json.loads(volume_mounts_list)
-                for entry in volume_mounts_list_json:
-                    for vol in entry["volumeMounts"]:
-                        if vol["name"] == volume_name:
-                            mount_path = vol["mountPath"]
-                            container_name = entry["name"]
+                for container in  pod.containers:
+                    for vol in container.volumeMounts:
+                        if vol.name == volume_name:
+                            mount_path = vol.mountPath
+                            container_name = container.name
                             break
                 logging.info("Container path: %s" % container_name)
                 logging.info("Mount path: %s" % mount_path)
 
                 # Get PVC capacity
-                command = "kubectl describe pvc %s -n %s | grep \"Capacity:\" | grep -Eo '[^: ]*$'" % (
-                    str(pvc_name),
-                    str(namespace),
-                )
-                pvc_capacity = runcommand.invoke(
-                    command,
-                    60,
-                ).rstrip()
-                logging.debug("Get PVC capacity command:\n %s" % command)
+                pvc_capacity = pvc.capacity
                 pvc_capacity_kb = toKbytes(pvc_capacity)
                 logging.info("PVC capacity: %s KB" % pvc_capacity_kb)
 
