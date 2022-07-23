@@ -46,14 +46,13 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 if pvc_name:
                     if pod_name:
                         logging.info(
-                            "pod_name '%s' will be overridden from the pod mounted in the PVC" % (str(pod_name))
+                            "pod_name '%s' will be overridden with one of the pods mounted in the PVC" % (str(pod_name))
                         )
                     pvc = kubecli.get_pvc_info(pvc_name, namespace)
-                    print(pvc)
                     try:
                         pod_name = random.choice(pvc.podNames)
                         logging.info("Pod name: %s" % pod_name)
-                    except IndexError:
+                    except Exception:
                         logging.error(
                             "Pod associated with %s PVC, on namespace %s, not found" % (str(pvc_name), str(namespace))
                         )
@@ -61,12 +60,21 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
 
                 # Get volume name
                 pod = kubecli.get_pod_info(name=pod_name, namespace=namespace)
+                
+                if pod is None:
+                    sys.exit(1)
+                
                 for volume in pod.volumes:
                     if volume.pvcName is not None:
                         volume_name = volume.name
                         pvc_name = volume.pvcName
                         pvc = kubecli.get_pvc_info(pvc_name, namespace)
                         break
+                if 'pvc' not in locals():
+                    logging.error(
+                        "Pod '%s' in namespace '%s' does not use a pvc" % (str(pod_name), str(namespace))
+                    )
+                    sys.exit(1)
                 logging.info("Volume name: %s" % volume_name)
                 logging.info("PVC name: %s" % pvc_name)
 

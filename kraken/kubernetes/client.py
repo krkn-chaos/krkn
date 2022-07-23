@@ -424,35 +424,42 @@ def get_pod_info(name: str, namespace: str = 'default') -> Pod:
             - Namespace to look for the pod
 
     Returns:
-        Data class object of type Pod with the output of the above kubectl command
-        in the given format
+        - Data class object of type Pod with the output of the above kubectl command
+        in the given format if the pod exists
+        - Returns None if the pod doesn't exist
     """
+    pod_exists = check_if_pod_exists(name=name, namespace=namespace)
+    if pod_exists:
+        response = cli.read_namespaced_pod(name=name, namespace=namespace, pretty='true')
+        container_list = []
 
-    response = cli.read_namespaced_pod(name=name, namespace=namespace, pretty='true')
-    container_list = []
+        # Create a list of containers present in the pod
+        for container in response.spec.containers:
+            volume_mount_list = []
+            for volume_mount in container.volume_mounts:
+                volume_mount_list.append(VolumeMount(name=volume_mount.name, mountPath=volume_mount.mount_path))
+            container_list.append(Container(name=container.name, image=container.image, volumeMounts= volume_mount_list))
 
-    # Create a list of containers present in the pod
-    for container in response.spec.containers:
-        volume_mount_list = []
-        for volume_mount in container.volume_mounts:
-            volume_mount_list.append(VolumeMount(name=volume_mount.name, mountPath=volume_mount.mount_path))
-        container_list.append(Container(name=container.name, image=container.image, volumeMounts= volume_mount_list))
+        for i, container in enumerate(response.status.container_statuses):
+            container_list[i].ready = container.ready
 
-    for i, container in enumerate(response.status.container_statuses):
-        container_list[i].ready = container.ready
+        # Create a list of volumes associated with the pod
+        volume_list = []
+        for volume in response.spec.volumes:
+            volume_name = volume.name
+            pvc_name = volume.persistent_volume_claim.claim_name if volume.persistent_volume_claim is not None else None
+            volume_list.append(Volume(name=volume_name, pvcName=pvc_name))
 
-    # Create a list of volumes associated with the pod
-    volume_list = []
-    for volume in response.spec.volumes:
-        volume_name = volume.name
-        pvc_name = volume.persistent_volume_claim.claim_name if volume.persistent_volume_claim is not None else None
-        volume_list.append(Volume(name=volume_name, pvcName=pvc_name))
-
-    # Create the Pod data class object
-    pod_info = Pod(name=response.metadata.name, podIP=response.status.pod_ip, namespace=response.metadata.namespace,
-                   containers=container_list, nodeName=response.spec.node_name, volumes = volume_list)
-
-    return pod_info
+        # Create the Pod data class object
+        pod_info = Pod(name=response.metadata.name, podIP=response.status.pod_ip, namespace=response.metadata.namespace,
+                    containers=container_list, nodeName=response.spec.node_name, volumes = volume_list)
+        return pod_info
+    else:
+        logging.error(
+                "Pod '%s' doesn't exist in namespace '%s'" % (str(name), str(namespace))
+        )
+        return None
+    
 
 
 def get_litmus_chaos_object(kind: str, name: str, namespace: str) -> LitmusChaosObject:
@@ -513,7 +520,7 @@ def check_if_namespace_exists(name: str) -> bool:
             - Namespace name
 
     Returns:
-        Boolean value indicating whethere the namespace exists or not
+        Boolean value indicating whether the namespace exists or not
     """
 
     v1_projects = dyn_client.resources.get(api_version='project.openshift.io/v1', kind='Project')
@@ -521,9 +528,58 @@ def check_if_namespace_exists(name: str) -> bool:
     return True if name in str(project_list) else False
 
 
+def check_if_pod_exists(name: str, namespace: str) -> bool:
+    """
+    Function that checks if a pod exists in the given namespace
+    Args:
+        name (string)
+            - Pod name
+
+        namespace (string)
+            - Namespace name
+
+    Returns:
+        Boolean value indicating whether the pod exists or not
+    """
+
+    namespace_exists = check_if_namespace_exists(namespace)
+    if namespace_exists:
+        pod_list = list_pods(namespace=namespace)
+        if name in pod_list:
+            return True
+    else:
+        logging.error("Namespace '%s' doesn't exist" % str(namespace))
+    return False
+
+
+def check_if_pvc_exists(name: str, namespace: str) -> bool:
+    """
+    Function that checks if a namespace exists by parsing through the list of projects
+    Args:
+        name (string)
+            - PVC name
+
+        namespace (string)
+            - Namespace name
+
+    Returns:
+        Boolean value indicating whether the Persistent Volume Claim exists or not
+    """
+    
+    namespace_exists = check_if_namespace_exists(namespace)
+    if namespace_exists:
+        response = cli.list_namespaced_persistent_volume_claim(namespace=namespace)
+        pvc_list = [pvc.metadata.name for pvc in response.items]
+        if name in pvc_list:
+            return True
+    else:
+        logging.error("Namespace '%s' doesn't exist" % str(namespace))
+    return False
+
+
 def get_pvc_info(name: str, namespace: str) -> PVC:
     """
-    Function to retreive information about a Persistent Volume Claim in a
+    Function to retrieve information about a Persistent Volume Claim in a
     given namespace
 
     Args:
@@ -534,26 +590,33 @@ def get_pvc_info(name: str, namespace: str) -> PVC:
             - Namespace where the persistent volume claim is present
     
     Returns:
-        A PVC data class containing the name, capacity, volume name, namespace
-        and associated pod names of the PVC
+        - A PVC data class containing the name, capacity, volume name, namespace
+        and associated pod names of the PVC if the PVC exists
+        - Returns None if the PVC doesn't exist 
     """
 
-    pvc_info_response = cli.read_namespaced_persistent_volume_claim(name=name, namespace=namespace, pretty=True)
-    pod_list_response = cli.list_namespaced_pod(namespace=namespace)
+    pvc_exists = check_if_pvc_exists(name=name, namespace=namespace)
+    if pvc_exists:
+        pvc_info_response = cli.read_namespaced_persistent_volume_claim(name=name, namespace=namespace, pretty=True)
+        pod_list_response = cli.list_namespaced_pod(namespace=namespace)
 
-    capacity = pvc_info_response.status.capacity['storage']
-    volume_name = pvc_info_response.spec.volume_name
+        capacity = pvc_info_response.status.capacity['storage']
+        volume_name = pvc_info_response.spec.volume_name
 
-    # Loop through all pods in the namespace to find associated PVCs
-    pvc_pod_list = []
-    for pod in pod_list_response.items:
-        for volume in pod.spec.volumes:
-            if volume.persistent_volume_claim is not None and volume.persistent_volume_claim.claim_name == name:
-                pvc_pod_list.append(pod.metadata.name)
+        # Loop through all pods in the namespace to find associated PVCs
+        pvc_pod_list = []
+        for pod in pod_list_response.items:
+            for volume in pod.spec.volumes:
+                if volume.persistent_volume_claim is not None and volume.persistent_volume_claim.claim_name == name:
+                    pvc_pod_list.append(pod.metadata.name)
 
-    pvc_info = PVC(name=name, capacity=capacity, volumeName=volume_name, podNames=pvc_pod_list, namespace=namespace)
-
-    return pvc_info
+        pvc_info = PVC(name=name, capacity=capacity, volumeName=volume_name, podNames=pvc_pod_list, namespace=namespace)
+        return pvc_info
+    else:
+        logging.error(
+                "PVC '%s' doesn't exist in namespace '%s'" % (str(name), str(namespace))
+        )
+        return None
     
     
 # Find the node kraken is deployed on
