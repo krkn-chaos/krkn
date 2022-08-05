@@ -1,5 +1,5 @@
 # Krkn aka Kraken
-[![Docker Repository on Quay](https://quay.io/repository/chaos-kubox/krkn?tab=tags&tag=latest "Docker Repository on Quay")](https://quay.io/chaos-kubox/krkn)
+[![Docker Repository on Quay](https://quay.io/repository/chaos-kubox/krkn/status "Docker Repository on Quay")](https://quay.io/repository/chaos-kubox/krkn?tab=tags&tag=latest)
 
 ![Krkn logo](media/logo.png)
 
