@@ -5,7 +5,7 @@ from os.path import abspath
 from typing import List, Dict
 
 from arcaflow_plugin_sdk import schema, serialization, jsonschema
-
+import kraken.plugins.vmware.vmware_plugin as vmware_plugin
 from kraken.plugins.pod_plugin import kill_pods, wait_for_pods
 from kraken.plugins.run_python_plugin import run_python_file
 
@@ -150,6 +150,30 @@ PLUGINS = Plugins(
         ),
         PluginStep(
             run_python_file,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            vmware_plugin.node_start,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            vmware_plugin.node_stop,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            vmware_plugin.node_reboot,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            vmware_plugin.node_terminate,
             [
                 "error"
             ]

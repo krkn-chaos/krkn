@@ -5,6 +5,7 @@ Supported Cloud Providers:
 * [Openstack](#openstack)
 * [Azure](#azure)
 * [Alibaba](#alibaba)
+* [VMware](#vmware)
 
 ## AWS
 
@@ -53,3 +54,17 @@ See the [Installation guide](https://www.alibabacloud.com/help/en/alibaba-cloud-
 Refer to [region and zone page](https://www.alibabacloud.com/help/en/elastic-compute-service/latest/regions-and-zones#concept-2459516) to get the region id for the region you are running on.
 
 Set cloud_type to either alibaba or alicloud in your node scenario yaml file.
+
+## VMware
+
+Set the following environment variables
+
+1. ```export VSPHERE_IP=<vSphere_client_IP_address>```
+
+2. ```export VSPHERE_USERNAME=<vSphere_client_username>```
+
+3. ```export VSPHERE_PASSWORD=<vSphere_client_password>```
+
+These are the credentials that you would normally used to access the vSphere client.
+
+

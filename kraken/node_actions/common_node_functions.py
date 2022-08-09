@@ -31,20 +31,17 @@ def get_node(node_name, label_selector, instance_kill_count):
 
 # Wait until the node status becomes Ready
 def wait_for_ready_status(node, timeout):
-    resource_version = kubecli.get_node_resource_version(node)
-    kubecli.watch_node_status(node, "True", timeout, resource_version)
+    kubecli.watch_node_status(node, "True", timeout)
 
 
 # Wait until the node status becomes Not Ready
 def wait_for_not_ready_status(node, timeout):
-    resource_version = kubecli.get_node_resource_version(node)
-    kubecli.watch_node_status(node, "False", timeout, resource_version)
+    kubecli.watch_node_status(node, "False", timeout)
 
 
 # Wait until the node status becomes Unknown
 def wait_for_unknown_status(node, timeout):
-    resource_version = kubecli.get_node_resource_version(node)
-    kubecli.watch_node_status(node, "Unknown", timeout, resource_version)
+    kubecli.watch_node_status(node, "Unknown", timeout)
 
 
 # Get the ip of the cluster node
