@@ -3,16 +3,14 @@ import sys
 import time
 import typing
 from os import environ
-from enum import Enum
 from dataclasses import dataclass, field
 import random
 from traceback import format_exc
 import logging
-import kraken.node_actions.common_node_functions as common_node_functions
-import kraken.node_actions.common_node_functions as nodeaction
+from kraken.plugins.vmware import kubernetes_functions as kube_helper
 from com.vmware.vcenter_client import ResourcePool
 from arcaflow_plugin_sdk import validation, plugin
-
+from kubernetes import client, watch
 from vmware.vapi.vsphere.client import create_vsphere_client
 from com.vmware.vcenter_client import VM
 from com.vmware.vcenter.vm_client import Power
@@ -28,7 +26,7 @@ class vSphere:
     def __init__(self, verify=True):
         """
         Initialize the vSphere client by using the the env variables:
-            VSPHERE_IP', 'VSPHERE_USERNAME', 'VSPHERE_PASSWORD'
+            'VSPHERE_IP', 'VSPHERE_USERNAME', 'VSPHERE_PASSWORD'
         """
         self.server = environ.get("VSPHERE_IP")
         self.username = environ.get("VSPHERE_USERNAME")
@@ -358,44 +356,6 @@ class vSphere:
         return True
 
 
-def get_node_list(cfg):
-    """
-    Return a list of nodes to be used in the node scenarios. The list returned is constructed as follows:
-        - If the key 'name' is present in the node scenario config, the value is extracted and split into
-          a list
-        - Each node in the list is fed to the get_node function which checks if the node is killable or
-          fetches the node using the label selector
-    """
-
-    if cfg.name:
-        input_nodes = cfg.name.split(",")
-    else:
-        input_nodes = [""]
-    scenario_nodes = set()
-
-    if cfg.skip_openshift_checks:
-        scenario_nodes = input_nodes
-    else:
-        for node in input_nodes:
-            nodes = common_node_functions.get_node(
-                node, cfg.label_selector, cfg.instance_count
-            )
-            scenario_nodes.update(nodes)
-
-    return list(scenario_nodes)
-
-
-class Actions(Enum):
-    """
-    This enumeration is used to indicate the kind of node operation being done
-    """
-
-    START = "Start"
-    STOP = "Stop"
-    TERMINATE = "Terminate"
-    REBOOT = "Reboot"
-
-
 @dataclass
 class Node:
     name: str
@@ -411,7 +371,7 @@ class NodeScenarioSuccessOutput:
                         The timestamp is provided in nanoseconds""",
         }
     )
-    action: Actions = field(
+    action: kube_helper.Actions = field(
         metadata={
             "name": "The action performed on the node",
             "description": """The action performed or attempted to be performed on the node. Possible values
@@ -424,7 +384,7 @@ class NodeScenarioSuccessOutput:
 class NodeScenarioErrorOutput:
 
     error: str
-    action: Actions = field(
+    action: kube_helper.Actions = field(
         metadata={
             "name": "The action performed on the node",
             "description": """The action attempted to be performed on the node. Possible values are : Start
@@ -499,6 +459,16 @@ class NodeScenarioConfig:
         },
     )
 
+    kubeconfig_path: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Kubeconfig path",
+            "description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\n"
+            "See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for "
+            "details.",
+        },
+    )
+
 
 @plugin.step(
     id="node-start",
@@ -511,29 +481,37 @@ def node_start(
 ) -> typing.Tuple[
     str, typing.Union[NodeScenarioSuccessOutput, NodeScenarioErrorOutput]
 ]:
+    with kube_helper.setup_kubernetes(None) as cli:
+        vsphere = vSphere(verify=cfg.verify_session)
+        core_v1 = client.CoreV1Api(cli)
+        watch_resource = watch.Watch()
+        node_list = kube_helper.get_node_list(cfg, kube_helper.Actions.START, core_v1)
+        nodes_started = {}
+        for name in node_list:
+            try:
+                for _ in range(cfg.runs):
+                    logging.info("Starting node_start_scenario injection")
+                    logging.info("Starting the node %s " % (name))
+                    vm_started = vsphere.start_instances(name)
+                    if vm_started:
+                        vsphere.wait_until_running(name, cfg.timeout)
+                        if not cfg.skip_openshift_checks:
+                            kube_helper.wait_for_ready_status(
+                                name, cfg.timeout, watch_resource, core_v1
+                            )
+                        nodes_started[int(time.time_ns())] = Node(name=name)
+                    logging.info("Node with instance ID: %s is in running state" % name)
+                    logging.info("node_start_scenario has been successfully injected!")
+            except Exception as e:
+                logging.error("Failed to start node instance. Test Failed")
+                logging.error("node_start_scenario injection failed!")
+                return "error", NodeScenarioErrorOutput(
+                    format_exc(), kube_helper.Actions.START
+                )
 
-    vsphere = vSphere(verify=cfg.verify_session)
-    node_list = get_node_list(cfg)
-    nodes_started = {}
-    for name in node_list:
-        try:
-            for _ in range(cfg.runs):
-                logging.info("Starting node_start_scenario injection")
-                logging.info("Starting the node %s " % (name))
-                vm_started = vsphere.start_instances(name)
-                if vm_started:
-                    vsphere.wait_until_running(name, cfg.timeout)
-                    if not cfg.skip_openshift_checks:
-                        nodeaction.wait_for_ready_status(name, cfg.timeout)
-                    nodes_started[int(time.time_ns())] = Node(name=name)
-                logging.info("Node with instance ID: %s is in running state" % name)
-                logging.info("node_start_scenario has been successfully injected!")
-        except Exception as e:
-            logging.error("Failed to start node instance. Test Failed")
-            logging.error("node_start_scenario injection failed!")
-            return "error", NodeScenarioErrorOutput(format_exc(), Actions.START)
-
-    return "success", NodeScenarioSuccessOutput(nodes_started, Actions.START)
+    return "success", NodeScenarioSuccessOutput(
+        nodes_started, kube_helper.Actions.START
+    )
 
 
 @plugin.step(
@@ -547,30 +525,37 @@ def node_stop(
 ) -> typing.Tuple[
     str, typing.Union[NodeScenarioSuccessOutput, NodeScenarioErrorOutput]
 ]:
+    with kube_helper.setup_kubernetes(None) as cli:
+        vsphere = vSphere(verify=cfg.verify_session)
+        core_v1 = client.CoreV1Api(cli)
+        watch_resource = watch.Watch()
+        node_list = kube_helper.get_node_list(cfg, kube_helper.Actions.STOP, core_v1)
+        nodes_stopped = {}
+        for name in node_list:
+            try:
+                for _ in range(cfg.runs):
+                    logging.info("Starting node_stop_scenario injection")
+                    logging.info("Stopping the node %s " % (name))
+                    vm_stopped = vsphere.stop_instances(name)
+                    if vm_stopped:
+                        vsphere.wait_until_stopped(name, cfg.timeout)
+                        if not cfg.skip_openshift_checks:
+                            kube_helper.wait_for_ready_status(
+                                name, cfg.timeout, watch_resource, core_v1
+                            )
+                        nodes_stopped[int(time.time_ns())] = Node(name=name)
+                    logging.info("Node with instance ID: %s is in stopped state" % name)
+                    logging.info("node_stop_scenario has been successfully injected!")
+            except Exception as e:
+                logging.error("Failed to stop node instance. Test Failed")
+                logging.error("node_stop_scenario injection failed!")
+                return "error", NodeScenarioErrorOutput(
+                    format_exc(), kube_helper.Actions.STOP
+                )
 
-    vsphere = vSphere(verify=cfg.verify_session)
-    node_list = get_node_list(cfg)
-    nodes_stopped = {}
-
-    for name in node_list:
-        try:
-            for _ in range(cfg.runs):
-                logging.info("Starting node_stop_scenario injection")
-                logging.info("Stopping the node %s " % (name))
-                vm_stopped = vsphere.stop_instances(name)
-                if vm_stopped:
-                    vsphere.wait_until_stopped(name, cfg.timeout)
-                    if not cfg.skip_openshift_checks:
-                        nodeaction.wait_for_unknown_status(name, cfg.timeout)
-                    nodes_stopped[int(time.time_ns())] = Node(name=name)
-                logging.info("Node with instance ID: %s is in stopped state" % name)
-                logging.info("node_stop_scenario has been successfully injected!")
-        except Exception as e:
-            logging.error("Failed to stop node instance. Test Failed")
-            logging.error("node_stop_scenario injection failed!")
-            return "error", NodeScenarioErrorOutput(format_exc(), Actions.STOP)
-
-    return "success", NodeScenarioSuccessOutput(nodes_stopped, Actions.STOP)
+        return "success", NodeScenarioSuccessOutput(
+            nodes_stopped, kube_helper.Actions.STOP
+        )
 
 
 @plugin.step(
@@ -584,30 +569,40 @@ def node_reboot(
 ) -> typing.Tuple[
     str, typing.Union[NodeScenarioSuccessOutput, NodeScenarioErrorOutput]
 ]:
-
-    vsphere = vSphere(verify=cfg.verify_session)
-    node_list = get_node_list(cfg)
-    nodes_rebooted = {}
-    for name in node_list:
-        try:
-            for _ in range(cfg.runs):
-                logging.info("Starting node_stop_scenario injection")
-                logging.info("Rebooting the node %s " % (name))
-                vsphere.reboot_instances(name)
-                if not cfg.skip_openshift_checks:
-                    nodeaction.wait_for_unknown_status(name, cfg.timeout)
-                    nodeaction.wait_for_ready_status(name, cfg.timeout)
-                nodes_rebooted[int(time.time_ns())] = Node(name=name)
-                logging.info(
-                    "Node with instance ID: %s has rebooted successfully" % name
+    with kube_helper.setup_kubernetes(None) as cli:
+        vsphere = vSphere(verify=cfg.verify_session)
+        core_v1 = client.CoreV1Api(cli)
+        watch_resource = watch.Watch()
+        node_list = kube_helper.get_node_list(cfg, kube_helper.Actions.REBOOT, core_v1)
+        nodes_rebooted = {}
+        for name in node_list:
+            try:
+                for _ in range(cfg.runs):
+                    logging.info("Starting node_stop_scenario injection")
+                    logging.info("Rebooting the node %s " % (name))
+                    vsphere.reboot_instances(name)
+                    if not cfg.skip_openshift_checks:
+                        kube_helper.wait_for_unknown_status(
+                            name, cfg.timeout, watch_resource, core_v1
+                        )
+                        kube_helper.wait_for_ready_status(
+                            name, cfg.timeout, watch_resource, core_v1
+                        )
+                    nodes_rebooted[int(time.time_ns())] = Node(name=name)
+                    logging.info(
+                        "Node with instance ID: %s has rebooted successfully" % name
+                    )
+                    logging.info("node_stop_scenario has been successfully injected!")
+            except Exception as e:
+                logging.error("Failed to reboot node instance. Test Failed")
+                logging.error("node_reboot_scenario injection failed!")
+                return "error", NodeScenarioErrorOutput(
+                    format_exc(), kube_helper.Actions.REBOOT
                 )
-                logging.info("node_stop_scenario has been successfully injected!")
-        except Exception as e:
-            logging.error("Failed to reboot node instance. Test Failed")
-            logging.error("node_reboot_scenario injection failed!")
-            return "error", NodeScenarioErrorOutput(format_exc(), Actions.REBOOT)
 
-    return "success", NodeScenarioSuccessOutput(nodes_rebooted, Actions.REBOOT)
+    return "success", NodeScenarioSuccessOutput(
+        nodes_rebooted, kube_helper.Actions.REBOOT
+    )
 
 
 @plugin.step(
@@ -621,27 +616,36 @@ def node_terminate(
 ) -> typing.Tuple[
     str, typing.Union[NodeScenarioSuccessOutput, NodeScenarioErrorOutput]
 ]:
-
-    vsphere = vSphere(verify=cfg.verify_session)
-    node_list = get_node_list(cfg)
-    nodes_terminated = {}
-    for name in node_list:
-        try:
-            for _ in range(cfg.runs):
-                logging.info(
-                    "Starting node_termination_scenario injection by first stopping the node"
+    with kube_helper.setup_kubernetes(None) as cli:
+        vsphere = vSphere(verify=cfg.verify_session)
+        core_v1 = client.CoreV1Api(cli)
+        node_list = kube_helper.get_node_list(
+            cfg, kube_helper.Actions.TERMINATE, core_v1
+        )
+        nodes_terminated = {}
+        for name in node_list:
+            try:
+                for _ in range(cfg.runs):
+                    logging.info(
+                        "Starting node_termination_scenario injection by first stopping the node"
+                    )
+                    vsphere.stop_instances(name)
+                    vsphere.wait_until_stopped(name, cfg.timeout)
+                    logging.info("Releasing the node with instance ID: %s " % (name))
+                    vsphere.release_instances(name)
+                    vsphere.wait_until_released(name, cfg.timeout)
+                    nodes_terminated[int(time.time_ns())] = Node(name=name)
+                    logging.info("Node with instance ID: %s has been released" % name)
+                    logging.info(
+                        "node_terminate_scenario has been successfully injected!"
+                    )
+            except Exception as e:
+                logging.error("Failed to terminate node instance. Test Failed")
+                logging.error("node_terminate_scenario injection failed!")
+                return "error", NodeScenarioErrorOutput(
+                    format_exc(), kube_helper.Actions.TERMINATE
                 )
-                vsphere.stop_instances(name)
-                vsphere.wait_until_stopped(name, cfg.timeout)
-                logging.info("Releasing the node with instance ID: %s " % (name))
-                vsphere.release_instances(name)
-                vsphere.wait_until_released(name, cfg.timeout)
-                nodes_terminated[int(time.time_ns())] = Node(name=name)
-                logging.info("Node with instance ID: %s has been released" % name)
-                logging.info("node_terminate_scenario has been successfully injected!")
-        except Exception as e:
-            logging.error("Failed to terminate node instance. Test Failed")
-            logging.error("node_terminate_scenario injection failed!")
-            return "error", NodeScenarioErrorOutput(format_exc(), Actions.TERMINATE)
 
-    return "success", NodeScenarioSuccessOutput(nodes_terminated, Actions.TERMINATE)
+    return "success", NodeScenarioSuccessOutput(
+        nodes_terminated, kube_helper.Actions.TERMINATE
+    )

@@ -3,6 +3,7 @@ import os
 import os
 import logging
 from arcaflow_plugin_sdk import plugin
+from kraken.plugins.vmware.kubernetes_functions import Actions
 from kraken.plugins.vmware import vmware_plugin
 
 
@@ -20,13 +21,13 @@ class NodeScenariosTest(unittest.TestCase):
         )
         plugin.test_object_serialization(
             vmware_plugin.NodeScenarioSuccessOutput(
-                nodes={}, action=vmware_plugin.Actions.START
+                nodes={}, action=Actions.START
             ),
             self.fail,
         )
         plugin.test_object_serialization(
             vmware_plugin.NodeScenarioErrorOutput(
-                error="Hello World", action=vmware_plugin.Actions.START
+                error="Hello World", action=Actions.START
             ),
             self.fail,
         )
