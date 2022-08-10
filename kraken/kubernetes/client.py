@@ -573,12 +573,13 @@ def find_kraken_node():
 
 
 # Watch for a specific node status
-def watch_node_status(node, status, timeout):
+def watch_node_status(node, status, timeout, resource_version):
     count = timeout
     for event in watch_resource.stream(
         cli.list_node,
         field_selector=f"metadata.name={node}",
-        timeout_seconds=timeout
+        timeout_seconds=timeout,
+        resource_version=f"{resource_version}"
     ):
         conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
         if conditions[0].status == status:
