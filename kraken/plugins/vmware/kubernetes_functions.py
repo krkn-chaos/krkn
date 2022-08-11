@@ -7,7 +7,7 @@ from enum import Enum
 
 class Actions(Enum):
     """
-    This enumeration is used to indicate the kind of node operation being done
+    This enumeration indicates different kinds of node operations
     """
 
     START = "Start"
@@ -81,7 +81,7 @@ def list_startable_nodes(core_v1, label_selector=None):
 
 def get_node_list(cfg, action, core_v1):
     """
-    Return a list of nodes to be used in the node scenarios. The list returned is constructed as follows:
+    Returns a list of nodes to be used in the node scenarios. The list returned is constructed as follows:
         - If the key 'name' is present in the node scenario config, the value is extracted and split into
           a list
         - Each node in the list is fed to the get_node function which checks if the node is killable or

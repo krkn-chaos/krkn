@@ -7,4 +7,4 @@
     instance_count: 1                   # Number of nodes to perform action/select that match the label selector                                             
     timeout: 300                        # Duration to wait for completion of node scenario injection
     verify_session: True                # Set to True if you want to verify the vSphere client session using certificates; else False
-    skip_openshift_checks: False        # Set to True if you don't want to wait for the status of the nodes to change on openshift before passing the scenario 
+    skip_openshift_checks: False        # Set to True if you don't want to wait for the status of the nodes to change on OpenShift before passing the scenario 

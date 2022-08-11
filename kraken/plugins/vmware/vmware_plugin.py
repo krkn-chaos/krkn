@@ -578,7 +578,7 @@ def node_reboot(
         for name in node_list:
             try:
                 for _ in range(cfg.runs):
-                    logging.info("Starting node_stop_scenario injection")
+                    logging.info("Starting node_reboot_scenario injection")
                     logging.info("Rebooting the node %s " % (name))
                     vsphere.reboot_instances(name)
                     if not cfg.skip_openshift_checks:
@@ -592,7 +592,7 @@ def node_reboot(
                     logging.info(
                         "Node with instance ID: %s has rebooted successfully" % name
                     )
-                    logging.info("node_stop_scenario has been successfully injected!")
+                    logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error("Failed to reboot node instance. Test Failed")
                 logging.error("node_reboot_scenario injection failed!")

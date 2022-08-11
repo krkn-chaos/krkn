@@ -65,6 +65,4 @@ Set the following environment variables
 
 3. ```export VSPHERE_PASSWORD=<vSphere_client_password>```
 
-These are the credentials that you would normally used to access the vSphere client.
-
-
+These are the credentials that you would normally use to access the vSphere client.
