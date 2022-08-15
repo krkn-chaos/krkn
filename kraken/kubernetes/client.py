@@ -579,7 +579,7 @@ def watch_node_status(node, status, timeout, resource_version):
         cli.list_node,
         field_selector=f"metadata.name={node}",
         timeout_seconds=timeout,
-        resource_version=f"{resource_version}",
+        resource_version=f"{resource_version}"
     ):
         conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
         if conditions[0].status == status:
