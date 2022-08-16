@@ -9,5 +9,8 @@ def instance(distribution, prometheus_url, prometheus_bearer_token):
         )
         prometheus_url = "https://" + url
     if distribution == "openshift" and not prometheus_bearer_token:
-        prometheus_bearer_token = runcommand.invoke("oc -n openshift-monitoring " "sa get-token prometheus-k8s")
+        prometheus_bearer_token = runcommand.invoke(
+            "oc -n openshift-monitoring sa get-token prometheus-k8s "
+            "|| oc create token -n openshift-monitoring prometheus-k8s"
+        )
     return prometheus_url, prometheus_bearer_token
