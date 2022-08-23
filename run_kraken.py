@@ -47,6 +47,7 @@ def main(cfg):
         publish_running_status = config["kraken"].get("publish_kraken_status", False)
         port = config["kraken"].get("port", "8081")
         run_signal = config["kraken"].get("signal_state", "RUN")
+        litmus_install = config["kraken"].get("litmus_install", True)
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
         litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
         litmus_uninstall_before_run = config["kraken"].get("litmus_uninstall_before_run", True)
@@ -130,7 +131,6 @@ def main(cfg):
             iterations = int(iterations)
 
         failed_post_scenarios = []
-        litmus_installed = False
 
         # Capture the start time
         start_time = int(time.time())
@@ -189,7 +189,7 @@ def main(cfg):
                             if distribution == "openshift":
                                 logging.info("Running litmus scenarios")
                                 litmus_namespace = "litmus"
-                                if not litmus_installed:
+                                if litmus_install:
                                     # Remove Litmus resources before running the scenarios
                                     common_litmus.delete_chaos(litmus_namespace)
                                     common_litmus.delete_chaos_experiments(litmus_namespace)
@@ -197,7 +197,6 @@ def main(cfg):
                                         common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
                                     common_litmus.install_litmus(litmus_version, litmus_namespace)
                                     common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
-                                    litmus_installed = True
                                     common_litmus.run(
                                         scenarios_list,
                                         config,
