@@ -197,13 +197,13 @@ def main(cfg):
                                         common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
                                     common_litmus.install_litmus(litmus_version, litmus_namespace)
                                     common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
-                                    common_litmus.run(
-                                        scenarios_list,
-                                        config,
-                                        litmus_uninstall,
-                                        wait_duration,
-                                        litmus_namespace,
-                                    )
+                                common_litmus.run(
+                                    scenarios_list,
+                                    config,
+                                    litmus_uninstall,
+                                    wait_duration,
+                                    litmus_namespace,
+                                )
                             else:
                                 logging.error("Litmus scenarios are currently only supported on openshift")
                                 sys.exit(1)
