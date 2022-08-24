@@ -14,8 +14,9 @@ The following ways are supported to run Kraken:
 ### Git
 
 #### Clone the repository
+Pick the latest stable release to install [here](https://github.com/redhat-chaos/krkn/releases).
 ```
-$ git clone https://github.com/chaos-kubox/krkn.git
+$ git clone https://github.com/redhat-chaos/krkn.git --branch <release version>
 $ cd kraken
 ```
 
