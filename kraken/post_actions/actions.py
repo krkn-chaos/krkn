@@ -5,21 +5,7 @@ import kraken.invoke.command as runcommand
 def run(kubeconfig_path, scenario, pre_action_output=""):
 
     if scenario.endswith(".yaml") or scenario.endswith(".yml"):
-        action_output = runcommand.invoke(
-            "powerfulseal autonomous "
-            "--use-pod-delete-instead-of-ssh-kill"
-            " --policy-file %s --kubeconfig %s --no-cloud"
-            " --inventory-kubernetes --headless" % (scenario, kubeconfig_path)
-        )
-        # read output to make sure no error
-        if "ERROR" in action_output:
-            action_output.split("ERROR")[1].split("\n")[0]
-            if not pre_action_output:
-                logging.info("Powerful seal pre action check failed for " + str(scenario))
-            return False
-        else:
-            logging.info(scenario + " post action checks passed")
-
+        logging.error("Powerfulseal support has recently been removed. Please switch to using plugins instead.")
     elif scenario.endswith(".py"):
         action_output = runcommand.invoke("python3 " + scenario).strip()
         if pre_action_output:

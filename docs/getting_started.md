@@ -8,44 +8,18 @@ You can either copy an existing yaml file and make it your own, or fill in one o
 #### Pod Scenario Yaml Template
 For example, for adding a pod level scenario for a new application, refer to the sample scenario below to know what fields are necessary and what to add in each location:
 ```
-config:
-  runStrategy:
-    runs: <number of times to execute the scenario>
-    #This will choose a random number to wait between min and max
-    maxSecondsBetweenRuns: 30
-    minSecondsBetweenRuns: 1
-scenarios:
-  - name: "delete pods example"
-    steps:
-    - podAction:
-        matches:
-          - labels:
-              namespace: "<namespace>"
-              selector: "<pod label>"  # This can be left blank.
-        filters:
-          - randomSample:
-              size: <number of pods to kill>
-        actions:
-          - kill:
-              probability: 1
-              force: true
-    - podAction:
-        matches:
-          - labels:
-              namespace: "<namespace>"
-              selector: "<pod label>"  # This can be left blank.
-        retries:
-          retriesTimeout:
-            # Amount of time to wait with retrying, before failing if pod count does not match expected
-            # timeout: 180.
-
-        actions:
-          - checkPodCount:
-              count: <expected number of pods that match namespace and label"
+# yaml-language-server: $schema=../plugin.schema.json
+- id: kill-pods
+  config:
+    namespace_pattern: ^<namespace>$
+    label_selector: <pod label>
+    kill: <number of pods to kill>
+- id: wait-for-pods
+  config:
+    namespace_pattern: ^<namespace>$
+    label_selector: <pod label>
+    count: <expected number of pods that match namespace and label>
 ```
-
-More information on specific items that you can add to the pod killing scenarios can be found in the [powerfulseal policies](https://powerfulseal.github.io/powerfulseal/policies) documentation
-
 
 #### Node Scenario Yaml Template
 

@@ -64,6 +64,10 @@ How to set up Alibaba cli to run node scenarios is defined [here](cloud_setup.md
 . Releasing a node is 2 steps, stopping the node and then releasing it.
 
 
+#### VMware
+How to set up VMware vSphere to run node scenarios is defined [here](cloud_setup.md#vmware)
+
+
 #### General
 
 **NOTE**: The `node_crash_scenario` and `stop_kubelet_scenario` scenario is supported independent of the cloud platform.

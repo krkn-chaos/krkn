@@ -15,23 +15,24 @@ The following ways are supported to run Kraken:
 ### Git
 
 #### Clone the repository
+Pick the latest stable release to install [here](https://github.com/redhat-chaos/krkn/releases).
 ```
-$ git clone https://github.com/chaos-kubox/krkn.git
+$ git clone https://github.com/redhat-chaos/krkn.git --branch <release version>
 $ cd kraken
 ```
 
 #### Install the dependencies
 ```
-$ python3 -m venv chaos
+$ python3.9 -m venv chaos
 $ source chaos/bin/activate
-$ pip3 install -r requirements.txt
+$ pip3.9 install -r requirements.txt
 ```
 
 **NOTE**: Make sure python3-devel and latest pip versions are installed on the system. The dependencies install has been tested with pip >= 21.1.3 versions.
 
 #### Run
 ```
-$ python3 run_kraken.py --config <config_file_location>
+$ python3.9 run_kraken.py --config <config_file_location>
 ```
 
 ### Run containerized version

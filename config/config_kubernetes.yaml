@@ -5,14 +5,15 @@ kraken:
     port: 8081
     publish_kraken_status: True                            # Can be accessed at http://0.0.0.0:8081
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
+    litmus_install: True                                   # Installs specified version, set to False if it's already setup
     litmus_version: v1.13.6                                # Litmus version to install
     litmus_uninstall: False                                # If you want to uninstall litmus if failure
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   container_scenarios:                                 # List of chaos pod scenarios to load
             - -    scenarios/kube/container_dns.yml
-        -   pod_scenarios:
-            - -    scenarios/kube/scheduler.yml
+        -   plugin_scenarios:
+            - scenarios/kube/scheduler.yml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed

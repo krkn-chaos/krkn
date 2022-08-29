@@ -22,6 +22,7 @@ import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import server as server
+from kraken import plugins
 
 
 def publish_kraken_status(status):
@@ -46,6 +47,7 @@ def main(cfg):
         publish_running_status = config["kraken"].get("publish_kraken_status", False)
         port = config["kraken"].get("port", "8081")
         run_signal = config["kraken"].get("signal_state", "RUN")
+        litmus_install = config["kraken"].get("litmus_install", True)
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
         litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
         litmus_uninstall_before_run = config["kraken"].get("litmus_uninstall_before_run", True)
@@ -129,7 +131,6 @@ def main(cfg):
             iterations = int(iterations)
 
         failed_post_scenarios = []
-        litmus_installed = False
 
         # Capture the start time
         start_time = int(time.time())
@@ -158,10 +159,11 @@ def main(cfg):
                     if scenarios_list:
                         # Inject pod chaos scenarios specified in the config
                         if scenario_type == "pod_scenarios":
-                            logging.info("Running pod scenarios")
-                            failed_post_scenarios = pod_scenarios.run(
-                                kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration
-                            )
+                            logging.error("Pod scenarios have been removed, please use plugin_scenarios with the "
+                                          "kill-pods configuration instead.")
+                            sys.exit(1)
+                        elif scenario_type == "plugin_scenarios":
+                            failed_post_scenarios = plugins.run(scenarios_list, kubeconfig_path, failed_post_scenarios)
                         elif scenario_type == "container_scenarios":
                             logging.info("Running container scenarios")
                             failed_post_scenarios = pod_scenarios.container_run(
@@ -187,7 +189,7 @@ def main(cfg):
                             if distribution == "openshift":
                                 logging.info("Running litmus scenarios")
                                 litmus_namespace = "litmus"
-                                if not litmus_installed:
+                                if litmus_install:
                                     # Remove Litmus resources before running the scenarios
                                     common_litmus.delete_chaos(litmus_namespace)
                                     common_litmus.delete_chaos_experiments(litmus_namespace)
@@ -195,14 +197,13 @@ def main(cfg):
                                         common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
                                     common_litmus.install_litmus(litmus_version, litmus_namespace)
                                     common_litmus.deploy_all_experiments(litmus_version, litmus_namespace)
-                                    litmus_installed = True
-                                    common_litmus.run(
-                                        scenarios_list,
-                                        config,
-                                        litmus_uninstall,
-                                        wait_duration,
-                                        litmus_namespace,
-                                    )
+                                common_litmus.run(
+                                    scenarios_list,
+                                    config,
+                                    litmus_uninstall,
+                                    wait_duration,
+                                    litmus_namespace,
+                                )
                             else:
                                 logging.error("Litmus scenarios are currently only supported on openshift")
                                 sys.exit(1)

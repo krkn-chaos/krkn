@@ -1,5 +1,8 @@
 import logging
-import kraken.invoke.command as runcommand
+
+from arcaflow_plugin_sdk import serialization
+from kraken.plugins import pod_plugin
+
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 import kraken.kubernetes.client as kubecli
@@ -20,19 +23,29 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
         try:
             # capture start time
             start_time = int(time.time())
-            scenario_logs = runcommand.invoke(
-                "powerfulseal autonomous --use-pod-delete-instead-"
-                "of-ssh-kill --policy-file %s --kubeconfig %s "
-                "--no-cloud --inventory-kubernetes --headless" % (pod_scenario[0], kubeconfig_path)
-            )
+
+            input = serialization.load_from_file(pod_scenario)
+
+            s = pod_plugin.get_schema()
+            input_data: pod_plugin.KillPodConfig = s.unserialize_input("pod", input)
+
+            if kubeconfig_path is not None:
+                input_data.kubeconfig_path = kubeconfig_path
+
+            output_id, output_data = s.call_step("pod", input_data)
+
+            if output_id == "error":
+                data: pod_plugin.PodErrorOutput = output_data
+                logging.error("Failed to run pod scenario: {}".format(data.error))
+            else:
+                data: pod_plugin.PodSuccessOutput = output_data
+                for pod in data.pods:
+                    print("Deleted pod {} in namespace {}\n".format(pod.pod_name, pod.pod_namespace))
         except Exception as e:
             logging.error(
                 "Failed to run scenario: %s. Encountered the following " "exception: %s" % (pod_scenario[0], e)
             )
             sys.exit(1)
-
-        # Display pod scenario logs/actions
-        print(scenario_logs)
 
         logging.info("Scenario: %s has been successfully injected!" % (pod_scenario[0]))
         logging.info("Waiting for the specified duration: %s" % (wait_duration))
@@ -119,14 +132,13 @@ def container_killing_in_pod(cont_scenario):
     container_pod_list = []
     for pod in pods:
         if type(pod) == list:
-            container_names = runcommand.invoke(
-                'kubectl get pods %s -n %s -o jsonpath="{.spec.containers[*].name}"' % (pod[0], pod[1])
-            ).split(" ")
+            pod_output = kubecli.get_pod_info(pod[0], pod[1])
+            container_names = [container.name for container in pod_output.containers]
+
             container_pod_list.append([pod[0], pod[1], container_names])
         else:
-            container_names = runcommand.invoke(
-                'oc get pods %s -n %s -o jsonpath="{.spec.containers[*].name}"' % (pod, namespace)
-            ).split(" ")
+            pod_output = kubecli.get_pod_info(pod, namespace)
+            container_names = [container.name for container in pod_output.containers]
             container_pod_list.append([pod, namespace, container_names])
 
     killed_count = 0
@@ -176,13 +188,11 @@ def check_failed_containers(killed_container_list, wait_time):
     while timer <= wait_time:
         for killed_container in killed_container_list:
             # pod namespace contain name
-            pod_output = runcommand.invoke(
-                "kubectl get pods %s -n %s -o yaml" % (killed_container[0], killed_container[1])
-            )
-            pod_output_yaml = yaml.full_load(pod_output)
-            for statuses in pod_output_yaml["status"]["containerStatuses"]:
-                if statuses["name"] == killed_container[2]:
-                    if str(statuses["ready"]).lower() == "true":
+            pod_output = kubecli.get_pod_info(killed_container[0], killed_container[1])
+
+            for container in pod_output.containers:
+                if container.name == killed_container[2]:
+                    if container.ready:
                         container_ready.append(killed_container)
         if len(container_ready) != 0:
             for item in container_ready:

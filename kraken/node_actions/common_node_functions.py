@@ -5,7 +5,6 @@ import paramiko
 import kraken.kubernetes.client as kubecli
 import kraken.invoke.command as runcommand
 
-
 node_general = False
 
 
@@ -30,30 +29,22 @@ def get_node(node_name, label_selector, instance_kill_count):
     return nodes_to_return
 
 
-# Wait till node status becomes Ready
+# Wait until the node status becomes Ready
 def wait_for_ready_status(node, timeout):
-    for _ in range(timeout):
-        if kubecli.get_node_status(node) == "Ready":
-            break
-        time.sleep(3)
-        if kubecli.get_node_status(node) != "Ready":
-            raise Exception("Node condition status isn't Ready")
+    resource_version = kubecli.get_node_resource_version(node)
+    kubecli.watch_node_status(node, "True", timeout, resource_version)
 
 
-# Wait till node status becomes NotReady
+# Wait until the node status becomes Not Ready
+def wait_for_not_ready_status(node, timeout):
+    resource_version = kubecli.get_node_resource_version(node)
+    kubecli.watch_node_status(node, "False", timeout, resource_version)
+
+
+# Wait until the node status becomes Unknown
 def wait_for_unknown_status(node, timeout):
-    for _ in range(timeout):
-        try:
-            node_status = kubecli.get_node_status(node, timeout)
-            if node_status is None or node_status == "Unknown":
-                break
-        except Exception:
-            logging.error("Encountered error while getting node status, waiting 3 seconds and retrying")
-        time.sleep(3)
-    node_status = kubecli.get_node_status(node, timeout)
-    logging.info("node status " + str(node_status))
-    if node_status is not None and node_status != "Unknown":
-        raise Exception("Node condition status isn't Unknown after %s seconds" % str(timeout))
+    resource_version = kubecli.get_node_resource_version(node)
+    kubecli.watch_node_status(node, "Unknown", timeout, resource_version)
 
 
 # Get the ip of the cluster node
@@ -74,7 +65,11 @@ def check_service_status(node, service, ssh_private_key, timeout):
             i += sleeper
             logging.info("Trying to ssh to instance: %s" % (node))
             connection = ssh.connect(
-                node, username="root", key_filename=ssh_private_key, timeout=800, banner_timeout=400
+                node,
+                username="root",
+                key_filename=ssh_private_key,
+                timeout=800,
+                banner_timeout=400,
             )
             if connection is None:
                 break

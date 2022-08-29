@@ -1,8 +1,10 @@
-from kubernetes import client, config
+from kubernetes import client, config, utils, watch
+from kubernetes.dynamic.client import DynamicClient
 from kubernetes.stream import stream
 from kubernetes.client.rest import ApiException
+from dataclasses import dataclass
+from typing import List
 import logging
-import kraken.invoke.command as runcommand
 import sys
 import re
 import time
@@ -14,10 +16,19 @@ kraken_node_name = ""
 def initialize_clients(kubeconfig_path):
     global cli
     global batch_cli
+    global watch_resource
+    global api_client
+    global dyn_client
+    global custom_object_client
     try:
         config.load_kube_config(kubeconfig_path)
         cli = client.CoreV1Api()
         batch_cli = client.BatchV1Api()
+        watch_resource = watch.Watch()
+        api_client = client.ApiClient()
+        custom_object_client = client.CustomObjectsApi()
+        k8s_client = config.new_client_from_config()
+        dyn_client = DynamicClient(k8s_client)
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)
         sys.exit(1)
@@ -31,8 +42,7 @@ def get_host() -> str:
 def get_clusterversion_string() -> str:
     """Returns clusterversion status text on OpenShift, empty string on other distributions"""
     try:
-        custom_objects_api = client.CustomObjectsApi()
-        cvs = custom_objects_api.list_cluster_custom_object(
+        cvs = custom_object_client.list_cluster_custom_object(
             "config.openshift.io",
             "v1",
             "clusterversions",
@@ -321,22 +331,6 @@ def get_job_status(name, namespace="default"):
         raise
 
 
-# Obtain node status
-def get_node_status(node, timeout=60):
-    try:
-        node_info = cli.read_node_status(node, pretty=True, _request_timeout=timeout)
-    except ApiException as e:
-        logging.error(
-            "Exception when calling \
-                       CoreV1Api->read_node_status: %s\n"
-            % e
-        )
-        return None
-    for condition in node_info.status.conditions:
-        if condition.type == "Ready":
-            return condition.status
-
-
 # Monitor the status of the cluster nodes and set the status to true or false
 def monitor_nodes():
     nodes = list_nodes()
@@ -400,6 +394,161 @@ def monitor_component(iteration, component_namespace):
     return watch_component_status, failed_component_pods
 
 
+def apply_yaml(path, namespace='default'):
+    """
+    Apply yaml config to create Kubernetes resources
+
+    Args:
+        path (string)
+            - Path to the YAML file
+        namespace (string)
+            - Namespace to create the resource
+
+    Returns:
+        The object created
+    """
+
+    return utils.create_from_yaml(api_client, yaml_file=path, namespace=namespace)
+
+
+# Data class to hold information regarding containers in a pod
+@dataclass(frozen=True, order=False)
+class Container:
+    image: str
+    name: str
+    ready: bool
+
+
+@dataclass(frozen=True, order=False)
+class Pod:
+    """Data class to hold information regarding a pod"""
+    name: str
+    podIP: str
+    namespace: str
+    containers: List[Container]
+    nodeName: str
+
+
+@dataclass(frozen=True, order=False)
+class LitmusChaosObject:
+    """Data class to hold information regarding a custom object of litmus project"""
+    kind: str
+    group: str
+    namespace: str
+    name: str
+    plural: str
+    version: str
+
+
+@dataclass(frozen=True, order=False)
+class ChaosEngine(LitmusChaosObject):
+    """Data class to hold information regarding a ChaosEngine object"""
+    engineStatus: str
+    expStatus: str
+
+
+@dataclass(frozen=True, order=False)
+class ChaosResult(LitmusChaosObject):
+    """Data class to hold information regarding a ChaosResult object"""
+    verdict: str
+    failStep: str
+
+
+def get_pod_info(pod_name: str, namespace: str = 'default') -> Pod:
+    """
+    Function to retrieve information about a specific pod
+    in a given namespace. The kubectl command is given by:
+        kubectl get pods <pod_name> -n <namespace>
+
+    Args:
+        pod_name (string)
+            - Name of the pod
+
+        namespace (string)
+            - Namespace to look for the pod
+
+    Returns:
+        Data class object of type Pod with the output of the above kubectl command
+        in the given format
+    """
+
+    response = cli.read_namespaced_pod(name=pod_name, namespace=namespace, pretty='true')
+    container_list = []
+
+    for container in response.status.container_statuses:
+        container_list.append(Container(name=container.name, image=container.image, ready=container.ready))
+
+    pod_info = Pod(name=response.metadata.name, podIP=response.status.pod_ip, namespace=response.metadata.namespace,
+                   containers=container_list, nodeName=response.spec.node_name)
+    return pod_info
+
+
+def get_litmus_chaos_object(kind: str, name: str, namespace: str) -> LitmusChaosObject:
+    """
+    Function that returns an object of a custom resource typer the litmus project. Currently, only
+    ChaosEngine and ChaosResult is supported.
+
+    Args:
+        kind (string)
+            - The custom resource type
+
+        namespace (string)
+            - Namespace where the custom object is present
+
+    Returns:
+        Data class object of a subclass of LitmusChaosObject
+    """
+
+    group = 'litmuschaos.io'
+    version = 'v1alpha1'
+
+    if kind.lower() == 'chaosengine':
+        plural = 'chaosengines'
+        response = custom_object_client.get_namespaced_custom_object(group=group, plural=plural,
+                                            version=version, namespace=namespace, name=name)
+        try:
+            engine_status = response['status']['engineStatus']
+            exp_status = response['status']['experiments'][0]['status']
+        except:
+            engine_status = 'Not Initialized'
+            exp_status = 'Not Initialized'
+        custom_object = ChaosEngine(kind='ChaosEngine', group=group, namespace=namespace, name=name,
+                                    plural=plural, version=version, engineStatus=engine_status,
+                                    expStatus=exp_status)
+    elif kind.lower() == 'chaosresult':
+        plural = 'chaosresults'
+        response = custom_object_client.get_namespaced_custom_object(group=group, plural=plural,
+                                            version=version, namespace=namespace, name=name)
+        try:
+            verdict = response['status']['experimentStatus']['verdict']
+            fail_step = response['status']['experimentStatus']['failStep']
+        except:
+            verdict = 'N/A'
+            fail_step = 'N/A'
+        custom_object = ChaosResult(kind='ChaosResult', group=group, namespace=namespace, name=name,
+                                    plural=plural, version=version, verdict=verdict, failStep=fail_step)
+    else:
+        logging.error("Invalid litmus chaos custom resource name")
+        custom_object = None
+    return custom_object
+
+
+def check_if_namespace_exists(name: str):
+    """
+    Function that checks if a namespace exists by parsing through the list of projects
+    Args:
+        name (string)
+            - Namespace name
+
+    Returns:
+        Boolean value indicating whethere the namespace exists or not
+    """
+
+    v1_projects = dyn_client.resources.get(api_version='project.openshift.io/v1', kind='Project')
+    project_list = v1_projects.get()
+    return True if name in str(project_list) else False
+
+
 # Find the node kraken is deployed on
 # Set global kraken node to not delete
 def find_kraken_node():
@@ -415,16 +564,34 @@ def find_kraken_node():
     if kraken_pod_name:
         # get kraken-deployment pod, find node name
         try:
-            node_name = runcommand.invoke(
-                "kubectl get pods/"
-                + str(kraken_pod_name)
-                + ' -o jsonpath="{.spec.nodeName}"'
-                + " -n"
-                + str(kraken_project)
-            )
-
+            node_name = get_pod_info(kraken_pod_name, kraken_project).nodeName
             global kraken_node_name
             kraken_node_name = node_name
         except Exception as e:
             logging.info("%s" % (e))
             sys.exit(1)
+
+
+# Watch for a specific node status
+def watch_node_status(node, status, timeout, resource_version):
+    count = timeout
+    for event in watch_resource.stream(
+        cli.list_node,
+        field_selector=f"metadata.name={node}",
+        timeout_seconds=timeout,
+        resource_version=f"{resource_version}"
+    ):
+        conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
+        if conditions[0].status == status:
+            watch_resource.stop()
+            break
+        else:
+            count -= 1
+            logging.info("Status of node " + node + ": " + str(conditions[0].status))
+        if not count:
+            watch_resource.stop()
+
+
+# Get the resource version for the specified node
+def get_node_resource_version(node):
+    return cli.read_node(name=node).metadata.resource_version
