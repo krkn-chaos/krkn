@@ -62,6 +62,7 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 pod = kubecli.get_pod_info(name=pod_name, namespace=namespace)
                 
                 if pod is None:
+                    logging.error("Exiting as pod '%s' doesn't exist in namespace '%s'" % (str(pod_name), str(namespace)))
                     sys.exit(1)
                 
                 for volume in pod.volumes:
@@ -88,19 +89,16 @@ pvc_name: '%s'\npod_name: '%s'\nnamespace: '%s'\ntarget_fill_percentage: '%s%%'\
                 logging.info("Container path: %s" % container_name)
                 logging.info("Mount path: %s" % mount_path)
 
-                # Get PVC capacity
-                pvc_capacity = pvc.capacity
-                pvc_capacity_kb = toKbytes(pvc_capacity)
+                # Get PVC capacity and used bytes
+                command = "df %s -B 1024 | sed 1d" % (str(mount_path))
+                command_output = (kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")).split()
+                pvc_used_kb = int(command_output[2])
+                pvc_capacity_kb = pvc_used_kb + int(command_output[3])
+                logging.info("PVC used: %s KB" % pvc_used_kb)
                 logging.info("PVC capacity: %s KB" % pvc_capacity_kb)
 
-                # Get used bytes in PVC
-                command = "df %s -B 1024 | sed 1d | awk -F' ' '{print $3}'" % (str(mount_path))
-                logging.debug("Get used bytes in PVC command:\n %s" % command)
-                pvc_used_kb = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
-                logging.info("PVC used: %s KB" % pvc_used_kb)
-
                 # Check valid fill percentage
-                current_fill_percentage = float(pvc_used_kb) / float(pvc_capacity_kb)
+                current_fill_percentage = pvc_used_kb / pvc_capacity_kb
                 if not (current_fill_percentage * 100 < float(target_fill_percentage) <= 99):
                     logging.error(
                         """
