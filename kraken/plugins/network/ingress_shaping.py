@@ -165,9 +165,21 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
     kube_helper.create_pod(cli, pod_body, "default", 300)
 
     try:
-        cmd = "ip r | grep default | awk '/default/ {print $5}'"
+        cmd = ["ip", "r"]
         output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
-        interfaces = [output.replace("\n", "")]        
+        
+        if not output:
+            logging.error("Exception occurred while executing command in pod")
+            sys.exit(1)
+
+        routes = output.split('\n')
+        for route in routes:
+            if 'default' in route:
+                default_route = route
+                break
+
+        interfaces = [default_route.split()[4]]
+     
     finally:
         logging.info("Deleting pod to query interface on node")
         kube_helper.delete_pod(cli, "fedtools", "default")
