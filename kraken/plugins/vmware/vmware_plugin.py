@@ -534,7 +534,7 @@ class NodeScenarioConfig:
 
 
 @plugin.step(
-    id="node-start",
+    id="node_start_scenario",
     name="Start the node",
     description="Start the node(s) by starting the VMware VM "
                 "on which the node is configured",
@@ -593,7 +593,7 @@ def node_start(
 
 
 @plugin.step(
-    id="node-stop",
+    id="node_stop_scenario",
     name="Stop the node",
     description="Stop the node(s) by starting the VMware VM "
                 "on which the node is configured",
@@ -652,7 +652,7 @@ def node_stop(
 
 
 @plugin.step(
-    id="node-reboot",
+    id="node_reboot_scenario",
     name="Reboot VMware VM",
     description="Reboot the node(s) by starting the VMware VM "
                 "on which the node is configured",
@@ -713,7 +713,7 @@ def node_reboot(
 
 
 @plugin.step(
-    id="node-terminate",
+    id="node_terminate_scenario",
     name="Reboot VMware VM",
     description="Wait for the specified number of pods to be present",
     outputs={
