@@ -2,13 +2,11 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: modtools
-  labels:
-    plugin: ssh-node
 spec:
   nodeName: {{nodename}}
   containers:
   - name: modtools
-    image: busybox
+    image: docker.io/fedora/tools
     imagePullPolicy: IfNotPresent
     command:
     - /bin/sh

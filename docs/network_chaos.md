@@ -18,6 +18,7 @@ network_chaos:                                    # Scenario to create an outage
 ```
 
 ##### Sample scenario config for ingress traffic shaping (using a plugin)
+'''
 - id: network_chaos
   config: 
     node_interface_name:                            # Dictionary with key as node name(s) and value as a list of its interfaces to test
@@ -34,6 +35,10 @@ network_chaos:                                    # Scenario to create an outage
         bandwidth: 100mbit
     wait_duration: 120
     test_duration: 60
+  '''
+
+  Note: For ingress traffic shaping, ensure that your node doesn't have any [IFB](https://wiki.linuxfoundation.org/networking/ifb) interfaces already present. The scenario relies on creating IFBs to do the shaping, and they are deleted at the end of the scenario.
+
 
 ##### Steps
  - Pick the nodes to introduce the network anomaly either from node_name or label_selector.

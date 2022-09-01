@@ -28,7 +28,7 @@ class NetworkScenarioConfig:
 
 
     label_selector: typing.Annotated[
-        typing.Optional[str], validation.min(1), validation.required_if_not("node_interface_name")
+        typing.Optional[str], validation.required_if_not("node_interface_name")
     ] = field(
         default=None,
         metadata={
