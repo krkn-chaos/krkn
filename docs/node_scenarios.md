@@ -4,7 +4,7 @@ The following node chaos scenarios are supported:
 
 1. **node_start_scenario**: Scenario to stop the node instance.
 2. **node_stop_scenario**: Scenario to stop the node instance.
-3. **node_stop_start_scenario**: Scenario to stop and then start the node instance.
+3. **node_stop_start_scenario**: Scenario to stop and then start the node instance. Not supported on VMware.
 4. **node_termination_scenario**: Scenario to terminate the node instance.
 5. **node_reboot_scenario**: Scenario to reboot the node instance.
 6. **stop_kubelet_scenario**: Scenario to stop the kubelet of the node instance.
@@ -12,11 +12,12 @@ The following node chaos scenarios are supported:
 8. **node_crash_scenario**: Scenario to crash the node instance.
 9. **stop_start_helper_node_scenario**: Scenario to stop and start the helper node and check service status.
 
+
 **NOTE**: If the node does not recover from the node_crash_scenario injection, reboot the node to get it back to Ready state.
 
 **NOTE**: node_start_scenario, node_stop_scenario, node_stop_start_scenario, node_termination_scenario
 , node_reboot_scenario and stop_start_kubelet_scenario are supported only on AWS, Azure, OpenStack, BareMetal, GCP
-, and Alibaba as of now.
+, VMware and Alibaba as of now.
 
 **NOTE**: Node scenarios are supported only when running the standalone version of Kraken until https://github.com/redhat-chaos/krkn/issues/106 gets fixed.
 
