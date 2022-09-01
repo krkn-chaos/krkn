@@ -4,8 +4,24 @@ import sys
 import json
 
 
-# Get cerberus status
 def get_status(config, start_time, end_time):
+    """
+    Function to get Cerberus status
+    
+    Args:
+        config
+            - Kraken config dictionary
+
+        start_time
+            - The time when chaos is injected
+        
+        end_time
+            - The time when chaos is removed
+
+    Returns:
+        Cerberus status
+    """
+    
     cerberus_status = True
     check_application_routes = False
     application_routes_status = True
@@ -43,8 +59,24 @@ def get_status(config, start_time, end_time):
     return cerberus_status
 
 
-# Function to publish kraken status to cerberus
 def publish_kraken_status(config, failed_post_scenarios, start_time, end_time):
+    """
+    Function to publish Kraken status to Cerberus
+    
+    Args:
+        config
+            - Kraken config dictionary
+        
+        failed_post_scenarios
+            - String containing the failed post scenarios
+
+        start_time
+            - The time when chaos is injected
+        
+        end_time
+            - The time when chaos is removed
+    """
+
     cerberus_status = get_status(config, start_time, end_time)
     if not cerberus_status:
         if failed_post_scenarios:
@@ -66,8 +98,24 @@ def publish_kraken_status(config, failed_post_scenarios, start_time, end_time):
                 logging.info("Cerberus status is healthy but post action scenarios " "are still failing")
 
 
-# Check application availability
 def application_status(cerberus_url, start_time, end_time):
+    """
+    Function to check application availability
+    
+    Args:
+        cerberus_url
+            - url where Cerberus publishes True/False signal
+
+        start_time
+            - The time when chaos is injected
+        
+        end_time
+            - The time when chaos is removed
+
+    Returns:
+        Application status and failed routes
+    """
+    
     if not cerberus_url:
         logging.error("url where Cerberus publishes True/False signal is not provided.")
         sys.exit(1)
