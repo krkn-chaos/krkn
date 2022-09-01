@@ -254,17 +254,17 @@ def delete_job(batch_cli, name, namespace="default"):
         sys.exit(1)
 
 
-def list_killable_nodes(core_v1, label_selector=None):
+def list_ready_nodes(cli, label_selector=None):
     """
-    Returns a list of nodes that can be stopped/reset/released
+    Returns a list of ready nodes
     """
 
     nodes = []
     try:
         if label_selector:
-            ret = core_v1.list_node(pretty=True, label_selector=label_selector)
+            ret = cli.list_node(pretty=True, label_selector=label_selector)
         else:
-            ret = core_v1.list_node(pretty=True)
+            ret = cli.list_node(pretty=True)
     except ApiException as e:
         logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
         raise e
@@ -276,19 +276,19 @@ def list_killable_nodes(core_v1, label_selector=None):
     return nodes
 
 
-def get_node(node_name, label_selector, instance_kill_count, core_v1):
+def get_node(node_name, label_selector, instance_kill_count, cli):
     """
     Returns active node(s) on which the scenario can be performed 
     """
 
-    if node_name in list_killable_nodes(core_v1):
+    if node_name in list_ready_nodes(cli):
         return [node_name]
     elif node_name:
         logging.info(
             "Node with provided node_name does not exist or the node might "
             "be in NotReady state."
         )
-    nodes = list_killable_nodes(core_v1, label_selector)
+    nodes = list_ready_nodes(cli, label_selector)
     if not nodes:
         raise Exception("Ready nodes with the provided label selector do not exist")
     logging.info(

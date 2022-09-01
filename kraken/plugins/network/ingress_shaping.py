@@ -78,7 +78,7 @@ class NetworkScenarioConfig:
         default='parallel',
         metadata={
             "name": "Execution Type",
-            "description": "The order in which the ingress filters are applied .Execution type can be 'serial' or 'parallel'"  
+            "description": "The order in which the ingress filters are applied. Execution type can be 'serial' or 'parallel'"  
         }
     )
 
@@ -86,7 +86,7 @@ class NetworkScenarioConfig:
         default=None,
         metadata={
             "name": "Network Parameters",
-            "description": "The network filters that are applied on the interface. the currently supported filters are latency, loss and bandwidth",
+            "description": "The network filters that are applied on the interface. The currently supported filters are latency, loss and bandwidth"
         }
     )
 
@@ -101,15 +101,43 @@ class NetworkScenarioConfig:
 
 @dataclass
 class NetworkScenarioSuccessOutput:
-    traffic_direction: str
-    test_interfaces : typing.Dict[str, typing.List[str]]
-    network_parameters: typing.Dict[str, str]
-    execution_type: str
+    filter_direction: str = field(
+        metadata={
+            "name": "Filter Direction",
+            "description": "Direction in which the traffic control filters are applied on the test interfaces"
+        }
+    )
+
+    test_interfaces : typing.Dict[str, typing.List[str]] = field(
+        metadata={
+            "name": "Test Interfaces",
+            "description": "Dictionary of nodes and their interfaces on which the chaos test was performed"
+        }
+    )
+
+    network_parameters: typing.Dict[str, str] = field(
+        metadata={
+            "name": "Network Parameters",
+            "description": "The network filters that are applied on the interfaces"
+        }
+    )
+    
+    execution_type: str = field(
+        metadata={
+            "name": "Execution Type",
+            "description": "The order in which the filters are applied"  
+        }
+    )
 
 
 @dataclass
 class NetworkScenarioErrorOutput:
-    error: str
+    error: str = field(
+        metadata={
+            "name": "Error",
+            "description": "Error message when there is a run-time error during the execution of the scenario"  
+        }  
+    )
     
 
 def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
@@ -505,9 +533,8 @@ def get_ingress_cmd(interface_list: typing.List[str], network_parameters: typing
     description="Applies filters to ihe ingress side of node(s) interfaces",
     outputs={"success": NetworkScenarioSuccessOutput, "error": NetworkScenarioErrorOutput},
 )
-def network_chaos(cfg: NetworkScenarioConfig,
-) -> typing.Tuple[str, typing.Union[NetworkScenarioSuccessOutput, NetworkScenarioErrorOutput]
-]:
+def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[str, typing.Union[NetworkScenarioSuccessOutput, NetworkScenarioErrorOutput]]:
+
     """
     Function that performs the ingress network chaos scenario based on the provided configuration
 
@@ -580,7 +607,7 @@ def network_chaos(cfg: NetworkScenarioConfig,
                     "Invalid execution type - serial and parallel are the only accepted types"
                 )
         return "success", NetworkScenarioSuccessOutput(
-        traffic_direction = "ingress",
+        filter_direction = "ingress",
         test_interfaces = node_interface_dict,
         network_parameters= cfg.network_params,
         execution_type = cfg.execution_type
