@@ -11,8 +11,7 @@ spec:
     command:
     - /bin/sh
     - -c
-    - |
-      sleep infinity
+    - "trap : TERM INT; sleep infinity & wait"
     tty: true
     stdin: true
     stdinOnce: true
