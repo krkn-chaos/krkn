@@ -127,24 +127,16 @@ def create_ifb(cli, number, pod_name):
     Function that creates virtual interfaces in a pod. Makes use of modprobe commands
     """
 
-    exec_command = ['chroot', '/host']
-    resp = stream(cli.connect_get_namespaced_pod_exec,
-                  pod_name,
-                  'default',
-                  command=exec_command,
-                  stderr=True, stdin=True,
-                  stdout=True, tty=False,
-                  _preload_content=False)
-    commands = [
-    "modprobe ifb numifbs={0}".format(number),
-    ]
-    for i in range(0, number):
-        commands += ["ip link set dev ifb{0} up".format(i)]
+    exec_command = ['chroot', '/host', 'modprobe', 'ifb','numifbs=' + str(number)]
+    
+    resp = stream(cli.connect_get_namespaced_pod_exec, pod_name, 'default',
+            command=exec_command, stderr=True, stdin=False, stdout=True, tty=False)
 
-    for command in commands:
-        resp.write_stdin(command + "\n")
-        time.sleep(1)
-    resp.close()
+    for i in range(0, number):
+        exec_command = ['chroot', '/host','ip','link','set','dev']   
+        exec_command+= ['ifb' + str(i), 'up']
+        resp = stream(cli.connect_get_namespaced_pod_exec, pod_name, 'default',
+                command=exec_command, stderr=True, stdin=False, stdout=True, tty=False)
 
 
 def delete_ifb(cli, pod_name):
@@ -152,18 +144,9 @@ def delete_ifb(cli, pod_name):
     Function that deletes all virtual interfaces in a pod. Makes use of modprobe command
     """
 
-    exec_command = ['chroot', '/host']
-    resp = stream(cli.connect_get_namespaced_pod_exec,
-                  pod_name,
-                  'default',
-                  command=exec_command,
-                  stderr=True, stdin=True,
-                  stdout=True, tty=False,
-                  _preload_content=False)
-    
-    resp.write_stdin("modprobe -r ifb \n")
-    time.sleep(2)
-    resp.close()
+    exec_command = ['chroot', '/host', 'modprobe', '-r', 'ifb']
+    resp = stream(cli.connect_get_namespaced_pod_exec, pod_name, 'default',
+                  command=exec_command, stderr=True, stdin=False, stdout=True, tty=False)
 
 
 def list_pods(cli, namespace, label_selector=None):
