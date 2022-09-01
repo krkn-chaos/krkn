@@ -1,0 +1,25 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: chaos-{{jobname}}
+spec:
+  template:
+    spec:
+      nodeName: {{nodename}}
+      hostNetwork: true
+      containers:
+      - name: networkchaos
+        image: docker.io/fedora/tools
+        command: ["/bin/sh",  "-c", "{{cmd}}"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - mountPath: /lib/modules
+            name: lib-modules
+            readOnly: true
+      volumes:
+        - name: lib-modules
+          hostPath:
+            path: /lib/modules
+      restartPolicy: Never
+  backoffLimit: 0
