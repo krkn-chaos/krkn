@@ -14,4 +14,4 @@
         bandwidth: <rate>               # Value is a string. For example: 100mbit
     wait_duration: <time_duration>      # Default is 300. Ensure that it is at least about twice of test_duration
     test_duration: <time_duration>      # Default is 120
-    kraken_config: <path>               # Specify if you want to use Cerberus config
+    kraken_config: <path>               # Specify this if you want to use Cerberus config

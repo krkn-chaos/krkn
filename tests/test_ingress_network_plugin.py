@@ -16,7 +16,7 @@ class NetworkScenariosTest(unittest.TestCase):
         )
         plugin.test_object_serialization(
             ingress_shaping.NetworkScenarioSuccessOutput(
-                traffic_direction="ingress", test_interfaces= {"foo": ['bar']}, network_paramaters={
+                traffic_direction="ingress", test_interfaces= {"foo": ['bar']}, network_parameters={
         "latency": "50ms" , "loss": "0.02", "bandwidth": "100mbit"}, execution_type="parallel"),
             self.fail,
         )
