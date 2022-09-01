@@ -86,12 +86,12 @@ def create_pod(cli, body, namespace, timeout=120):
         sys.exit(1)
 
 
-def exec_cmd_in_pod(cli, command, pod_name, namespace, container=None, base_command="bash"):
+def exec_cmd_in_pod(cli, command, pod_name, namespace, container=None):
     """
     Function used to execute a command in a running pod
     """
 
-    exec_command = [base_command, "-c", command]
+    exec_command = command
     try:
         if container:
             ret = stream(
@@ -128,15 +128,12 @@ def create_ifb(cli, number, pod_name):
     """
 
     exec_command = ['chroot', '/host', 'modprobe', 'ifb','numifbs=' + str(number)]
-    
-    resp = stream(cli.connect_get_namespaced_pod_exec, pod_name, 'default',
-            command=exec_command, stderr=True, stdin=False, stdout=True, tty=False)
+    resp = exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
 
     for i in range(0, number):
         exec_command = ['chroot', '/host','ip','link','set','dev']   
         exec_command+= ['ifb' + str(i), 'up']
-        resp = stream(cli.connect_get_namespaced_pod_exec, pod_name, 'default',
-                command=exec_command, stderr=True, stdin=False, stdout=True, tty=False)
+        resp = exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
 
 
 def delete_ifb(cli, pod_name):
@@ -145,9 +142,8 @@ def delete_ifb(cli, pod_name):
     """
 
     exec_command = ['chroot', '/host', 'modprobe', '-r', 'ifb']
-    resp = stream(cli.connect_get_namespaced_pod_exec, pod_name, 'default',
-                  command=exec_command, stderr=True, stdin=False, stdout=True, tty=False)
-
+    resp = exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
+    
 
 def list_pods(cli, namespace, label_selector=None):
     """

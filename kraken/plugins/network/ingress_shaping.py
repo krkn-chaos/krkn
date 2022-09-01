@@ -5,6 +5,7 @@ import time
 import sys
 import os
 import random
+import re
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
 from kraken.plugins.network import kubernetes_functions as kube_helper
@@ -148,7 +149,7 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
         node (string)
             - Node from which the interface is to be returned
 
-        pod_template (string)
+        pod_template (jinja2.environment.Template)
             - The YAML template used to instantiate a pod to query
               the node's interface
 
@@ -186,7 +187,7 @@ def verify_interface(input_interface_list: typing.List[str], node: str, pod_temp
         node (string):
             - Node on which input_interface_list is to be verified
 
-        pod_template (string)
+        pod_template (jinja2.environment.Template)
             - The YAML template used to instantiate a pod to query
               the node's interfaces
 
@@ -196,21 +197,37 @@ def verify_interface(input_interface_list: typing.List[str], node: str, pod_temp
     Returns:
         The interface list for the node 
     """
+    
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query interface on node %s" % node)
     kube_helper.create_pod(cli, pod_body, "default", 300)
     try:
         if input_interface_list == []:
-            cmd = "ip r | grep default | awk '/default/ {print $5}'"
+            cmd = ["ip", "r"]
             output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
-            input_interface_list = [output.replace("\n", "")]
-        else:
-            cmd = "ip -br addr show|awk -v ORS=',' '{print $1}'"
-            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+            
             if not output:
                 logging.error("Exception occurred while executing command in pod")
                 sys.exit(1)
-            node_interface_list = output[:-1].split(",")
+
+            routes = output.split('\n')
+            for route in routes:
+                if 'default' in route:
+                    default_route = route
+                    break
+
+            input_interface_list = [default_route.split()[4]]
+            
+        else:
+            cmd = ["ip", "-br", "addr", "show"]
+            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+            
+            if not output:
+                logging.error("Exception occurred while executing command in pod")
+                sys.exit(1)
+            
+            interface_ip = output.split('\n')
+            node_interface_list = [interface.split()[0] for interface in interface_ip[:-1]]
 
             for interface in input_interface_list:
                 if interface not in node_interface_list:
@@ -246,7 +263,7 @@ def get_node_interfaces(node_interface_dict: typing.Dict[str, typing.List[str]],
         instance_count (int):
             - Number of nodes to fetch in case node_interface_dict is empty
 
-        pod_template (string)
+        pod_template (jinja2.environment.Template)
             - The YAML template used to instantiate a pod to query
               the node's interfaces
 
@@ -293,11 +310,11 @@ def apply_ingress_filter(cfg: NetworkScenarioConfig, interface_list: typing.List
         node (string):
             - Node on which the interfaces in interface_list are present
 
-        pod_template (string)
+        pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
 
-        job_template (string)
+        job_template (jinja2.environment.Template))
             - The YAML template used to instantiate a job to apply and remove
               the filters on the interfaces
 
@@ -352,7 +369,7 @@ def create_virtual_interfaces(cli: CoreV1Api, interface_list: typing.List[str], 
         node (string)
             - The node on which the virtual interfaces are created 
         
-        pod_template (string)
+        pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
     """
@@ -361,7 +378,7 @@ def create_virtual_interfaces(cli: CoreV1Api, interface_list: typing.List[str], 
                 )
     kube_helper.create_pod(cli, pod_body, "default", 300)
     logging.info("Creating {0} virtual interfaces on node {1} using a pod".format(len(interface_list), node))
-    kube_helper.create_ifb(cli, len(interface_list), 'modtools') 
+    create_ifb(cli, len(interface_list), 'modtools') 
     logging.info("Deleting pod used to create virtual interfaces")
     kube_helper.delete_pod(cli, "modtools", "default")
 
@@ -382,7 +399,7 @@ def delete_virtual_interfaces(cli: CoreV1Api, node_list: typing.List[str], pod_t
         node (string)
             - The node on which the virtual interfaces are created 
         
-        pod_template (string)
+        pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to delete
               virtual interfaces on the node
     """
@@ -393,8 +410,31 @@ def delete_virtual_interfaces(cli: CoreV1Api, node_list: typing.List[str], pod_t
                 )
         kube_helper.create_pod(cli, pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
-        kube_helper.delete_ifb(cli,'modtools')  
+        delete_ifb(cli,'modtools')  
         kube_helper.delete_pod(cli, "modtools", "default")
+
+
+def create_ifb(cli: CoreV1Api, number: int, pod_name: str):
+    """
+    Function that creates virtual interfaces in a pod. Makes use of modprobe commands
+    """
+
+    exec_command = ['chroot', '/host', 'modprobe', 'ifb','numifbs=' + str(number)]
+    resp = kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
+
+    for i in range(0, number):
+        exec_command = ['chroot', '/host','ip','link','set','dev']   
+        exec_command+= ['ifb' + str(i), 'up']
+        resp = kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
+
+
+def delete_ifb(cli: CoreV1Api, pod_name: str):
+    """
+    Function that deletes all virtual interfaces in a pod. Makes use of modprobe command
+    """
+
+    exec_command = ['chroot', '/host', 'modprobe', '-r', 'ifb']
+    resp = kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
 
 
 def get_job_pods(cli: CoreV1Api, api_response):
@@ -424,7 +464,7 @@ def wait_for_job(batch_cli: BatchV1Api, job_list: typing.List[str], timeout: int
     Function that waits for a list of jobs to finish within a time period
     
     Args:
-        batch_cli
+        batch_cli (BatchV1Api)
             - Object to interact with Kubernetes Python client's BatchV1 API
         
         job_list (List of strings)
@@ -459,7 +499,7 @@ def delete_jobs(cli: CoreV1Api, batch_cli: BatchV1Api, job_list: typing.List[str
         cli (CoreV1Api)
             - Object to interact with Kubernetes Python client's CoreV1 API 
 
-        batch_cli
+        batch_cli (BatchV1Api)
             - Object to interact with Kubernetes Python client's BatchV1 API
         
         job_list (List of strings)
@@ -509,8 +549,21 @@ def get_ingress_cmd(interface_list: typing.List[str], network_parameters: typing
     tc_set = tc_unset = tc_ls = ""
     param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
 
+    interface_pattern = re.compile("^[a-z0-9\-\@\_]+$")
+    ifb_pattern = re.compile("^ifb[0-9]+$")
+
     for i, interface in enumerate(interface_list):
+        if not interface_pattern.match(interface):
+            logging.error("Interface name can only consist of alphanumeric characters")
+            raise Exception("Interface '{0}' does not match the required regex pattern :"
+                            " ^[a-z0-9\-\@\_]+$".format(interface))
+
         ifb_name = "ifb{0}".format(i)
+        if not ifb_pattern.match(ifb_name):
+            logging.error("Invalid IFB name")
+            raise Exception("Interface '{0}' is an invalid IFB name. IFB name should follow the"
+                            " the regex pattern ^ifb[0-9]+$".format(ifb_name))
+
         tc_set += "tc qdisc add dev {0} handle ffff: ingress;".format(interface)
         tc_set += "tc filter add dev {0} parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev {1};".format(interface, ifb_name)
         tc_set = "{0} tc qdisc add dev {1} root netem".format(tc_set, ifb_name)
@@ -613,7 +666,7 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[str, typing.Union[
         execution_type = cfg.execution_type
         )
     except Exception as e:
-        logging.error("Network Chaos exiting due to Exception %s" % e)
+        logging.error("Network Chaos exiting due to Exception - %s" % e)
         return "error", NetworkScenarioErrorOutput(
                     format_exc()
                 )
