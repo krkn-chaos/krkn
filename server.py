@@ -4,6 +4,7 @@ import _thread
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http.client import HTTPConnection
 
+server_status = ""
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     """
@@ -19,8 +20,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_status(self):
         self.send_response(200)
         self.end_headers()
-        f = open("/tmp/kraken_status", "rb")
-        self.wfile.write(f.read())
+        self.wfile.write(bytes(server_status, encoding='utf8'))
         SimpleHTTPRequestHandler.requests_served += 1
 
     def do_POST(self):
@@ -34,23 +34,26 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def set_run(self):
         self.send_response(200)
         self.end_headers()
-        with open("/tmp/kraken_status", "w+") as file:
-            file.write(str("RUN"))
+        global server_status
+        server_status = 'RUN'
 
     def set_stop(self):
         self.send_response(200)
         self.end_headers()
-        with open("/tmp/kraken_status", "w+") as file:
-            file.write(str("STOP"))
+        global server_status
+        server_status = 'STOP'
 
     def set_pause(self):
         self.send_response(200)
         self.end_headers()
-        with open("/tmp/kraken_status", "w+") as file:
-            file.write(str("PAUSE"))
+        global server_status
+        server_status = 'PAUSE'
 
+def publish_kraken_status(status):
+    global server_status
+    server_status = status
 
-def start_server(address):
+def start_server(address, status):
     server = address[0]
     port = address[1]
     global httpd
@@ -58,7 +61,8 @@ def start_server(address):
     logging.info("Starting http server at http://%s:%s\n" % (server, port))
     try:
         _thread.start_new_thread(httpd.serve_forever, ())
-    except Exception:
+        publish_kraken_status(status)
+    except Exception as e:
         logging.error(
             "Failed to start the http server \
                       at http://%s:%s"
