@@ -18,7 +18,7 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         f = open("/tmp/kraken_status", "rb")
         self.wfile.write(f.read())
-        SimpleHTTPRequestHandler.requests_served = SimpleHTTPRequestHandler.requests_served + 1
+        SimpleHTTPRequestHandler.requests_served += 1
 
     def do_POST(self):
         if self.path == "/STOP":
