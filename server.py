@@ -5,8 +5,11 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from http.client import HTTPConnection
 
 
-# Start a simple http server to publish the cerberus status file content
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
+    """
+    A simple http server to publish the cerberus status file content
+    """
+
     requests_served = 0
 
     def do_GET(self):
