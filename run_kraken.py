@@ -31,11 +31,6 @@ KUBE_BURNER_URL = (
 KUBE_BURNER_VERSION = "0.9.1"
 
 
-def publish_kraken_status(status):
-    with open("/tmp/kraken_status", "w+") as file:
-        file.write(str(status))
-
-
 # Main function
 def main(cfg):
     # Start kraken
@@ -131,8 +126,8 @@ def main(cfg):
                     port
                 )
             )
-            server.start_server(address)
-            publish_kraken_status(run_signal)
+            logging.info("Publishing kraken status at http://%s:%s" % (server_address, port))
+            server.start_server(address, run_signal)
 
         # Cluster info
         logging.info("Fetching cluster info")
@@ -179,6 +174,7 @@ def main(cfg):
 
         # Capture the start time
         start_time = int(time.time())
+        litmus_installed = False
 
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
@@ -281,6 +277,7 @@ def main(cfg):
                                         litmus_version,
                                         litmus_namespace
                                     )
+                                litmus_installed = True
                                 common_litmus.run(
                                     scenarios_list,
                                     config,
