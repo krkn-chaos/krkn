@@ -1,5 +1,4 @@
 import dataclasses
-import io
 import subprocess
 import sys
 import typing
