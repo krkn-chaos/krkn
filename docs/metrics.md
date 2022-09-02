@@ -2,7 +2,7 @@
 
 There are cases where the state of the cluster and metrics on the cluster during the chaos test run need to be stored long term to review after the cluster is terminated, for example CI and automation test runs. To help with this, Kraken supports capturing metrics for the duration of the scenarios defined in the config and indexes them into Elasticsearch. The indexed metrics can be visualized with the help of Grafana.
 
-It uses [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Each run has a unique identifier ( uuid ) and all the metrics/documents in Elasticsearch will be associated with it. The uuid is generated automatically if not set in the config. This feature can be enabled in the [config](https://github.com/chaos-kubox/krkn/blob/main/config/config.yaml) by setting the following:
+It uses [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Each run has a unique identifier ( uuid ) and all the metrics/documents in Elasticsearch will be associated with it. The uuid is generated automatically if not set in the config. This feature can be enabled in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) by setting the following:
 
 ```
 performance_monitoring:
@@ -16,7 +16,7 @@ performance_monitoring:
 ```
 
 ### Metrics profile
-A couple of [metric profiles](https://github.com/chaos-kubox/krkn/tree/main/config), [metrics.yaml](https://github.com/chaos-kubox/krkn/blob/main/config/metrics.yaml), and [metrics-aggregated.yaml](https://github.com/chaos-kubox/krkn/blob/main/config/metrics-aggregated.yaml) are shipped by default and can be tweaked to add more metrics to capture during the run. The following are the API server metrics for example:
+A couple of [metric profiles](https://github.com/redhat-chaos/krkn/tree/main/config), [metrics.yaml](https://github.com/redhat-chaos/krkn/blob/main/config/metrics.yaml), and [metrics-aggregated.yaml](https://github.com/redhat-chaos/krkn/blob/main/config/metrics-aggregated.yaml) are shipped by default and can be tweaked to add more metrics to capture during the run. The following are the API server metrics for example:
 
 ```
 metrics:
