@@ -56,7 +56,9 @@ def get_container_name(pod_name, namespace, container_name=""):
             )
     else:
         container_name = container_names[
-            random.randint(0, len(container_names) - 1)
+            # random module here is not used for security/cryptographic
+            # purposes
+            random.randint(0, len(container_names) - 1)  # nosec
         ]
         return container_name
 
