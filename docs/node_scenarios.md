@@ -18,7 +18,7 @@ The following node chaos scenarios are supported:
 , node_reboot_scenario and stop_start_kubelet_scenario are supported only on AWS, Azure, OpenStack, BareMetal, GCP
 , and Alibaba as of now.
 
-**NOTE**: Node scenarios are supported only when running the standalone version of Kraken until https://github.com/chaos-kubox/krkn/issues/106 gets fixed.
+**NOTE**: Node scenarios are supported only when running the standalone version of Kraken until https://github.com/redhat-chaos/krkn/issues/106 gets fixed.
 
 
 #### AWS
@@ -74,7 +74,7 @@ How to set up VMware vSphere to run node scenarios is defined [here](cloud_setup
 
 Use 'generic' or do not add the 'cloud_type' key to your scenario if your cluster is not set up using one of the current supported cloud types.
 
-Node scenarios can be injected by placing the node scenarios config files under node_scenarios option in the kraken config. Refer to [node_scenarios_example](https://github.com/chaos-kubox/krkn/blob/main/scenarios/node_scenarios_example.yml) config file.
+Node scenarios can be injected by placing the node scenarios config files under node_scenarios option in the kraken config. Refer to [node_scenarios_example](https://github.com/redhat-chaos/krkn/blob/main/scenarios/node_scenarios_example.yml) config file.
 
 
 ```

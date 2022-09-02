@@ -99,7 +99,7 @@ class Plugins:
         This function generates a JSON schema document and renders it from the steps passed.
         """
         result = {
-            "$id": "https://github.com/chaos-kubox/krkn/",
+            "$id": "https://github.com/redhat-chaos/krkn/",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "Kraken Arcaflow scenarios",
             "description": "Serial execution of Arcaflow Python plugins. See https://github.com/arcaflow for details.",
