@@ -52,7 +52,7 @@ def check_namespaces(namespaces):
             )
         return list(final_namespaces)
     except Exception as e:
-        logging.error("%s" % (e))
+        logging.error(str(e))
         sys.exit(1)
 
 
@@ -67,19 +67,24 @@ def run(cmd):
         )
         (out, err) = output.communicate()
     except Exception as e:
-        logging.error("Failed to run %s, error: %s" % (cmd, e))
+        logging.error("Failed to run %s, error: %s", cmd, e)
     return out
 
 
-regex_namespace_list = ["openshift-.*"]
-checked_namespaces = check_namespaces(regex_namespace_list)
-pods_running = 0
-for namespace in checked_namespaces:
-    new_pods_running = run(
-        "oc get pods -n " + namespace + " | grep -c Running"
-    ).rstrip()
-    try:
-        pods_running += int(new_pods_running)
-    except Exception:
-        continue
-print(pods_running)
+def print_running_pods():
+    regex_namespace_list = ["openshift-.*"]
+    checked_namespaces = check_namespaces(regex_namespace_list)
+    pods_running = 0
+    for namespace in checked_namespaces:
+        new_pods_running = run(
+            "oc get pods -n " + namespace + " | grep -c Running"
+        ).rstrip()
+        try:
+            pods_running += int(new_pods_running)
+        except Exception:
+            continue
+    print(pods_running)
+
+
+if __name__ == '__main__':
+    print_running_pods()
