@@ -12,7 +12,7 @@ def list_namespaces():
     """
     List all namespaces
     """
-    namespaces = []
+    spaces_list = []
     try:
         config.load_kube_config()
         cli = client.CoreV1Api()
@@ -22,9 +22,9 @@ def list_namespaces():
             "Exception when calling CoreV1Api->list_namespaced_pod: %s\n",
             e
         )
-    for namespace in ret.items:
-        namespaces.append(namespace.metadata.name)
-    return namespaces
+    for current_namespace in ret.items:
+        spaces_list.append(current_namespace.metadata.name)
+    return spaces_list
 
 
 def check_namespaces(namespaces):
@@ -37,10 +37,10 @@ def check_namespaces(namespaces):
         final_namespaces = set(namespaces) - set(regex_namespaces)
         valid_regex = set()
         if regex_namespaces:
-            for namespace in valid_namespaces:
+            for current_ns in valid_namespaces:
                 for regex_namespace in regex_namespaces:
-                    if re.search(regex_namespace, namespace):
-                        final_namespaces.add(namespace)
+                    if re.search(regex_namespace, current_ns):
+                        final_namespaces.add(current_ns)
                         valid_regex.add(regex_namespace)
                         break
         invalid_namespaces = regex_namespaces - valid_regex
@@ -71,10 +71,10 @@ def run(cmd):
     return out
 
 
-regex_namespace = ["openshift-.*"]
-namespaces = check_namespaces(regex_namespace)
+regex_namespace_list = ["openshift-.*"]
+checked_namespaces = check_namespaces(regex_namespace_list)
 pods_running = 0
-for namespace in namespaces:
+for namespace in checked_namespaces:
     new_pods_running = run(
         "oc get pods -n " + namespace + " | grep -c Running"
     ).rstrip()
