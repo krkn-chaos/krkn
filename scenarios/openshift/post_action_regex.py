@@ -19,7 +19,7 @@ def list_namespaces():
         ret = cli.list_namespace(pretty=True)
     except ApiException as e:
         logging.error(
-            "Exception when calling CoreV1Api->list_namespaced_pod: %s\n",
+            "Exception when calling CoreV1Api->list_namespace: %s\n",
             e
         )
     for current_namespace in ret.items:
