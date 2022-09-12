@@ -25,7 +25,10 @@ jobs:
       - name: Run unit tests
         run: python -m coverage run -a -m unittest discover -s tests
       - name: Run CI
-        run: ./CI/run.sh
+        run: |
+          ./CI/run.sh
+          cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
       - name: Collect coverage report
         run: |
           python -m coverage html
