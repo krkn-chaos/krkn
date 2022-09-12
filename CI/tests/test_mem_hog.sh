@@ -13,7 +13,7 @@ function functional_test_litmus_mem {
   export post_config="- CI/scenarios/node_mem_engine_node.yaml"
   envsubst < CI/config/common_test_config.yaml > CI/config/litmus_config.yaml
   envsubst < CI/scenarios/node_mem_engine.yaml > CI/scenarios/node_mem_engine_node.yaml
-  python3 run_kraken.py -c CI/config/litmus_config.yaml
+  python3 -m coverage run -a run_kraken.py -c CI/config/litmus_config.yaml
   echo "Litmus scenario $1 test: Success"
 }
 
