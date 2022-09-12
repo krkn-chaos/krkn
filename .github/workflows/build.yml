@@ -29,6 +29,12 @@ jobs:
           ./CI/run.sh
           cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
+      - name: Upload CI logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: ci-logs
+          path: CI/out
+          if-no-files-found: error
       - name: Collect coverage report
         run: |
           python -m coverage html
