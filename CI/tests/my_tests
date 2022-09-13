@@ -5,6 +5,5 @@ test_container
 test_io_hog
 test_mem_hog
 test_cpu_hog
-test_shut_down
 test_net_chaos
 test_namespace
