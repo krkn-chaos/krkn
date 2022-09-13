@@ -1,6 +1,5 @@
 test_pods
 test_nodes
-test_time
 test_app_outages
 test_container
 test_io_hog
