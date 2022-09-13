@@ -48,6 +48,8 @@ jobs:
           name: coverage
           path: htmlcov
           if-no-files-found: error
+      - name: Check CI results
+        run: grep Fail CI/results.markdown && false || true
       - name: Build the Docker images
         run: docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
       - name: Login in quay
