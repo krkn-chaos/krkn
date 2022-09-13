@@ -1,7 +1,7 @@
 ### Network chaos
 Scenario to introduce network latency, packet loss, and bandwidth restriction in the Node's host network interface. The purpose of this scenario is to observe faults caused by random variations in the network.
 
-##### Sample scenario config for egress traffic shaping 
+##### Sample scenario config for egress traffic shaping
 ```
 network_chaos:                                    # Scenario to create an outage by simulating random variations in the network.
   duration: 300                                   # In seconds - duration network chaos will be applied.
@@ -20,18 +20,18 @@ network_chaos:                                    # Scenario to create an outage
 ##### Sample scenario config for ingress traffic shaping (using a plugin)
 '''
 - id: network_chaos
-  config: 
+  config:
     node_interface_name:                            # Dictionary with key as node name(s) and value as a list of its interfaces to test
       ip-10-0-128-153.us-west-2.compute.internal:
         - ens5
         - genev_sys_6081
     label_selector: node-role.kubernetes.io/master  # When node_interface_name is not specified, nodes with matching label_selector is selected for node chaos scenario injection
     instance_count: 1                               # Number of nodes to perform action/select that match the label selector
-    kubeconfig_path: /root/.kube/config             # Path to kubernetes config file. If not specified, it defaults to ~/.kube/config
+    kubeconfig_path: ~/.kube/config                 # Path to kubernetes config file. If not specified, it defaults to ~/.kube/config
     execution_type: parallel                        # Execute each of the ingress options as a single scenario(parallel) or as separate scenario(serial).
     network_params:
-        latency: 50ms                    
-        loss: '0.02'                       
+        latency: 50ms
+        loss: '0.02'
         bandwidth: 100mbit
     wait_duration: 120
     test_duration: 60
