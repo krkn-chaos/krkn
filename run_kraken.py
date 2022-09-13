@@ -43,7 +43,7 @@ def main(cfg):
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
-        kubeconfig_path = config["kraken"].get("kubeconfig_path", "")
+        kubeconfig_path = os.path.expanduser(config["kraken"].get("kubeconfig_path", ""))
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
         publish_running_status = config["kraken"].get(
             "publish_kraken_status", False
