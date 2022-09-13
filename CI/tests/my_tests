@@ -1,4 +1,3 @@
-test_io_hog
 test_mem_hog
 test_cpu_hog
 test_net_chaos
