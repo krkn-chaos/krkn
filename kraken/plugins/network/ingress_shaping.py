@@ -819,64 +819,37 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
     pod_interface_template = env.get_template("pod_interface.j2")
     pod_module_template = env.get_template("pod_module.j2")
     cli, batch_cli = kube_helper.setup_kubernetes(cfg.kubeconfig_path)
-
-    try:
-        node_interface_dict = get_node_interfaces(
-            cfg.node_interface_name,
-            cfg.label_selector,
-            cfg.instance_count,
-            pod_interface_template,
-            cli
-        )
-    except Exception:
-        return "error", NetworkScenarioErrorOutput(
-                    format_exc()
-                )
-    job_list = []
-    publish = False
-    if cfg.kraken_config:
-        failed_post_scenarios = ""
+    with cli:
         try:
-            with open(cfg.kraken_config, "r") as f:
-                config = yaml.full_load(f)
-        except Exception:
-            logging.error(
-                "Error reading Kraken config from %s" % cfg.kraken_config
+            node_interface_dict = get_node_interfaces(
+                cfg.node_interface_name,
+                cfg.label_selector,
+                cfg.instance_count,
+                pod_interface_template,
+                cli
             )
+        except Exception:
             return "error", NetworkScenarioErrorOutput(
-                    format_exc()
-                )
-        publish = True
-
-    try:
-        if cfg.execution_type == 'parallel':
-            for node in node_interface_dict:
-                job_list.append(
-                    apply_ingress_filter(
-                        cfg,
-                        node_interface_dict[node],
-                        node,
-                        pod_module_template,
-                        job_template,
-                        batch_cli,
-                        cli
+                        format_exc()
                     )
+        job_list = []
+        publish = False
+        if cfg.kraken_config:
+            failed_post_scenarios = ""
+            try:
+                with open(cfg.kraken_config, "r") as f:
+                    config = yaml.full_load(f)
+            except Exception:
+                logging.error(
+                    "Error reading Kraken config from %s" % cfg.kraken_config
                 )
-            logging.info("Waiting for parallel job to finish")
-            start_time = int(time.time())
-            wait_for_job(batch_cli, job_list[:], cfg.wait_duration)
-            end_time = int(time.time())
-            if publish:
-                cerberus.publish_kraken_status(
-                    config,
-                    failed_post_scenarios,
-                    start_time,
-                    end_time
-                )
+                return "error", NetworkScenarioErrorOutput(
+                        format_exc()
+                    )
+            publish = True
 
-        elif cfg.execution_type == 'serial':
-            create_interfaces = True
-            for param in cfg.network_params:
+        try:
+            if cfg.execution_type == 'parallel':
                 for node in node_interface_dict:
                     job_list.append(
                         apply_ingress_filter(
@@ -886,21 +859,12 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
                             pod_module_template,
                             job_template,
                             batch_cli,
-                            cli,
-                            create_interfaces=create_interfaces,
-                            param_selector=param
+                            cli
                         )
                     )
-                logging.info("Waiting for serial job to finish")
+                logging.info("Waiting for parallel job to finish")
                 start_time = int(time.time())
                 wait_for_job(batch_cli, job_list[:], cfg.wait_duration)
-                logging.info("Deleting jobs")
-                delete_jobs(cli, batch_cli, job_list[:])
-                job_list = []
-                logging.info(
-                    "Waiting for wait_duration : %ss" % cfg.wait_duration
-                )
-                time.sleep(cfg.wait_duration)
                 end_time = int(time.time())
                 if publish:
                     cerberus.publish_kraken_status(
@@ -909,29 +873,65 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
                         start_time,
                         end_time
                     )
-                create_interfaces = False
-        else:
 
+            elif cfg.execution_type == 'serial':
+                create_interfaces = True
+                for param in cfg.network_params:
+                    for node in node_interface_dict:
+                        job_list.append(
+                            apply_ingress_filter(
+                                cfg,
+                                node_interface_dict[node],
+                                node,
+                                pod_module_template,
+                                job_template,
+                                batch_cli,
+                                cli,
+                                create_interfaces=create_interfaces,
+                                param_selector=param
+                            )
+                        )
+                    logging.info("Waiting for serial job to finish")
+                    start_time = int(time.time())
+                    wait_for_job(batch_cli, job_list[:], cfg.wait_duration)
+                    logging.info("Deleting jobs")
+                    delete_jobs(cli, batch_cli, job_list[:])
+                    job_list = []
+                    logging.info(
+                        "Waiting for wait_duration : %ss" % cfg.wait_duration
+                    )
+                    time.sleep(cfg.wait_duration)
+                    end_time = int(time.time())
+                    if publish:
+                        cerberus.publish_kraken_status(
+                            config,
+                            failed_post_scenarios,
+                            start_time,
+                            end_time
+                        )
+                    create_interfaces = False
+            else:
+
+                return "error", NetworkScenarioErrorOutput(
+                        "Invalid execution type - serial and parallel are "
+                        "the only accepted types"
+                    )
+            return "success", NetworkScenarioSuccessOutput(
+                filter_direction="ingress",
+                test_interfaces=node_interface_dict,
+                network_parameters=cfg.network_params,
+                execution_type=cfg.execution_type
+            )
+        except Exception as e:
+            logging.error("Network Chaos exiting due to Exception - %s" % e)
             return "error", NetworkScenarioErrorOutput(
-                    "Invalid execution type - serial and parallel are "
-                    "the only accepted types"
-                )
-        return "success", NetworkScenarioSuccessOutput(
-            filter_direction="ingress",
-            test_interfaces=node_interface_dict,
-            network_parameters=cfg.network_params,
-            execution_type=cfg.execution_type
-        )
-    except Exception as e:
-        logging.error("Network Chaos exiting due to Exception - %s" % e)
-        return "error", NetworkScenarioErrorOutput(
-                    format_exc()
-                )
-    finally:
-        delete_virtual_interfaces(
-            cli,
-            node_interface_dict.keys(),
-            pod_module_template
-        )
-        logging.info("Deleting jobs(if any)")
-        delete_jobs(cli, batch_cli, job_list[:])
+                        format_exc()
+                    )
+        finally:
+            delete_virtual_interfaces(
+                cli,
+                node_interface_dict.keys(),
+                pod_module_template
+            )
+            logging.info("Deleting jobs(if any)")
+            delete_jobs(cli, batch_cli, job_list[:])
