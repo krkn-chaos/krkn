@@ -16,7 +16,7 @@ Configuration Options:
 
 **object_name:** List of the names of pods or nodes you want to skew.
 
-Refer to [time_scenarios_example](https://github.com/chaos-kubox/krkn/blob/main/scenarios/time_scenarios_example.yml) config file.
+Refer to [time_scenarios_example](https://github.com/redhat-chaos/krkn/blob/main/scenarios/time_scenarios_example.yml) config file.
 
 ```
 time_scenarios:

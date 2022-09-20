@@ -1,6 +1,6 @@
 kraken:
     distribution: openshift                                # Distribution can be kubernetes or openshift.
-    kubeconfig_path: /root/.kube/config                    # Path to kubeconfig.
+    kubeconfig_path: ~/.kube/config                        # Path to kubeconfig.
     exit_on_failure: False                                 # Exit when a post action scenario fails.
     litmus_version: v1.13.6                                # Litmus version to install.
     litmus_uninstall: False                                # If you want to uninstall litmus if failure.

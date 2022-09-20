@@ -1,7 +1,7 @@
 ## Getting Started Running Chaos Scenarios
 
 #### Adding New Scenarios
-Adding a new scenario is as simple as adding a new config file under [scenarios directory](https://github.com/chaos-kubox/krkn/tree/main/scenarios) and defining it in the main kraken [config](https://github.com/chaos-kubox/krkn/blob/main/config/config.yaml#L8).
+Adding a new scenario is as simple as adding a new config file under [scenarios directory](https://github.com/redhat-chaos/krkn/tree/main/scenarios) and defining it in the main kraken [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml#L8).
 You can either copy an existing yaml file and make it your own, or fill in one of the templates below to suit your needs.
 
 ### Templates

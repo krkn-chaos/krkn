@@ -95,18 +95,18 @@ We want to look at this in terms of CPU, Memory, Disk, Throughput, Network etc.
 
 
 ### Tooling
-Now that we looked at the best practices, In this section, we will go through how [Kraken](https://github.com/chaos-kubox/krkn) - a chaos testing framework can help test the resilience of OpenShift and make sure the applications and services are following the best practices.
+Now that we looked at the best practices, In this section, we will go through how [Kraken](https://github.com/redhat-chaos/krkn) - a chaos testing framework can help test the resilience of OpenShift and make sure the applications and services are following the best practices.
 
 #### Workflow
-Let us start by understanding the workflow of kraken: the user will start by running kraken by pointing to a specific OpenShift cluster using kubeconfig to be able to talk to the platform on top of which the OpenShift cluster is hosted. This can be done by either the oc/kubectl API or the cloud API. Based on the configuration of kraken, it will inject specific chaos scenarios as shown below, talk to [Cerberus](https://github.com/chaos-kubox/cerberus) to get the go/no-go signal representing the overall health of the cluster ( optional - can be turned off ), scrapes metrics from in-cluster prometheus given a metrics profile with the promql queries and stores them long term in Elasticsearch configured  ( optional - can be turned off ), evaluates the promql expressions specified in the alerts profile ( optional - can be turned off ) and aggregated everything to set the pass/fail i.e. exits 0 or 1. More about the metrics collection, cerberus and metrics evaluation can be found in the next section.
+Let us start by understanding the workflow of kraken: the user will start by running kraken by pointing to a specific OpenShift cluster using kubeconfig to be able to talk to the platform on top of which the OpenShift cluster is hosted. This can be done by either the oc/kubectl API or the cloud API. Based on the configuration of kraken, it will inject specific chaos scenarios as shown below, talk to [Cerberus](https://github.com/redhat-chaos/cerberus) to get the go/no-go signal representing the overall health of the cluster ( optional - can be turned off ), scrapes metrics from in-cluster prometheus given a metrics profile with the promql queries and stores them long term in Elasticsearch configured  ( optional - can be turned off ), evaluates the promql expressions specified in the alerts profile ( optional - can be turned off ) and aggregated everything to set the pass/fail i.e. exits 0 or 1. More about the metrics collection, cerberus and metrics evaluation can be found in the next section.
 
 ![Kraken workflow](../media/kraken-workflow.png)
 
 #### Cluster recovery checks, metrics evaluation and pass/fail criteria
-- Most of the scenarios have built in checks to verify if the targeted component recovered from the failure after the specified duration of time but there might be cases where other components might have an impact because of a certain failure and it’s extremely important to make sure that the system/application is healthy as a whole post chaos. This is exactly where [Cerberus](https://github.com/chaos-kubox/cerberus) comes to the rescue.
+- Most of the scenarios have built in checks to verify if the targeted component recovered from the failure after the specified duration of time but there might be cases where other components might have an impact because of a certain failure and it’s extremely important to make sure that the system/application is healthy as a whole post chaos. This is exactly where [Cerberus](https://github.com/redhat-chaos/cerberus) comes to the rescue.
 If the monitoring tool, cerberus is enabled it will consume the signal and continue running chaos or not based on that signal.
 
-- Apart from checking the recovery and cluster health status, it’s equally important to evaluate the performance metrics like latency, resource usage spikes, throughput, etcd health like disk fsync, leader elections etc. To help with this, Kraken has a way to evaluate promql expressions from the incluster prometheus and set the exit status to 0 or 1 based on the severity set for each of the query. Details on how to use this feature can be found [here](https://github.com/chaos-kubox/krkn#alerts).
+- Apart from checking the recovery and cluster health status, it’s equally important to evaluate the performance metrics like latency, resource usage spikes, throughput, etcd health like disk fsync, leader elections etc. To help with this, Kraken has a way to evaluate promql expressions from the incluster prometheus and set the exit status to 0 or 1 based on the severity set for each of the query. Details on how to use this feature can be found [here](https://github.com/redhat-chaos/krkn#alerts).
 
 - The overall pass or fail of kraken is based on the recovery of the specific component (within a certain amount of time), the cerberus health signal which tracks the health of the entire cluster and metrics evaluation from incluster prometheus.
 
@@ -117,17 +117,17 @@ If the monitoring tool, cerberus is enabled it will consume the signal and conti
 
 Let us take a look at how to run the chaos scenarios on your OpenShift clusters using Kraken-hub - a lightweight wrapper around Kraken to ease the runs by providing the ability to run them by just running container images using podman with parameters set as environment variables. This eliminates the need to carry around and edit configuration files and makes it easy for any CI framework integration. Here are the scenarios supported:
 
-- Pod Scenarios ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/pod-scenarios.md))
+- Pod Scenarios ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/pod-scenarios.md))
   - Disrupts OpenShift/Kubernetes and applications deployed as pods:
     - Helps understand the availability of the application, the initialization timing and recovery status.
   - [Demo](https://asciinema.org/a/452351?speed=3&theme=solarized-dark)
 
-- Container Scenarios ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/container-scenarios.md))
+- Container Scenarios ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/container-scenarios.md))
   - Disrupts OpenShift/Kubernetes and applications deployed as containers running as part of a pod(s) using a specified kill signal to mimic failures:
     - Helps understand the impact and recovery timing when the program/process running in the containers are disrupted - hangs, paused, killed etc., using various kill signals, i.e. SIGHUP, SIGTERM, SIGKILL etc.
   - [Demo](https://asciinema.org/a/BXqs9JSGDSEKcydTIJ5LpPZBM?speed=3&theme=solarized-dark)
 
-- Node Scenarios ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/node-scenarios.md))
+- Node Scenarios ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/node-scenarios.md))
   - Disrupts nodes as part of the cluster infrastructure by talking to the cloud API. AWS, Azure, GCP, OpenStack and Baremetal are the supported platforms as of now. Possible disruptions include:
     - Terminate nodes
     - Fork bomb inside the node
@@ -136,18 +136,18 @@ Let us take a look at how to run the chaos scenarios on your OpenShift clusters 
     - etc.
   - [Demo](https://asciinema.org/a/ANZY7HhPdWTNaWt4xMFanF6Q5)
 
-- Zone Outages ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/zone-outages.md))
+- Zone Outages ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/zone-outages.md))
   - Creates outage of availability zone(s) in a targeted region in the public cloud where the OpenShift cluster is running by tweaking the network acl of the zone to simulate the failure, and that in turn will stop both ingress and egress traffic from all nodes in a particular zone for the specified duration and reverts it back to the previous state.
     - Helps understand the impact on both Kubernetes/OpenShift control plane as well as applications and services running on the worker nodes in that zone.
     - Currently, only set up for AWS cloud platform: 1 VPC and multiples subnets within the VPC can be specified.
     - [Demo](https://asciinema.org/a/452672?speed=3&theme=solarized-dark)
 
-- Application Outages ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/application-outages.md))
+- Application Outages ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/application-outages.md))
   - Scenario to block the traffic ( Ingress/Egress ) of an application matching the labels for the specified duration of time to understand the behavior of the service/other services which depend on it during the downtime.
     - Helps understand how the dependent services react to the unavailability.
     - [Demo](https://asciinema.org/a/452403?speed=3&theme=solarized-dark)
 
-- Power Outages ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/power-outages.md))
+- Power Outages ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/power-outages.md))
   - This scenario imitates a power outage by shutting down of the entire cluster for a specified duration of time, then restarts all the nodes after the specified time and checks the health of the cluster.
     - There are various use cases in the customer environments. For example, when some of the clusters are shutdown in cases where the applications are not needed to run in a particular time/season in order to save costs.
     - The nodes are stopped in parallel to mimic a power outage i.e., pulling off the plug
@@ -156,24 +156,24 @@ Let us take a look at how to run the chaos scenarios on your OpenShift clusters 
 - Resource Hog
   - Hogs CPU, Memory and IO on the targeted nodes
     - Helps understand if the application/system components have reserved resources to not get disrupted because of rogue applications, or get performance throttled.
-      - CPU Hog ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/node-cpu-hog.md), [Demo](https://asciinema.org/a/452762))
-      - Memory Hog ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/node-memory-hog.md), [Demo](https://asciinema.org/a/452742?speed=3&theme=solarized-dark))
-      - IO Hog ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/node-io-hog.md))
+      - CPU Hog ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/node-cpu-hog.md), [Demo](https://asciinema.org/a/452762))
+      - Memory Hog ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/node-memory-hog.md), [Demo](https://asciinema.org/a/452742?speed=3&theme=solarized-dark))
+      - IO Hog ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/node-io-hog.md))
 
-- Time Skewing ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/time-scenarios.md))
+- Time Skewing ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/time-scenarios.md))
   - Manipulate the system time and/or date of specific pods/nodes.
     - Verify scheduling of objects so they continue to work.
     - Verify time gets reset properly.
 
-- Namespace Failures ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/namespace-scenarios.md))
+- Namespace Failures ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/namespace-scenarios.md))
   - Delete namespaces for the specified duration.
     - Helps understand the impact on other components and tests/improves recovery time of the components in the targeted namespace.
 
-- Persistent Volume Fill ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/pvc-scenarios.md))
+- Persistent Volume Fill ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/pvc-scenarios.md))
   - Fills up the persistent volumes, up to a given percentage, used by the pod for the specified duration.
     - Helps understand how an application deals when it is no longer able to write data to the disk. For example, kafka’s behavior when it is not able to commit data to the disk.
 
-- Network Chaos ([Documentation](https://github.com/chaos-kubox/krkn-hub/blob/main/docs/network-chaos.md))
+- Network Chaos ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/network-chaos.md))
   - Scenarios supported includes:
     - Network latency
     - Packet loss

@@ -8,13 +8,13 @@ orchestration_user: "{{ lookup('env', 'ORCHESTRATION_USER')|default('root', true
 ###############################################################################
 
 # kube config location
-kubeconfig_path: "{{ lookup('env', 'KUBECONFIG_PATH')|default('/root/.kube/config', true) }}"
+kubeconfig_path: "{{ lookup('env', 'KUBECONFIG_PATH')|default('~/.kube/config', true) }}"
 
 # kraken dir location on jump host
-kraken_dir: "{{ lookup('env', 'KRAKEN_DIR')|default('/root/kraken', true) }}"
+kraken_dir: "{{ lookup('env', 'KRAKEN_DIR')|default('~/kraken', true) }}"
 
 # kraken config path location
-kraken_config: "{{ lookup('env', 'KRAKEN_CONFIG')|default('/root/kraken/config/config.yaml', true) }}"
+kraken_config: "{{ lookup('env', 'KRAKEN_CONFIG')|default('~/kraken/config/config.yaml', true) }}"
 
 # kraken repository location
 kraken_repository: "{{ lookup('env', 'KRAKEN_REPOSITORY')|default('https://github.com/openshift-scale/kraken.git', true) }}"

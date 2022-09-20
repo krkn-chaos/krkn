@@ -1,5 +1,5 @@
 #### Kubernetes/OpenShift cluster shut down scenario
-Scenario to shut down all the nodes including the masters and restart them after specified duration. Cluster shut down scenario can be injected by placing the shut_down config file under cluster_shut_down_scenario option in the kraken config. Refer to [cluster_shut_down_scenario](https://github.com/chaos-kubox/krkn/blob/main/scenarios/cluster_shut_down_scenario.yml) config file.
+Scenario to shut down all the nodes including the masters and restart them after specified duration. Cluster shut down scenario can be injected by placing the shut_down config file under cluster_shut_down_scenario option in the kraken config. Refer to [cluster_shut_down_scenario](https://github.com/redhat-chaos/krkn/blob/main/scenarios/cluster_shut_down_scenario.yml) config file.
 
 Refer to [cloud setup](cloud_setup.md) to configure your cli properly for the cloud provider of the cluster you want to shut down.
 
