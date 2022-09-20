@@ -21,7 +21,7 @@ COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 RUN yum install epel-release -y && \
     yum install -y git python39 python3-pip jq gettext && \
     python3.9 -m pip install -U pip && \
-    git clone https://github.com/redhat-chaos/krkn.git --branch v1.0.1 /root/kraken && \
+    git clone https://github.com/redhat-chaos/krkn.git --branch v1.1.0 /root/kraken && \
     mkdir -p /root/.kube && cd /root/kraken && \
     pip3.9 install -r requirements.txt
 

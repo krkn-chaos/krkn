@@ -5,13 +5,14 @@ import yaml
 import logging
 import time
 from multiprocessing.pool import ThreadPool
-import kraken.cerberus.setup as cerberus
-import kraken.kubernetes.client as kubecli
-import kraken.post_actions.actions as post_actions
-from kraken.node_actions.aws_node_scenarios import AWS
-from kraken.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
-from kraken.node_actions.az_node_scenarios import Azure
-from kraken.node_actions.gcp_node_scenarios import GCP
+
+from ..cerberus import setup as cerberus
+from ..kubernetes import client as kubecli
+from ..post_actions import actions as post_actions
+from ..node_actions.aws_node_scenarios import AWS
+from ..node_actions.openstack_node_scenarios import OPENSTACKCLOUD
+from ..node_actions.az_node_scenarios import Azure
+from ..node_actions.gcp_node_scenarios import GCP
 
 
 def multiprocess_nodes(cloud_object_function, nodes):
@@ -53,7 +54,10 @@ def cluster_shut_down(shut_down_config):
     elif cloud_type.lower() in ["azure", "az"]:
         cloud_object = Azure()
     else:
-        logging.error("Cloud type " + cloud_type + " is not currently supported for cluster shut down")
+        logging.error(
+            "Cloud type %s is not currently supported for cluster shut down" %
+            cloud_type
+        )
         sys.exit(1)
 
     nodes = kubecli.list_nodes()
@@ -70,17 +74,28 @@ def cluster_shut_down(shut_down_config):
         while len(stopping_nodes) > 0:
             for node in stopping_nodes:
                 if type(node) is tuple:
-                    node_status = cloud_object.wait_until_stopped(node[1], node[0], timeout)
+                    node_status = cloud_object.wait_until_stopped(
+                        node[1],
+                        node[0],
+                        timeout
+                    )
                 else:
-                    node_status = cloud_object.wait_until_stopped(node, timeout)
+                    node_status = cloud_object.wait_until_stopped(
+                        node,
+                        timeout
+                    )
 
-                # Only want to remove node from stopping list when fully stopped/no error
+                # Only want to remove node from stopping list
+                # when fully stopped/no error
                 if node_status:
                     stopped_nodes.remove(node)
 
             stopping_nodes = stopped_nodes.copy()
 
-        logging.info("Shutting down the cluster for the specified duration: %s" % (shut_down_duration))
+        logging.info(
+            "Shutting down the cluster for the specified duration: %s" %
+            (shut_down_duration)
+        )
         time.sleep(shut_down_duration)
         logging.info("Restarting the nodes")
         restarted_nodes = set(node_id)
@@ -90,13 +105,22 @@ def cluster_shut_down(shut_down_config):
         while len(not_running_nodes) > 0:
             for node in not_running_nodes:
                 if type(node) is tuple:
-                    node_status = cloud_object.wait_until_running(node[1], node[0], timeout)
+                    node_status = cloud_object.wait_until_running(
+                        node[1],
+                        node[0],
+                        timeout
+                    )
                 else:
-                    node_status = cloud_object.wait_until_running(node, timeout)
+                    node_status = cloud_object.wait_until_running(
+                        node,
+                        timeout
+                    )
                 if node_status:
                     restarted_nodes.remove(node)
             not_running_nodes = restarted_nodes.copy()
-        logging.info("Waiting for 150s to allow cluster component initialization")
+        logging.info(
+            "Waiting for 150s to allow cluster component initialization"
+        )
         time.sleep(150)
 
         logging.info("Successfully injected cluster_shut_down scenario!")
@@ -111,13 +135,21 @@ def run(scenarios_list, config, wait_duration):
             pre_action_output = ""
         with open(shut_down_config[0], "r") as f:
             shut_down_config_yaml = yaml.full_load(f)
-            shut_down_config_scenario = shut_down_config_yaml["cluster_shut_down_scenario"]
+            shut_down_config_scenario = \
+                shut_down_config_yaml["cluster_shut_down_scenario"]
             start_time = int(time.time())
             cluster_shut_down(shut_down_config_scenario)
-            logging.info("Waiting for the specified duration: %s" % (wait_duration))
+            logging.info(
+                "Waiting for the specified duration: %s" % (wait_duration)
+            )
             time.sleep(wait_duration)
             failed_post_scenarios = post_actions.check_recovery(
                 "", shut_down_config, failed_post_scenarios, pre_action_output
             )
             end_time = int(time.time())
-            cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
+            cerberus.publish_kraken_status(
+                config,
+                failed_post_scenarios,
+                start_time,
+                end_time
+            )

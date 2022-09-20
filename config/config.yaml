@@ -1,6 +1,6 @@
 kraken:
     distribution: openshift                                # Distribution can be kubernetes or openshift
-    kubeconfig_path: /root/.kube/config                    # Path to kubeconfig
+    kubeconfig_path: ~/.kube/config                        # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
     port: 8081
     publish_kraken_status: True                            # Can be accessed at http://0.0.0.0:8081
@@ -16,6 +16,7 @@ kraken:
             - scenarios/openshift/etcd.yml
             - scenarios/openshift/regex_openshift_pod_kill.yml
             - scenarios/openshift/vmware_node_scenarios.yml
+            - scenarios/openshift/network_chaos_ingress.yml
         -   node_scenarios:                                # List of chaos node scenarios to load
             -   scenarios/openshift/node_scenarios_example.yml
         -   plugin_scenarios:

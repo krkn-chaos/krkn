@@ -23,9 +23,33 @@ jobs:
           sudo apt-get install build-essential python3-dev
           pip install -r requirements.txt
       - name: Run unit tests
-        run: python -m unittest discover -s tests
+        run: python -m coverage run -a -m unittest discover -s tests -v
       - name: Run CI
-        run: ./CI/run.sh
+        run: |
+          ./CI/run.sh
+          cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+      - name: Upload CI logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: ci-logs
+          path: CI/out
+          if-no-files-found: error
+      - name: Collect coverage report
+        run: |
+          python -m coverage html
+      - name: Publish coverage report to job summary
+        run: |
+          pip install html2text
+          html2text --ignore-images --ignore-links -b 0 htmlcov/index.html >> $GITHUB_STEP_SUMMARY
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: htmlcov
+          if-no-files-found: error
+      - name: Check CI results
+        run: grep Fail CI/results.markdown && false || true
       - name: Build the Docker images
         run: docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
       - name: Login in quay

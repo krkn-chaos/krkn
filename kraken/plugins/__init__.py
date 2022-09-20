@@ -8,6 +8,7 @@ from arcaflow_plugin_sdk import schema, serialization, jsonschema
 import kraken.plugins.vmware.vmware_plugin as vmware_plugin
 from kraken.plugins.pod_plugin import kill_pods, wait_for_pods
 from kraken.plugins.run_python_plugin import run_python_file
+from kraken.plugins.network.ingress_shaping import network_chaos
 
 
 @dataclasses.dataclass
@@ -98,7 +99,7 @@ class Plugins:
         This function generates a JSON schema document and renders it from the steps passed.
         """
         result = {
-            "$id": "https://github.com/chaos-kubox/krkn/",
+            "$id": "https://github.com/redhat-chaos/krkn/",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "Kraken Arcaflow scenarios",
             "description": "Serial execution of Arcaflow Python plugins. See https://github.com/arcaflow for details.",
@@ -174,6 +175,12 @@ PLUGINS = Plugins(
         ),
         PluginStep(
             vmware_plugin.node_terminate,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            network_chaos,
             [
                 "error"
             ]

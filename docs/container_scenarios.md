@@ -23,7 +23,7 @@ In all scenarios we do a post chaos check to wait and verify the specific compon
 Here there are two options:
 1. Pass a custom script in the main config scenario list that will run before the chaos and verify the output matches post chaos scenario.
 
-See [scenarios/post_action_etcd_container.py](https://github.com/chaos-kubox/krkn/blob/main/scenarios/post_action_etcd_container.py) for an example.
+See [scenarios/post_action_etcd_container.py](https://github.com/redhat-chaos/krkn/blob/main/scenarios/post_action_etcd_container.py) for an example.
 ```
 -   container_scenarios:                                 # List of chaos pod scenarios to load.
             - -    scenarios/container_etcd.yml

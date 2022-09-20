@@ -15,7 +15,7 @@ RUN curl -L -o openshift-client-linux.tar.gz https://mirror.openshift.com/pub/op
 # Install dependencies
 RUN yum install epel-release -y && \
 yum install -y git python36 python3-pip gcc libffi-devel python36-devel openssl-devel gcc-c++ make jq gettext && \
-git clone https://github.com/redhat-chaos/krkn.git --branch v1.0.1 /root/kraken && \
+git clone https://github.com/redhat-chaos/krkn.git --branch v1.1.0 /root/kraken && \
 mkdir -p /root/.kube && cd /root/kraken && \
 pip3 install cryptography==3.3.2 && \
 pip3 install -r requirements.txt setuptools==40.3.0 urllib3==1.25.4

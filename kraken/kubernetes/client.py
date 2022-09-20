@@ -1,13 +1,16 @@
+import logging
+import re
+import sys
+import time
+
 from kubernetes import client, config, utils, watch
+from kubernetes.client.rest import ApiException
 from kubernetes.dynamic.client import DynamicClient
 from kubernetes.stream import stream
-from kubernetes.client.rest import ApiException
-from dataclasses import dataclass
-from typing import List
-import logging
-import sys
-import re
-import time
+
+from ..kubernetes.resources import (PVC, ChaosEngine, ChaosResult, Container,
+                                    LitmusChaosObject, Pod, Volume,
+                                    VolumeMount)
 
 kraken_node_name = ""
 
@@ -40,7 +43,10 @@ def get_host() -> str:
 
 
 def get_clusterversion_string() -> str:
-    """Returns clusterversion status text on OpenShift, empty string on other distributions"""
+    """
+    Returns clusterversion status text on OpenShift, empty string
+    on other distributions
+    """
     try:
         cvs = custom_object_client.list_cluster_custom_object(
             "config.openshift.io",
@@ -64,11 +70,16 @@ def list_namespaces(label_selector=None):
     namespaces = []
     try:
         if label_selector:
-            ret = cli.list_namespace(pretty=True, label_selector=label_selector)
+            ret = cli.list_namespace(
+                pretty=True,
+                label_selector=label_selector
+                )
         else:
             ret = cli.list_namespace(pretty=True)
     except ApiException as e:
-        logging.error("Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e)
+        logging.error(
+            "Exception when calling CoreV1Api->list_namespaced_pod: %s\n" % e
+        )
         raise e
     for namespace in ret.items:
         namespaces.append(namespace.metadata.name)
@@ -81,7 +92,9 @@ def get_namespace_status(namespace_name):
     try:
         ret = cli.read_namespace_status(namespace_name)
     except ApiException as e:
-        logging.error("Exception when calling CoreV1Api->read_namespace_status: %s\n" % e)
+        logging.error(
+            "Exception when calling CoreV1Api->read_namespace_status: %s\n" % e
+        )
     return ret.status.phase
 
 
@@ -89,7 +102,9 @@ def delete_namespace(namespace):
     """Deletes a given namespace using kubernetes python client"""
     try:
         api_response = cli.delete_namespace(namespace)
-        logging.debug("Namespace deleted. status='%s'" % str(api_response.status))
+        logging.debug(
+            "Namespace deleted. status='%s'" % str(api_response.status)
+        )
         return api_response
     except Exception as e:
         logging.error(
@@ -115,7 +130,10 @@ def check_namespaces(namespaces, label_selectors=None):
                         break
         invalid_namespaces = regex_namespaces - valid_regex
         if invalid_namespaces:
-            raise Exception("There exists no namespaces matching: %s" % (invalid_namespaces))
+            raise Exception(
+                "There exists no namespaces matching: %s" %
+                (invalid_namespaces)
+            )
         return list(final_namespaces)
     except Exception as e:
         logging.info("%s" % (e))
@@ -162,7 +180,11 @@ def list_pods(namespace, label_selector=None):
     pods = []
     try:
         if label_selector:
-            ret = cli.list_namespaced_pod(namespace, pretty=True, label_selector=label_selector)
+            ret = cli.list_namespaced_pod(
+                namespace,
+                pretty=True,
+                label_selector=label_selector
+            )
         else:
             ret = cli.list_namespaced_pod(namespace, pretty=True)
     except ApiException as e:
@@ -180,7 +202,10 @@ def list_pods(namespace, label_selector=None):
 def get_all_pods(label_selector=None):
     pods = []
     if label_selector:
-        ret = cli.list_pod_for_all_namespaces(pretty=True, label_selector=label_selector)
+        ret = cli.list_pod_for_all_namespaces(
+            pretty=True,
+            label_selector=label_selector
+        )
     else:
         ret = cli.list_pod_for_all_namespaces(pretty=True)
     for pod in ret.items:
@@ -189,7 +214,13 @@ def get_all_pods(label_selector=None):
 
 
 # Execute command in pod
-def exec_cmd_in_pod(command, pod_name, namespace, container=None, base_command="bash"):
+def exec_cmd_in_pod(
+    command,
+    pod_name,
+    namespace,
+    container=None,
+    base_command="bash"
+):
 
     exec_command = [base_command, "-c", command]
     try:
@@ -240,7 +271,10 @@ def create_pod(body, namespace, timeout=120):
         pod_stat = cli.create_namespaced_pod(body=body, namespace=namespace)
         end_time = time.time() + timeout
         while True:
-            pod_stat = cli.read_namespaced_pod(name=body["metadata"]["name"], namespace=namespace)
+            pod_stat = cli.read_namespaced_pod(
+                name=body["metadata"]["name"],
+                namespace=namespace
+            )
             if pod_stat.status.phase == "Running":
                 break
             if time.time() > end_time:
@@ -260,7 +294,10 @@ def read_pod(name, namespace="default"):
 
 def get_pod_log(name, namespace="default"):
     return cli.read_namespaced_pod_log(
-        name=name, namespace=namespace, _return_http_data_only=True, _preload_content=False
+        name=name,
+        namespace=namespace,
+        _return_http_data_only=True,
+        _preload_content=False
     )
 
 
@@ -278,7 +315,10 @@ def delete_job(name, namespace="default"):
         api_response = batch_cli.delete_namespaced_job(
             name=name,
             namespace=namespace,
-            body=client.V1DeleteOptions(propagation_policy="Foreground", grace_period_seconds=0),
+            body=client.V1DeleteOptions(
+                propagation_policy="Foreground",
+                grace_period_seconds=0
+            ),
         )
         logging.debug("Job deleted. status='%s'" % str(api_response.status))
         return api_response
@@ -300,7 +340,10 @@ def delete_job(name, namespace="default"):
 
 def create_job(body, namespace="default"):
     try:
-        api_response = batch_cli.create_namespaced_job(body=body, namespace=namespace)
+        api_response = batch_cli.create_namespaced_job(
+            body=body,
+            namespace=namespace
+        )
         return api_response
     except ApiException as api:
         logging.warn(
@@ -321,7 +364,10 @@ def create_job(body, namespace="default"):
 
 def get_job_status(name, namespace="default"):
     try:
-        return batch_cli.read_namespaced_job_status(name=name, namespace=namespace)
+        return batch_cli.read_namespaced_job_status(
+            name=name,
+            namespace=namespace
+        )
     except Exception as e:
         logging.error(
             "Exception when calling \
@@ -369,7 +415,11 @@ def monitor_namespace(namespace):
     notready_pods = []
     for pod in pods:
         try:
-            pod_info = cli.read_namespaced_pod_status(pod, namespace, pretty=True)
+            pod_info = cli.read_namespaced_pod_status(
+                pod,
+                namespace,
+                pretty=True
+            )
         except ApiException as e:
             logging.error(
                 "Exception when calling \
@@ -378,7 +428,11 @@ def monitor_namespace(namespace):
             )
             raise e
         pod_status = pod_info.status.phase
-        if pod_status != "Running" and pod_status != "Completed" and pod_status != "Succeeded":
+        if (
+            pod_status != "Running" and
+            pod_status != "Completed" and
+            pod_status != "Succeeded"
+        ):
             notready_pods.append(pod)
     if len(notready_pods) != 0:
         status = False
@@ -389,8 +443,15 @@ def monitor_namespace(namespace):
 
 # Monitor component namespace
 def monitor_component(iteration, component_namespace):
-    watch_component_status, failed_component_pods = monitor_namespace(component_namespace)
-    logging.info("Iteration %s: %s: %s" % (iteration, component_namespace, watch_component_status))
+    watch_component_status, failed_component_pods = \
+        monitor_namespace(component_namespace)
+    logging.info(
+        "Iteration %s: %s: %s" % (
+            iteration,
+            component_namespace,
+            watch_component_status
+        )
+    )
     return watch_component_status, failed_component_pods
 
 
@@ -408,85 +469,101 @@ def apply_yaml(path, namespace='default'):
         The object created
     """
 
-    return utils.create_from_yaml(api_client, yaml_file=path, namespace=namespace)
+    return utils.create_from_yaml(
+        api_client,
+        yaml_file=path,
+        namespace=namespace
+    )
 
 
-# Data class to hold information regarding containers in a pod
-@dataclass(frozen=True, order=False)
-class Container:
-    image: str
-    name: str
-    ready: bool
-
-
-@dataclass(frozen=True, order=False)
-class Pod:
-    """Data class to hold information regarding a pod"""
-    name: str
-    podIP: str
-    namespace: str
-    containers: List[Container]
-    nodeName: str
-
-
-@dataclass(frozen=True, order=False)
-class LitmusChaosObject:
-    """Data class to hold information regarding a custom object of litmus project"""
-    kind: str
-    group: str
-    namespace: str
-    name: str
-    plural: str
-    version: str
-
-
-@dataclass(frozen=True, order=False)
-class ChaosEngine(LitmusChaosObject):
-    """Data class to hold information regarding a ChaosEngine object"""
-    engineStatus: str
-    expStatus: str
-
-
-@dataclass(frozen=True, order=False)
-class ChaosResult(LitmusChaosObject):
-    """Data class to hold information regarding a ChaosResult object"""
-    verdict: str
-    failStep: str
-
-
-def get_pod_info(pod_name: str, namespace: str = 'default') -> Pod:
+def get_pod_info(name: str, namespace: str = 'default') -> Pod:
     """
     Function to retrieve information about a specific pod
     in a given namespace. The kubectl command is given by:
-        kubectl get pods <pod_name> -n <namespace>
+        kubectl get pods <name> -n <namespace>
 
     Args:
-        pod_name (string)
+        name (string)
             - Name of the pod
 
         namespace (string)
             - Namespace to look for the pod
 
     Returns:
-        Data class object of type Pod with the output of the above kubectl command
-        in the given format
+        - Data class object of type Pod with the output of the above
+          kubectl command in the given format if the pod exists
+        - Returns None if the pod doesn't exist
     """
+    pod_exists = check_if_pod_exists(name=name, namespace=namespace)
+    if pod_exists:
+        response = cli.read_namespaced_pod(
+            name=name,
+            namespace=namespace,
+            pretty='true'
+        )
+        container_list = []
 
-    response = cli.read_namespaced_pod(name=pod_name, namespace=namespace, pretty='true')
-    container_list = []
+        # Create a list of containers present in the pod
+        for container in response.spec.containers:
+            volume_mount_list = []
+            for volume_mount in container.volume_mounts:
+                volume_mount_list.append(
+                    VolumeMount(
+                        name=volume_mount.name,
+                        mountPath=volume_mount.mount_path
+                    )
+                )
+            container_list.append(
+                Container(
+                    name=container.name,
+                    image=container.image,
+                    volumeMounts=volume_mount_list
+                )
+            )
 
-    for container in response.status.container_statuses:
-        container_list.append(Container(name=container.name, image=container.image, ready=container.ready))
+        for i, container in enumerate(response.status.container_statuses):
+            container_list[i].ready = container.ready
 
-    pod_info = Pod(name=response.metadata.name, podIP=response.status.pod_ip, namespace=response.metadata.namespace,
-                   containers=container_list, nodeName=response.spec.node_name)
-    return pod_info
+        # Create a list of volumes associated with the pod
+        volume_list = []
+        for volume in response.spec.volumes:
+            volume_name = volume.name
+            pvc_name = (
+                volume.persistent_volume_claim.claim_name
+                if volume.persistent_volume_claim is not None
+                else None
+            )
+            volume_list.append(Volume(name=volume_name, pvcName=pvc_name))
+
+        # Create the Pod data class object
+        pod_info = Pod(
+            name=response.metadata.name,
+            podIP=response.status.pod_ip,
+            namespace=response.metadata.namespace,
+            containers=container_list,
+            nodeName=response.spec.node_name,
+            volumes=volume_list
+        )
+        return pod_info
+    else:
+        logging.error(
+                "Pod '%s' doesn't exist in namespace '%s'" % (
+                    str(name),
+                    str(namespace)
+                )
+        )
+        return None
 
 
-def get_litmus_chaos_object(kind: str, name: str, namespace: str) -> LitmusChaosObject:
+def get_litmus_chaos_object(
+        kind: str,
+        name: str,
+        namespace: str
+) -> LitmusChaosObject:
     """
-    Function that returns an object of a custom resource typer the litmus project. Currently, only
-    ChaosEngine and ChaosResult is supported.
+    Function that returns an object of a custom resource type of
+    the litmus project. Currently, only ChaosEngine and ChaosResult
+    objects are supported.
 
     Args:
         kind (string)
@@ -504,49 +581,188 @@ def get_litmus_chaos_object(kind: str, name: str, namespace: str) -> LitmusChaos
 
     if kind.lower() == 'chaosengine':
         plural = 'chaosengines'
-        response = custom_object_client.get_namespaced_custom_object(group=group, plural=plural,
-                                            version=version, namespace=namespace, name=name)
+        response = custom_object_client.get_namespaced_custom_object(
+            group=group,
+            plural=plural,
+            version=version,
+            namespace=namespace,
+            name=name
+        )
         try:
             engine_status = response['status']['engineStatus']
             exp_status = response['status']['experiments'][0]['status']
-        except:
+        except Exception:
             engine_status = 'Not Initialized'
             exp_status = 'Not Initialized'
-        custom_object = ChaosEngine(kind='ChaosEngine', group=group, namespace=namespace, name=name,
-                                    plural=plural, version=version, engineStatus=engine_status,
-                                    expStatus=exp_status)
+        custom_object = ChaosEngine(
+            kind='ChaosEngine',
+            group=group,
+            namespace=namespace,
+            name=name,
+            plural=plural,
+            version=version,
+            engineStatus=engine_status,
+            expStatus=exp_status
+        )
     elif kind.lower() == 'chaosresult':
         plural = 'chaosresults'
-        response = custom_object_client.get_namespaced_custom_object(group=group, plural=plural,
-                                            version=version, namespace=namespace, name=name)
+        response = custom_object_client.get_namespaced_custom_object(
+            group=group,
+            plural=plural,
+            version=version,
+            namespace=namespace,
+            name=name
+        )
         try:
             verdict = response['status']['experimentStatus']['verdict']
             fail_step = response['status']['experimentStatus']['failStep']
-        except:
+        except Exception:
             verdict = 'N/A'
             fail_step = 'N/A'
-        custom_object = ChaosResult(kind='ChaosResult', group=group, namespace=namespace, name=name,
-                                    plural=plural, version=version, verdict=verdict, failStep=fail_step)
+        custom_object = ChaosResult(
+            kind='ChaosResult',
+            group=group,
+            namespace=namespace,
+            name=name,
+            plural=plural,
+            version=version,
+            verdict=verdict,
+            failStep=fail_step
+        )
     else:
         logging.error("Invalid litmus chaos custom resource name")
         custom_object = None
     return custom_object
 
 
-def check_if_namespace_exists(name: str):
+def check_if_namespace_exists(name: str) -> bool:
     """
-    Function that checks if a namespace exists by parsing through the list of projects
+    Function that checks if a namespace exists by parsing through
+    the list of projects.
     Args:
         name (string)
             - Namespace name
 
     Returns:
-        Boolean value indicating whethere the namespace exists or not
+        Boolean value indicating whether the namespace exists or not
     """
 
-    v1_projects = dyn_client.resources.get(api_version='project.openshift.io/v1', kind='Project')
+    v1_projects = dyn_client.resources.get(
+        api_version='project.openshift.io/v1',
+        kind='Project'
+    )
     project_list = v1_projects.get()
     return True if name in str(project_list) else False
+
+
+def check_if_pod_exists(name: str, namespace: str) -> bool:
+    """
+    Function that checks if a pod exists in the given namespace
+    Args:
+        name (string)
+            - Pod name
+
+        namespace (string)
+            - Namespace name
+
+    Returns:
+        Boolean value indicating whether the pod exists or not
+    """
+
+    namespace_exists = check_if_namespace_exists(namespace)
+    if namespace_exists:
+        pod_list = list_pods(namespace=namespace)
+        if name in pod_list:
+            return True
+    else:
+        logging.error("Namespace '%s' doesn't exist" % str(namespace))
+    return False
+
+
+def check_if_pvc_exists(name: str, namespace: str) -> bool:
+    """
+    Function that checks if a namespace exists by parsing through
+    the list of projects.
+    Args:
+        name (string)
+            - PVC name
+
+        namespace (string)
+            - Namespace name
+
+    Returns:
+        Boolean value indicating whether the Persistent Volume Claim
+        exists or not.
+    """
+    namespace_exists = check_if_namespace_exists(namespace)
+    if namespace_exists:
+        response = cli.list_namespaced_persistent_volume_claim(
+            namespace=namespace
+        )
+        pvc_list = [pvc.metadata.name for pvc in response.items]
+        if name in pvc_list:
+            return True
+    else:
+        logging.error("Namespace '%s' doesn't exist" % str(namespace))
+    return False
+
+
+def get_pvc_info(name: str, namespace: str) -> PVC:
+    """
+    Function to retrieve information about a Persistent Volume Claim in a
+    given namespace
+
+    Args:
+        name (string)
+            - Name of the persistent volume claim
+
+        namespace (string)
+            - Namespace where the persistent volume claim is present
+
+    Returns:
+        - A PVC data class containing the name, capacity, volume name,
+          namespace and associated pod names of the PVC if the PVC exists
+        - Returns None if the PVC doesn't exist
+    """
+
+    pvc_exists = check_if_pvc_exists(name=name, namespace=namespace)
+    if pvc_exists:
+        pvc_info_response = cli.read_namespaced_persistent_volume_claim(
+            name=name,
+            namespace=namespace,
+            pretty=True
+        )
+        pod_list_response = cli.list_namespaced_pod(namespace=namespace)
+
+        capacity = pvc_info_response.status.capacity['storage']
+        volume_name = pvc_info_response.spec.volume_name
+
+        # Loop through all pods in the namespace to find associated PVCs
+        pvc_pod_list = []
+        for pod in pod_list_response.items:
+            for volume in pod.spec.volumes:
+                if (
+                    volume.persistent_volume_claim is not None
+                    and volume.persistent_volume_claim.claim_name == name
+                ):
+                    pvc_pod_list.append(pod.metadata.name)
+
+        pvc_info = PVC(
+            name=name,
+            capacity=capacity,
+            volumeName=volume_name,
+            podNames=pvc_pod_list,
+            namespace=namespace
+        )
+        return pvc_info
+    else:
+        logging.error(
+            "PVC '%s' doesn't exist in namespace '%s'" % (
+                str(name),
+                str(namespace)
+            )
+        )
+        return None
 
 
 # Find the node kraken is deployed on
@@ -581,13 +797,19 @@ def watch_node_status(node, status, timeout, resource_version):
         timeout_seconds=timeout,
         resource_version=f"{resource_version}"
     ):
-        conditions = [status for status in event["object"].status.conditions if status.type == "Ready"]
+        conditions = [
+            status
+            for status in event["object"].status.conditions
+            if status.type == "Ready"
+        ]
         if conditions[0].status == status:
             watch_resource.stop()
             break
         else:
             count -= 1
-            logging.info("Status of node " + node + ": " + str(conditions[0].status))
+            logging.info(
+                "Status of node " + node + ": " + str(conditions[0].status)
+            )
         if not count:
             watch_resource.stop()
 
