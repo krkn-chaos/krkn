@@ -11,6 +11,9 @@
 * [Scenarios](#scenarios)
 * [Test Environment Recommendations - how and where to run chaos tests](#test-environment-recommendations---how-and-where-to-run-chaos-tests)
 * [Chaos testing in Practice within the OpenShift Organization](#chaos-testing-in-practice-within-the-OpenShift-Organization)
+* [Using kraken as part of a tekton pipeline](#using-kraken-as-part-of-a-tekton-pipeline)
+  * [Start as a single taskrun](#start-as-a-single-taskrun)
+  * [Start as a pipelinerun](#start-as-a-pipelinerun)
 
 
 ### Introduction
@@ -226,3 +229,43 @@ Within the OpenShift organization we use kraken to perform chaos testing through
         iii. This test can be seen here: https://github.com/openshift/svt/tree/master/reliability-v2
 
     3. We are starting to add in test cases that perform chaos testing during an upgrade (not many iterations of this have been completed).
+
+### Using kraken as part of a tekton pipeline
+
+You can find on [artifacthub.io](https://artifacthub.io/packages/search?kind=7&ts_query_web=kraken) the 
+[kraken-scenario](https://artifacthub.io/packages/tekton-task/startx-tekton-catalog/kraken-scenario) `tekton-task`
+which can be used to start a kraken chaos scenarios as part of a chaos pipeline.
+
+To use this task, you must have :
+
+  - Openshift pipeline enabled (or tekton CRD loaded for Kubernetes clusters)
+  - 1 Secret named `kraken-aws-creds` for scenarios using aws
+  - 1 ConfigMap named `kraken-kubeconfig` with credentials to the targeted cluster
+  - 1 ConfigMap named `kraken-config-example` with kraken configuration file (config.yaml)
+  - 1 ConfigMap named `kraken-common-example` with all kraken related files
+  - The `pipeline` SA with be autorized to run with priviveged SCC
+
+You can create theses resources using the following sequence :
+
+```bash
+oc project default
+oc adm policy add-scc-to-user privileged -z pipeline
+oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-scenario/0.1/samples/common.yaml
+```
+
+Then you must change content of `kraken-aws-creds` secret, `kraken-kubeconfig` and `kraken-config-example` configMap
+to reflect your cluster configuration. Refer to the [kraken configuration](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml)
+and [configuration examples](https://github.com/startxfr/tekton-catalog/blob/stable/task/kraken-scenario/0.1/samples/) 
+for details on how to configure theses resources.
+
+#### Start as a single taskrun
+
+```bash
+oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-scenario/0.1/samples/taskrun.yaml
+```
+
+#### Start as a pipelinerun
+
+```yaml
+oc apply -f https://github.com/startxfr/tekton-catalog/raw/stable/task/kraken-scenario/0.1/samples/pipelinerun.yaml
+```
