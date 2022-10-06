@@ -24,7 +24,7 @@ werkzeug==2.0.3
 lxml >= 4.3.0
 pyVmomi >= 6.7
 zope.interface==5.4.0
-aliyun-python-sdk-core
-aliyun-python-sdk-ecs
+aliyun-python-sdk-core==2.13.36
+aliyun-python-sdk-ecs==4.24.25
 arcaflow-plugin-sdk
 git+https://github.com/vmware/vsphere-automation-sdk-python.git
