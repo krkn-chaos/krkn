@@ -24,7 +24,7 @@ spec:
               name: config
             - mountPath: "/root/kraken/config"
               name: kraken-config
-            - mountPath: "/root/kraken/scenarios"
+            - mountPath: "/root/kraken/scenarios/openshift"
               name: scenarios-config
             - mountPath: "/root/kraken/scenarios/openshift"
               name: scenarios-openshift-config
