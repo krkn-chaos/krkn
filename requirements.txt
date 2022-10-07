@@ -1,4 +1,5 @@
 coverage
+wheel
 datetime
 pyfiglet
 PyYAML>=5.1
