@@ -21,7 +21,7 @@ docker-compose
 jinja2==3.0.3
 itsdangerous==2.0.1
 werkzeug==2.0.3
-aliyun-python-sdk-core-v3
-aliyun-python-sdk-ecs
+aliyun-python-sdk-core-v3>=2.13.33
+aliyun-python-sdk-ecs>=4.24.25
 arcaflow-plugin-sdk==0.3.0
 git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
