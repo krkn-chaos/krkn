@@ -21,8 +21,10 @@ To run containerized Kraken as a Kubernetes/OpenShift Deployment, follow these s
 4. Create a ConfigMap named kube-config using `kubectl create configmap kube-config --from-file=<path_to_kubeconfig>`
 5. Create a ConfigMap named kraken-config using `kubectl create configmap kraken-config --from-file=<path_to_kraken_config>`
 6. Create a ConfigMap named scenarios-config using `kubectl create configmap scenarios-config --from-file=<path_to_scenarios_folder>`
-7. Create a service account to run the kraken pod `kubectl create serviceaccount useroot`.
-8. In Openshift, add privileges to service account and execute `oc adm policy add-scc-to-user privileged -z useroot`.
-9. Create a Job using `kubectl apply -f kraken.yml` and monitor the status using `oc get jobs` and `oc get pods`.
+7. Create a ConfigMap named scenarios-openshift-config using `kubectl create configmap scenarios-openshift-config --from-file=<path_to_scenarios_openshift_folder>`
+8. Create a ConfigMap named scenarios-kube-config using `kubectl create configmap scenarios-kube-config --from-file=<path_to_scenarios_kube_folder>`
+9. Create a service account to run the kraken pod `kubectl create serviceaccount useroot`.
+10. In Openshift, add privileges to service account and execute `oc adm policy add-scc-to-user privileged -z useroot`.
+11. Create a Job using `kubectl apply -f kraken.yml` and monitor the status using `oc get jobs` and `oc get pods`.
 
 NOTE: It is not recommended to run Kraken internal to the cluster as the pod which is running Kraken might get disrupted.
