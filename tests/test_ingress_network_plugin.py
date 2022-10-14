@@ -40,7 +40,7 @@ class NetworkScenariosTest(unittest.TestCase):
     def test_network_chaos(self):
         output_id, output_data = ingress_shaping.network_chaos(
             ingress_shaping.NetworkScenarioConfig(
-                label_selector="node-role.kubernetes.io/master",
+                label_selector="node-role.kubernetes.io/control-plane",
                 instance_count=1,
                 network_params={
                     "latency": "50ms",

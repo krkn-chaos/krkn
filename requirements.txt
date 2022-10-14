@@ -28,4 +28,4 @@ aliyun-python-sdk-core==2.13.36
 aliyun-python-sdk-ecs==4.24.25
 arcaflow-plugin-sdk
 wheel
-git+https://github.com/vmware/vsphere-automation-sdk-python.git
+git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
