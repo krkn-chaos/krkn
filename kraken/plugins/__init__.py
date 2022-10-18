@@ -5,8 +5,9 @@ from os.path import abspath
 from typing import List, Dict
 
 from arcaflow_plugin_sdk import schema, serialization, jsonschema
+from arcaflow_plugin_kill_pod import kill_pods, wait_for_pods
+
 import kraken.plugins.vmware.vmware_plugin as vmware_plugin
-from kraken.plugins.pod_plugin import kill_pods, wait_for_pods
 from kraken.plugins.run_python_plugin import run_python_file
 from kraken.plugins.network.ingress_shaping import network_chaos
 

@@ -1,7 +1,7 @@
 import logging
 
 from arcaflow_plugin_sdk import serialization
-from kraken.plugins import pod_plugin
+import arcaflow_plugin_kill_pod
 
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
@@ -26,8 +26,8 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
 
             input = serialization.load_from_file(pod_scenario)
 
-            s = pod_plugin.get_schema()
-            input_data: pod_plugin.KillPodConfig = s.unserialize_input("pod", input)
+            s = arcaflow_plugin_kill_pod.get_schema()
+            input_data: arcaflow_plugin_kill_pod.KillPodConfig = s.unserialize_input("pod", input)
 
             if kubeconfig_path is not None:
                 input_data.kubeconfig_path = kubeconfig_path
@@ -35,10 +35,10 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
             output_id, output_data = s.call_step("pod", input_data)
 
             if output_id == "error":
-                data: pod_plugin.PodErrorOutput = output_data
+                data: arcaflow_plugin_kill_pod.PodErrorOutput = output_data
                 logging.error("Failed to run pod scenario: {}".format(data.error))
             else:
-                data: pod_plugin.PodSuccessOutput = output_data
+                data: arcaflow_plugin_kill_pod.PodSuccessOutput = output_data
                 for pod in data.pods:
                     print("Deleted pod {} in namespace {}\n".format(pod.pod_name, pod.pod_namespace))
         except Exception as e:
