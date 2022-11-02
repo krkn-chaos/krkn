@@ -2,6 +2,8 @@ import logging
 import re
 import sys
 import time
+import urllib3
+import os
 
 from kubernetes import client, config, utils, watch
 from kubernetes.client.rest import ApiException
@@ -14,24 +16,43 @@ from ..kubernetes.resources import (PVC, ChaosEngine, ChaosResult, Container,
 
 kraken_node_name = ""
 
+urllib3.disable_warnings()
 
 # Load kubeconfig and initialize kubernetes python client
 def initialize_clients(kubeconfig_path):
     global cli
     global batch_cli
+    global client_config
     global watch_resource
     global api_client
-    global dyn_client
     global custom_object_client
     try:
-        config.load_kube_config(kubeconfig_path)
+        """Initialize object and create clients from specified kubeconfig"""
+        client_config = client.Configuration()
+        http_proxy = os.getenv("http_proxy", None)
+        """Proxy has auth header"""
+        if http_proxy and "@" in http_proxy:
+            proxy_auth = http_proxy.split("@")[0].split("//")[1]
+            user_pass = proxy_auth.split(":")[0]
+            client_config.username = user_pass[0]
+            client_config.password = user_pass[1]
+        client_config.ssl_ca_cert = False
+        client_config.verify_ssl = False
+        config.load_kube_config(kubeconfig_path, persist_config=True, client_configuration=client_config)
+        
+        proxy_url = http_proxy
+        if proxy_url:
+            client_config.proxy = proxy_url
+            if proxy_auth:
+                
+                client_config.proxy_headers = urllib3.util.make_headers(proxy_basic_auth=proxy_auth)
+
+        client.Configuration.set_default(client_config)
         cli = client.CoreV1Api()
         batch_cli = client.BatchV1Api()
         watch_resource = watch.Watch()
         api_client = client.ApiClient()
         custom_object_client = client.CustomObjectsApi()
-        k8s_client = config.new_client_from_config()
-        dyn_client = DynamicClient(k8s_client)
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)
         sys.exit(1)
@@ -647,12 +668,8 @@ def check_if_namespace_exists(name: str) -> bool:
         Boolean value indicating whether the namespace exists or not
     """
 
-    v1_projects = dyn_client.resources.get(
-        api_version='project.openshift.io/v1',
-        kind='Project'
-    )
-    project_list = v1_projects.get()
-    return True if name in str(project_list) else False
+    namespace_list = list_namespaces()
+    return True if name in str(namespace_list) else False
 
 
 def check_if_pod_exists(name: str, namespace: str) -> bool:
