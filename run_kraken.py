@@ -48,7 +48,8 @@ def main(cfg):
         publish_running_status = config["kraken"].get(
             "publish_kraken_status", False
         )
-        port = config["kraken"].get("port", "8081")
+        port = config["kraken"].get("port")
+        signal_address = config["kraken"].get("signal_address")
         run_signal = config["kraken"].get("signal_state", "RUN")
         litmus_install = config["kraken"].get("litmus_install", True)
         litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
@@ -109,11 +110,16 @@ def main(cfg):
 
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
-            logging.info(
-                "Using port 8081 as %s isn't a valid port number" % (port)
+            logging.error(
+                "%s isn't a valid port number, please check" % (port)
             )
-            port = 8081
-        address = ("0.0.0.0", port)
+            sys.exit(1)
+        if not signal_address:
+            logging.error(
+                 "Please set the signal address in the config"
+            )
+            sys.exit(1)
+        address = (signal_address, port)
 
         # If publish_running_status is False this should keep us going
         # in our loop below
