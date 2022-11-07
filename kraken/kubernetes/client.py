@@ -18,8 +18,9 @@ kraken_node_name = ""
 
 urllib3.disable_warnings()
 
-# Load kubeconfig and initialize kubernetes python client
+
 def initialize_clients(kubeconfig_path):
+    """Load kubeconfig and initialize kubernetes python client"""
     global cli
     global batch_cli
     global client_config
@@ -27,10 +28,10 @@ def initialize_clients(kubeconfig_path):
     global api_client
     global custom_object_client
     try:
-        """Initialize object and create clients from specified kubeconfig"""
+        # Initialize object and create clients from specified kubeconfig
         client_config = client.Configuration()
         http_proxy = os.getenv("http_proxy", None)
-        """Proxy has auth header"""
+        # Proxy has auth header
         if http_proxy and "@" in http_proxy:
             proxy_auth = http_proxy.split("@")[0].split("//")[1]
             user_pass = proxy_auth.split(":")[0]
