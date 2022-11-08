@@ -73,8 +73,9 @@ def check_service_status(node, service, ssh_private_key, timeout):
             )
             if connection is None:
                 break
-        except Exception:
-            pass
+        except Exception as e:
+            logging.error("Failed to ssh to instance: %s within the timeout duration of %s: %s" % (node, timeout, e))
+
     for service_name in service:
         logging.info("Checking status of Service: %s" % (service_name))
         stdin, stdout, stderr = ssh.exec_command(
