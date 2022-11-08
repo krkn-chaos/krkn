@@ -20,7 +20,7 @@ def run(cmd):
 # Get cluster operators and return yaml
 def get_cluster_operators():
     operators_status = run("kubectl get co -o yaml")
-    status_yaml = yaml.load(operators_status, Loader=yaml.FullLoader)
+    status_yaml = yaml.safe_load(operators_status, Loader=yaml.FullLoader)
     return status_yaml
 
 
