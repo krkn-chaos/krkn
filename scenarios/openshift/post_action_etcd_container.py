@@ -2,22 +2,12 @@
 import subprocess
 import logging
 import time
-
-
-def run(cmd):
-    try:
-        output = subprocess.Popen(
-            cmd, shell=True, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        )
-        (out, err) = output.communicate()
-    except Exception as e:
-        logging.error("Failed to run %s, error: %s" % (cmd, e))
-    return out
+from command_runner import CommandRunner
 
 
 i = 0
 while i < 100:
-    pods_running = run("oc get pods -n openshift-etcd -l app=etcd | grep -c '4/4'").rstrip()
+    pods_running = CommandRunner.run("oc get pods -n openshift-etcd -l app=etcd | grep -c '4/4'").rstrip()
     if pods_running == "3":
         break
     time.sleep(5)

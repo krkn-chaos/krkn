@@ -1,13 +1,20 @@
 import subprocess
 import logging
 import sys
-
+import shlex
 
 # Invokes a given command and returns the stdout
+
+
 def invoke(command, timeout=None):
     output = ""
+    command = shlex.split(command)
+    if "&&" in command or "||" in command or "|" in command:
+        raise Exception(
+            "Chaining or piping commands is not supported")
     try:
-        output = subprocess.check_output(command, shell=True, universal_newlines=True, timeout=timeout)
+        output = subprocess.check_output(
+            command, shell=False, universal_newlines=True, timeout=timeout)
     except Exception as e:
         logging.error("Failed to run %s, error: %s" % (command, e))
         sys.exit(1)
@@ -17,8 +24,13 @@ def invoke(command, timeout=None):
 # Invokes a given command and returns the stdout
 def invoke_no_exit(command, timeout=None):
     output = ""
+    command = shlex.split(command)
+    if "&&" in command or "||" in command or "|" in command:
+        raise Exception(
+            "Chaining or piping commands is not supported")
     try:
-        output = subprocess.check_output(command, shell=True, universal_newlines=True, timeout=timeout)
+        output = subprocess.check_output(
+            command, shell=False, universal_newlines=True, timeout=timeout)
         logging.info("output " + str(output))
     except Exception as e:
         logging.error("Failed to run %s, error: %s" % (command, e))
@@ -27,7 +39,12 @@ def invoke_no_exit(command, timeout=None):
 
 
 def run(command):
+    command = shlex.split(command)
     try:
-        subprocess.run(command, shell=True, universal_newlines=True, timeout=45)
+        if "&&" in command or "||" in command or "|" in command:
+            raise Exception(
+                "Chaining or piping commands is not supported")
+        subprocess.run(command, shell=False,
+                       universal_newlines=True, timeout=45)
     except Exception:
         pass

@@ -1,22 +1,12 @@
 #!/usr/bin/env python3
 import subprocess
 import time
-
-
-def run(cmd):
-    try:
-        output = subprocess.Popen(
-            cmd, shell=True, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
-        )
-        (out, err) = output.communicate()
-    except Exception as e:
-        print("Failed to run %s, error: %s" % (cmd, e))
-    return out
+from command_runner import CommandRunner
 
 
 i = 0
 while i < 100:
-    projects_active = run("oc get project | grep 'ingress' | grep -c Active").rstrip()
+    projects_active = CommandRunner.run("oc get project | grep 'ingress' | grep -c Active").rstrip()
     if projects_active == "3":
         break
     i += 1

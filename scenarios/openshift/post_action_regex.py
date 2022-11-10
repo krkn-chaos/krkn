@@ -3,7 +3,7 @@ import logging
 import re
 import subprocess
 import sys
-
+from command_runner import CommandRunner
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -56,27 +56,13 @@ def check_namespaces(namespaces):
         sys.exit(1)
 
 
-def run(cmd):
-    try:
-        output = subprocess.Popen(
-            cmd,
-            shell=True,
-            universal_newlines=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
-        )
-        (out, err) = output.communicate()
-    except Exception as e:
-        logging.error("Failed to run %s, error: %s", cmd, e)
-    return out
-
 
 def print_running_pods():
     regex_namespace_list = ["openshift-.*"]
     checked_namespaces = check_namespaces(regex_namespace_list)
     pods_running = 0
     for namespace in checked_namespaces:
-        new_pods_running = run(
+        new_pods_running = CommandRunner.run(
             "oc get pods -n " + namespace + " | grep -c Running"
         ).rstrip()
         try:
