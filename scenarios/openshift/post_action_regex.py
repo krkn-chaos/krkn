@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 import logging
 import re
-import subprocess
 import sys
-
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
 
-def list_namespaces():
+def list_namespaces(cli):
     """
     List all namespaces
     """
     spaces_list = []
     try:
-        config.load_kube_config()
-        cli = client.CoreV1Api()
         ret = cli.list_namespace(pretty=True)
     except ApiException as e:
         logging.error(
@@ -27,12 +23,12 @@ def list_namespaces():
     return spaces_list
 
 
-def check_namespaces(namespaces):
+def check_namespaces(namespaces, cli):
     """
     Check if all the watch_namespaces are valid
     """
     try:
-        valid_namespaces = list_namespaces()
+        valid_namespaces = list_namespaces(cli)
         regex_namespaces = set(namespaces) - set(valid_namespaces)
         final_namespaces = set(namespaces) - set(regex_namespaces)
         valid_regex = set()
@@ -56,35 +52,35 @@ def check_namespaces(namespaces):
         sys.exit(1)
 
 
-def run(cmd):
+def print_running_pods(cli):
     try:
-        output = subprocess.Popen(
-            cmd,
-            shell=True,
-            universal_newlines=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
+        ret = cli.list_namespace(pretty=True)
+    except ApiException as e:
+        logging.error(
+            "Exception when calling CoreV1Api->list_namespace: %s\n",
+            e
         )
-        (out, err) = output.communicate()
-    except Exception as e:
-        logging.error("Failed to run %s, error: %s", cmd, e)
-    return out
-
-
-def print_running_pods():
     regex_namespace_list = ["openshift-.*"]
-    checked_namespaces = check_namespaces(regex_namespace_list)
+    checked_namespaces = check_namespaces(regex_namespace_list, cli)
     pods_running = 0
+
     for namespace in checked_namespaces:
-        new_pods_running = run(
-            "oc get pods -n " + namespace + " | grep -c Running"
-        ).rstrip()
         try:
-            pods_running += int(new_pods_running)
-        except Exception:
-            continue
+            ret = cli.list_namespaced_pod(namespace=namespace)
+        except ApiException as e:
+            logging.error(
+                "Exception when calling CoreV1Api->list_namespaced_pod: %s\n",
+                e
+            )
+
+        for pod in ret.items:
+            if pod.status.phase == "Running":
+                pods_running += 1
+
     print(pods_running)
 
 
 if __name__ == '__main__':
-    print_running_pods()
+    config.load_kube_config()
+    cli = client.CoreV1Api()
+    print_running_pods(cli)

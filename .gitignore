@@ -23,6 +23,7 @@ kube_burner*
 .pydevproject
 .settings
 .idea
+.vscode
 tags
 
 # Package files
@@ -61,3 +62,7 @@ CI/out/*
 CI/ci_results
 CI/scenarios/*node.yaml
 CI/results.markdown
+
+#env
+chaos/*
+
