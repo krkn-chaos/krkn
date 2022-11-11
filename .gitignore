@@ -24,6 +24,7 @@ kube_burner*
 .settings
 .idea
 .vscode
+config/debug.yaml
 tags
 
 # Package files
