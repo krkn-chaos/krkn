@@ -4,10 +4,10 @@ import sys
 import time
 import urllib3
 import os
+from urllib.parse import urlparse
 
 from kubernetes import client, config, utils, watch
 from kubernetes.client.rest import ApiException
-from kubernetes.dynamic.client import DynamicClient
 from kubernetes.stream import stream
 
 from ..kubernetes.resources import (PVC, ChaosEngine, ChaosResult, Container,
@@ -15,8 +15,6 @@ from ..kubernetes.resources import (PVC, ChaosEngine, ChaosResult, Container,
                                     VolumeMount)
 
 kraken_node_name = ""
-
-urllib3.disable_warnings()
 
 
 def initialize_clients(kubeconfig_path):
@@ -33,20 +31,18 @@ def initialize_clients(kubeconfig_path):
         http_proxy = os.getenv("http_proxy", None)
         # Proxy has auth header
         if http_proxy and "@" in http_proxy:
-            proxy_auth = http_proxy.split("@")[0].split("//")[1]
-            user_pass = proxy_auth.split(":")[0]
-            client_config.username = user_pass[0]
-            client_config.password = user_pass[1]
-        client_config.ssl_ca_cert = False
-        client_config.verify_ssl = False
+            proxy_auth = urlparse(http_proxy)
+            auth_string = proxy_auth.username + ":" +  proxy_auth.password
+            client_config.username = proxy_auth.username
+            client_config.password = proxy_auth.password
+
         config.load_kube_config(kubeconfig_path, persist_config=True, client_configuration=client_config)
         
         proxy_url = http_proxy
         if proxy_url:
             client_config.proxy = proxy_url
             if proxy_auth:
-                
-                client_config.proxy_headers = urllib3.util.make_headers(proxy_basic_auth=proxy_auth)
+                client_config.proxy_headers = urllib3.util.make_headers(proxy_basic_auth=auth_string)
 
         client.Configuration.set_default(client_config)
         cli = client.CoreV1Api()
