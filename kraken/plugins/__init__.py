@@ -3,6 +3,7 @@ import json
 import logging
 from os.path import abspath
 from typing import List, Dict
+import time
 
 from arcaflow_plugin_sdk import schema, serialization, jsonschema
 from arcaflow_plugin_kill_pod import kill_pods, wait_for_pods
@@ -190,12 +191,16 @@ PLUGINS = Plugins(
 )
 
 
-def run(scenarios: List[str], kubeconfig_path: str, failed_post_scenarios: List[str]) -> List[str]:
+def run(scenarios: List[str], kubeconfig_path: str, failed_post_scenarios: List[str], wait_duration: int) -> List[str]:
     for scenario in scenarios:
+        logging.info('scenario '+ str(scenario))
         try:
             PLUGINS.run(scenario, kubeconfig_path)
         except Exception as e:
             failed_post_scenarios.append(scenario)
             logging.error("Error while running {}: {}".format(scenario, e))
             return failed_post_scenarios
+        logging.info("Waiting for the specified duration: %s" % (wait_duration))
+        time.sleep(wait_duration)
+
     return failed_post_scenarios

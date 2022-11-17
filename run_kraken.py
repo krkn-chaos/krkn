@@ -217,7 +217,8 @@ def main(cfg):
                             failed_post_scenarios = plugins.run(
                                 scenarios_list,
                                 kubeconfig_path,
-                                failed_post_scenarios
+                                failed_post_scenarios,
+                                wait_duration
                             )
                         elif scenario_type == "container_scenarios":
                             logging.info("Running container scenarios")
