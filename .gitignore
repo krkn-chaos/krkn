@@ -24,7 +24,6 @@ kube_burner*
 .settings
 .idea
 .vscode
-config/debug.yaml
 tags
 
 # Package files
@@ -64,6 +63,4 @@ CI/ci_results
 CI/scenarios/*node.yaml
 CI/results.markdown
 
-#env
-chaos/*
 
