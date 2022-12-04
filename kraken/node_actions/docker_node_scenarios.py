@@ -1,12 +1,7 @@
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 import logging
-import openshift as oc
-import pyipmi
-import pyipmi.interfaces
 import sys
-import time
-import traceback
 import docker
 
 
