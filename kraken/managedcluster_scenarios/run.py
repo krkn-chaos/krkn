@@ -1,0 +1,66 @@
+import yaml
+import logging
+import sys
+import time
+from kraken.managedcluster_scenarios.managedcluster_scenarios import managedcluster_scenarios
+import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
+import kraken.cerberus.setup as cerberus
+
+
+# Get the managedcluster scenarios object of specfied cloud type
+def get_managedcluster_scenario_object(managedcluster_scenario):
+    return managedcluster_scenarios()
+
+# Run defined scenarios
+def run(scenarios_list, config, wait_duration):
+    for managedcluster_scenario_config in scenarios_list:
+        with open(managedcluster_scenario_config, "r") as f:
+            managedcluster_scenario_config = yaml.full_load(f)
+            for managedcluster_scenario in managedcluster_scenario_config["managedcluster_scenarios"]:
+                managedcluster_scenario_object = get_managedcluster_scenario_object(managedcluster_scenario)
+                if managedcluster_scenario["actions"]:
+                    for action in managedcluster_scenario["actions"]:
+                        start_time = int(time.time())
+                        inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object)
+                        logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                        time.sleep(wait_duration)
+                        end_time = int(time.time())
+                        cerberus.get_status(config, start_time, end_time)
+                        logging.info("")
+
+
+# Inject the specified managedcluster scenario
+def inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object):
+    generic_cloud_scenarios = ("stop_klusterlet_scenario", "managedcluster_crash_scenario")
+    # Get the managedcluster scenario configurations
+    run_kill_count = managedcluster_scenario.get("runs", 1)
+    instance_kill_count = managedcluster_scenario.get("instance_count", 1)
+    managedcluster_name = managedcluster_scenario.get("managedcluster_name", "")
+    label_selector = managedcluster_scenario.get("label_selector", "")
+    timeout = managedcluster_scenario.get("timeout", 120)
+    # Get the managedcluster to apply the scenario
+    if managedcluster_name:
+        managedcluster_name_list = managedcluster_name.split(",")
+    else:
+        managedcluster_name_list = [managedcluster_name]
+    for single_managedcluster_name in managedcluster_name_list:
+        managedclusters = common_managedcluster_functions.get_managedcluster(single_managedcluster_name, label_selector, instance_kill_count)
+        for single_managedcluster in managedclusters:
+            if action == "managedcluster_start_scenario":
+                managedcluster_scenario_object.managedcluster_start_scenario(run_kill_count, single_managedcluster, timeout)
+            elif action == "managedcluster_stop_scenario":
+                managedcluster_scenario_object.managedcluster_stop_scenario(run_kill_count, single_managedcluster, timeout)
+            elif action == "managedcluster_stop_start_scenario":
+                managedcluster_scenario_object.managedcluster_stop_start_scenario(run_kill_count, single_managedcluster, timeout)
+            elif action == "managedcluster_termination_scenario":
+                managedcluster_scenario_object.managedcluster_termination_scenario(run_kill_count, single_managedcluster, timeout)
+            elif action == "managedcluster_reboot_scenario":
+                managedcluster_scenario_object.managedcluster_reboot_scenario(run_kill_count, single_managedcluster, timeout)
+            elif action == "stop_start_klusterlet_scenario":
+                managedcluster_scenario_object.stop_start_klusterlet_scenario(run_kill_count, single_managedcluster, timeout)
+            elif action == "stop_klusterlet_scenario":
+                managedcluster_scenario_object.stop_klusterlet_scenario(run_kill_count, single_managedcluster, timeout)
+            elif action == "managedcluster_crash_scenario":
+                managedcluster_scenario_object.managedcluster_crash_scenario(run_kill_count, single_managedcluster, timeout)
+            else:
+                logging.info("There is no managedcluster action that matches %s, skipping scenario" % action)
