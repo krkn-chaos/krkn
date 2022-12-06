@@ -1,9 +1,7 @@
 import time
 import random
 import logging
-import paramiko
 import kraken.kubernetes.client as kubecli
-import kraken.invoke.command as runcommand
 
 
 # Pick a random managedcluster with specified label selector

@@ -2,7 +2,7 @@ apiVersion: work.open-cluster-management.io/v1
 kind: ManifestWork
 metadata:
   namespace: {{managedcluster_name}}
-  name: restart-managed-cluster
+  name: managedcluster-scenarios-template
 spec:
   workload:
     manifests:
@@ -52,7 +52,7 @@ spec:
       - apiVersion: batch/v1
         kind: Job
         metadata:
-          name: restart-managed-cluster
+          name: managedcluster-scenarios-template
           namespace: open-cluster-management
         spec:
           template:

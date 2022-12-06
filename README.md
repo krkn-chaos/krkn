@@ -69,6 +69,7 @@ Scenario type               | Kubernetes    | OpenShift
 [Application_outages](docs/application_outages.md) | :heavy_check_mark: | :heavy_check_mark: |
 [PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: | :heavy_check_mark: |
+[ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: | :question: |
 
 
 ### Kraken scenario pass/fail criteria and report

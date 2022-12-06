@@ -403,12 +403,12 @@ def delete_manifestwork(namespace):
             group="work.open-cluster-management.io", 
             version="v1",
             plural="manifestworks",
-            name="restart-managed-cluster",
+            name="managedcluster-scenarios-template",
             namespace=namespace
         )
         return api_response
     except ApiException as e:
-        print("Exception when calling CustomObjectsApi->create_namespaced_custom_object: %s\n" % e)
+        print("Exception when calling CustomObjectsApi->delete_namespaced_custom_object: %s\n" % e)
 
 def get_job_status(name, namespace="default"):
     try:
