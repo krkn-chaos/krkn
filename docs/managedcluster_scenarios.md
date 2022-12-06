@@ -1,6 +1,6 @@
 ### ManagedCluster Scenarios
 
-ManagedCluster scenarios provide a way to integrate kraken with [Open Cluster Management (OCM)](https://open-cluster-management.io/) and [Red Hat Advanced Cluster Management for Kubernetes (ACM)](https://www.redhat.com/en/technologies/management/advanced-cluster-management).
+[ManagedCluster](https://open-cluster-management.io/concepts/managedcluster/) scenarios provide a way to integrate kraken with [Open Cluster Management (OCM)](https://open-cluster-management.io/) and [Red Hat Advanced Cluster Management for Kubernetes (ACM)](https://www.redhat.com/en/technologies/management/advanced-cluster-management).
 
 ManagedCluster scenarios leverage [ManifestWorks](https://open-cluster-management.io/concepts/manifestwork/) to inject faults into the ManagedClusters.
 
