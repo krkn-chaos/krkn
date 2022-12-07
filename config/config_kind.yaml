@@ -11,8 +11,8 @@ kraken:
     litmus_uninstall: False                                # If you want to uninstall litmus if failure
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
-        #- plugin_scenarios:
-        #    - scenarios/kind/scheduler.yml
+        - plugin_scenarios:
+            - scenarios/kind/scheduler.yml
         - node_scenarios:
             - scenarios/kind/node_scenarios_example.yml        
 
