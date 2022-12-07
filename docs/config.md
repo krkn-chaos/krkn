@@ -28,7 +28,7 @@ The prometheus url/route and bearer token are automatically obtained in case of 
 **port**: port to listen/post the signal state to
 
 ## Litmus Variables
-Litmus installation specifics if you are running one of the hog scenarios. See [litmus doc](litmus_scenarios.md) for more informaiton on these types of scenarios 
+Litmus installation specifics if you are running one of the hog scenarios. See [litmus doc](litmus_scenarios.md) for more information on these types of scenarios 
 **litmus_install**: Installs specified version of litmus, set to False if it's already setup
 **litmus_version**: Litmus version to install
 **litmus_uninstall**: If you want to uninstall litmus if failure
@@ -40,6 +40,8 @@ Litmus installation specifics if you are running one of the hog scenarios. See [
 **chaos_scenarios**: List of different types of chaos scenarios you want to run with paths to their specific yaml file configurations
 
 If a scenario has a post action check script, it will be run before and after each scenario to validate the component under test starts and ends at the same state
+
+Currently the scenarios are run one after another (in sequence) and will exit if one of the scenarios fail, without moving onto the next one
 
 Chaos scenario types: 
 - container_scenarios     
