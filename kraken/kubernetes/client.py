@@ -2,7 +2,6 @@ import logging
 import re
 import sys
 import time
-import io
 
 from kubernetes import client, config, utils, watch
 from kubernetes.client.rest import ApiException
