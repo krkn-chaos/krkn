@@ -1,6 +1,5 @@
 import yaml
 import logging
-import sys
 import time
 from kraken.managedcluster_scenarios.managedcluster_scenarios import managedcluster_scenarios
 import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
