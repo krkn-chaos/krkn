@@ -1,4 +1,3 @@
-import time
 import random
 import logging
 import kraken.kubernetes.client as kubecli
