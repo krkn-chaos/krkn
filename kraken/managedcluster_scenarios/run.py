@@ -30,7 +30,6 @@ def run(scenarios_list, config, wait_duration):
 
 # Inject the specified managedcluster scenario
 def inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object):
-    generic_cloud_scenarios = ("stop_klusterlet_scenario", "managedcluster_crash_scenario")
     # Get the managedcluster scenario configurations
     run_kill_count = managedcluster_scenario.get("runs", 1)
     instance_kill_count = managedcluster_scenario.get("instance_count", 1)
