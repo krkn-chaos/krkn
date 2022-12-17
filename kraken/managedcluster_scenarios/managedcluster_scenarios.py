@@ -1,4 +1,3 @@
-import logging
 from jinja2 import Environment, FileSystemLoader
 import os
 import time
