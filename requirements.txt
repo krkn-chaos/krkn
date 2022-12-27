@@ -13,7 +13,7 @@ oauth2client>=4.1.3
 python-openstackclient
 gitpython
 paramiko
-setuptools==63.4.1
+setuptools==65.5.1
 openshift-client
 python-ipmi
 podman-compose
