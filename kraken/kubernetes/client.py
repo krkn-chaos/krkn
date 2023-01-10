@@ -175,6 +175,26 @@ def list_killable_nodes(label_selector=None):
     return nodes
 
 
+# List managedclusters attached to the hub that can be killed
+def list_killable_managedclusters(label_selector=None):
+    managedclusters = []
+    try:
+        ret = custom_object_client.list_cluster_custom_object(
+            group="cluster.open-cluster-management.io",
+            version="v1",
+            plural="managedclusters",
+            label_selector=label_selector
+        )
+    except ApiException as e:
+        logging.error("Exception when calling CustomObjectsApi->list_cluster_custom_object: %s\n" % e)
+        raise e
+    for managedcluster in ret['items']:
+        conditions = managedcluster['status']['conditions']
+        available = list(filter(lambda condition: condition['reason'] == 'ManagedClusterAvailable', conditions))
+        if available and available[0]['status'] == 'True':
+            managedclusters.append(managedcluster['metadata']['name'])
+    return managedclusters
+
 # List pods in the given namespace
 def list_pods(namespace, label_selector=None):
     pods = []
@@ -361,6 +381,33 @@ def create_job(body, namespace="default"):
         )
         raise
 
+
+def create_manifestwork(body, namespace):
+    try:
+        api_response = custom_object_client.create_namespaced_custom_object(
+            group="work.open-cluster-management.io", 
+            version="v1",
+            plural="manifestworks",
+            body=body,
+            namespace=namespace
+        )
+        return api_response
+    except ApiException as e:
+        print("Exception when calling CustomObjectsApi->create_namespaced_custom_object: %s\n" % e)
+
+
+def delete_manifestwork(namespace):
+    try:
+        api_response = custom_object_client.delete_namespaced_custom_object(
+            group="work.open-cluster-management.io", 
+            version="v1",
+            plural="manifestworks",
+            name="managedcluster-scenarios-template",
+            namespace=namespace
+        )
+        return api_response
+    except ApiException as e:
+        print("Exception when calling CustomObjectsApi->delete_namespaced_custom_object: %s\n" % e)
 
 def get_job_status(name, namespace="default"):
     try:
@@ -812,6 +859,30 @@ def watch_node_status(node, status, timeout, resource_version):
             )
         if not count:
             watch_resource.stop()
+
+
+# Watch for a specific managedcluster status
+# TODO: Implement this with a watcher instead of polling
+def watch_managedcluster_status(managedcluster, status, timeout):
+    elapsed_time = 0
+    while True:
+        conditions = custom_object_client.get_cluster_custom_object_status(
+            "cluster.open-cluster-management.io", "v1", "managedclusters", managedcluster
+        )['status']['conditions']
+        available = list(filter(lambda condition: condition['reason'] == 'ManagedClusterAvailable', conditions))
+        if status == "True":
+            if available and available[0]['status'] == "True":
+                logging.info("Status of managedcluster " + managedcluster + ": Available")
+                return True
+        else:
+            if not available:
+                logging.info("Status of managedcluster " + managedcluster + ": Unavailable")
+                return True
+        time.sleep(2)
+        elapsed_time += 2
+        if elapsed_time >= timeout:
+            logging.info("Timeout waiting for managedcluster " + managedcluster + " to become: " + status)
+            return False
 
 
 # Get the resource version for the specified node

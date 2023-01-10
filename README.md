@@ -69,6 +69,7 @@ Scenario type               | Kubernetes    | OpenShift
 [Application_outages](docs/application_outages.md) | :heavy_check_mark: | :heavy_check_mark: |
 [PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: | :heavy_check_mark: |
+[ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: | :question: |
 
 
 ### Kraken scenario pass/fail criteria and report
@@ -96,6 +97,9 @@ Kraken supports capturing metrics for the duration of the scenarios defined in t
 ### Alerts
 In addition to checking the recovery and health of the cluster and components under test, Kraken takes in a profile with the Prometheus expressions to validate and alerts, exits with a non-zero return code depending on the severity set. This feature can be used to determine pass/fail or alert on abnormalities observed in the cluster based on the metrics. Information on enabling and leveraging this feature can be found [here](docs/alerts.md).
 
+### OCM / ACM integration
+
+Kraken supports injecting faults into [Open Cluster Management (OCM)](https://open-cluster-management.io/) and [Red Hat Advanced Cluster Management for Kubernetes (ACM)](https://www.redhat.com/en/technologies/management/advanced-cluster-management) managed clusters through [ManagedCluster Scenarios](docs/managedcluster_scenarios.md).
 
 ### Blogs and other useful resources
 - Blog post on introduction to Kraken: https://www.openshift.com/blog/introduction-to-kraken-a-chaos-tool-for-openshift/kubernetes
