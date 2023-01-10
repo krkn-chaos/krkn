@@ -1,0 +1,68 @@
+apiVersion: work.open-cluster-management.io/v1
+kind: ManifestWork
+metadata:
+  namespace: {{managedcluster_name}}
+  name: managedcluster-scenarios-template
+spec:
+  workload:
+    manifests:
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: scale-deploy
+          namespace: open-cluster-management 
+        rules:
+        - apiGroups: ["apps"]
+          resources: ["deployments/scale"]
+          verbs: ["patch"]
+        - apiGroups: ["apps"]
+          resources: ["deployments"]
+          verbs: ["get"]
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: scale-deploy-to-sa
+          namespace: open-cluster-management
+        subjects:
+          - kind: ServiceAccount
+            name: internal-kubectl
+            namespace: open-cluster-management
+        roleRef:
+          kind: ClusterRole
+          name: scale-deploy
+          apiGroup: rbac.authorization.k8s.io
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: scale-deploy-to-sa
+          namespace: open-cluster-management-agent
+        subjects:
+          - kind: ServiceAccount
+            name: internal-kubectl
+            namespace: open-cluster-management
+        roleRef:
+          kind: ClusterRole
+          name: scale-deploy
+          apiGroup: rbac.authorization.k8s.io
+      - apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: internal-kubectl
+          namespace: open-cluster-management 
+      - apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: managedcluster-scenarios-template
+          namespace: open-cluster-management
+        spec:
+          template:
+            spec:
+              serviceAccountName: internal-kubectl
+              containers:
+              - name: kubectl
+                image: quay.io/sighup/kubectl-kustomize:1.21.6_3.9.1
+                command: ["/bin/sh", "-c"]
+                args:
+                  - {{args}}
+              restartPolicy: Never
+          backoffLimit: 0
