@@ -38,6 +38,14 @@ See the example node scenario or the example below.
 
 **NOTE**: Baremetal machines are fragile. Some node actions can occasionally corrupt the filesystem if it does not shut down properly, and sometimes the kubelet does not start properly.
 
+#### Docker
+
+The Docker provider can be used to run node scenarios against kind clusters.
+
+[kind](https://kind.sigs.k8s.io/) is a tool for running local Kubernetes clusters using Docker container "nodes".
+
+kind was primarily designed for testing Kubernetes itself, but may be used for local development or CI.
+
 #### GCP
 How to set up GCP cli to run node scenarios is defined [here](cloud_setup.md#gcp).
 

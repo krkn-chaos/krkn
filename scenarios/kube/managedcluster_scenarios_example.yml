@@ -1,0 +1,17 @@
+managedcluster_scenarios:
+  - actions:                                                        # ManagedCluster chaos scenarios to be injected
+    - managedcluster_stop_start_scenario
+    managedcluster_name: cluster1                                   # ManagedCluster on which scenario has to be injected; can set multiple names separated by comma
+    # label_selector:                                               # When managedcluster_name is not specified, a ManagedCluster with matching label_selector is selected for ManagedCluster chaos scenario injection
+    instance_count: 1                                               # Number of managedcluster to perform action/select that match the label selector
+    runs: 1                                                         # Number of times to inject each scenario under actions (will perform on same ManagedCluster each time)
+    timeout: 420                                                    # Duration to wait for completion of ManagedCluster scenario injection
+                                                                    # For OCM to detect a ManagedCluster as unavailable, have to wait 5*leaseDurationSeconds
+                                                                    # (default leaseDurationSeconds = 60 sec)
+  - actions:
+    - stop_start_klusterlet_scenario
+    managedcluster_name: cluster1
+    # label_selector:
+    instance_count: 1
+    runs: 1
+    timeout: 60

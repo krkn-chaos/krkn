@@ -18,6 +18,7 @@ openshift-client
 python-ipmi
 podman-compose
 docker-compose
+docker
 jinja2==3.0.3
 itsdangerous==2.0.1
 werkzeug==2.0.3

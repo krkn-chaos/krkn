@@ -16,6 +16,7 @@ import kraken.pod_scenarios.setup as pod_scenarios
 import kraken.namespace_actions.common_namespace_functions as namespace_actions
 import kraken.shut_down.common_shut_down_func as shut_down
 import kraken.node_actions.run as nodeaction
+import kraken.managedcluster_scenarios.run as managedcluster_scenarios
 import kraken.kube_burner.client as kube_burner
 import kraken.zone_outage.actions as zone_outages
 import kraken.application_outage.actions as application_outage
@@ -239,6 +240,15 @@ def main(cfg):
                                 config,
                                 wait_duration
                             )
+
+                        # Inject managedcluster chaos scenarios specified in the config
+                        elif scenario_type == "managedcluster_scenarios":
+                            logging.info("Running managedcluster scenarios")
+                            managedcluster_scenarios.run(
+                                scenarios_list,
+                                config,
+                                wait_duration
+                            )    
 
                         # Inject time skew chaos scenarios specified
                         # in the config
