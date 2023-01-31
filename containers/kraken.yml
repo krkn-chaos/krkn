@@ -16,7 +16,7 @@ spec:
         - name: kraken
           securityContext:
             privileged: true
-          image: quay.io/chaos-kubox/krkn
+          image: quay.io/redhat-chaos/krkn
           command: ["/bin/sh", "-c"]
           args: ["python3.9 run_kraken.py -c config/config.yaml"]
           volumeMounts:
