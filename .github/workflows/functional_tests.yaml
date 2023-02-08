@@ -60,21 +60,17 @@ jobs:
         run: |
           yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
           yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
-          yq '.[0].config.label_selector ="app=${{env.DEPLOYMENT_NAME}}"' -i CI/scenarios/hello_pod_killing.yml
-          yq '.[0].config.namespace_pattern ="^${{env.NAMESPACE}}$"' -i CI/scenarios/hello_pod_killing.yml
-          yq '.scenarios.[0].namespace="^openshift-network-diagnostics$"' -i CI/scenarios/ingress_namespace.yaml
           
-          echo "test_app_outages_gh" >> ./CI/tests/my_tests
+          echo "test_app_outages_gh" > ./CI/tests/my_tests
           echo "test_container"      >> ./CI/tests/my_tests
           echo "test_namespace"      >> ./CI/tests/my_tests
           echo "test_net_chaos"      >> ./CI/tests/my_tests
           echo "test_time"           >> ./CI/tests/my_tests
+
       - name: Print affected config files
         run: |
           echo -e "## CI/config/common_test_config.yaml\n\n"
           cat CI/config/common_test_config.yaml
-          echo -e "## CI/scenarios/hello_pod_killing.yml\n\n"
-          cat CI/scenarios/hello_pod_killing.yml
           echo -e "## CI/scenarios/ingress_namespace.yaml\n\n"
           cat CI/scenarios/ingress_namespace.yaml
 
