@@ -9,6 +9,7 @@ trap finish EXIT
 function functional_test_app_outage {
   [ -z $DEPLOYMENT_NAME ] && echo "[ERR] DEPLOYMENT_NAME variable not set, failing." && exit 1
   yq -i '.application_outage.pod_selector={"app":"'$DEPLOYMENT_NAME'"}' CI/scenarios/app_outage.yaml
+  yq -i '.application_outage.namespace="'$NAMESPACE'"' CI/scenarios/app_outage.yaml
   export scenario_type="application_outages"
   export scenario_file="CI/scenarios/app_outage.yaml"
   export post_config=""
