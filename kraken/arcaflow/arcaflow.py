@@ -1,9 +1,9 @@
-import arcaflowengine
+import arcaflow as arcaflow_engine
 
 def run(scenarios_list):
     for scenario in scenarios_list:
-        engineArgs= arcaflowengine.EngineArgs()
+        engineArgs= arcaflow_engine.EngineArgs()
         engineArgs.context=scenario
         engineArgs.config="{}/config.yaml".format(scenario)
         engineArgs.input="{}/input.yaml".format(scenario)
-        arcaflowengine.run(engineArgs)
+        arcaflow_engine.run(engineArgs)
