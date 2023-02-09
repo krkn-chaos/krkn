@@ -1,0 +1,63 @@
+input:
+  root: RootObject
+  objects:
+    RootObject:
+      id: RootObject
+      properties:
+        kubeconfig:
+          display:
+            description: The complete kubeconfig file as a string
+            name: Kubeconfig file contents
+          type:
+            type_id: string
+          required: true
+        sysbench_threads:
+          display:
+            description: The number of threads sysbench will run
+            name: sysbench threads
+          type:
+            type_id: integer
+        sysbench_events:
+          display:
+            description: The number of events sysbench will run
+            name: sysbench events
+          type:
+            type_id: integer
+        sysbench_cpumaxprime:
+          display:
+            description: The upper limit of the number of prime numbers generated
+            name: sysbench cpu max primes
+          type:
+            type_id: integer
+        sysbench_runtime:
+          display:
+            description: The total runtime in seconds for the sysbench tests
+            name: sysbench runtime seconds
+          type:
+            type_id: integer
+steps:
+  kubeconfig:
+    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:latest
+    input:
+      kubeconfig: !expr $.input.kubeconfig
+  sysbench:
+    plugin: quay.io/arcalot/arcaflow-plugin-sysbench:latest
+    step: sysbenchcpu
+    input:
+      threads: !expr $.input.sysbench_threads
+      events: !expr $.input.sysbench_events
+      cpu-max-prime: !expr $.input.sysbench_cpumaxprime
+      time: !expr $.input.sysbench_runtime
+    deploy:
+      type: kubernetes
+      connection: !expr $.steps.kubeconfig.outputs.success.connection
+      pod:
+        metadata:
+          namespace: default
+          labels:
+            arcaflow: sysbench
+        spec:
+          pluginContainer:
+            imagePullPolicy: Always
+output:
+  sysbench: !expr $.steps.sysbench.outputs.success

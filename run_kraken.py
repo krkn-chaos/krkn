@@ -22,6 +22,7 @@ import kraken.zone_outage.actions as zone_outages
 import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
+import kraken.arcaflow as arcaflow
 import server as server
 from kraken import plugins
 
@@ -214,6 +215,9 @@ def main(cfg):
                                 "kill-pods configuration instead."
                             )
                             sys.exit(1)
+                        elif scenario_type == "arcaflow_scenarios":
+                            failed_post_scenarios = arcaflow.run(scenarios_list)
+
                         elif scenario_type == "plugin_scenarios":
                             failed_post_scenarios = plugins.run(
                                 scenarios_list,
