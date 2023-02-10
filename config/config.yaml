@@ -12,41 +12,41 @@ kraken:
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   arcaflow_scenarios:                                 # List of chaos pod scenarios to load
-            - scenarios/arcaflow/sysbench
-        -   plugin_scenarios:
-            - scenarios/openshift/etcd.yml
-            - scenarios/openshift/regex_openshift_pod_kill.yml
-            - scenarios/openshift/vmware_node_scenarios.yml
-            - scenarios/openshift/network_chaos_ingress.yml
-        -   node_scenarios:                                # List of chaos node scenarios to load
-            -   scenarios/openshift/node_scenarios_example.yml
-        -   plugin_scenarios:
-            - scenarios/openshift/openshift-apiserver.yml
-            - scenarios/openshift/openshift-kube-apiserver.yml
-        -   time_scenarios:                                # List of chaos time scenarios to load
-            - scenarios/openshift/time_scenarios_example.yml
-        -   litmus_scenarios:                              # List of litmus scenarios to load
-            - - scenarios/openshift/templates/litmus-rbac.yaml
-              - scenarios/openshift/node_cpu_hog_engine.yaml
-            - - scenarios/openshift/templates/litmus-rbac.yaml
-              - scenarios/openshift/node_mem_engine.yaml
-            - - scenarios/openshift/templates/litmus-rbac.yaml
-              - scenarios/openshift/node_io_engine.yaml
-        -   cluster_shut_down_scenarios:
-            - - scenarios/openshift/cluster_shut_down_scenario.yml
-              - scenarios/openshift/post_action_shut_down.py
-        -   namespace_scenarios:
-             - - scenarios/openshift/regex_namespace.yaml
-             - - scenarios/openshift/ingress_namespace.yaml
-               - scenarios/openshift/post_action_namespace.py
-        -   zone_outages:
-            - scenarios/openshift/zone_outage.yaml
-        -   application_outages:
-            - scenarios/openshift/app_outage.yaml
-        -   pvc_scenarios:
-            - scenarios/openshift/pvc_scenario.yaml
-        -   network_chaos:
-            - scenarios/openshift/network_chaos.yaml
+            - scenarios/arcaflow/sysbench/input.yaml
+        #-   plugin_scenarios:
+        #    - scenarios/openshift/etcd.yml
+        #    - scenarios/openshift/regex_openshift_pod_kill.yml
+        #    - scenarios/openshift/vmware_node_scenarios.yml
+        #    - scenarios/openshift/network_chaos_ingress.yml
+        #-   node_scenarios:                                # List of chaos node scenarios to load
+        #    -   scenarios/openshift/node_scenarios_example.yml
+        #-   plugin_scenarios:
+        #    - scenarios/openshift/openshift-apiserver.yml
+        #    - scenarios/openshift/openshift-kube-apiserver.yml
+        #-   time_scenarios:                                # List of chaos time scenarios to load
+        #    - scenarios/openshift/time_scenarios_example.yml
+        #-   litmus_scenarios:                              # List of litmus scenarios to load
+        #    - - scenarios/openshift/templates/litmus-rbac.yaml
+        #      - scenarios/openshift/node_cpu_hog_engine.yaml
+        #    - - scenarios/openshift/templates/litmus-rbac.yaml
+        #      - scenarios/openshift/node_mem_engine.yaml
+        #    - - scenarios/openshift/templates/litmus-rbac.yaml
+        #      - scenarios/openshift/node_io_engine.yaml
+        #-   cluster_shut_down_scenarios:
+        #    - - scenarios/openshift/cluster_shut_down_scenario.yml
+        #      - scenarios/openshift/post_action_shut_down.py
+        #-   namespace_scenarios:
+        #     - - scenarios/openshift/regex_namespace.yaml
+        #     - - scenarios/openshift/ingress_namespace.yaml
+        #       - scenarios/openshift/post_action_namespace.py
+        #-   zone_outages:
+        #    - scenarios/openshift/zone_outage.yaml
+        #-   application_outages:
+        #    - scenarios/openshift/app_outage.yaml
+        #-   pvc_scenarios:
+        #    - scenarios/openshift/pvc_scenario.yaml
+        #-   network_chaos:
+        #    - scenarios/openshift/network_chaos.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed

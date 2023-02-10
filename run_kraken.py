@@ -22,7 +22,7 @@ import kraken.zone_outage.actions as zone_outages
 import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
-import kraken.arcaflow as arcaflow
+import kraken.arcaflow_plugin as arcaflow_plugin
 import server as server
 from kraken import plugins
 
@@ -45,11 +45,11 @@ def main(cfg):
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration
         distribution = config["kraken"].get("distribution", "openshift")
-        kubeconfig_path = os.path.expanduser(config["kraken"].get("kubeconfig_path", ""))
-        chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
-        publish_running_status = config["kraken"].get(
-            "publish_kraken_status", False
+        kubeconfig_path = os.path.expanduser(
+            config["kraken"].get("kubeconfig_path", "")
         )
+        chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
+        publish_running_status = config["kraken"].get("publish_kraken_status", False)
         port = config["kraken"].get("port")
         signal_address = config["kraken"].get("signal_address")
         run_signal = config["kraken"].get("signal_state", "RUN")
@@ -66,15 +66,12 @@ def main(cfg):
             "deploy_dashboards", False
         )
         dashboard_repo = config["performance_monitoring"].get(
-            "repo",
-            "https://github.com/cloud-bulldozer/performance-dashboards.git"
+            "repo", "https://github.com/cloud-bulldozer/performance-dashboards.git"
         )
-        capture_metrics = config["performance_monitoring"].get(
-            "capture_metrics", False
-        )
+        capture_metrics = config["performance_monitoring"].get("capture_metrics", False)
         kube_burner_url = config["performance_monitoring"].get(
             "kube_burner_binary_url",
-            KUBE_BURNER_URL.format(version=KUBE_BURNER_VERSION)
+            KUBE_BURNER_URL.format(version=KUBE_BURNER_VERSION),
         )
         config_path = config["performance_monitoring"].get(
             "config_path", "config/kube_burner.yaml"
@@ -82,25 +79,18 @@ def main(cfg):
         metrics_profile = config["performance_monitoring"].get(
             "metrics_profile_path", "config/metrics-aggregated.yaml"
         )
-        prometheus_url = config["performance_monitoring"].get(
-            "prometheus_url", ""
-        )
+        prometheus_url = config["performance_monitoring"].get("prometheus_url", "")
         prometheus_bearer_token = config["performance_monitoring"].get(
             "prometheus_bearer_token", ""
         )
         run_uuid = config["performance_monitoring"].get("uuid", "")
-        enable_alerts = config["performance_monitoring"].get(
-            "enable_alerts", False
-        )
-        alert_profile = config["performance_monitoring"].get(
-            "alert_profile", ""
-        )
+        enable_alerts = config["performance_monitoring"].get("enable_alerts", False)
+        alert_profile = config["performance_monitoring"].get("alert_profile", "")
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
             logging.error(
-                "Cannot read the kubeconfig file at %s, please check" %
-                kubeconfig_path
+                "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
             )
             sys.exit(1)
         logging.info("Initializing client to talk to the Kubernetes cluster")
@@ -112,14 +102,10 @@ def main(cfg):
 
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
-            logging.error(
-                "%s isn't a valid port number, please check" % (port)
-            )
+            logging.error("%s isn't a valid port number, please check" % (port))
             sys.exit(1)
         if not signal_address:
-            logging.error(
-                 "Please set the signal address in the config"
-            )
+            logging.error("Please set the signal address in the config")
             sys.exit(1)
         address = (signal_address, port)
 
@@ -129,12 +115,11 @@ def main(cfg):
             server_address = address[0]
             port = address[1]
             logging.info(
-                "Publishing kraken status at http://%s:%s" % (
-                    server_address,
-                    port
-                )
+                "Publishing kraken status at http://%s:%s" % (server_address, port)
             )
-            logging.info("Publishing kraken status at http://%s:%s" % (server_address, port))
+            logging.info(
+                "Publishing kraken status at http://%s:%s" % (server_address, port)
+            )
             server.start_server(address, run_signal)
 
         # Cluster info
@@ -166,15 +151,13 @@ def main(cfg):
         # Set the number of iterations to loop to infinity if daemon mode is
         # enabled or else set it to the provided iterations count in the config
         if daemon_mode:
-            logging.info(
-                "Daemon mode enabled, kraken will cause chaos forever\n"
-            )
+            logging.info("Daemon mode enabled, kraken will cause chaos forever\n")
             logging.info("Ignoring the iterations set")
             iterations = float("inf")
         else:
             logging.info(
-                "Daemon mode not enabled, will run through %s iterations\n" %
-                str(iterations)
+                "Daemon mode not enabled, will run through %s iterations\n"
+                % str(iterations)
             )
             iterations = int(iterations)
 
@@ -196,8 +179,7 @@ def main(cfg):
                         while publish_running_status and run_signal == "PAUSE":
                             logging.info(
                                 "Pausing Kraken run, waiting for %s seconds"
-                                " and will re-poll signal"
-                                % str(wait_duration)
+                                " and will re-poll signal" % str(wait_duration)
                             )
                             time.sleep(wait_duration)
                             run_signal = server.get_status(address)
@@ -216,54 +198,45 @@ def main(cfg):
                             )
                             sys.exit(1)
                         elif scenario_type == "arcaflow_scenarios":
-                            failed_post_scenarios = arcaflow.run(scenarios_list)
+                            failed_post_scenarios = arcaflow_plugin.run(
+                                scenarios_list, kubeconfig_path
+                            )
 
                         elif scenario_type == "plugin_scenarios":
                             failed_post_scenarios = plugins.run(
                                 scenarios_list,
                                 kubeconfig_path,
                                 failed_post_scenarios,
-                                wait_duration
+                                wait_duration,
                             )
                         elif scenario_type == "container_scenarios":
                             logging.info("Running container scenarios")
-                            failed_post_scenarios = \
-                                pod_scenarios.container_run(
-                                    kubeconfig_path,
-                                    scenarios_list,
-                                    config,
-                                    failed_post_scenarios,
-                                    wait_duration
-                                )
+                            failed_post_scenarios = pod_scenarios.container_run(
+                                kubeconfig_path,
+                                scenarios_list,
+                                config,
+                                failed_post_scenarios,
+                                wait_duration,
+                            )
 
                         # Inject node chaos scenarios specified in the config
                         elif scenario_type == "node_scenarios":
                             logging.info("Running node scenarios")
-                            nodeaction.run(
-                                scenarios_list,
-                                config,
-                                wait_duration
-                            )
+                            nodeaction.run(scenarios_list, config, wait_duration)
 
                         # Inject managedcluster chaos scenarios specified in the config
                         elif scenario_type == "managedcluster_scenarios":
                             logging.info("Running managedcluster scenarios")
                             managedcluster_scenarios.run(
-                                scenarios_list,
-                                config,
-                                wait_duration
-                            )    
+                                scenarios_list, config, wait_duration
+                            )
 
                         # Inject time skew chaos scenarios specified
                         # in the config
                         elif scenario_type == "time_scenarios":
                             if distribution == "openshift":
                                 logging.info("Running time skew scenarios")
-                                time_actions.run(
-                                    scenarios_list,
-                                    config,
-                                    wait_duration
-                                )
+                                time_actions.run(scenarios_list, config, wait_duration)
                             else:
                                 logging.error(
                                     "Litmus scenarios are currently "
@@ -279,24 +252,19 @@ def main(cfg):
                                 if litmus_install:
                                     # Remove Litmus resources
                                     # before running the scenarios
-                                    common_litmus.delete_chaos(
-                                        litmus_namespace
-                                    )
+                                    common_litmus.delete_chaos(litmus_namespace)
                                     common_litmus.delete_chaos_experiments(
                                         litmus_namespace
                                     )
                                     if litmus_uninstall_before_run:
                                         common_litmus.uninstall_litmus(
-                                            litmus_version,
-                                            litmus_namespace
+                                            litmus_version, litmus_namespace
                                         )
                                     common_litmus.install_litmus(
-                                        litmus_version,
-                                        litmus_namespace
+                                        litmus_version, litmus_namespace
                                     )
                                     common_litmus.deploy_all_experiments(
-                                        litmus_version,
-                                        litmus_namespace
+                                        litmus_version, litmus_namespace
                                     )
                                 litmus_installed = True
                                 common_litmus.run(
@@ -315,11 +283,7 @@ def main(cfg):
 
                         # Inject cluster shutdown scenarios
                         elif scenario_type == "cluster_shut_down_scenarios":
-                            shut_down.run(
-                                scenarios_list,
-                                config,
-                                wait_duration
-                            )
+                            shut_down.run(scenarios_list, config, wait_duration)
 
                         # Inject namespace chaos scenarios
                         elif scenario_type == "namespace_scenarios":
@@ -329,25 +293,19 @@ def main(cfg):
                                 config,
                                 wait_duration,
                                 failed_post_scenarios,
-                                kubeconfig_path
+                                kubeconfig_path,
                             )
 
                         # Inject zone failures
                         elif scenario_type == "zone_outages":
                             logging.info("Inject zone outages")
-                            zone_outages.run(
-                                scenarios_list,
-                                config,
-                                wait_duration
-                            )
+                            zone_outages.run(scenarios_list, config, wait_duration)
 
                         # Application outages
                         elif scenario_type == "application_outages":
                             logging.info("Injecting application outage")
                             application_outage.run(
-                                scenarios_list,
-                                config,
-                                wait_duration
+                                scenarios_list, config, wait_duration
                             )
 
                         # PVC scenarios
@@ -358,11 +316,7 @@ def main(cfg):
                         # Network scenarios
                         elif scenario_type == "network_chaos":
                             logging.info("Running Network Chaos")
-                            network_chaos.run(
-                                scenarios_list,
-                                config,
-                                wait_duration
-                            )
+                            network_chaos.run(scenarios_list, config, wait_duration)
 
             iteration += 1
             logging.info("")
@@ -416,8 +370,7 @@ def main(cfg):
         run_dir = os.getcwd() + "/kraken.report"
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
-            "%s. Report generated at %s. Exiting"
-            % (run_uuid, run_dir)
+            "%s. Report generated at %s. Exiting" % (run_uuid, run_dir)
         )
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
@@ -440,7 +393,7 @@ if __name__ == "__main__":
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
             logging.FileHandler("kraken.report", mode="w"),
-            logging.StreamHandler()
+            logging.StreamHandler(),
         ],
     )
     if options.cfg is None:
