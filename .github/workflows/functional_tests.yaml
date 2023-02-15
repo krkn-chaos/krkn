@@ -4,7 +4,7 @@ jobs:
   pr_commented:
     # This job only runs for pull request comments containing /functional
     name: Functional Tests
-    if: contains(github.event.comment.body, '/test') && contains(github.event.comment.html_url, '/pull/')
+    if: contains(github.event.comment.body, '/test') && contains(github.event.comment.html_url, '/pull/') && github.event.requested_team.name == 'redhat-chaos'
     runs-on: ubuntu-latest
     steps:
       - name: Check out Kraken
