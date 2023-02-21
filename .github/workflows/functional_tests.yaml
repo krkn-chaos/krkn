@@ -1,11 +1,32 @@
 on: issue_comment
 
 jobs:
+  check_user:
+    # This job only runs for pull request comments
+    name: Check User's Authorization
+    if: contains(github.event.comment.body, '/test') && contains(github.event.comment.html_url, '/pull/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Kraken
+        uses: actions/checkout@v3
+      - name: Check User's Authorization
+        run: |
+          for name in `cat .github/users.txt`
+          do 
+            if [ $name == "${{github.event.sender.login}}" ]
+            then
+              exit 0
+            fi
+          done
+          echo "user ${{github.event.sender.login}} is not allowed to run functional tests Action"
+          exit 1
   pr_commented:
     # This job only runs for pull request comments containing /functional
     name: Functional Tests
     if: contains(github.event.comment.body, '/test') && contains(github.event.comment.html_url, '/pull/') && github.event.requested_team.name == 'redhat-chaos'
     runs-on: ubuntu-latest
+    needs:
+      - check_user
     steps:
       - name: Check out Kraken
         uses: actions/checkout@v3
