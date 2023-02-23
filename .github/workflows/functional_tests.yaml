@@ -95,8 +95,6 @@ jobs:
         run: |
           echo -e "## CI/config/common_test_config.yaml\n\n"
           cat CI/config/common_test_config.yaml
-          echo -e "## CI/scenarios/ingress_namespace.yaml\n\n"
-          cat CI/scenarios/ingress_namespace.yaml
 
       - name: Running test suite
         run: |
