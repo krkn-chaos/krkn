@@ -52,7 +52,7 @@ jobs:
       - name: Check CI results
         run: grep Fail CI/results.markdown && false || true
       - name: Build the Docker images
-        run: docker build --no-cache -t quay.io/chaos-kubox/krkn containers/
+        run: docker build --no-cache -t quay.io/redhat-chaos/krkn containers/
       - name: Login in quay
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
@@ -61,7 +61,7 @@ jobs:
           QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
       - name: Push the Docker images
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: docker push quay.io/chaos-kubox/krkn
+        run: docker push quay.io/redhat-chaos/krkn
       - name: Rebuild krkn-hub
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: redhat-chaos/actions/krkn-hub@main
