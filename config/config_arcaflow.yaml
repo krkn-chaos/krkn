@@ -12,8 +12,7 @@ kraken:
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   arcaflow_scenarios:
-            - scenarios/arcaflow/sysbench/input.yaml
-            - scenarios/arcaflow/kill-pod/input.yaml
+            - scenarios/arcaflow/sysbench-cpu-hog/input.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
