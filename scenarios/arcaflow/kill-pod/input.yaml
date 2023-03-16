@@ -1,0 +1,7 @@
+kubeconfig: {}
+kill: 3
+label_selector: ''
+name_pattern: ^my-podname-pattern-.*$
+namespace_pattern: ^my-namespace-pattern-.*$
+timeout: 180
+backoff: 1

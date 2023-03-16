@@ -13,6 +13,7 @@ kraken:
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   arcaflow_scenarios:
             - scenarios/arcaflow/sysbench-cpu-hog/input.yaml
+            - scenarios/arcaflow/kill-pods/input.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed

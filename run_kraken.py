@@ -189,15 +189,7 @@ def main(cfg):
                     scenario_type = list(scenario.keys())[0]
                     scenarios_list = scenario[scenario_type]
                     if scenarios_list:
-                        # Inject pod chaos scenarios specified in the config
-                        if scenario_type == "pod_scenarios":
-                            logging.error(
-                                "Pod scenarios have been removed, please use "
-                                "plugin_scenarios with the "
-                                "kill-pods configuration instead."
-                            )
-                            sys.exit(1)
-                        elif scenario_type == "arcaflow_scenarios":
+                        if scenario_type == "arcaflow_scenarios":
                             failed_post_scenarios = arcaflow_plugin.run(
                                 scenarios_list, kubeconfig_path
                             )
