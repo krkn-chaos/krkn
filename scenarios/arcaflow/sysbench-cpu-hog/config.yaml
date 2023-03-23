@@ -1,5 +1,0 @@
-deployer:
-  type: podman
-  # More deployer options
-log:
-  level: debug

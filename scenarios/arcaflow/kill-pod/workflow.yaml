@@ -1,0 +1,64 @@
+input:
+  root: RootObject
+  objects:
+    RootObject:
+      id: RootObject
+      properties:
+        kubeconfig:
+          display:
+            description: The complete kubeconfig file as a string
+            name: Kubeconfig file contents
+          type:
+            type_id: string
+          required: true
+        namespace_pattern:
+          display:
+            description: The namespace where the pod resides
+            name: namespace pattern
+          type:
+            type_id: string
+        name_pattern:
+          display:
+            description: the pod name to kill
+            name: name pattern
+          type:
+            type_id: string
+        label_selector:
+            display:
+              description: Kubernetes label selector for the target pods. Required if name_pattern is not set.
+            type:
+              type_id: string
+        kill:
+          display:
+            description: the number of pods to kill
+            name: kill
+          type:
+            type_id: integer
+        timeout:
+          display:
+            description: timeout to wait for the target pod(s) to be removed in seconds
+            name: timeout
+          type:
+            type_id: integer
+        backoff:
+          display:
+            description: How many seconds to wait between checks for the target pod status
+            name: backoff
+          type:
+            type_id: integer
+steps:
+  kill_pod:
+    plugin: quay.io/redhat-chaos/arcaflow-plugin-kill-pod
+    step: kill-pods
+    input:
+      kubeconfig: !expr $.input.kubeconfig
+      namespace_pattern: !expr $.input.namespace_pattern
+      name_pattern: !expr $.input.name_pattern
+      label_selector: !expr $.input.label_selector
+      kill: !expr $.input.kill
+      timeout: !expr $.input.timeout
+      backoff: !expr $.input.backoff
+output:
+  kill_pod: !expr $.steps.kill_pod.outputs.success
+
+

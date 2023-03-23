@@ -1,0 +1,5 @@
+kubeconfig: {}
+node_selector: {}
+vm_bytes: 10%
+vm_workers: 2
+timeout: 30

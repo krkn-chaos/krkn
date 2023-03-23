@@ -2,8 +2,11 @@ import arcaflow
 import os
 import yaml
 import base64
+import logging
+import sys
 from pathlib import Path
 from typing import List
+
 
 
 def run(scenarios_list: List[str], kubeconfig_path: str):
@@ -14,7 +17,13 @@ def run(scenarios_list: List[str], kubeconfig_path: str):
 
 def runWorkflow(engineArgs: arcaflow.EngineArgs, kubeconfig_path: str):
     setArcaKubeConfig(engineArgs, kubeconfig_path)
-    arcaflow.run(engineArgs)
+    exit_status = arcaflow.run(engineArgs)
+    if exit_status != 0:
+        logging.error(
+            f"failed to run arcaflow scenario {engineArgs.input}"
+        )
+        sys.exit(exit_status)
+
 
 
 def buildArgs(input: str) -> arcaflow.EngineArgs:

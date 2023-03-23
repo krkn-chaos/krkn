@@ -140,12 +140,6 @@ class Plugins:
 PLUGINS = Plugins(
     [
         PluginStep(
-            kill_pods,
-            [
-                "error",
-            ]
-        ),
-        PluginStep(
             wait_for_pods,
             [
                 "error"

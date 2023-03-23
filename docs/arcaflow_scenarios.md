@@ -32,7 +32,7 @@ kraken:
     ...
     chaos_scenarios:
         - arcaflow_scenarios:
-            - scenarios/arcaflow/sysbench-cpu-hog/input.yaml
+            - scenarios/arcaflow/cpu-hog/input.yaml
 ```
 
 ##### input.yaml
@@ -57,19 +57,12 @@ Each step is represented by a container that will be executed from the deployer 
 Note that we provide the scenarios as a template, but they can be manipulated to define more complex workflows.
 To have more details regarding the arcaflow workflows architecture and syntax it is suggested to refer to the [Arcaflow Documentation](https://arcalot.io/arcaflow/).
 
-#### Scenarios
-##### sysbench-cpu-hog
-This scenario is based on the arcaflow [sysbench](https://github.com/akopytov/sysbench) plugin. 
-The purpose of this scenario is to create cpu pressure on a particular node of the Kubernetes/OpenShift cluster for a time span.
-To enable this plugin add the pointer to the scenario input file `scenarios/arcaflow/sysbench-cpu-hog/input.yaml` as described in the 
-Usage section.
-This scenarios takes the following input parameters:
+#### Available Scenarios
+- [CPU Hog](arcaflow_scenarios/cpu_hog.md)
+- [Memory Hog](arcaflow_scenarios/memory_hog.md)
+- [I/O Hog](arcaflow_scenarios/io_hog.md)
+- [Kill Pod](arcaflow_scenarios/kill_pod.md)
 
-- **kubeconfig :** string representation of the kubeconfig needed by the deployer to deploy the sysbench plugin in the target cluster
-**Note:** this parameter will be automatically filled by kraken if the `kubeconfig_path` property is correctly set
-- **node_selector :**  key-value representation of the node label that will be used as `nodeSelector` by the pod to target a specific cluster node
-- **sysbench_cpumaxprime :** integer that defines the highest prime number during the test. Higher this value is, higher will be the time to find all the prime numbers
-- **sysbench_events :** integer that limits the maximum number of events that will be performed by sysbench, 0 removes the limit
-- **sysbench_runtime :** number of seconds the test will be run
-- **sysbench_forced_shutdown_time :** the number of seconds to wait before shutting down the benchmark after the defined run time
-- **sysbench_threads :** the number of threads on which the test will run
+
+
+
