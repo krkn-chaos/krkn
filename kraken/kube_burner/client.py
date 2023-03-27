@@ -96,7 +96,10 @@ def alerts(distribution, prometheus_url, prometheus_bearer_token, start_time, en
     )
     try:
         logging.info("Running kube-burner to capture the metrics: %s" % command)
-        subprocess.run(command, shell=True, universal_newlines=True)
+        output = subprocess.run(command, shell=True, universal_newlines=True)
+        if output.returncode != 0:
+            logging.error("command exited with a non-zero rc, please check the logs for errors or critical alerts")
+            sys.exit(output.returncode)
     except Exception as e:
         logging.error("Failed to run kube-burner, error: %s" % (e))
         sys.exit(1)
