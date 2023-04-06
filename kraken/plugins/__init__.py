@@ -11,6 +11,7 @@ import kraken.plugins.node_scenarios.vmware_plugin as vmware_plugin
 import kraken.plugins.node_scenarios.ibmcloud_plugin as ibmcloud_plugin
 from kraken.plugins.run_python_plugin import run_python_file
 from kraken.plugins.network.ingress_shaping import network_chaos
+from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_outage
 
 
 @dataclasses.dataclass
@@ -41,7 +42,7 @@ class Plugins:
                 )
             self.steps_by_id[step.schema.id] = step
 
-    def run(self, file: str, kubeconfig_path: str):
+    def run(self, file: str, kubeconfig_path: str, kraken_config: str):
         """
         Run executes a series of steps
         """
@@ -88,6 +89,8 @@ class Plugins:
             unserialized_input = step.schema.input.unserialize(entry["config"])
             if "kubeconfig_path" in step.schema.input.properties:
                 unserialized_input.kubeconfig_path = kubeconfig_path
+            if "kraken_config" in step.schema.input.properties:
+                unserialized_input.kraken_config = kraken_config
             output_id, output_data = step.schema(unserialized_input)
             logging.info(step.render_output(output_id, output_data) + "\n")
             if output_id in step.error_output_ids:
@@ -204,16 +207,22 @@ PLUGINS = Plugins(
             [
                 "error"
             ]
+        ),
+        PluginStep(
+            pod_outage,
+            [
+                "error"
+            ]
         )
     ]
 )
 
 
-def run(scenarios: List[str], kubeconfig_path: str, failed_post_scenarios: List[str], wait_duration: int) -> List[str]:
+def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_post_scenarios: List[str], wait_duration: int) -> List[str]:
     for scenario in scenarios:
         logging.info('scenario '+ str(scenario))
         try:
-            PLUGINS.run(scenario, kubeconfig_path)
+            PLUGINS.run(scenario, kubeconfig_path, kraken_config)
         except Exception as e:
             failed_post_scenarios.append(scenario)
             logging.error("Error while running {}: {}".format(scenario, e))
