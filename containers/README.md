@@ -3,7 +3,7 @@
 
   
 
-Container image gets automatically built by quay.io at [Kraken image](https://quay.io/chaos-kubox/krkn).
+Container image gets automatically built by quay.io at [Kraken image](https://quay.io/redhat-chaos/krkn).
 
   
 

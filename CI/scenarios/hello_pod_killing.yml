@@ -1,6 +1,0 @@
-# yaml-language-server: $schema=../../scenarios/plugin.schema.json
-- id: kill-pods
-  config:
-    label_selector: name=hello-openshift
-    namespace_pattern: ^default$
-    kill: 1
