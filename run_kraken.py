@@ -44,11 +44,12 @@ def main(cfg):
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
-        global kubeconfig_path, wait_duration
+        global kubeconfig_path, wait_duration, kraken_config
         distribution = config["kraken"].get("distribution", "openshift")
         kubeconfig_path = os.path.expanduser(
             config["kraken"].get("kubeconfig_path", "")
         )
+        kraken_config = cfg
         chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
         publish_running_status = config["kraken"].get("publish_kraken_status", False)
         port = config["kraken"].get("port")
@@ -208,6 +209,7 @@ def main(cfg):
                             failed_post_scenarios = plugins.run(
                                 scenarios_list,
                                 kubeconfig_path,
+                                kraken_config,
                                 failed_post_scenarios,
                                 wait_duration,
                             )

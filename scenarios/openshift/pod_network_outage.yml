@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../plugin.schema.json
+- id: pod_network_outage
+  config:
+    namespace: <namespace>              # Required - Namespace of the pod to which filter need to be applied
+    direction:                          # Optioinal - List of directions to apply filters
+        - <egress/ingress>              # Default both egress and ingress
+    ingress_ports:                      # Optional - List of ports to block traffic on
+        - <port number>                 # Default [], i.e. all ports
+    egress_ports:                       # Optional - List of ports to block traffic on
+        - <port number>                 # Default [], i.e. all ports
+    pod_name: <pod name>                # When label_selector is not specified, pod matching the name will be selected for the chaos scenario
+    label_selector: <label_selector>    # When pod_name is not specified, pod with matching label_selector is selected for chaos scenario
+    instance_count: <number>            # Number of nodes to perform action/select that match the label selector
+    wait_duration: <time_duration>      # Default is 300. Ensure that it is at least about twice of test_duration
+    test_duration: <time_duration>      # Default is 120
