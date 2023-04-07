@@ -219,6 +219,7 @@ def main(cfg):
                                 failed_post_scenarios,
                                 wait_duration,
                             )
+                        # krkn_lib_kubernetes
                         elif scenario_type == "container_scenarios":
                             logging.info("Running container scenarios")
                             failed_post_scenarios = pod_scenarios.container_run(
@@ -227,6 +228,7 @@ def main(cfg):
                                 config,
                                 failed_post_scenarios,
                                 wait_duration,
+                                kubecli
                             )
 
                         # Inject node chaos scenarios specified in the config
