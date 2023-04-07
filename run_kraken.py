@@ -267,13 +267,14 @@ def main(cfg):
                                 if litmus_install:
                                     # Remove Litmus resources
                                     # before running the scenarios
-                                    common_litmus.delete_chaos(litmus_namespace)
+                                    common_litmus.delete_chaos(litmus_namespace, kubecli)
                                     common_litmus.delete_chaos_experiments(
-                                        litmus_namespace
+                                        litmus_namespace,
+                                        kubecli
                                     )
                                     if litmus_uninstall_before_run:
                                         common_litmus.uninstall_litmus(
-                                            litmus_version, litmus_namespace
+                                            litmus_version, litmus_namespace, kubecli
                                         )
                                     common_litmus.install_litmus(
                                         litmus_version, litmus_namespace
@@ -288,6 +289,7 @@ def main(cfg):
                                     litmus_uninstall,
                                     wait_duration,
                                     litmus_namespace,
+                                    kubecli
                                 )
                             else:
                                 logging.error(
@@ -386,9 +388,9 @@ def main(cfg):
                 sys.exit(1)
   
         if litmus_uninstall and litmus_installed:
-            common_litmus.delete_chaos(litmus_namespace)
-            common_litmus.delete_chaos_experiments(litmus_namespace)
-            common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
+            common_litmus.delete_chaos(litmus_namespace, kubecli)
+            common_litmus.delete_chaos_experiments(litmus_namespace, kubecli)
+            common_litmus.uninstall_litmus(litmus_version, litmus_namespace, kubecli)
 
         if failed_post_scenarios:
             logging.error(
