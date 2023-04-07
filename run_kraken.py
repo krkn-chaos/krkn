@@ -299,8 +299,9 @@ def main(cfg):
                                 sys.exit(1)
 
                         # Inject cluster shutdown scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "cluster_shut_down_scenarios":
-                            shut_down.run(scenarios_list, config, wait_duration)
+                            shut_down.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Inject namespace chaos scenarios
                         elif scenario_type == "namespace_scenarios":
