@@ -8,7 +8,8 @@ import optparse
 import pyfiglet
 import uuid
 import time
-import kraken.kubernetes.client as kubecli
+#import kraken.kubernetes.client as kubecli
+import krkn_lib_kubernetes_draft
 import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
