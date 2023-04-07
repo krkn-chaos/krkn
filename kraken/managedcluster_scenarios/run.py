@@ -23,7 +23,7 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draf
                 if managedcluster_scenario["actions"]:
                     for action in managedcluster_scenario["actions"]:
                         start_time = int(time.time())
-                        inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object)
+                        inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object, kubecli)
                         logging.info("Waiting for the specified duration: %s" % (wait_duration))
                         time.sleep(wait_duration)
                         end_time = int(time.time())
@@ -32,7 +32,8 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draf
 
 
 # Inject the specified managedcluster scenario
-def inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object):
+# krkn_lib_kubernetes
+def inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     # Get the managedcluster scenario configurations
     run_kill_count = managedcluster_scenario.get("runs", 1)
     instance_kill_count = managedcluster_scenario.get("instance_count", 1)
@@ -45,7 +46,7 @@ def inject_managedcluster_scenario(action, managedcluster_scenario, managedclust
     else:
         managedcluster_name_list = [managedcluster_name]
     for single_managedcluster_name in managedcluster_name_list:
-        managedclusters = common_managedcluster_functions.get_managedcluster(single_managedcluster_name, label_selector, instance_kill_count)
+        managedclusters = common_managedcluster_functions.get_managedcluster(single_managedcluster_name, label_selector, instance_kill_count, kubecli)
         for single_managedcluster in managedclusters:
             if action == "managedcluster_start_scenario":
                 managedcluster_scenario_object.managedcluster_start_scenario(run_kill_count, single_managedcluster, timeout)

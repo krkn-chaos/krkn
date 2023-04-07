@@ -36,7 +36,7 @@ class managedcluster_scenarios():
                 self.kubecli.create_manifestwork(body, managedcluster)
                 logging.info("managedcluster_start_scenario has been successfully injected!")
                 logging.info("Waiting for the specified timeout: %s" % timeout)
-                common_managedcluster_functions.wait_for_available_status(managedcluster, timeout)
+                common_managedcluster_functions.wait_for_available_status(managedcluster, timeout, self.kubecli)
             except Exception as e:
                 logging.error("managedcluster scenario exiting due to Exception %s" % e)
                 sys.exit(1)
@@ -60,7 +60,7 @@ class managedcluster_scenarios():
                 self.kubecli.create_manifestwork(body, managedcluster)
                 logging.info("managedcluster_stop_scenario has been successfully injected!")
                 logging.info("Waiting for the specified timeout: %s" % timeout)
-                common_managedcluster_functions.wait_for_unavailable_status(managedcluster, timeout)
+                common_managedcluster_functions.wait_for_unavailable_status(managedcluster, timeout, self.kubecli)
             except Exception as e:
                 logging.error("managedcluster scenario exiting due to Exception %s" % e)
                 sys.exit(1)
