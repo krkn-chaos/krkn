@@ -1,5 +1,6 @@
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
+import krkn_lib_kubernetes_draft
 import logging
 import sys
 import docker
@@ -36,7 +37,8 @@ class Docker:
 
 
 class docker_node_scenarios(abstract_node_scenarios):
-    def __init__(self):
+    def __init__(self, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+        super().__init__(kubecli)
         self.docker = Docker()
 
     # Node scenario to start the node
@@ -47,7 +49,7 @@ class docker_node_scenarios(abstract_node_scenarios):
                 container_id = self.docker.get_container_id(node)
                 logging.info("Starting the node %s with container ID: %s " % (node, container_id))
                 self.docker.start_instances(node)
-                nodeaction.wait_for_ready_status(node, timeout)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
                 logging.info("Node with container ID: %s is in running state" % (container_id))
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -66,7 +68,7 @@ class docker_node_scenarios(abstract_node_scenarios):
                 logging.info("Stopping the node %s with container ID: %s " % (node, container_id))
                 self.docker.stop_instances(node)
                 logging.info("Node with container ID: %s is in stopped state" % (container_id))
-                nodeaction.wait_for_unknown_status(node, timeout)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
             except Exception as e:
                 logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("node_stop_scenario injection failed!")
@@ -97,8 +99,8 @@ class docker_node_scenarios(abstract_node_scenarios):
                 container_id = self.docker.get_container_id(node)
                 logging.info("Rebooting the node %s with container ID: %s " % (node, container_id))
                 self.docker.reboot_instances(node)
-                nodeaction.wait_for_unknown_status(node, timeout)
-                nodeaction.wait_for_ready_status(node, timeout)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
                 logging.info("Node with container ID: %s has been rebooted" % (container_id))
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:

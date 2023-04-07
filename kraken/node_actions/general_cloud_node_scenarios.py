@@ -1,4 +1,5 @@
 import logging
+import krkn_lib_kubernetes_draft
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 
 
@@ -6,9 +7,10 @@ class GENERAL:
     def __init__(self):
         pass
 
-
+# krkn_lib_kubernetes
 class general_node_scenarios(abstract_node_scenarios):
-    def __init__(self):
+    def __init__(self, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes ):
+        super().__init__(kubecli)
         self.general = GENERAL()
 
     # Node scenario to start the node

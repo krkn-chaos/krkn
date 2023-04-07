@@ -1,5 +1,6 @@
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
+import krkn_lib_kubernetes_draft
 import logging
 import openshift as oc
 import pyipmi
@@ -104,9 +105,10 @@ class BM:
         while self.get_ipmi_connection(bmc_addr, node_name).get_chassis_status().power_on:
             time.sleep(1)
 
-
+# krkn_lib_kubernetes
 class bm_node_scenarios(abstract_node_scenarios):
-    def __init__(self, bm_info, user, passwd):
+    def __init__(self, bm_info, user, passwd, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+        super().__init__(kubecli)
         self.bm = BM(bm_info, user, passwd)
 
     # Node scenario to start the node
@@ -118,7 +120,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting the node %s with bmc address: %s " % (node, bmc_addr))
                 self.bm.start_instances(bmc_addr, node)
                 self.bm.wait_until_running(bmc_addr, node)
-                nodeaction.wait_for_ready_status(node, timeout)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
                 logging.info("Node with bmc address: %s is in running state" % (bmc_addr))
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -140,7 +142,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 self.bm.stop_instances(bmc_addr, node)
                 self.bm.wait_until_stopped(bmc_addr, node)
                 logging.info("Node with bmc address: %s is in stopped state" % (bmc_addr))
-                nodeaction.wait_for_unknown_status(node, timeout)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -163,8 +165,8 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.info("BMC Addr: %s" % (bmc_addr))
                 logging.info("Rebooting the node %s with bmc address: %s " % (node, bmc_addr))
                 self.bm.reboot_instances(bmc_addr, node)
-                nodeaction.wait_for_unknown_status(node, timeout)
-                nodeaction.wait_for_ready_status(node, timeout)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
                 logging.info("Node with bmc address: %s has been rebooted" % (bmc_addr))
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:

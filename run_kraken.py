@@ -232,9 +232,10 @@ def main(cfg):
                             )
 
                         # Inject node chaos scenarios specified in the config
+                        # krkn_lib_kubernetes
                         elif scenario_type == "node_scenarios":
                             logging.info("Running node scenarios")
-                            nodeaction.run(scenarios_list, config, wait_duration)
+                            nodeaction.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Inject managedcluster chaos scenarios specified in the config
                         elif scenario_type == "managedcluster_scenarios":
