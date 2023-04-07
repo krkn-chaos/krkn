@@ -247,10 +247,11 @@ def main(cfg):
 
                         # Inject time skew chaos scenarios specified
                         # in the config
+                        # krkn_lib_kubernetes
                         elif scenario_type == "time_scenarios":
                             if distribution == "openshift":
                                 logging.info("Running time skew scenarios")
-                                time_actions.run(scenarios_list, config, wait_duration)
+                                time_actions.run(scenarios_list, config, wait_duration, kubecli)
                             else:
                                 logging.error(
                                     "Litmus scenarios are currently "

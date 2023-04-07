@@ -5,14 +5,12 @@ import re
 import sys
 import yaml
 import random
-
+import krkn_lib_kubernetes_draft
 from ..cerberus import setup as cerberus
-from ..kubernetes import client as kubecli
 from ..invoke import command as runcommand
 
-
-def pod_exec(pod_name, command, namespace, container_name):
-    i = 0
+# krkn_lib_kubernetes
+def pod_exec(pod_name, command, namespace, container_name, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     for i in range(5):
         response = kubecli.exec_cmd_in_pod(
             command,
@@ -41,7 +39,8 @@ def node_debug(node_name, command):
     return response
 
 
-def get_container_name(pod_name, namespace, container_name=""):
+# krkn_lib_kubernetes
+def get_container_name(pod_name, namespace, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes, container_name=""):
 
     container_names = kubecli.get_containers_in_pod(pod_name, namespace)
     if container_name != "":
@@ -63,7 +62,8 @@ def get_container_name(pod_name, namespace, container_name=""):
         return container_name
 
 
-def skew_time(scenario):
+# krkn_lib_kubernetes
+def skew_time(scenario, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     skew_command = "date --set "
     if scenario["action"] == "skew_date":
         skewed_date = "00-01-01"
@@ -134,13 +134,17 @@ def skew_time(scenario):
                 selected_container_name = get_container_name(
                     pod[0],
                     pod[1],
-                    container_name
+                    kubecli,
+                    container_name,
+
                 )
                 pod_exec_response = pod_exec(
                     pod[0],
                     skew_command,
                     pod[1],
-                    selected_container_name
+                    selected_container_name,
+                    kubecli,
+
                 )
                 if pod_exec_response is False:
                     logging.error(
@@ -154,13 +158,15 @@ def skew_time(scenario):
                 selected_container_name = get_container_name(
                     pod,
                     scenario["namespace"],
+                    kubecli,
                     container_name
                 )
                 pod_exec_response = pod_exec(
                     pod,
                     skew_command,
                     scenario["namespace"],
-                    selected_container_name
+                    selected_container_name,
+                    kubecli
                 )
                 if pod_exec_response is False:
                     logging.error(
@@ -216,7 +222,8 @@ def string_to_date(obj_datetime):
         return datetime.datetime(datetime.MINYEAR, 1, 1)
 
 
-def check_date_time(object_type, names):
+# krkn_lib_kubernetes
+def check_date_time(object_type, names, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     skew_command = "date"
     not_reset = []
     max_retries = 30
@@ -256,7 +263,8 @@ def check_date_time(object_type, names):
                 pod_name[0],
                 skew_command,
                 pod_name[1],
-                pod_name[2]
+                pod_name[2],
+                kubecli
             )
             pod_datetime = string_to_date(pod_datetime_string)
             while not (
@@ -271,7 +279,8 @@ def check_date_time(object_type, names):
                     pod_name[0],
                     skew_command,
                     pod_name[1],
-                    pod_name[2]
+                    pod_name[2],
+                    kubecli
                 )
                 pod_datetime = string_to_date(pod_datetime)
                 counter += 1
@@ -289,14 +298,15 @@ def check_date_time(object_type, names):
     return not_reset
 
 
-def run(scenarios_list, config, wait_duration):
+# krkn_lib_kubernetes
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     for time_scenario_config in scenarios_list:
         with open(time_scenario_config, "r") as f:
             scenario_config = yaml.full_load(f)
             for time_scenario in scenario_config["time_scenarios"]:
                 start_time = int(time.time())
-                object_type, object_names = skew_time(time_scenario)
-                not_reset = check_date_time(object_type, object_names)
+                object_type, object_names = skew_time(time_scenario, kubecli)
+                not_reset = check_date_time(object_type, object_names, kubecli)
                 if len(not_reset) > 0:
                     logging.info("Object times were not reset")
                 logging.info(
