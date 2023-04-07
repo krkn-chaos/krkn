@@ -329,9 +329,10 @@ def main(cfg):
                             )
 
                         # PVC scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "pvc_scenarios":
                             logging.info("Running PVC scenario")
-                            pvc_scenario.run(scenarios_list, config)
+                            pvc_scenario.run(scenarios_list, config, kubecli)
 
                         # Network scenarios
                         elif scenario_type == "network_chaos":
