@@ -304,6 +304,7 @@ def main(cfg):
                             shut_down.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Inject namespace chaos scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "namespace_scenarios":
                             logging.info("Running namespace scenarios")
                             namespace_actions.run(
@@ -312,6 +313,7 @@ def main(cfg):
                                 wait_duration,
                                 failed_post_scenarios,
                                 kubeconfig_path,
+                                kubecli
                             )
 
                         # Inject zone failures

@@ -1,14 +1,23 @@
 import time
 import random
 import logging
-import kraken.kubernetes.client as kubecli
+import krkn_lib_kubernetes_draft
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 import yaml
 import sys
 
 
-def run(scenarios_list, config, wait_duration, failed_post_scenarios, kubeconfig_path):
+# krkn_lib_kubernetes
+def run(
+        scenarios_list,
+        config,
+        wait_duration,
+        failed_post_scenarios,
+        kubeconfig_path,
+        kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes
+):
+
     for scenario_config in scenarios_list:
         if len(scenario_config) > 1:
             pre_action_output = post_actions.run(kubeconfig_path, scenario_config[1])
@@ -69,12 +78,12 @@ def run(scenarios_list, config, wait_duration, failed_post_scenarios, kubeconfig
                                 logging.error("Failed to run post action checks: %s" % e)
                                 sys.exit(1)
                         else:
-                            failed_post_scenarios = check_active_namespace(killed_namespaces, wait_time)
+                            failed_post_scenarios = check_active_namespace(killed_namespaces, wait_time, kubecli)
                 end_time = int(time.time())
                 cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
 
-
-def check_active_namespace(killed_namespaces, wait_time):
+# krkn_lib_kubernetes
+def check_active_namespace(killed_namespaces, wait_time, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     active_namespace = []
     timer = 0
     while timer < wait_time and killed_namespaces:
