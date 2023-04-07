@@ -238,10 +238,11 @@ def main(cfg):
                             nodeaction.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Inject managedcluster chaos scenarios specified in the config
+                        # krkn_lib_kubernetes
                         elif scenario_type == "managedcluster_scenarios":
                             logging.info("Running managedcluster scenarios")
                             managedcluster_scenarios.run(
-                                scenarios_list, config, wait_duration
+                                scenarios_list, config, wait_duration, kubecli
                             )
 
                         # Inject time skew chaos scenarios specified

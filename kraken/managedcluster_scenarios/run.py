@@ -1,22 +1,25 @@
 import yaml
 import logging
 import time
+import krkn_lib_kubernetes_draft
 from kraken.managedcluster_scenarios.managedcluster_scenarios import managedcluster_scenarios
 import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
 import kraken.cerberus.setup as cerberus
 
 
 # Get the managedcluster scenarios object of specfied cloud type
-def get_managedcluster_scenario_object(managedcluster_scenario):
-    return managedcluster_scenarios()
+# krkn_lib_kubernetes
+def get_managedcluster_scenario_object(managedcluster_scenario, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    return managedcluster_scenarios(kubecli)
 
 # Run defined scenarios
-def run(scenarios_list, config, wait_duration):
+# krkn_lib_kubernetes
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     for managedcluster_scenario_config in scenarios_list:
         with open(managedcluster_scenario_config, "r") as f:
             managedcluster_scenario_config = yaml.full_load(f)
             for managedcluster_scenario in managedcluster_scenario_config["managedcluster_scenarios"]:
-                managedcluster_scenario_object = get_managedcluster_scenario_object(managedcluster_scenario)
+                managedcluster_scenario_object = get_managedcluster_scenario_object(managedcluster_scenario, kubecli)
                 if managedcluster_scenario["actions"]:
                     for action in managedcluster_scenario["actions"]:
                         start_time = int(time.time())
