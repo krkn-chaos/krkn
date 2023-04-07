@@ -4,14 +4,15 @@ import time
 import sys
 import os
 import random
+import krkn_lib_kubernetes_draft
 from jinja2 import Environment, FileSystemLoader
 import kraken.cerberus.setup as cerberus
-import kraken.kubernetes.client as kubecli
 import kraken.node_actions.common_node_functions as common_node_functions
 
 
+# krkn_lib_kubernetes
 # Reads the scenario config and introduces traffic variations in Node's host network interface.
-def run(scenarios_list, config, wait_duration):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     failed_post_scenarios = ""
     logging.info("Runing the Network Chaos tests")
     for net_config in scenarios_list:
@@ -36,7 +37,7 @@ def run(scenarios_list, config, wait_duration):
             file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
             env = Environment(loader=file_loader, autoescape=True)
             pod_template = env.get_template("pod.j2")
-            test_interface = verify_interface(test_interface, nodelst, pod_template)
+            test_interface = verify_interface(test_interface, nodelst, pod_template, kubecli)
             joblst = []
             egress_lst = [i for i in param_lst if i in test_egress]
             chaos_config = {
@@ -68,7 +69,7 @@ def run(scenarios_list, config, wait_duration):
                     if test_execution == "serial":
                         logging.info("Waiting for serial job to finish")
                         start_time = int(time.time())
-                        wait_for_job(joblst[:], test_duration + 300)
+                        wait_for_job(joblst[:], kubecli, test_duration + 300)
                         logging.info("Waiting for wait_duration %s" % wait_duration)
                         time.sleep(wait_duration)
                         end_time = int(time.time())
@@ -78,7 +79,7 @@ def run(scenarios_list, config, wait_duration):
                 if test_execution == "parallel":
                     logging.info("Waiting for parallel job to finish")
                     start_time = int(time.time())
-                    wait_for_job(joblst[:], test_duration + 300)
+                    wait_for_job(joblst[:], kubecli, test_duration + 300)
                     logging.info("Waiting for wait_duration %s" % wait_duration)
                     time.sleep(wait_duration)
                     end_time = int(time.time())
@@ -88,10 +89,11 @@ def run(scenarios_list, config, wait_duration):
                 sys.exit(1)
             finally:
                 logging.info("Deleting jobs")
-                delete_job(joblst[:])
+                delete_job(joblst[:], kubecli)
 
 
-def verify_interface(test_interface, nodelst, template):
+# krkn_lib_kubernetes
+def verify_interface(test_interface, nodelst, template, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     pod_index = random.randint(0, len(nodelst) - 1)
     pod_body = yaml.safe_load(template.render(nodename=nodelst[pod_index]))
     logging.info("Creating pod to query interface on node %s" % nodelst[pod_index])
@@ -115,14 +117,16 @@ def verify_interface(test_interface, nodelst, template):
         kubecli.delete_pod("fedtools", "default")
 
 
-def get_job_pods(api_response):
+# krkn_lib_kubernetes
+def get_job_pods(api_response, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     controllerUid = api_response.metadata.labels["controller-uid"]
     pod_label_selector = "controller-uid=" + controllerUid
     pods_list = kubecli.list_pods(label_selector=pod_label_selector, namespace="default")
     return pods_list[0]
 
 
-def wait_for_job(joblst, timeout=300):
+# krkn_lib_kubernetes
+def wait_for_job(joblst, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes, timeout=300):
     waittime = time.time() + timeout
     count = 0
     joblen = len(joblst)
@@ -134,25 +138,26 @@ def wait_for_job(joblst, timeout=300):
                     count += 1
                     joblst.remove(jobname)
             except Exception:
-                logging.warn("Exception in getting job status")
+                logging.warning("Exception in getting job status")
             if time.time() > waittime:
                 raise Exception("Starting pod failed")
             time.sleep(5)
 
 
-def delete_job(joblst):
+# krkn_lib_kubernetes
+def delete_job(joblst, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
     for jobname in joblst:
         try:
             api_response = kubecli.get_job_status(jobname, namespace="default")
             if api_response.status.failed is not None:
-                pod_name = get_job_pods(api_response)
+                pod_name = get_job_pods(api_response, kubecli)
                 pod_stat = kubecli.read_pod(name=pod_name, namespace="default")
                 logging.error(pod_stat.status.container_statuses)
                 pod_log_response = kubecli.get_pod_log(name=pod_name, namespace="default")
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception:
-            logging.warn("Exception in getting job status")
+            logging.warning("Exception in getting job status")
         api_response = kubecli.delete_job(name=jobname, namespace="default")
 
 

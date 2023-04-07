@@ -8,7 +8,6 @@ import optparse
 import pyfiglet
 import uuid
 import time
-#import kraken.kubernetes.client as kubecli
 import krkn_lib_kubernetes_draft
 import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
@@ -335,9 +334,10 @@ def main(cfg):
                             pvc_scenario.run(scenarios_list, config, kubecli)
 
                         # Network scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "network_chaos":
                             logging.info("Running Network Chaos")
-                            network_chaos.run(scenarios_list, config, wait_duration)
+                            network_chaos.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Check for critical alerts when enabled
                         if check_critical_alerts:
