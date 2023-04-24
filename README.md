@@ -56,8 +56,8 @@ Instructions on how to setup the config and the options supported can be found a
 
 ### Kubernetes/OpenShift chaos scenarios supported
 
-Scenario type               | Kubernetes    | OpenShift
---------------------------- | ------------- | -------------------- |  
+Scenario type               | Kubernetes    | OpenShift          
+--------------------------- | ------------- |--------------------|  
 [Pod Scenarios](docs/pod_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Container Scenarios](docs/container_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Node Scenarios](docs/node_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
@@ -69,7 +69,8 @@ Scenario type               | Kubernetes    | OpenShift
 [Application_outages](docs/application_outages.md) | :heavy_check_mark: | :heavy_check_mark: |
 [PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: | :heavy_check_mark: |
-[ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: | :question: |
+[ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: | :question:         |
+[Arcaflow Scenarios](docs/arcaflow_scenarios.md) |  :heavy_check_mark: | :heavy_check_mark: |
 
 
 ### Kraken scenario pass/fail criteria and report

@@ -1,0 +1,8 @@
+kubeconfig: {}
+node_selector:
+  label: value #replace with the node label of your choice
+sysbench_cpumaxprime: 12000
+sysbench_events: 0
+sysbench_forced_shutdown_time: 10
+sysbench_runtime: 60
+sysbench_threads: 50
