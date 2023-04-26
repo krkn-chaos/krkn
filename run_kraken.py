@@ -24,6 +24,7 @@ import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import kraken.arcaflow_plugin as arcaflow_plugin
 import server as server
+import kraken.prometheus.client as promcli
 from kraken import plugins
 
 KUBE_BURNER_URL = (
@@ -86,6 +87,7 @@ def main(cfg):
         run_uuid = config["performance_monitoring"].get("uuid", "")
         enable_alerts = config["performance_monitoring"].get("enable_alerts", False)
         alert_profile = config["performance_monitoring"].get("alert_profile", "")
+        check_critical_alerts = config["performance_monitoring"].get("check_critical_alerts", False)                          
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path):
@@ -318,6 +320,20 @@ def main(cfg):
                             logging.info("Running Network Chaos")
                             network_chaos.run(scenarios_list, config, wait_duration)
 
+                        # Check for critical alerts when enabled
+                        if check_critical_alerts:
+                            logging.info("Checking for critical alerts firing post choas")
+                            promcli.initialize_prom_client(distribution, prometheus_url, prometheus_bearer_token)
+                            query = r"""ALERTS{severity="critical"}"""
+                            critical_alerts = promcli.process_prom_query(query)
+                            critical_alerts_count = len(critical_alerts)
+                            if critical_alerts_count > 0:
+                                logging.error("Critical alerts are firing: %s", critical_alerts)
+                                logging.error("Please check, exiting")
+                                sys.exit(1)
+                            else:
+                                logging.info("No critical alerts are firing!!")
+
             iteration += 1
             logging.info("")
 
@@ -355,7 +371,7 @@ def main(cfg):
             else:
                 logging.error("Alert profile is not defined")
                 sys.exit(1)
-
+  
         if litmus_uninstall and litmus_installed:
             common_litmus.delete_chaos(litmus_namespace)
             common_litmus.delete_chaos_experiments(litmus_namespace)

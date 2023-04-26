@@ -1,6 +1,17 @@
 ## Alerts
 
-Pass/fail based on metrics captured from the cluster is important in addition to checking the health status and recovery. Kraken supports alerting based on the queries defined by the user and modifies the return code of the run to determine pass/fail. It's especially useful in case of automated runs in CI where user won't be able to monitor the system. It uses [Kube-burner](https://kube-burner.readthedocs.io/en/latest/) under the hood. This feature can be enabled in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) by setting the following:
+Pass/fail based on metrics captured from the cluster is important in addition to checking the health status and recovery. Kraken supports:
+
+###  Checking for critical alerts 
+If enabled, the check runs at the end of each scenario and Kraken exits in case critical alerts are firing to allow user to debug. You can enable it in the config:
+
+```
+performance_monitoring:
+    check_critical_alerts: False                          # When enabled will check prometheus for critical alerts firing post chaos
+```
+
+### Alerting based on the queries defined by the user
+Takes PromQL queries as input and modifies the return code of the run to determine pass/fail. It's especially useful in case of automated runs in CI where user won't be able to monitor the system. It uses [Kube-burner](https://kube-burner.readthedocs.io/en/latest/) under the hood. This feature can be enabled in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) by setting the following:
 
 ```
 performance_monitoring:
@@ -11,7 +22,7 @@ performance_monitoring:
     alert_profile: config/alerts                          # Path to alert profile with the prometheus queries.
 ```
 
-### Alert profile
+#### Alert profile
 A couple of [alert profiles](https://github.com/redhat-chaos/krkn/tree/main/config) [alerts](https://github.com/redhat-chaos/krkn/blob/main/config/alerts) are shipped by default and can be tweaked to add more queries to alert on. The following are a few alerts examples:
 
 ```
