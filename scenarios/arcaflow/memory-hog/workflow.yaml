@@ -49,7 +49,7 @@ steps:
     input:
       kubeconfig: !expr $.input.kubeconfig
   stressng:
-    plugin: quay.io/arcalot/arcaflow-plugin-stressng:latest
+    plugin: quay.io/tsebastiani/arcaflow/arcaflow-plugin-stressng
     step: workload
     input:
       StressNGParams:
