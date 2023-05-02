@@ -21,7 +21,7 @@ input:
               keys:
                 type_id: string
             required: true
-        timeout:
+        duration:
           display:
             name: duration the scenario expressed in seconds
             description: stop  stress  test  after  T  seconds.  One  can  also specify the units of time in
@@ -96,7 +96,7 @@ steps:
     step: workload
     input:
       StressNGParams:
-        timeout: !expr $.input.timeout
+        timeout: !expr $.input.duration
         cleanup: "true"
         workdir: !expr $.input.target_pod_folder
         items:

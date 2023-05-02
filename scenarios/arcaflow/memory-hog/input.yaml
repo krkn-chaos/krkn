@@ -1,5 +1,8 @@
 kubeconfig: {}
+# node selector example
+# node_selector:
+#   kubernetes.io/hostname: master
 node_selector: {}
-vm_bytes: 10%
+vm_bytes: 10% # or amount of memory expressed in units b, k, m or g
 vm_workers: 2
-timeout: 30
+duration: 30

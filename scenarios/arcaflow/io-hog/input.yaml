@@ -1,4 +1,7 @@
 kubeconfig: {}
+# node selector example
+# node_selector:
+#   kubernetes.io/hostname: master
 node_selector: {}
 io_block_size: 1m
 io_workers: 1
@@ -8,5 +11,5 @@ target_pod_volume:
   hostPath:
     path: /
   name: node-volume
-timeout: 1m
+duration: 1m
 

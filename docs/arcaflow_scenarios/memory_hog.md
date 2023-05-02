@@ -8,6 +8,6 @@ This scenario takes the following input parameters:
 - **kubeconfig :** *string* the kubeconfig needed by the deployer to deploy the sysbench plugin in the target cluster
 **Note:** this parameter will be automatically filled by kraken if the `kubeconfig_path` property is correctly set
 - **node_selector :** *key-value map* the node label that will be used as `nodeSelector` by the pod to target a specific cluster node
-- **timeout :** *string* the number of seconds to wait before shutting down the benchmark after the defined run time. You can also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or y
-- **vm_bytes :** *string* N bytes per vm process. The size can be expressed in units of Bytes, KBytes, MBytes and GBytes using the suffix b, k, m or g.
+- **duration :** *string* stop  stress  test  after  N  seconds.  One  can  also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or y.
+- **vm_bytes :** *string* N bytes per vm process or percentage of memory used (using the % symbol). The size can be expressed in units of Bytes, KBytes, MBytes and GBytes using the suffix b, k, m or g.
 - **vm_workers :** *int* Number of VM stressors to be run (0 means 1 stressor per CPU)

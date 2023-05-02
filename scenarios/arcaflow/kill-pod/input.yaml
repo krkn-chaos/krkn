@@ -1,5 +1,5 @@
 kubeconfig: {}
-kill: 3
+kill: 1
 label_selector: ''
 name_pattern: ^my-podname-pattern-.*$
 namespace_pattern: ^my-namespace-pattern-.*$

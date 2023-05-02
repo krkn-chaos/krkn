@@ -9,7 +9,7 @@ This scenario takes the following input parameters:
 - **kubeconfig :** *string* the kubeconfig needed by the deployer to deploy the sysbench plugin in the target cluster
 **Note:** this parameter will be automatically filled by kraken if the `kubeconfig_path` property is correctly set
 - **node_selector :** *key-value map* the node label that will be used as `nodeSelector` by the pod to target a specific cluster node
-- **timeout :** *string* the number of seconds to wait before shutting down the benchmark after the defined run time. You can also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or y
+- **duration :** *string* stop  stress  test  after  N  seconds.  One  can  also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or y.
 - **target_pod_folder :** *string* the path in the pod where the volume is mounted
 - **target_pod_volume :** *object* the `hostPath` volume definition in the [Kubernetes/OpenShift](https://docs.openshift.com/container-platform/3.11/install_config/persistent_storage/using_hostpath.html) format, that will be attached to the pod as a volume
 - **io_write_bytes :** *string* writes N bytes for each hdd process. The size can be expressed as % of free space on the file system or in units of Bytes, KBytes, MBytes and GBytes using the suffix b, k, m or g

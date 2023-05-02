@@ -21,7 +21,7 @@ input:
               keys:
                 type_id: string
             required: true
-        timeout:
+        duration:
           display:
             name: duration the scenario expressed in seconds
             description: stop stress test after T seconds. One can also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or  y
@@ -53,7 +53,7 @@ steps:
     step: workload
     input:
       StressNGParams:
-        timeout: !expr $.input.timeout
+        timeout: !expr $.input.duration
         cleanup: "true"
         items:
           - stressor: vm
