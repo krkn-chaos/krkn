@@ -25,13 +25,10 @@ kraken:
             - scenarios/openshift/openshift-kube-apiserver.yml
         -   time_scenarios:                                # List of chaos time scenarios to load
             - scenarios/openshift/time_scenarios_example.yml
-        -   litmus_scenarios:                              # List of litmus scenarios to load
-            - - scenarios/openshift/templates/litmus-rbac.yaml
-              - scenarios/openshift/node_cpu_hog_engine.yaml
-            - - scenarios/openshift/templates/litmus-rbac.yaml
-              - scenarios/openshift/node_mem_engine.yaml
-            - - scenarios/openshift/templates/litmus-rbac.yaml
-              - scenarios/openshift/node_io_engine.yaml
+        -   arcaflow_scenarios:
+            - scenarios/arcaflow/io-hog/input.yaml
+            - scenarios/arcaflow/cpu-hog/input.yaml
+            - scenarios/arcaflow/memory-hog/input.yaml
         -   cluster_shut_down_scenarios:
             - - scenarios/openshift/cluster_shut_down_scenario.yml
               - scenarios/openshift/post_action_shut_down.py

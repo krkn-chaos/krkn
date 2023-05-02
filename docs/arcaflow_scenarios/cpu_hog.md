@@ -11,5 +11,4 @@ This scenario takes the following input parameters:
 - **timeout :** *string* the number of seconds to wait before shutting down the benchmark after the defined run time. You can also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or y
 - **cpu_count :** *int* the number of CPU cores to be used (0 means all)
 - **cpu_method :** *string* a fine-grained control of which cpu stressors to use (ackermann, cfloat etc. see [manpage](https://manpages.org/sysbench) for all the cpu_method options)
-- **cpu_load_percentage :** *int* stop stress test after <timeout> seconds. One can also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or y
 - **cpu_load_percentage :** *int* the CPU load by percentage
