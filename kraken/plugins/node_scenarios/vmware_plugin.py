@@ -7,7 +7,6 @@ import typing
 from dataclasses import dataclass, field
 from os import environ
 from traceback import format_exc
-
 import requests
 from arcaflow_plugin_sdk import plugin, validation
 from com.vmware.vapi.std.errors_client import (AlreadyInDesiredState,
@@ -17,7 +16,7 @@ from com.vmware.vcenter_client import VM, ResourcePool
 from kubernetes import client, watch
 from vmware.vapi.vsphere.client import create_vsphere_client
 
-from kraken.plugins.vmware import kubernetes_functions as kube_helper
+from kraken.plugins.node_scenarios import kubernetes_functions as kube_helper
 
 
 class vSphere:
@@ -534,7 +533,7 @@ class NodeScenarioConfig:
 
 
 @plugin.step(
-    id="node_start_scenario",
+    id="vmware-node-start",
     name="Start the node",
     description="Start the node(s) by starting the VMware VM "
                 "on which the node is configured",
@@ -593,7 +592,7 @@ def node_start(
 
 
 @plugin.step(
-    id="node_stop_scenario",
+    id="vmware-node-stop",
     name="Stop the node",
     description="Stop the node(s) by starting the VMware VM "
                 "on which the node is configured",
@@ -652,7 +651,7 @@ def node_stop(
 
 
 @plugin.step(
-    id="node_reboot_scenario",
+    id="vmware-node-reboot",
     name="Reboot VMware VM",
     description="Reboot the node(s) by starting the VMware VM "
                 "on which the node is configured",
@@ -713,13 +712,10 @@ def node_reboot(
 
 
 @plugin.step(
-    id="node_terminate_scenario",
+    id="vmware-node-terminate",
     name="Reboot VMware VM",
-    description="Wait for the specified number of pods to be present",
-    outputs={
-        "success": NodeScenarioSuccessOutput,
-        "error": NodeScenarioErrorOutput
-    },
+    description="Wait for the node to be terminated",
+    outputs={"success": NodeScenarioSuccessOutput, "error": NodeScenarioErrorOutput},
 )
 def node_terminate(
     cfg: NodeScenarioConfig,

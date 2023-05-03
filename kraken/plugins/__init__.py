@@ -7,8 +7,8 @@ import time
 
 from arcaflow_plugin_sdk import schema, serialization, jsonschema
 from arcaflow_plugin_kill_pod import kill_pods, wait_for_pods
-
-import kraken.plugins.vmware.vmware_plugin as vmware_plugin
+import kraken.plugins.node_scenarios.vmware_plugin as vmware_plugin
+import kraken.plugins.node_scenarios.ibmcloud_plugin as ibmcloud_plugin
 from kraken.plugins.run_python_plugin import run_python_file
 from kraken.plugins.network.ingress_shaping import network_chaos
 
@@ -182,7 +182,25 @@ PLUGINS = Plugins(
             ]
         ),
         PluginStep(
-            network_chaos,
+            ibmcloud_plugin.node_start,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            ibmcloud_plugin.node_stop,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            ibmcloud_plugin.node_reboot,
+            [
+                "error"
+            ]
+        ),
+        PluginStep(
+            ibmcloud_plugin.node_terminate,
             [
                 "error"
             ]

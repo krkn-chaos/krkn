@@ -76,6 +76,42 @@ How to set up Alibaba cli to run node scenarios is defined [here](cloud_setup.md
 #### VMware
 How to set up VMware vSphere to run node scenarios is defined [here](cloud_setup.md#vmware)
 
+This cloud type uses a different configuration style, see actions below and [example config file](../scenarios/openshift/vmware_node_scenarios.yml)
+
+*vmware-node-terminate, vmware-node-reboot, vmware-node-stop, vmware-node-start*
+
+#### IBMCloud
+How to set up IBMCloud to run node scenarios is defined [here](cloud_setup.md#ibmcloud)
+
+This cloud type uses a different configuration style, see actions below and [example config file](../scenarios/openshift/ibmcloud_node_scenarios.yml)
+
+*ibmcloud-node-terminate, ibmcloud-node-reboot, ibmcloud-node-stop, ibmcloud-node-start
+*
+
+
+#### IBMCloud and Vmware example 
+
+
+```
+- id: ibmcloud-node-stop
+  config:
+    name: "<node_name>"        
+    label_selector: "node-role.kubernetes.io/worker"    # When node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection 
+    runs: 1                             # Number of times to inject each scenario under actions (will perform on same node each time)                                                           
+    instance_count: 1                   # Number of nodes to perform action/select that match the label selector                                             
+    timeout: 30                        # Duration to wait for completion of node scenario injection
+    skip_openshift_checks: False   
+- id: ibmcloud-node-start
+  config:
+    name: "<node_name>" #Same name as before       
+    label_selector: "node-role.kubernetes.io/worker"    # When node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection 
+    runs: 1                             # Number of times to inject each scenario under actions (will perform on same node each time)                                                           
+    instance_count: 1                   # Number of nodes to perform action/select that match the label selector                                             
+    timeout: 30                        # Duration to wait for completion of node scenario injection
+    skip_openshift_checks: False      
+    ```
+
+
 
 #### General
 

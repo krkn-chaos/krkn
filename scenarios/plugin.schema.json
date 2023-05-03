@@ -15,6 +15,60 @@
 						"const": "kill-pods"
 					},
 					"config": {
+						"$defs": {
+							"KillPodConfig": {
+								"type": "object",
+								"properties": {
+									"namespace_pattern": {
+										"type": "string",
+										"format": "regex",
+										"title": "Namespace pattern",
+										"description": "Regular expression for target pod namespaces."
+									},
+									"name_pattern": {
+										"type": "string",
+										"format": "regex",
+										"title": "Name pattern",
+										"description": "Regular expression for target pods. Required if label_selector is not set."
+									},
+									"kill": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of pods to kill",
+										"description": "How many pods should we attempt to kill?"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target pods. Required if name_pattern is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"backoff": {
+										"type": "integer",
+										"default": 1,
+										"title": "Backoff",
+										"description": "How many seconds to wait between checks for the target pod status."
+									}
+								},
+								"required": [
+									"namespace_pattern"
+								],
+								"additionalProperties": false,
+								"dependentRequired": {}
+							}
+						},
 						"type": "object",
 						"properties": {
 							"namespace_pattern": {
@@ -32,6 +86,7 @@
 							"kill": {
 								"type": "integer",
 								"minimum": 1,
+								"default": 1,
 								"title": "Number of pods to kill",
 								"description": "How many pods should we attempt to kill?"
 							},
@@ -48,19 +103,22 @@
 							},
 							"timeout": {
 								"type": "integer",
+								"default": 180,
 								"title": "Timeout",
 								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
 							},
 							"backoff": {
 								"type": "integer",
+								"default": 1,
 								"title": "Backoff",
 								"description": "How many seconds to wait between checks for the target pod status."
 							}
 						},
-						"additionalProperties": false,
 						"required": [
 							"namespace_pattern"
-						]
+						],
+						"additionalProperties": false,
+						"dependentRequired": {}
 					}
 				},
 				"required": [
@@ -76,49 +134,96 @@
 						"const": "wait-for-pods"
 					},
 					"config": {
+						"$defs": {
+							"WaitForPodsConfig": {
+								"type": "object",
+								"properties": {
+									"namespace_pattern": {
+										"type": "string",
+										"format": "regex"
+									},
+									"name_pattern": {
+										"type": "string",
+										"format": "regex"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1
+									},
+									"count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Pod count",
+										"description": "Wait for at least this many pods to exist"
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "How many seconds to wait for?"
+									},
+									"backoff": {
+										"type": "integer",
+										"default": 1,
+										"title": "Backoff",
+										"description": "How many seconds to wait between checks for the target pod status."
+									},
+									"kubeconfig_path": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"namespace_pattern"
+								],
+								"additionalProperties": false,
+								"dependentRequired": {}
+							}
+						},
 						"type": "object",
 						"properties": {
 							"namespace_pattern": {
 								"type": "string",
-								"format": "regex",
-								"title": "namespace_pattern"
+								"format": "regex"
 							},
 							"name_pattern": {
 								"type": "string",
-								"format": "regex",
-								"title": "name_pattern"
+								"format": "regex"
 							},
 							"label_selector": {
 								"type": "string",
-								"minLength": 1,
-								"title": "label_selector"
+								"minLength": 1
 							},
 							"count": {
 								"type": "integer",
 								"minimum": 1,
+								"default": 1,
 								"title": "Pod count",
 								"description": "Wait for at least this many pods to exist"
 							},
 							"timeout": {
 								"type": "integer",
 								"minimum": 1,
+								"default": 180,
 								"title": "Timeout",
 								"description": "How many seconds to wait for?"
 							},
 							"backoff": {
 								"type": "integer",
+								"default": 1,
 								"title": "Backoff",
 								"description": "How many seconds to wait between checks for the target pod status."
 							},
 							"kubeconfig_path": {
-								"type": "string",
-								"title": "kubeconfig_path"
+								"type": "string"
 							}
 						},
-						"additionalProperties": false,
 						"required": [
 							"namespace_pattern"
-						]
+						],
+						"additionalProperties": false,
+						"dependentRequired": {}
 					}
 				},
 				"required": [
@@ -134,17 +239,1824 @@
 						"const": "run_python"
 					},
 					"config": {
+						"$defs": {
+							"RunPythonFileInput": {
+								"type": "object",
+								"properties": {
+									"filename": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"filename"
+								],
+								"additionalProperties": false,
+								"dependentRequired": {}
+							}
+						},
 						"type": "object",
 						"properties": {
 							"filename": {
-								"type": "string",
-								"title": "filename"
+								"type": "string"
 							}
 						},
-						"additionalProperties": false,
 						"required": [
 							"filename"
-						]
+						],
+						"additionalProperties": false,
+						"dependentRequired": {}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "vmware-node-start"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"verify_session": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": true,
+										"title": "Verify API Session",
+										"description": "Verifies the vSphere client session. It is enabled by default"
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"verify_session": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": true,
+								"title": "Verify API Session",
+								"description": "Verifies the vSphere client session. It is enabled by default"
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "vmware-node-stop"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"verify_session": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": true,
+										"title": "Verify API Session",
+										"description": "Verifies the vSphere client session. It is enabled by default"
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"verify_session": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": true,
+								"title": "Verify API Session",
+								"description": "Verifies the vSphere client session. It is enabled by default"
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "vmware-node-reboot"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"verify_session": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": true,
+										"title": "Verify API Session",
+										"description": "Verifies the vSphere client session. It is enabled by default"
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"verify_session": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": true,
+								"title": "Verify API Session",
+								"description": "Verifies the vSphere client session. It is enabled by default"
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "vmware-node-terminate"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"verify_session": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": true,
+										"title": "Verify API Session",
+										"description": "Verifies the vSphere client session. It is enabled by default"
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"verify_session": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": true,
+								"title": "Verify API Session",
+								"description": "Verifies the vSphere client session. It is enabled by default"
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "ibmcloud-node-start"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "ibmcloud-node-stop"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "ibmcloud-node-reboot"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "ibmcloud-node-terminate"
+					},
+					"config": {
+						"$defs": {
+							"NodeScenarioConfig": {
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string",
+										"title": "Name",
+										"description": "Name(s) for target nodes. Required if label_selector is not set."
+									},
+									"runs": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of runs per node",
+										"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of nodes to perform action/select that match the label selector."
+									},
+									"skip_openshift_checks": {
+										"anyOf": [
+											{
+												"title": "Boolean",
+												"type": "boolean"
+											},
+											{
+												"title": "String",
+												"type": "string",
+												"enum": [
+													"yes",
+													"y",
+													"true",
+													"on",
+													"enable",
+													"enabled",
+													"1",
+													"no",
+													"n",
+													"false",
+													"off",
+													"disable",
+													"disabled",
+													"0"
+												]
+											},
+											{
+												"title": "Integer",
+												"type": "integer",
+												"maximum": 1,
+												"minimum": 0
+											}
+										],
+										"default": false,
+										"title": "Skip Openshift Checks",
+										"description": "Skip checking the status of the openshift nodes."
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									}
+								},
+								"required": [],
+								"additionalProperties": false,
+								"dependentRequired": {
+									"name": [
+										"skip_openshift_checks"
+									]
+								}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string",
+								"title": "Name",
+								"description": "Name(s) for target nodes. Required if label_selector is not set."
+							},
+							"runs": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of runs per node",
+								"description": "Number of times to inject each scenario under actions (will perform on same node each time)"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target nodes. Required if name is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of nodes to perform action/select that match the label selector."
+							},
+							"skip_openshift_checks": {
+								"anyOf": [
+									{
+										"title": "Boolean",
+										"type": "boolean"
+									},
+									{
+										"title": "String",
+										"type": "string",
+										"enum": [
+											"yes",
+											"y",
+											"true",
+											"on",
+											"enable",
+											"enabled",
+											"1",
+											"no",
+											"n",
+											"false",
+											"off",
+											"disable",
+											"disabled",
+											"0"
+										]
+									},
+									{
+										"title": "Integer",
+										"type": "integer",
+										"maximum": 1,
+										"minimum": 0
+									}
+								],
+								"default": false,
+								"title": "Skip Openshift Checks",
+								"description": "Skip checking the status of the openshift nodes."
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							}
+						},
+						"required": [],
+						"additionalProperties": false,
+						"dependentRequired": {
+							"name": [
+								"skip_openshift_checks"
+							]
+						}
 					}
 				},
 				"required": [
