@@ -5,4 +5,4 @@ kubeconfig: {}
 node_selector: {}
 vm_bytes: 10% # or amount of memory expressed in units b, k, m or g
 vm_workers: 2
-duration: 30
+duration: 30s

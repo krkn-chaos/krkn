@@ -11,5 +11,5 @@ target_pod_volume:
   hostPath:
     path: /
   name: node-volume
-duration: 1m
+duration: 30s
 
