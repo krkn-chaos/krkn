@@ -14,7 +14,9 @@ scenarios:
   container_name: "<specific container name>"  # This is optional, can take out and will kill all containers in all pods found under namespace and label
   pod_names:  # This is optional, can take out and will select all pods with given namespace and label
   - <pod_name>
-  retry_wait: <number of seconds to wait for container to be running again> (defaults to 120seconds)
+  count: <number of containers to disrupt, default=1>
+  action: <Action to run. For example kill 1 ( hang up ) or kill 9. Default is set to kill 1>
+  expected_recovery_time: <number of seconds to wait for container to be running again> (defaults to 120seconds)
 ```
 
 #### Post Action
@@ -34,5 +36,5 @@ See [scenarios/post_action_etcd_container.py](https://github.com/redhat-chaos/kr
 containers that were killed as well as the namespaces and pods to verify all containers that were affected recover properly.
 
 ```
-retry_wait: <seconds to wait for container to recover>
+expected_recovery_time: <seconds to wait for container to recover>
 ```
