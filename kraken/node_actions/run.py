@@ -2,7 +2,7 @@ import yaml
 import logging
 import sys
 import time
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
 from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
 from kraken.node_actions.az_node_scenarios import azure_node_scenarios
@@ -20,7 +20,7 @@ node_general = False
 
 # Get the node scenarios object of specfied cloud type
 # krkn_lib_kubernetes
-def get_node_scenario_object(node_scenario, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def get_node_scenario_object(node_scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     if "cloud_type" not in node_scenario.keys() or node_scenario["cloud_type"] == "generic":
         global node_general
         node_general = True
@@ -53,7 +53,7 @@ def get_node_scenario_object(node_scenario, kubecli: krkn_lib_kubernetes_draft.K
 
 # Run defined scenarios
 # krkn_lib_kubernetes
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     for node_scenario_config in scenarios_list:
         with open(node_scenario_config, "r") as f:
             node_scenario_config = yaml.full_load(f)

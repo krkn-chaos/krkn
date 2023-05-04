@@ -1,7 +1,7 @@
 import time
 import random
 import logging
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 import yaml
@@ -15,7 +15,7 @@ def run(
         wait_duration,
         failed_post_scenarios,
         kubeconfig_path,
-        kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes
+        kubecli: krkn_lib_kubernetes.KrknLibKubernetes
 ):
 
     for scenario_config in scenarios_list:
@@ -83,7 +83,7 @@ def run(
                 cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
 
 # krkn_lib_kubernetes
-def check_active_namespace(killed_namespaces, wait_time, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def check_active_namespace(killed_namespaces, wait_time, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     active_namespace = []
     timer = 0
     while timer < wait_time and killed_namespaces:

@@ -3,14 +3,14 @@ import random
 import re
 import sys
 import time
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import yaml
 
 from ..cerberus import setup as cerberus
 
 
 # krkn_lib_kubernetes
-def run(scenarios_list, config, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def run(scenarios_list, config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     """
     Reads the scenario config and creates a temp file to fill up the PVC
     """
@@ -256,7 +256,7 @@ def remove_temp_file(
     container_name,
     mount_path,
     file_size_kb,
-    kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes
+    kubecli: krkn_lib_kubernetes.KrknLibKubernetes
 ):
     command = "rm -f %s" % (str(full_path))
     logging.debug("Remove temp file from the PVC command:\n %s" % command)

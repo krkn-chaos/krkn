@@ -5,7 +5,7 @@ import logging
 import sys
 import yaml
 import html
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
 
 
@@ -15,8 +15,8 @@ class GENERAL:
 
 # krkn_lib_kubernetes
 class managedcluster_scenarios():
-    kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes
-    def __init__(self, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    kubecli: krkn_lib_kubernetes.KrknLibKubernetes
+    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         self.kubecli = kubecli
         self.general = GENERAL()
 

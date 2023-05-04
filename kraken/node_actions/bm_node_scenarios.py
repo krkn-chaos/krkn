@@ -1,6 +1,6 @@
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import logging
 import openshift as oc
 import pyipmi
@@ -107,7 +107,7 @@ class BM:
 
 # krkn_lib_kubernetes
 class bm_node_scenarios(abstract_node_scenarios):
-    def __init__(self, bm_info, user, passwd, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    def __init__(self, bm_info, user, passwd, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         super().__init__(kubecli)
         self.bm = BM(bm_info, user, passwd)
 

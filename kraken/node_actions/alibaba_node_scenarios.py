@@ -1,6 +1,6 @@
 import sys
 import time
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkecs.request.v20140526 import DescribeInstancesRequest, DeleteInstanceRequest
 from aliyunsdkecs.request.v20140526 import StopInstanceRequest, StartInstanceRequest, RebootInstanceRequest
@@ -182,7 +182,7 @@ class Alibaba:
 
 # krkn_lib_kubernetes
 class alibaba_node_scenarios(abstract_node_scenarios):
-    def __init__(self,kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    def __init__(self,kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         self.alibaba = Alibaba()
 
     # Node scenario to start the node

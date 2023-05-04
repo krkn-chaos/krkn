@@ -2,14 +2,14 @@ import time
 import random
 import logging
 import paramiko
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import kraken.invoke.command as runcommand
 
 node_general = False
 
 
 # Pick a random node with specified label selector
-def get_node(node_name, label_selector, instance_kill_count, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def get_node(node_name, label_selector, instance_kill_count, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     if node_name in kubecli.list_killable_nodes():
         return [node_name]
     elif node_name:
@@ -31,19 +31,19 @@ def get_node(node_name, label_selector, instance_kill_count, kubecli: krkn_lib_k
 
 # krkn_lib_kubernetes
 # Wait until the node status becomes Ready
-def wait_for_ready_status(node, timeout, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def wait_for_ready_status(node, timeout, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     resource_version = kubecli.get_node_resource_version(node)
     kubecli.watch_node_status(node, "True", timeout, resource_version)
 
 # krkn_lib_kubernetes
 # Wait until the node status becomes Not Ready
-def wait_for_not_ready_status(node, timeout, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def wait_for_not_ready_status(node, timeout, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     resource_version = kubecli.get_node_resource_version(node)
     kubecli.watch_node_status(node, "False", timeout, resource_version)
 
 # krkn_lib_kubernetes
 # Wait until the node status becomes Unknown
-def wait_for_unknown_status(node, timeout, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def wait_for_unknown_status(node, timeout, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     resource_version = kubecli.get_node_resource_version(node)
     kubecli.watch_node_status(node, "Unknown", timeout, resource_version)
 

@@ -1,6 +1,6 @@
 import random
 import logging
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 
 # krkn_lib_kubernetes
 # Pick a random managedcluster with specified label selector
@@ -8,7 +8,7 @@ def get_managedcluster(
         managedcluster_name,
         label_selector,
         instance_kill_count,
-        kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+        kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
 
     if managedcluster_name in kubecli.list_killable_managedclusters():
         return [managedcluster_name]
@@ -31,11 +31,11 @@ def get_managedcluster(
 
 # Wait until the managedcluster status becomes Available
 # krkn_lib_kubernetes
-def wait_for_available_status(managedcluster, timeout, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def wait_for_available_status(managedcluster, timeout, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     kubecli.watch_managedcluster_status(managedcluster, "True", timeout)
 
 
 # Wait until the managedcluster status becomes Not Available
 # krkn_lib_kubernetes
-def wait_for_unavailable_status(managedcluster, timeout, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def wait_for_unavailable_status(managedcluster, timeout, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     kubecli.watch_managedcluster_status(managedcluster, "Unknown", timeout)

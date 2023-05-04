@@ -2,12 +2,12 @@ import sys
 import logging
 import kraken.invoke.command as runcommand
 import kraken.node_actions.common_node_functions as nodeaction
-import  krkn_lib_kubernetes_draft
+import  krkn_lib_kubernetes
 
 # krkn_lib_kubernetes
 class abstract_node_scenarios:
-    kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes
-    def __init__(self, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    kubecli: krkn_lib_kubernetes.KrknLibKubernetes
+    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         self.kubecli = kubecli
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):

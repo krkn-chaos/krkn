@@ -3,7 +3,7 @@ import time
 from azure.mgmt.compute import ComputeManagementClient
 from azure.identity import DefaultAzureCredential
 import logging
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 import kraken.invoke.command as runcommand
@@ -123,7 +123,7 @@ class Azure:
 
 # krkn_lib_kubernetes
 class azure_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         super().__init__(kubecli)
         logging.info("init in azure")
         self.azure = Azure()

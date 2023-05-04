@@ -1,7 +1,7 @@
 import sys
 import time
 import logging
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import kraken.invoke.command as runcommand
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
@@ -89,7 +89,7 @@ class OPENSTACKCLOUD:
 
 # krkn_lib_kubernetes
 class openstack_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         self.openstackcloud = OPENSTACKCLOUD()
 
     # Node scenario to start the node

@@ -2,7 +2,7 @@ import sys
 import time
 import boto3
 import logging
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 
@@ -152,7 +152,7 @@ class AWS:
 
 # krkn_lib_kubernetes
 class aws_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         super().__init__(kubecli)
         self.aws = AWS()
 

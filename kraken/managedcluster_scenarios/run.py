@@ -1,7 +1,7 @@
 import yaml
 import logging
 import time
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 from kraken.managedcluster_scenarios.managedcluster_scenarios import managedcluster_scenarios
 import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
 import kraken.cerberus.setup as cerberus
@@ -9,12 +9,12 @@ import kraken.cerberus.setup as cerberus
 
 # Get the managedcluster scenarios object of specfied cloud type
 # krkn_lib_kubernetes
-def get_managedcluster_scenario_object(managedcluster_scenario, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def get_managedcluster_scenario_object(managedcluster_scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     return managedcluster_scenarios(kubecli)
 
 # Run defined scenarios
 # krkn_lib_kubernetes
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     for managedcluster_scenario_config in scenarios_list:
         with open(managedcluster_scenario_config, "r") as f:
             managedcluster_scenario_config = yaml.full_load(f)
@@ -33,7 +33,7 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draf
 
 # Inject the specified managedcluster scenario
 # krkn_lib_kubernetes
-def inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     # Get the managedcluster scenario configurations
     run_kill_count = managedcluster_scenario.get("runs", 1)
     instance_kill_count = managedcluster_scenario.get("instance_count", 1)

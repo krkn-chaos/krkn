@@ -5,12 +5,12 @@ import re
 import sys
 import yaml
 import random
-import krkn_lib_kubernetes_draft
+import krkn_lib_kubernetes
 from ..cerberus import setup as cerberus
 from ..invoke import command as runcommand
 
 # krkn_lib_kubernetes
-def pod_exec(pod_name, command, namespace, container_name, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def pod_exec(pod_name, command, namespace, container_name, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     for i in range(5):
         response = kubecli.exec_cmd_in_pod(
             command,
@@ -40,7 +40,7 @@ def node_debug(node_name, command):
 
 
 # krkn_lib_kubernetes
-def get_container_name(pod_name, namespace, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes, container_name=""):
+def get_container_name(pod_name, namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, container_name=""):
 
     container_names = kubecli.get_containers_in_pod(pod_name, namespace)
     if container_name != "":
@@ -63,7 +63,7 @@ def get_container_name(pod_name, namespace, kubecli: krkn_lib_kubernetes_draft.K
 
 
 # krkn_lib_kubernetes
-def skew_time(scenario, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def skew_time(scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     skew_command = "date --set "
     if scenario["action"] == "skew_date":
         skewed_date = "00-01-01"
@@ -223,7 +223,7 @@ def string_to_date(obj_datetime):
 
 
 # krkn_lib_kubernetes
-def check_date_time(object_type, names, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def check_date_time(object_type, names, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     skew_command = "date"
     not_reset = []
     max_retries = 30
@@ -299,7 +299,7 @@ def check_date_time(object_type, names, kubecli: krkn_lib_kubernetes_draft.KrknL
 
 
 # krkn_lib_kubernetes
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes_draft.KrknLibKubernetes):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     for time_scenario_config in scenarios_list:
         with open(time_scenario_config, "r") as f:
             scenario_config = yaml.full_load(f)
