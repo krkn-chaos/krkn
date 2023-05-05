@@ -5,4 +5,4 @@ scenarios:
   container_name: "etcd"
   action: "kill 1"
   count: 1
-  retry_wait: 60
+  expected_recovery_time: 60
