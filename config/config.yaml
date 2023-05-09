@@ -17,6 +17,7 @@ kraken:
             - scenarios/openshift/etcd.yml
             - scenarios/openshift/regex_openshift_pod_kill.yml
             - scenarios/openshift/vmware_node_scenarios.yml
+            - scenarios/openshift/ibmcloud_node_scenarios.yml
             - scenarios/openshift/network_chaos_ingress.yml
         -   node_scenarios:                                # List of chaos node scenarios to load
             -   scenarios/openshift/node_scenarios_example.yml

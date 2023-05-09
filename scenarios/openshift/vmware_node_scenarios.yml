@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../plugin.schema.json
-- id: <node_stop_scenario/node_start_scenario/node_reboot_scenario/node_terminate_scenario>
+- id: <vmware-node-stop/vmware-node-start/vmware-node-reboot/vmware-node-terminate>
   config:
     name: <node_name>                   # Node on which scenario has to be injected; can set multiple names separated by comma                           
     label_selector: <label_selector>    # When node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection 

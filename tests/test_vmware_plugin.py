@@ -2,8 +2,8 @@ import unittest
 import os
 import logging
 from arcaflow_plugin_sdk import plugin
-from kraken.plugins.vmware.kubernetes_functions import Actions
-from kraken.plugins.vmware import vmware_plugin
+from kraken.plugins.node_scenarios.kubernetes_functions import Actions
+from kraken.plugins.node_scenarios import vmware_plugin
 
 
 class NodeScenariosTest(unittest.TestCase):
