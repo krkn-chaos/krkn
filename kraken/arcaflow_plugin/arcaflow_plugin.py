@@ -4,61 +4,113 @@ import yaml
 import base64
 from pathlib import Path
 from typing import List
+from .context_auth import ContextAuth
 
 
 def run(scenarios_list: List[str], kubeconfig_path: str):
     for scenario in scenarios_list:
-        engineArgs = buildArgs(scenario)
-        runWorkflow(engineArgs, kubeconfig_path)
+        engine_args = build_args(scenario)
+        run_workflow(engine_args, kubeconfig_path)
 
 
-def runWorkflow(engineArgs: arcaflow.EngineArgs, kubeconfig_path: str):
-    setArcaKubeConfig(engineArgs, kubeconfig_path)
-    arcaflow.run(engineArgs)
+def run_workflow(engine_args: arcaflow.EngineArgs, kubeconfig_path: str):
+    set_arca_kubeconfig(engine_args, kubeconfig_path)
+    exit_status = arcaflow.run(engine_args)
+    if exit_status != 0:
+        logging.error(
+            f"failed to run arcaflow scenario {engine_args.input}"
+        )
+        sys.exit(exit_status)
 
 
-def buildArgs(input: str) -> arcaflow.EngineArgs:
+def build_args(input_file: str) -> arcaflow.EngineArgs:
     """sets the kubeconfig parsed by setArcaKubeConfig as an input to the arcaflow workflow"""
-    context = Path(input).parent
+    context = Path(input_file).parent
     workflow = "{}/workflow.yaml".format(context)
     config = "{}/config.yaml".format(context)
-    if os.path.exists(context) == False:
+    if not os.path.exists(context):
         raise Exception(
             "context folder for arcaflow workflow not found: {}".format(
                 context)
         )
-    if os.path.exists(input) == False:
+    if not os.path.exists(input_file):
         raise Exception(
-            "input file for arcaflow workflow not found: {}".format(input))
-    if os.path.exists(workflow) == False:
+            "input file for arcaflow workflow not found: {}".format(input_file))
+    if not os.path.exists(workflow):
         raise Exception(
             "workflow file for arcaflow workflow not found: {}".format(
                 workflow)
         )
-    if os.path.exists(config) == False:
+    if not os.path.exists(config):
         raise Exception(
             "configuration file for arcaflow workflow not found: {}".format(
                 config)
         )
 
-    engineArgs = arcaflow.EngineArgs()
-    engineArgs.context = context
-    engineArgs.config = config
-    engineArgs.input = input
-    return engineArgs
+    engine_args = arcaflow.EngineArgs()
+    engine_args.context = context
+    engine_args.config = config
+    engine_args.input = input_file
+    return engine_args
 
 
-def setArcaKubeConfig(engineArgs: arcaflow.EngineArgs, kubeconfig_path: str):
-    kubeconfig_str = buildArcaKubeConfig(kubeconfig_path)
-    with open(engineArgs.input, "r") as stream:
-        input = yaml.safe_load(stream)
-        input["kubeconfig"] = kubeconfig_str
+def set_arca_kubeconfig(engine_args: arcaflow.EngineArgs, kubeconfig_path: str):
+
+    context_auth = ContextAuth()
+    if not os.path.exists(kubeconfig_path):
+        raise Exception("kubeconfig not found in {}".format(kubeconfig_path))
+
+    with open(kubeconfig_path, "r") as stream:
+        try:
+            kubeconfig = yaml.safe_load(stream)
+            context_auth.fetch_auth_data(kubeconfig)
+        except Exception as e:
+            logging.error("impossible to read kubeconfig file in: {}".format(
+                    kubeconfig_path))
+            raise e
+
+    kubeconfig_str = set_kubeconfig_auth(kubeconfig, context_auth)
+
+    with open(engine_args.input, "r") as stream:
+        input_file = yaml.safe_load(stream)
+        if "input_list" in input_file and isinstance(input_file["input_list"],list):
+            for index, _ in enumerate(input_file["input_list"]):
+                if isinstance(input_file["input_list"][index], dict):
+                    input_file["input_list"][index]["kubeconfig"] = kubeconfig_str
+        else:
+            input_file["kubeconfig"] = kubeconfig_str
         stream.close()
-    with open(engineArgs.input, "w") as stream:
-        yaml.safe_dump(input, stream)
+    with open(engine_args.input, "w") as stream:
+        yaml.safe_dump(input_file, stream)
+
+    with open(engine_args.config, "r") as stream:
+        config_file = yaml.safe_load(stream)
+    if config_file["deployer"]["type"] == "kubernetes":
+        kube_connection = set_kubernetes_deployer_auth(config_file["deployer"]["connection"], context_auth)
+        config_file["deployer"]["connection"]=kube_connection
+        with open(engine_args.config, "w") as stream:
+            yaml.safe_dump(config_file, stream,explicit_start=True, width=4096)
 
 
-def buildArcaKubeConfig(kubeconfig_path: str) -> str:
+def set_kubernetes_deployer_auth(deployer: any, context_auth: ContextAuth) -> any:
+    if context_auth.clusterHost is not None :
+        deployer["host"] = context_auth.clusterHost
+    if context_auth.clientCertificateData is not None :
+        deployer["cert"] = context_auth.clientCertificateData
+    if context_auth.clientKeyData is not None:
+        deployer["key"] = context_auth.clientKeyData
+    if context_auth.clusterCertificateData is not None:
+        deployer["cacert"] = context_auth.clusterCertificateData
+    if context_auth.username is not None:
+        deployer["username"] = context_auth.username
+    if context_auth.password is not None:
+        deployer["password"] = context_auth.password
+    if context_auth.bearerToken is not None:
+        deployer["bearerToken"] = context_auth.bearerToken
+    return deployer
+
+
+def set_kubeconfig_auth(kubeconfig: any, context_auth: ContextAuth) -> str:
     """
     Builds an arcaflow-compatible kubeconfig representation and returns it as a string.
     In order to run arcaflow plugins in kubernetes/openshift the kubeconfig must contain client certificate/key
@@ -66,80 +118,50 @@ def buildArcaKubeConfig(kubeconfig_path: str) -> str:
     case, infact kubeconfig may contain filesystem paths to those files, this function builds an arcaflow-compatible
     kubeconfig file and returns it as a string that can be safely included in input.yaml 
     """
-    if os.path.exists(kubeconfig_path) == False:
-        raise Exception("kubeconfig not found in {}".format(kubeconfig_path))
-
-    with open(kubeconfig_path, "r") as stream:
-        try:
-            kubeconfig = yaml.safe_load(stream)
-        except:
-            raise Exception(
-                "impossible to read kubeconfig file in: {}".format(
-                    kubeconfig_path)
-            )
 
     if "current-context" not in kubeconfig.keys():
         raise Exception(
             "invalid kubeconfig file, impossible to determine current-context"
         )
-    userId = None
-    clusterId = None
-    userName = None
-    clusterName = None
-    currentContext = kubeconfig["current-context"]
+    user_id = None
+    cluster_id = None
+    user_name = None
+    cluster_name = None
+    current_context = kubeconfig["current-context"]
     for context in kubeconfig["contexts"]:
-        if context["name"] == currentContext:
-            userName = context["context"]["user"]
-            clusterName = context["context"]["cluster"]
-    if userName is None:
+        if context["name"] == current_context:
+            user_name = context["context"]["user"]
+            cluster_name = context["context"]["cluster"]
+    if user_name is None:
         raise Exception(
-            "user not set for context {} in kubeconfig file".format(context)
+            "user not set for context {} in kubeconfig file".format(current_context)
         )
-    if clusterName is None:
+    if cluster_name is None:
         raise Exception(
-            "cluster not set for context {} in kubeconfig file".format(context)
+            "cluster not set for context {} in kubeconfig file".format(current_context)
         )
 
     for index, user in enumerate(kubeconfig["users"]):
-        if user["name"] == userName:
-            userId = index
+        if user["name"] == user_name:
+            user_id = index
     for index, cluster in enumerate(kubeconfig["clusters"]):
-        if cluster["name"] == clusterName:
-            clusterId = index
+        if cluster["name"] == cluster_name:
+            cluster_id = index
 
-    if userId is None:
+    if cluster_id is None:
         raise Exception(
-            "no user {} found in kubeconfig users".format(userName)
+            "no cluster {} found in kubeconfig users".format(cluster_name)
         )
-    if clusterId is None:
-        raise Exception(
-            "no cluster {} found in kubeconfig users".format(cluster)
-        )
-    if "client-certificate" in kubeconfig["users"][userId]["user"]:
-        file = kubeconfig["users"][userId]["user"]["client-certificate"]
-        if (os.path.exists(file) == False):
-            raise Exception("user certificate not found {} ".format(file))
-        with open(file, "rb") as file_stream:
-            encoded_file = base64.b64encode(file_stream.read()).decode("utf-8")
-        kubeconfig["users"][userId]["user"]["client-certificate-data"] = encoded_file
-        del kubeconfig["users"][userId]["user"]["client-certificate"]
+    if "client-certificate" in kubeconfig["users"][user_id]["user"]:
+        kubeconfig["users"][user_id]["user"]["client-certificate-data"] = context_auth.clientCertificateDataBase64
+        del kubeconfig["users"][user_id]["user"]["client-certificate"]
 
-    if "client-key" in kubeconfig["users"][userId]["user"]:
-        file = kubeconfig["users"][userId]["user"]["client-key"]
-        if (os.path.exists(file) == False):
-            raise Exception("user key not found: {} ".format(file))
-        with open(file, "rb") as file_stream:
-            encoded_file = base64.b64encode(file_stream.read()).decode("utf-8")
-        kubeconfig["users"][userId]["user"]["client-key-data"] = encoded_file
-        del kubeconfig["users"][userId]["user"]["client-key"]
+    if "client-key" in kubeconfig["users"][user_id]["user"]:
+        kubeconfig["users"][user_id]["user"]["client-key-data"] = context_auth.clientKeyDataBase64
+        del kubeconfig["users"][user_id]["user"]["client-key"]
 
-    if "certificate-authority" in kubeconfig["clusters"][clusterId]["cluster"]:
-        file = kubeconfig["clusters"][clusterId]["cluster"]["certificate-authority"]
-        if (os.path.exists(file) == False):
-            raise Exception("cluster certificate not found: {}".format(file))
-        with open(file, "rb") as file_stream:
-            encoded_file = base64.b64encode(file_stream.read()).decode("utf-8")
-        kubeconfig["clusters"][clusterId]["cluster"]["certificate-authority-data"] = encoded_file
-        del kubeconfig["clusters"][clusterId]["cluster"]["certificate-authority"]
+    if "certificate-authority" in kubeconfig["clusters"][cluster_id]["cluster"]:
+        kubeconfig["clusters"][cluster_id]["cluster"]["certificate-authority-data"] = context_auth.clusterCertificateDataBase64
+        del kubeconfig["clusters"][cluster_id]["cluster"]["certificate-authority"]
     kubeconfig_str = yaml.dump(kubeconfig)
     return kubeconfig_str
