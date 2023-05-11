@@ -1,0 +1,6 @@
+[allowlist]
+  description = "Global Allowlist"
+
+  paths = [
+        '''kraken/arcaflow_plugin/fixtures/*'''
+  ]
