@@ -1,7 +1,8 @@
 import arcaflow
 import os
 import yaml
-import base64
+import logging
+import sys
 from pathlib import Path
 from typing import List
 from .context_auth import ContextAuth
