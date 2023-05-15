@@ -62,7 +62,7 @@ Scenario type               | Kubernetes    | OpenShift
 [Container Scenarios](docs/container_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Node Scenarios](docs/node_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Time Scenarios](docs/time_scenarios.md) | :x: | :heavy_check_mark: |
-[Litmus Scenarios](docs/litmus_scenarios.md) | :x: | :heavy_check_mark: |
+[Hog Scenarios](docs/arcaflow_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Namespace Scenarios](docs/namespace_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Zone Outage Scenarios](docs/zone_outage.md) | :heavy_check_mark: | :heavy_check_mark: |
@@ -70,7 +70,6 @@ Scenario type               | Kubernetes    | OpenShift
 [PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: | :heavy_check_mark: |
 [ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: | :question:         |
-[Arcaflow Scenarios](docs/arcaflow_scenarios.md) |  :heavy_check_mark: | :heavy_check_mark: |
 
 
 ### Kraken scenario pass/fail criteria and report

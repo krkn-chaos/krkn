@@ -11,6 +11,10 @@ kraken:
     litmus_uninstall: False                                # If you want to uninstall litmus if failure
     litmus_uninstall_before_run: True                      # If you want to uninstall litmus before a new run starts
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
+        -   arcaflow_scenarios:
+                - scenarios/arcaflow/cpu-hog/input.yaml
+                - scenarios/arcaflow/io-hog/input.yaml
+                - scenarios/arcaflow/memory-hog/input.yaml
         -   container_scenarios:                                 # List of chaos pod scenarios to load
             - -    scenarios/openshift/container_etcd.yml
         -   plugin_scenarios:
