@@ -6,7 +6,8 @@ input_list:
   # node selector example
   # node_selector:
   #   kubernetes.io/hostname: master
-  kubeconfig: { }
+  kubeconfig: ""
+  namespace: default
 
 # duplicate this section to run simultaneous stressors in the same run
 

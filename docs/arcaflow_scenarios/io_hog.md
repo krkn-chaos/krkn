@@ -7,6 +7,7 @@ Usage section.
 This scenario takes a list of objects named `input_list` with the following properties:
 
 - **kubeconfig :** *string* the kubeconfig needed by the deployer to deploy the sysbench plugin in the target cluster
+- **namespace :** *string* the namespace where the scenario container will be deployed
 **Note:** this parameter will be automatically filled by kraken if the `kubeconfig_path` property is correctly set
 - **node_selector :** *key-value map* the node label that will be used as `nodeSelector` by the pod to target a specific cluster node
 - **duration :** *string* stop  stress  test  after  N  seconds.  One  can  also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or y.

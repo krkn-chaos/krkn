@@ -13,6 +13,7 @@ input_list:
   # node_selector:
   #   kubernetes.io/hostname: master
   kubeconfig: ""
+  namespace: default
 
 # duplicate this section to run simultaneous stressors in the same run
 
