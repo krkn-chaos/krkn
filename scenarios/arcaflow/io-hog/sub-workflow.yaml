@@ -11,6 +11,13 @@ input:
           type:
             type_id: string
           required: true
+        namespace:
+          display:
+            description: The namespace where the container will be deployed
+            name: Namespace
+          type:
+            type_id: string
+          required: true
         node_selector:
             display:
               description: kubernetes node name where the plugin must be deployed
@@ -110,7 +117,7 @@ steps:
       connection: !expr $.steps.kubeconfig.outputs.success.connection
       pod:
         metadata:
-          namespace: default
+          namespace: !expr $.input.namespace
           labels:
             arcaflow: stressng
         spec:
