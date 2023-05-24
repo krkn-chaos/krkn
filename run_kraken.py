@@ -91,7 +91,8 @@ def main(cfg):
         check_critical_alerts = config["performance_monitoring"].get("check_critical_alerts", False)                          
 
         # Initialize clients
-        if not os.path.isfile(kubeconfig_path):
+        if (not os.path.isfile(kubeconfig_path) and
+            not os.path.isfile("/var/run/secrets/kubernetes.io/serviceaccount/token")):
             logging.error(
                 "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
             )
