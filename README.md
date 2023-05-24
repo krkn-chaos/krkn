@@ -109,10 +109,7 @@ Kraken supports injecting faults into [Open Cluster Management (OCM)](https://op
 
 
 ### Roadmap
-Following is a list of enhancements that we are planning to work on adding support in Kraken. Of course any help/contributions are greatly appreciated.
-- [Ability to visualize the metrics that are being captured by Kraken and stored in Elasticsearch](https://github.com/redhat-chaos/krkn/issues/124)
-- Continue to improve [Chaos Testing Guide](https://redhat-chaos.github.io/krkn) in terms of adding best practices, test environment recommendations and scenarios to make sure the OpenShift platform, as well the applications running on top it, are resilient and performant under chaotic conditions.
-- Support for running all the scenarios of Kraken on Kubernetes distribution - see https://github.com/redhat-chaos/krkn/issues/185, https://github.com/redhat-chaos/krkn/issues/186
+Enhancements being planned can be found in the [roadmap](ROADMAP.md).
 
 
 ### Contributions
