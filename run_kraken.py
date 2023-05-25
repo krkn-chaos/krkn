@@ -98,8 +98,12 @@ def main(cfg):
             )
             sys.exit(1)
         logging.info("Initializing client to talk to the Kubernetes cluster")
-        os.environ["KUBECONFIG"] = str(kubeconfig_path)
-        kubecli.initialize_clients(kubeconfig_path)
+        try:
+            kubeconfig_path
+            os.environ["KUBECONFIG"] = str(kubeconfig_path)
+            kubecli.initialize_clients(kubeconfig_path)
+        except NameError:
+            kubecli.initialize_clients(None)
 
         # find node kraken might be running on
         kubecli.find_kraken_node()
