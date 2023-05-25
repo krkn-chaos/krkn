@@ -3,10 +3,10 @@ input_list:
   io_block_size: 1m
   io_workers: 1
   io_write_bytes: 10m
-  target_pod_folder: /data
+  target_pod_folder: /krkn-io-hog-data
   target_pod_volume:
     hostPath:
-      path: /
+      path: /tmp
     name: node-volume
   node_selector: { }
   # node selector example

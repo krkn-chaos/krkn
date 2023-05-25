@@ -79,11 +79,19 @@ steps:
       type: kubernetes
       connection: !expr $.steps.kubeconfig.outputs.success.connection
       pod:
+
         metadata:
           namespace: !expr $.input.namespace
           labels:
             arcaflow: stressng
         spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1337
+            runAsGroup: 1337
+            fsGroup: 1337
+            seccompProfile:
+              type: RuntimeDefault
           nodeSelector: !expr $.input.node_selector
           pluginContainer:
             imagePullPolicy: Always

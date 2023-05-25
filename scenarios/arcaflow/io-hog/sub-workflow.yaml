@@ -121,11 +121,18 @@ steps:
           labels:
             arcaflow: stressng
         spec:
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1337
+            runAsGroup: 1337
+            fsGroup: 1337
+            seccompProfile:
+              type: RuntimeDefault
           nodeSelector: !expr $.input.node_selector
           pluginContainer:
             imagePullPolicy: Always
             volumeMounts:
-              - mountPath: /data
+              - mountPath: /krkn-io-hog-data
                 name: node-volume
           volumes:
             - !expr $.input.target_pod_volume
