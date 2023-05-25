@@ -26,10 +26,8 @@ def initialize_clients(kubeconfig_path):
     try:
         if kubeconfig_path:
             config.load_kube_config(kubeconfig_path)
-            k8s_client = config.new_client_from_config(config_file=kubeconfig_path)
         else:
             config.load_incluster_config()
-            k8s_client = None
         api_client = client.ApiClient()
         cli = client.CoreV1Api(api_client)
         batch_cli = client.BatchV1Api(api_client)
