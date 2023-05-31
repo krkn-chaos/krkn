@@ -8,4 +8,4 @@
 
 - expr: increase(etcd_server_leader_changes_seen_total[2m]) > 0
   description: etcd leader changes observed
-  severity: critical
+  severity: error
