@@ -24,13 +24,15 @@ def initialize_clients(kubeconfig_path):
     global dyn_client
     global custom_object_client
     try:
-        config.load_kube_config(kubeconfig_path)
+        if kubeconfig_path:
+            config.load_kube_config(kubeconfig_path)
+        else:
+            config.load_incluster_config()
         api_client = client.ApiClient()
-        k8s_client = config.new_client_from_config(config_file=kubeconfig_path)
-        cli = client.CoreV1Api(k8s_client)
-        batch_cli = client.BatchV1Api(k8s_client)
-        custom_object_client = client.CustomObjectsApi(k8s_client)
-        dyn_client = DynamicClient(k8s_client)
+        cli = client.CoreV1Api(api_client)
+        batch_cli = client.BatchV1Api(api_client)
+        custom_object_client = client.CustomObjectsApi(api_client)
+        dyn_client = DynamicClient(api_client)
         watch_resource = watch.Watch()
     except ApiException as e:
         logging.error("Failed to initialize kubernetes client: %s\n" % e)

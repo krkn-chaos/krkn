@@ -91,14 +91,19 @@ def main(cfg):
         check_critical_alerts = config["performance_monitoring"].get("check_critical_alerts", False)                          
 
         # Initialize clients
-        if not os.path.isfile(kubeconfig_path):
+        if (not os.path.isfile(kubeconfig_path) and
+            not os.path.isfile("/var/run/secrets/kubernetes.io/serviceaccount/token")):
             logging.error(
                 "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
             )
             sys.exit(1)
         logging.info("Initializing client to talk to the Kubernetes cluster")
-        os.environ["KUBECONFIG"] = str(kubeconfig_path)
-        kubecli.initialize_clients(kubeconfig_path)
+        try:
+            kubeconfig_path
+            os.environ["KUBECONFIG"] = str(kubeconfig_path)
+            kubecli.initialize_clients(kubeconfig_path)
+        except NameError:
+            kubecli.initialize_clients(None)
 
         # find node kraken might be running on
         kubecli.find_kraken_node()
