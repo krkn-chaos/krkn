@@ -27,14 +27,6 @@ The prometheus url/route and bearer token are automatically obtained in case of 
 **signal_address**: Address to listen/post the signal state to
 **port**: port to listen/post the signal state to
 
-## Litmus Variables
-Litmus installation specifics if you are running one of the hog scenarios. See [litmus doc](litmus_scenarios.md) for more information on these types of scenarios 
-**litmus_install**: Installs specified version of litmus, set to False if it's already setup
-**litmus_version**: Litmus version to install
-**litmus_uninstall**: If you want to uninstall litmus if failure
-**litmus_uninstall_before_run**: If you want to uninstall litmus before a new run starts, True or False values
-
-
 ## Chaos Scenarios 
 
 **chaos_scenarios**: List of different types of chaos scenarios you want to run with paths to their specific yaml file configurations
@@ -48,7 +40,6 @@ Chaos scenario types:
 - plugin_scenarios
 - node_scenarios
 - time_scenarios
-- litmus_scenarios
 - cluster_shut_down_scenarios
 - namespace_scenarios
 - zone_outages
