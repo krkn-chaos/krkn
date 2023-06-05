@@ -155,7 +155,6 @@ Let us take a look at how to run the chaos scenarios on your OpenShift clusters 
     - Helps understand if the application/system components have reserved resources to not get disrupted because of rogue applications, or get performance throttled.
       - CPU Hog ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/node-cpu-hog.md), [Demo](https://asciinema.org/a/452762))
       - Memory Hog ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/node-memory-hog.md), [Demo](https://asciinema.org/a/452742?speed=3&theme=solarized-dark))
-      - IO Hog ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/node-io-hog.md))
 
 - Time Skewing ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/time-scenarios.md))
   - Manipulate the system time and/or date of specific pods/nodes.
