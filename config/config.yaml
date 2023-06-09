@@ -7,41 +7,40 @@ kraken:
     signal_address: 0.0.0.0                                # Signal listening address
     port: 8081                                             # Signal port
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
-        -   arcaflow_scenarios:
-                - scenarios/arcaflow/cpu-hog/input.yaml
-                - scenarios/arcaflow/memory-hog/input.yaml
-        -   container_scenarios:                                 # List of chaos pod scenarios to load
-            - -    scenarios/openshift/container_etcd.yml
-        -   plugin_scenarios:
-            - scenarios/openshift/etcd.yml
-            - scenarios/openshift/regex_openshift_pod_kill.yml
-            - scenarios/openshift/vmware_node_scenarios.yml
-            - scenarios/openshift/ibmcloud_node_scenarios.yml
-            - scenarios/openshift/network_chaos_ingress.yml
-            - scenarios/openshift/pod_network_outage.yml
-            - scenarios/openshift/pod_network_shaping.yml
-        -   node_scenarios:                                # List of chaos node scenarios to load
-            -   scenarios/openshift/node_scenarios_example.yml
-        -   plugin_scenarios:
-            - scenarios/openshift/openshift-apiserver.yml
-            - scenarios/openshift/openshift-kube-apiserver.yml
-        -   time_scenarios:                                # List of chaos time scenarios to load
-            - scenarios/openshift/time_scenarios_example.yml
-        -   cluster_shut_down_scenarios:
-            - - scenarios/openshift/cluster_shut_down_scenario.yml
-              - scenarios/openshift/post_action_shut_down.py
-        -   namespace_scenarios:
-             - - scenarios/openshift/regex_namespace.yaml
-             - - scenarios/openshift/ingress_namespace.yaml
-               - scenarios/openshift/post_action_namespace.py
-        -   zone_outages:
-            - scenarios/openshift/zone_outage.yaml
-        -   application_outages:
-            - scenarios/openshift/app_outage.yaml
-        -   pvc_scenarios:
-            - scenarios/openshift/pvc_scenario.yaml
-        -   network_chaos:
-            - scenarios/openshift/network_chaos.yaml
+        - arcaflow_scenarios:
+              - scenarios/arcaflow/cpu-hog/input.yaml
+              - scenarios/arcaflow/memory-hog/input.yaml
+        - container_scenarios: # List of chaos pod scenarios to load
+              - - scenarios/openshift/container_etcd.yml
+        - plugin_scenarios:
+              - scenarios/openshift/etcd.yml
+              - scenarios/openshift/regex_openshift_pod_kill.yml
+              - scenarios/openshift/vmware_node_scenarios.yml
+              - scenarios/openshift/ibmcloud_node_scenarios.yml
+              - scenarios/openshift/network_chaos_ingress.yml
+              - scenarios/openshift/pod_network_outage.yml
+        - node_scenarios: # List of chaos node scenarios to load
+              - scenarios/openshift/node_scenarios_example.yml
+        - plugin_scenarios:
+              - scenarios/openshift/openshift-apiserver.yml
+              - scenarios/openshift/openshift-kube-apiserver.yml
+        - time_scenarios: # List of chaos time scenarios to load
+              - scenarios/openshift/time_scenarios_example.yml
+        - cluster_shut_down_scenarios:
+              - - scenarios/openshift/cluster_shut_down_scenario.yml
+                - scenarios/openshift/post_action_shut_down.py
+        - namespace_scenarios:
+              - - scenarios/openshift/regex_namespace.yaml
+              - - scenarios/openshift/ingress_namespace.yaml
+                - scenarios/openshift/post_action_namespace.py
+        - zone_outages:
+              - scenarios/openshift/zone_outage.yaml
+        - application_outages:
+              - scenarios/openshift/app_outage.yaml
+        - pvc_scenarios:
+              - scenarios/openshift/pvc_scenario.yaml
+        - network_chaos:
+              - scenarios/openshift/network_chaos.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
@@ -65,3 +64,8 @@ tunings:
     wait_duration: 60                                      # Duration to wait between each chaos scenario
     iterations: 1                                          # Number of times to execute the scenarios
     daemon_mode: False                                     # Iterations are set to infinity which means that the kraken will cause chaos forever
+telemetry:
+    enabled: True
+    api_url: https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production
+    username: username
+    password: password
