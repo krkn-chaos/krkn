@@ -33,7 +33,7 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
                 node_name_list = [test_node]
             nodelst = []
             for single_node_name in node_name_list:
-                nodelst.extend(common_node_functions.get_node(single_node_name, test_node_label, test_instance_count))
+                nodelst.extend(common_node_functions.get_node(single_node_name, test_node_label, test_instance_count, kubecli))
             file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
             env = Environment(loader=file_loader, autoescape=True)
             pod_template = env.get_template("pod.j2")

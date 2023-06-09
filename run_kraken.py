@@ -8,7 +8,6 @@ import optparse
 import pyfiglet
 import uuid
 import time
-import krkn_lib_kubernetes
 import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
@@ -26,6 +25,7 @@ import kraken.arcaflow_plugin as arcaflow_plugin
 import server as server
 import kraken.prometheus.client as promcli
 from kraken import plugins
+from krkn_lib_kubernetes import KrknLibKubernetes
 
 KUBE_BURNER_URL = (
     "https://github.com/cloud-bulldozer/kube-burner/"
@@ -101,7 +101,7 @@ def main(cfg):
         try:
             kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
-            kubecli.initialize_clients(kubeconfig_path)
+            kubecli = KrknLibKubernetes(kubeconfig_path=kubeconfig_path)
         except NameError:
             kubecli.initialize_clients(None)
 

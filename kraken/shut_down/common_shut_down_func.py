@@ -127,6 +127,7 @@ def cluster_shut_down(shut_down_config, kubecli: krkn_lib_kubernetes.KrknLibKube
         logging.info("Successfully injected cluster_shut_down scenario!")
 
 # krkn_lib_kubernetes
+
 def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     failed_post_scenarios = []
     for shut_down_config in scenarios_list:

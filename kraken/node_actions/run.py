@@ -62,7 +62,7 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
                 if node_scenario["actions"]:
                     for action in node_scenario["actions"]:
                         start_time = int(time.time())
-                        inject_node_scenario(action, node_scenario, node_scenario_object)
+                        inject_node_scenario(action, node_scenario, node_scenario_object, kubecli)
                         logging.info("Waiting for the specified duration: %s" % (wait_duration))
                         time.sleep(wait_duration)
                         end_time = int(time.time())
@@ -71,7 +71,7 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
 
 
 # Inject the specified node scenario
-def inject_node_scenario(action, node_scenario, node_scenario_object):
+def inject_node_scenario(action, node_scenario, node_scenario_object, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario")
     # Get the node scenario configurations
     run_kill_count = node_scenario.get("runs", 1)
@@ -87,7 +87,7 @@ def inject_node_scenario(action, node_scenario, node_scenario_object):
     else:
         node_name_list = [node_name]
     for single_node_name in node_name_list:
-        nodes = common_node_functions.get_node(single_node_name, label_selector, instance_kill_count)
+        nodes = common_node_functions.get_node(single_node_name, label_selector, instance_kill_count, kubecli)
         for single_node in nodes:
             if node_general and action not in generic_cloud_scenarios:
                 logging.info("Scenario: " + action + " is not set up for generic cloud type, skipping action")

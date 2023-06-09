@@ -38,4 +38,4 @@ ibm_cloud_sdk_core
 ibm_vpc
 pytest
 
-krkn-lib-kubernetes >= 0.1.0
+krkn-lib-kubernetes >= 0.1.1
