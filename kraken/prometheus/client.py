@@ -31,7 +31,7 @@ def process_prom_query(query):
             logging.error("Failed to get the metrics: %s" % e)
             sys.exit(1)
     else:
-        logging.info("Skipping the prometheus query as the prometheus client couldn't " "be initilized\n")
+        logging.info("Skipping the prometheus query as the prometheus client couldn't " "be initialized\n")
 
 # Get prometheus details
 def instance(distribution, prometheus_url, prometheus_bearer_token):

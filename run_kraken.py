@@ -125,9 +125,6 @@ def main(cfg):
             logging.info(
                 "Publishing kraken status at http://%s:%s" % (server_address, port)
             )
-            logging.info(
-                "Publishing kraken status at http://%s:%s" % (server_address, port)
-            )
             server.start_server(address, run_signal)
 
         # Cluster info
