@@ -25,7 +25,7 @@ import kraken.arcaflow_plugin as arcaflow_plugin
 import server as server
 import kraken.prometheus.client as promcli
 from kraken import plugins
-from krkn_lib_kubernetes import KrknLibKubernetes
+from krkn_lib_kubernetes import KrknLibKubernetes, KrknTelemetry, ChaosRunTelemetry
 
 KUBE_BURNER_URL = (
     "https://github.com/cloud-bulldozer/kube-burner/"
@@ -171,7 +171,7 @@ def main(cfg):
         # Capture the start time
         start_time = int(time.time())
         litmus_installed = False
-
+        chaos_telemetry = ChaosRunTelemetry()
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -203,9 +203,10 @@ def main(cfg):
                             )
                             sys.exit(1)
                         elif scenario_type == "arcaflow_scenarios":
-                            failed_post_scenarios = arcaflow_plugin.run(
-                                scenarios_list, kubeconfig_path
+                            failed_post_scenarios, scenario_telemetries = arcaflow_plugin.run(
+                                scenarios_list, kubeconfig_path, telemetry
                             )
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         elif scenario_type == "plugin_scenarios":
                             failed_post_scenarios = plugins.run(
@@ -352,7 +353,8 @@ def main(cfg):
 
             iteration += 1
             logging.info("")
-
+        # send telemetry
+        telemetry.send_telemetry(config["telemetry"], chaos_telemetry)
         # Capture the end time
         end_time = int(time.time())
 
