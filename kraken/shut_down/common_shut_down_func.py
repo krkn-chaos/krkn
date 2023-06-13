@@ -4,10 +4,10 @@ import sys
 import yaml
 import logging
 import time
+import krkn_lib_kubernetes
 from multiprocessing.pool import ThreadPool
 
 from ..cerberus import setup as cerberus
-from ..kubernetes import client as kubecli
 from ..post_actions import actions as post_actions
 from ..node_actions.aws_node_scenarios import AWS
 from ..node_actions.openstack_node_scenarios import OPENSTACKCLOUD
@@ -40,7 +40,8 @@ def multiprocess_nodes(cloud_object_function, nodes):
 
 
 # Inject the cluster shut down scenario
-def cluster_shut_down(shut_down_config):
+# krkn_lib_kubernetes
+def cluster_shut_down(shut_down_config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     runs = shut_down_config["runs"]
     shut_down_duration = shut_down_config["shut_down_duration"]
     cloud_type = shut_down_config["cloud_type"]
@@ -125,8 +126,9 @@ def cluster_shut_down(shut_down_config):
 
         logging.info("Successfully injected cluster_shut_down scenario!")
 
+# krkn_lib_kubernetes
 
-def run(scenarios_list, config, wait_duration):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
     failed_post_scenarios = []
     for shut_down_config in scenarios_list:
         if len(shut_down_config) > 1:
@@ -138,7 +140,7 @@ def run(scenarios_list, config, wait_duration):
             shut_down_config_scenario = \
                 shut_down_config_yaml["cluster_shut_down_scenario"]
             start_time = int(time.time())
-            cluster_shut_down(shut_down_config_scenario)
+            cluster_shut_down(shut_down_config_scenario, kubecli)
             logging.info(
                 "Waiting for the specified duration: %s" % (wait_duration)
             )

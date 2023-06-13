@@ -2,10 +2,13 @@ import sys
 import logging
 import kraken.invoke.command as runcommand
 import kraken.node_actions.common_node_functions as nodeaction
+import  krkn_lib_kubernetes
 
-
+# krkn_lib_kubernetes
 class abstract_node_scenarios:
-
+    kubecli: krkn_lib_kubernetes.KrknLibKubernetes
+    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+        self.kubecli = kubecli
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):
         pass
@@ -42,7 +45,7 @@ class abstract_node_scenarios:
                 logging.info("Starting stop_kubelet_scenario injection")
                 logging.info("Stopping the kubelet of the node %s" % (node))
                 runcommand.run("oc debug node/" + node + " -- chroot /host systemctl stop kubelet")
-                nodeaction.wait_for_unknown_status(node, timeout)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
                 logging.info("The kubelet of the node %s has been stopped" % (node))
                 logging.info("stop_kubelet_scenario has been successfuly injected!")
             except Exception as e:

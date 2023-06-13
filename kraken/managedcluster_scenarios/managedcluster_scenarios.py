@@ -5,7 +5,7 @@ import logging
 import sys
 import yaml
 import html
-import kraken.kubernetes.client as kubecli
+import krkn_lib_kubernetes
 import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
 
 
@@ -13,9 +13,11 @@ class GENERAL:
     def __init__(self):
         pass
 
-
+# krkn_lib_kubernetes
 class managedcluster_scenarios():
-    def __init__(self):
+    kubecli: krkn_lib_kubernetes.KrknLibKubernetes
+    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+        self.kubecli = kubecli
         self.general = GENERAL()
 
     # managedcluster scenario to start the managedcluster
@@ -31,16 +33,16 @@ class managedcluster_scenarios():
                         args="""kubectl scale deployment.apps/klusterlet --replicas 3 &
                                 kubectl scale deployment.apps/klusterlet-registration-agent --replicas 1 -n open-cluster-management-agent""")
                 )
-                kubecli.create_manifestwork(body, managedcluster)
+                self.kubecli.create_manifestwork(body, managedcluster)
                 logging.info("managedcluster_start_scenario has been successfully injected!")
                 logging.info("Waiting for the specified timeout: %s" % timeout)
-                common_managedcluster_functions.wait_for_available_status(managedcluster, timeout)
+                common_managedcluster_functions.wait_for_available_status(managedcluster, timeout, self.kubecli)
             except Exception as e:
                 logging.error("managedcluster scenario exiting due to Exception %s" % e)
                 sys.exit(1)
             finally:
                 logging.info("Deleting manifestworks")
-                kubecli.delete_manifestwork(managedcluster)
+                self.kubecli.delete_manifestwork(managedcluster)
 
     # managedcluster scenario to stop the managedcluster
     def managedcluster_stop_scenario(self, instance_kill_count, managedcluster, timeout):
@@ -55,16 +57,16 @@ class managedcluster_scenarios():
                         args="""kubectl scale deployment.apps/klusterlet --replicas 0 &&
                                 kubectl scale deployment.apps/klusterlet-registration-agent --replicas 0 -n open-cluster-management-agent""")
                 )
-                kubecli.create_manifestwork(body, managedcluster)
+                self.kubecli.create_manifestwork(body, managedcluster)
                 logging.info("managedcluster_stop_scenario has been successfully injected!")
                 logging.info("Waiting for the specified timeout: %s" % timeout)
-                common_managedcluster_functions.wait_for_unavailable_status(managedcluster, timeout)
+                common_managedcluster_functions.wait_for_unavailable_status(managedcluster, timeout, self.kubecli)
             except Exception as e:
                 logging.error("managedcluster scenario exiting due to Exception %s" % e)
                 sys.exit(1)
             finally:
                 logging.info("Deleting manifestworks")
-                kubecli.delete_manifestwork(managedcluster)
+                self.kubecli.delete_manifestwork(managedcluster)
 
     # managedcluster scenario to stop and then start the managedcluster
     def managedcluster_stop_start_scenario(self, instance_kill_count, managedcluster, timeout):
@@ -94,7 +96,7 @@ class managedcluster_scenarios():
                     template.render(managedcluster_name=managedcluster,
                         args="""kubectl scale deployment.apps/klusterlet --replicas 3""")
                 )
-                kubecli.create_manifestwork(body, managedcluster)
+                self.kubecli.create_manifestwork(body, managedcluster)
                 logging.info("start_klusterlet_scenario has been successfully injected!")
                 time.sleep(30)                              # until https://github.com/open-cluster-management-io/OCM/issues/118 gets solved
             except Exception as e:
@@ -102,7 +104,7 @@ class managedcluster_scenarios():
                 sys.exit(1)
             finally:
                 logging.info("Deleting manifestworks")
-                kubecli.delete_manifestwork(managedcluster)
+                self.kubecli.delete_manifestwork(managedcluster)
 
     # managedcluster scenario to stop the klusterlet
     def stop_klusterlet_scenario(self, instance_kill_count, managedcluster, timeout):
@@ -116,7 +118,7 @@ class managedcluster_scenarios():
                     template.render(managedcluster_name=managedcluster,
                         args="""kubectl scale deployment.apps/klusterlet --replicas 0""")
                 )
-                kubecli.create_manifestwork(body, managedcluster)
+                self.kubecli.create_manifestwork(body, managedcluster)
                 logging.info("stop_klusterlet_scenario has been successfully injected!")
                 time.sleep(30)                              # until https://github.com/open-cluster-management-io/OCM/issues/118 gets solved
             except Exception as e:
@@ -124,7 +126,7 @@ class managedcluster_scenarios():
                 sys.exit(1)
             finally:
                 logging.info("Deleting manifestworks")
-                kubecli.delete_manifestwork(managedcluster)
+                self.kubecli.delete_manifestwork(managedcluster)
 
     # managedcluster scenario to stop and start the klusterlet
     def stop_start_klusterlet_scenario(self, instance_kill_count, managedcluster, timeout):

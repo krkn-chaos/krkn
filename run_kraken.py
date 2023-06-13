@@ -8,7 +8,6 @@ import optparse
 import pyfiglet
 import uuid
 import time
-import kraken.kubernetes.client as kubecli
 import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
@@ -26,6 +25,7 @@ import kraken.arcaflow_plugin as arcaflow_plugin
 import server as server
 import kraken.prometheus.client as promcli
 from kraken import plugins
+from krkn_lib_kubernetes import KrknLibKubernetes
 
 KUBE_BURNER_URL = (
     "https://github.com/cloud-bulldozer/kube-burner/"
@@ -101,7 +101,7 @@ def main(cfg):
         try:
             kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
-            kubecli.initialize_clients(kubeconfig_path)
+            kubecli = KrknLibKubernetes(kubeconfig_path=kubeconfig_path)
         except NameError:
             kubecli.initialize_clients(None)
 
@@ -215,6 +215,7 @@ def main(cfg):
                                 failed_post_scenarios,
                                 wait_duration,
                             )
+                        # krkn_lib_kubernetes
                         elif scenario_type == "container_scenarios":
                             logging.info("Running container scenarios")
                             failed_post_scenarios = pod_scenarios.container_run(
@@ -223,26 +224,30 @@ def main(cfg):
                                 config,
                                 failed_post_scenarios,
                                 wait_duration,
+                                kubecli
                             )
 
                         # Inject node chaos scenarios specified in the config
+                        # krkn_lib_kubernetes
                         elif scenario_type == "node_scenarios":
                             logging.info("Running node scenarios")
-                            nodeaction.run(scenarios_list, config, wait_duration)
+                            nodeaction.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Inject managedcluster chaos scenarios specified in the config
+                        # krkn_lib_kubernetes
                         elif scenario_type == "managedcluster_scenarios":
                             logging.info("Running managedcluster scenarios")
                             managedcluster_scenarios.run(
-                                scenarios_list, config, wait_duration
+                                scenarios_list, config, wait_duration, kubecli
                             )
 
                         # Inject time skew chaos scenarios specified
                         # in the config
+                        # krkn_lib_kubernetes
                         elif scenario_type == "time_scenarios":
                             if distribution == "openshift":
                                 logging.info("Running time skew scenarios")
-                                time_actions.run(scenarios_list, config, wait_duration)
+                                time_actions.run(scenarios_list, config, wait_duration, kubecli)
                             else:
                                 logging.error(
                                     "Litmus scenarios are currently "
@@ -258,13 +263,14 @@ def main(cfg):
                                 if litmus_install:
                                     # Remove Litmus resources
                                     # before running the scenarios
-                                    common_litmus.delete_chaos(litmus_namespace)
+                                    common_litmus.delete_chaos(litmus_namespace, kubecli)
                                     common_litmus.delete_chaos_experiments(
-                                        litmus_namespace
+                                        litmus_namespace,
+                                        kubecli
                                     )
                                     if litmus_uninstall_before_run:
                                         common_litmus.uninstall_litmus(
-                                            litmus_version, litmus_namespace
+                                            litmus_version, litmus_namespace, kubecli
                                         )
                                     common_litmus.install_litmus(
                                         litmus_version, litmus_namespace
@@ -279,6 +285,7 @@ def main(cfg):
                                     litmus_uninstall,
                                     wait_duration,
                                     litmus_namespace,
+                                    kubecli
                                 )
                             else:
                                 logging.error(
@@ -288,10 +295,12 @@ def main(cfg):
                                 sys.exit(1)
 
                         # Inject cluster shutdown scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "cluster_shut_down_scenarios":
-                            shut_down.run(scenarios_list, config, wait_duration)
+                            shut_down.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Inject namespace chaos scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "namespace_scenarios":
                             logging.info("Running namespace scenarios")
                             namespace_actions.run(
@@ -300,6 +309,7 @@ def main(cfg):
                                 wait_duration,
                                 failed_post_scenarios,
                                 kubeconfig_path,
+                                kubecli
                             )
 
                         # Inject zone failures
@@ -315,14 +325,16 @@ def main(cfg):
                             )
 
                         # PVC scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "pvc_scenarios":
                             logging.info("Running PVC scenario")
-                            pvc_scenario.run(scenarios_list, config)
+                            pvc_scenario.run(scenarios_list, config, kubecli)
 
                         # Network scenarios
+                        # krkn_lib_kubernetes
                         elif scenario_type == "network_chaos":
                             logging.info("Running Network Chaos")
-                            network_chaos.run(scenarios_list, config, wait_duration)
+                            network_chaos.run(scenarios_list, config, wait_duration, kubecli)
 
                         # Check for critical alerts when enabled
                         if check_critical_alerts:
@@ -377,9 +389,9 @@ def main(cfg):
                 sys.exit(1)
   
         if litmus_uninstall and litmus_installed:
-            common_litmus.delete_chaos(litmus_namespace)
-            common_litmus.delete_chaos_experiments(litmus_namespace)
-            common_litmus.uninstall_litmus(litmus_version, litmus_namespace)
+            common_litmus.delete_chaos(litmus_namespace, kubecli)
+            common_litmus.delete_chaos_experiments(litmus_namespace, kubecli)
+            common_litmus.uninstall_litmus(litmus_version, litmus_namespace, kubecli)
 
         if failed_post_scenarios:
             logging.error(
