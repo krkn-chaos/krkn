@@ -94,8 +94,12 @@ Monitoring the Kubernetes/OpenShift cluster to observe the impact of Kraken chao
 Kraken supports capturing metrics for the duration of the scenarios defined in the config and indexes then into Elasticsearch to be able to store and evaluate the state of the runs long term. The indexed metrics can be visualized with the help of Grafana. It uses [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Information on enabling and leveraging this feature can be found [here](docs/metrics.md).
 
 
-### Alerts
-In addition to checking the recovery and health of the cluster and components under test, Kraken takes in a profile with the Prometheus expressions to validate and alerts, exits with a non-zero return code depending on the severity set. This feature can be used to determine pass/fail or alert on abnormalities observed in the cluster based on the metrics. Information on enabling and leveraging this feature can be found [here](docs/alerts.md).
+### SLOs validation during and post chaos
+- In addition to checking the recovery and health of the cluster and components under test, Kraken takes in a profile with the Prometheus expressions to validate and alerts, exits with a non-zero return code depending on the severity set. This feature can be used to determine pass/fail or alert on abnormalities observed in the cluster based on the metrics. 
+- Kraken also provides ability to check if any critical alerts are firing in the cluster post chaos and pass/fail's. 
+
+Information on enabling and leveraging this feature can be found [here](docs/SLOs_validation.md)
+
 
 ### OCM / ACM integration
 
