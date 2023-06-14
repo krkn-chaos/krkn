@@ -24,7 +24,9 @@ class OPENSTACKCLOUD:
             logging.info("Instance: " + str(node) + " started")
         except Exception as e:
             logging.error("Failed to start node instance %s. Encountered following " "exception: %s." % (node, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Stop the node instance
     def stop_instances(self, node):
@@ -33,7 +35,9 @@ class OPENSTACKCLOUD:
             logging.info("Instance: " + str(node) + " stopped")
         except Exception as e:
             logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (node, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Reboot the node instance
     def reboot_instances(self, node):
@@ -42,7 +46,9 @@ class OPENSTACKCLOUD:
             logging.info("Instance: " + str(node) + " rebooted")
         except Exception as e:
             logging.error("Failed to reboot node instance %s. Encountered following " "exception: %s." % (node, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Wait until the node instance is running
     def wait_until_running(self, node, timeout):
@@ -109,7 +115,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
                     "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
                 )
                 logging.error("node_start_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
@@ -125,7 +133,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("node_stop_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
@@ -144,7 +154,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
                     "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to start the node
     def helper_node_start_scenario(self, instance_kill_count, node_ip, timeout):
@@ -162,7 +174,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
                     "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
                 )
                 logging.error("helper_node_start_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to stop the node
     def helper_node_stop_scenario(self, instance_kill_count, node_ip, timeout):
@@ -177,7 +191,9 @@ class openstack_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("helper_node_stop_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     def helper_node_service_status(self, node_ip, service, ssh_private_key, timeout):
         try:
@@ -188,4 +204,6 @@ class openstack_node_scenarios(abstract_node_scenarios):
         except Exception as e:
             logging.error("Failed to check service status. Encountered following exception:" " %s. Test Failed" % (e))
             logging.error("helper_node_service_status injection failed!")
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()

@@ -39,7 +39,9 @@ class Azure:
             logging.info("vm name " + str(vm_name) + " started")
         except Exception as e:
             logging.error("Failed to start node instance %s. Encountered following " "exception: %s." % (vm_name, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Stop the node instance
     def stop_instances(self, group_name, vm_name):
@@ -48,7 +50,9 @@ class Azure:
             logging.info("vm name " + str(vm_name) + " stopped")
         except Exception as e:
             logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (vm_name, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Terminate the node instance
     def terminate_instances(self, group_name, vm_name):
@@ -59,7 +63,9 @@ class Azure:
             logging.error(
                 "Failed to terminate node instance %s. Encountered following " "exception: %s." % (vm_name, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Reboot the node instance
     def reboot_instances(self, group_name, vm_name):
@@ -68,7 +74,9 @@ class Azure:
             logging.info("vm name " + str(vm_name) + " rebooted")
         except Exception as e:
             logging.error("Failed to reboot node instance %s. Encountered following " "exception: %s." % (vm_name, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     def get_vm_status(self, resource_group, vm_name):
         statuses = self.compute_client.virtual_machines.instance_view(resource_group, vm_name).statuses
@@ -145,7 +153,9 @@ class azure_node_scenarios(abstract_node_scenarios):
                     "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
                 )
                 logging.error("node_start_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
@@ -161,7 +171,9 @@ class azure_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % e)
                 logging.error("node_stop_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
@@ -185,7 +197,9 @@ class azure_node_scenarios(abstract_node_scenarios):
                     "Failed to terminate node instance. Encountered following exception:" " %s. Test Failed" % (e)
                 )
                 logging.error("node_termination_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
@@ -204,4 +218,6 @@ class azure_node_scenarios(abstract_node_scenarios):
                     "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()

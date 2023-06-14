@@ -27,7 +27,9 @@ class AWS:
             logging.error(
                 "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Stop the node instance
     def stop_instances(self, instance_id):
@@ -36,7 +38,9 @@ class AWS:
             logging.info("EC2 instance: " + str(instance_id) + " stopped")
         except Exception as e:
             logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (instance_id, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Terminate the node instance
     def terminate_instances(self, instance_id):
@@ -47,7 +51,9 @@ class AWS:
             logging.error(
                 "Failed to terminate node instance %s. Encountered following " "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Reboot the node instance
     def reboot_instances(self, instance_id):
@@ -58,7 +64,9 @@ class AWS:
             logging.error(
                 "Failed to reboot node instance %s. Encountered following " "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Below functions poll EC2.Client.describe_instances() every 15 seconds
     # until a successful state is reached. An error is returned after 40 failed checks
@@ -102,7 +110,9 @@ class AWS:
                 "Failed to create the default network_acl: %s"
                 "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
         return acl_id
 
     # Replace network acl association
@@ -114,7 +124,9 @@ class AWS:
             new_association_id = status["NewAssociationId"]
         except Exception as e:
             logging.error("Failed to replace network acl association: %s" % (e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
         return new_association_id
 
     # Describe network acl
@@ -131,7 +143,9 @@ class AWS:
                 "Failed to describe network acl: %s."
                 "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
         associations = response["NetworkAcls"][0]["Associations"]
         # grab the current network_acl in use
         original_acl_id = response["NetworkAcls"][0]["Associations"][0]["NetworkAclId"]
@@ -148,7 +162,9 @@ class AWS:
                 "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
                 % (acl_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
 # krkn_lib_kubernetes
 class aws_node_scenarios(abstract_node_scenarios):
@@ -173,7 +189,9 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
                 )
                 logging.error("node_start_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
@@ -189,7 +207,9 @@ class aws_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("node_stop_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
@@ -213,7 +233,9 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Failed to terminate node instance. Encountered following exception:" " %s. Test Failed" % (e)
                 )
                 logging.error("node_termination_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
@@ -232,4 +254,6 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()

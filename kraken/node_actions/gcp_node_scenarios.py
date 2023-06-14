@@ -45,7 +45,9 @@ class GCP:
             logging.error(
                 "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Stop the node instance
     def stop_instances(self, zone, instance_id):
@@ -54,7 +56,9 @@ class GCP:
             logging.info("vm name " + str(instance_id) + " stopped")
         except Exception as e:
             logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (instance_id, e))
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Start the node instance
     def suspend_instances(self, zone, instance_id):
@@ -65,7 +69,9 @@ class GCP:
             logging.error(
                 "Failed to suspend node instance %s. Encountered following " "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Terminate the node instance
     def terminate_instances(self, zone, instance_id):
@@ -76,7 +82,9 @@ class GCP:
             logging.error(
                 "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Reboot the node instance
     def reboot_instances(self, zone, instance_id):
@@ -87,7 +95,9 @@ class GCP:
             logging.error(
                 "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
 
     # Get instance status
     def get_instance_status(self, zone, instance_id, expected_status, timeout):
@@ -156,7 +166,9 @@ class gcp_node_scenarios(abstract_node_scenarios):
                     "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
                 )
                 logging.error("node_start_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
@@ -173,7 +185,9 @@ class gcp_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
                 logging.error("node_stop_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
@@ -197,7 +211,9 @@ class gcp_node_scenarios(abstract_node_scenarios):
                     "Failed to terminate node instance. Encountered following exception:" " %s. Test Failed" % e
                 )
                 logging.error("node_termination_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
@@ -215,4 +231,6 @@ class gcp_node_scenarios(abstract_node_scenarios):
                     "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
-                sys.exit(1)
+                # removed_exit
+                # sys.exit(1)
+                raise RuntimeError()
