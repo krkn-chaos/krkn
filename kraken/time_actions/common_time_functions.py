@@ -8,6 +8,7 @@ import random
 import krkn_lib_kubernetes
 from ..cerberus import setup as cerberus
 from ..invoke import command as runcommand
+from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
 
 # krkn_lib_kubernetes
 def pod_exec(pod_name, command, namespace, container_name, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
@@ -93,7 +94,9 @@ def skew_time(scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
             for name in scenario["object_name"]:
                 if "namespace" not in scenario.keys():
                     logging.error("Need to set namespace when using pod name")
-                    sys.exit(1)
+                    # removed_exit
+                    # sys.exit(1)
+                    raise RuntimeError()
                 pod_names.append([name, scenario["namespace"]])
         elif "namespace" in scenario.keys() and scenario["namespace"]:
             if "label_selector" not in scenario.keys():
@@ -127,7 +130,9 @@ def skew_time(scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
                 "Cannot find pods matching the namespace/label_selector, "
                 "please check"
             )
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
         pod_counter = 0
         for pod in pod_names:
             if len(pod) > 1:
@@ -152,7 +157,9 @@ def skew_time(scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
                         "in pod %s in namespace %s"
                         % (selected_container_name, pod[0], pod[1])
                     )
-                    sys.exit(1)
+                    # removed_exit
+                    # sys.exit(1)
+                    raise RuntimeError()
                 pod_names[pod_counter].append(selected_container_name)
             else:
                 selected_container_name = get_container_name(
@@ -178,7 +185,9 @@ def skew_time(scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
                             scenario["namespace"]
                         )
                     )
-                    sys.exit(1)
+                    # removed_exit
+                    # sys.exit(1)
+                    raise RuntimeError()
                 pod_names[pod_counter].append(selected_container_name)
             logging.info("Reset date/time on pod " + str(pod[0]))
             pod_counter += 1
@@ -299,24 +308,41 @@ def check_date_time(object_type, names, kubecli: krkn_lib_kubernetes.KrknLibKube
 
 
 # krkn_lib_kubernetes
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+    failed_scenarios = []
+    scenario_telemetries: list[ScenarioTelemetry] = []
     for time_scenario_config in scenarios_list:
-        with open(time_scenario_config, "r") as f:
-            scenario_config = yaml.full_load(f)
-            for time_scenario in scenario_config["time_scenarios"]:
-                start_time = int(time.time())
-                object_type, object_names = skew_time(time_scenario, kubecli)
-                not_reset = check_date_time(object_type, object_names, kubecli)
-                if len(not_reset) > 0:
-                    logging.info("Object times were not reset")
-                logging.info(
-                    "Waiting for the specified duration: %s" % (wait_duration)
-                )
-                time.sleep(wait_duration)
-                end_time = int(time.time())
-                cerberus.publish_kraken_status(
-                    config,
-                    not_reset,
-                    start_time,
-                    end_time
-                )
+        scenario_telemetry = ScenarioTelemetry()
+        scenario_telemetry.scenario = time_scenario_config
+        scenario_telemetry.startTimeStamp = time.time()
+        telemetry.set_parameters_base64(scenario_telemetry, time_scenario_config)
+        try:
+            with open(time_scenario_config, "r") as f:
+                scenario_config = yaml.full_load(f)
+                for time_scenario in scenario_config["time_scenarios"]:
+                    start_time = int(time.time())
+                    object_type, object_names = skew_time(time_scenario, kubecli)
+                    not_reset = check_date_time(object_type, object_names, kubecli)
+                    if len(not_reset) > 0:
+                        logging.info("Object times were not reset")
+                    logging.info(
+                        "Waiting for the specified duration: %s" % (wait_duration)
+                    )
+                    time.sleep(wait_duration)
+                    end_time = int(time.time())
+                    cerberus.publish_kraken_status(
+                        config,
+                        not_reset,
+                        start_time,
+                        end_time
+                    )
+        except (RuntimeError, Exception):
+            scenario_telemetry.exitStatus = 1
+            telemetry.log_exception(time_scenario_config)
+            failed_scenarios.append(time_scenario_config)
+        else:
+            scenario_telemetry.exitStatus = 0
+        scenario_telemetry.endTimeStamp = time.time()
+        scenario_telemetries.append(scenario_telemetry)
+
+    return failed_scenarios, scenario_telemetries
