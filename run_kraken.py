@@ -31,7 +31,7 @@ KUBE_BURNER_URL = (
     "https://github.com/cloud-bulldozer/kube-burner/"
     "releases/download/v{version}/kube-burner-{version}-Linux-x86_64.tar.gz"
 )
-KUBE_BURNER_VERSION = "0.9.1"
+KUBE_BURNER_VERSION = "1.7.0"
 
 
 # Main function
