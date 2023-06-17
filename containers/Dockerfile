@@ -10,20 +10,20 @@ LABEL org.opencontainers.image.authors="Red Hat OpenShift Chaos Engineering"
 
 ENV KUBECONFIG /root/.kube/config
 
-# Copy OpenShift CLI, Kubernetes CLI from origin-tests image
-COPY --from=origintests /usr/bin/oc /usr/bin/oc
-COPY --from=origintests /usr/bin/kubectl /usr/bin/kubectl
-
 # Copy azure client binary from azure-cli image
 COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 
 # Install dependencies
 RUN yum install epel-release -y && \
-    yum install -y git python39 python3-pip jq gettext && \
+    yum install -y git python39 python3-pip jq gettext wget && \
     python3.9 -m pip install -U pip && \
     git clone https://github.com/redhat-chaos/krkn.git --branch v1.3.3 /root/kraken && \
     mkdir -p /root/.kube && cd /root/kraken && \
     pip3.9 install -r requirements.txt
+
+# Get Kubernetes and OpenShift clients from stable releases
+WORKDIR /tmp
+RUN wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz && tar -xvf openshift-client-linux.tar.gz && cp oc /usr/local/bin/oc && cp kubectl /usr/local/bin/kubectl
 
 WORKDIR /root/kraken
 
