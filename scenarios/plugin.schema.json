@@ -2253,6 +2253,166 @@
 					"id",
 					"config"
 				]
+			},
+			{
+				"type": "object",
+				"title": "pod_egress_shaping Arcaflow scenarios",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "pod_egress_shaping"
+					},
+					"config": {
+						"$defs": {
+							"EgressParams": {
+								"type": "object",
+								"properties": {
+									"namespace": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Namespace",
+										"description": "Namespace of the pod to which filter need to be appliedfor details."
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Kubeconfig file as string\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									},
+									"pod_name": {
+										"type": "string",
+										"title": "Pod name",
+										"description": "When label_selector is not specified, pod matching the name will beselected for the chaos scenario"
+									},
+									"label_selector": {
+										"type": "string",
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
+									},
+									"kraken_config": {
+										"type": "string",
+										"title": "Kraken Config",
+										"description": "Path to the config file of Kraken. Set this field if you wish to publish status onto Cerberus"
+									},
+									"test_duration": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 90,
+										"title": "Test duration",
+										"description": "Duration for which each step of the ingress chaos testing is to be performed."
+									},
+									"wait_duration": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 300,
+										"title": "Wait Duration",
+										"description": "Wait duration for finishing a test and its cleanup.Ensure that it is significantly greater than wait_duration"
+									},
+									"instance_count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Instance Count",
+										"description": "Number of pods to perform action/select that match the label selector."
+									},
+									"execution_type": {
+										"type": "string",
+										"default": "parallel",
+										"title": "Execution Type",
+										"description": "The order in which the ingress filters are applied. Execution type can be 'serial' or 'parallel'"
+									},
+									"network_params": {
+										"type": "object",
+										"propertyNames": {},
+										"additionalProperties": {
+											"type": "string"
+										},
+										"title": "Network Parameters",
+										"description": "The network filters that are applied on the interface. The currently supported filters are latency, loss and bandwidth"
+									}
+								},
+								"required": [
+									"namespace"
+								],
+								"additionalProperties": false,
+								"dependentRequired": {}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"namespace": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Namespace",
+								"description": "Namespace of the pod to which filter need to be appliedfor details."
+							},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Kubeconfig file as string\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							},
+							"pod_name": {
+								"type": "string",
+								"title": "Pod name",
+								"description": "When label_selector is not specified, pod matching the name will beselected for the chaos scenario"
+							},
+							"label_selector": {
+								"type": "string",
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
+							},
+							"kraken_config": {
+								"type": "string",
+								"title": "Kraken Config",
+								"description": "Path to the config file of Kraken. Set this field if you wish to publish status onto Cerberus"
+							},
+							"test_duration": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 90,
+								"title": "Test duration",
+								"description": "Duration for which each step of the ingress chaos testing is to be performed."
+							},
+							"wait_duration": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 300,
+								"title": "Wait Duration",
+								"description": "Wait duration for finishing a test and its cleanup.Ensure that it is significantly greater than wait_duration"
+							},
+							"instance_count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Instance Count",
+								"description": "Number of pods to perform action/select that match the label selector."
+							},
+							"execution_type": {
+								"type": "string",
+								"default": "parallel",
+								"title": "Execution Type",
+								"description": "The order in which the ingress filters are applied. Execution type can be 'serial' or 'parallel'"
+							},
+							"network_params": {
+								"type": "object",
+								"propertyNames": {},
+								"additionalProperties": {
+									"type": "string"
+								},
+								"title": "Network Parameters",
+								"description": "The network filters that are applied on the interface. The currently supported filters are latency, loss and bandwidth"
+							}
+						},
+						"required": [
+							"namespace"
+						],
+						"additionalProperties": false,
+						"dependentRequired": {}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
 			}
 		]
 	}

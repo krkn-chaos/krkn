@@ -59,6 +59,7 @@ Instructions on how to setup the config and the options supported can be found a
 Scenario type               | Kubernetes    | OpenShift          
 --------------------------- | ------------- |--------------------|  
 [Pod Scenarios](docs/pod_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Pod Network Scenarios](docs/pod_network_scenarios.md) | :x: | :heavy_check_mark: |
 [Container Scenarios](docs/container_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Node Scenarios](docs/node_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Time Scenarios](docs/time_scenarios.md) | :x: | :heavy_check_mark: |
