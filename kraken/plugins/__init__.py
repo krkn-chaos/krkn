@@ -12,6 +12,7 @@ import kraken.plugins.node_scenarios.ibmcloud_plugin as ibmcloud_plugin
 from kraken.plugins.run_python_plugin import run_python_file
 from kraken.plugins.network.ingress_shaping import network_chaos
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_outage
+from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_egress_shaping
 
 
 @dataclasses.dataclass
@@ -213,7 +214,13 @@ PLUGINS = Plugins(
             [
                 "error"
             ]
-        )
+        ),
+         PluginStep(
+            pod_egress_shaping,
+            [
+                "error"
+            ]
+        )       
     ]
 )
 

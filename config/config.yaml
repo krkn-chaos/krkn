@@ -19,6 +19,7 @@ kraken:
             - scenarios/openshift/ibmcloud_node_scenarios.yml
             - scenarios/openshift/network_chaos_ingress.yml
             - scenarios/openshift/pod_network_outage.yml
+            - scenarios/openshift/pod_network_shaping.yml
         -   node_scenarios:                                # List of chaos node scenarios to load
             -   scenarios/openshift/node_scenarios_example.yml
         -   plugin_scenarios:

@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../plugin.schema.json
+- id: pod_egress_shaping
+  config:
+    namespace: <namespace>              # Required - Namespace of the pod to which traffic shaping need to be applied
+    label_selector: <label_selector>    # When pod_name is not specified, pod with matching label_selector is selected for chaos scenario
+    pod_name: <pod name>                # When label_selector is not specified, pod matching the name will be selected for the chaos scenario
+    network_params:                     # latency, loss and bandwidth are the three supported network parameters to alter for the chaos test
+        latency: <time>                 # Value is a string. For example : 50ms
+        loss: <fraction>                # Loss is a fraction between 0 and 1. It has to be enclosed in quotes to treat it as a string. For example, '0.02%' (not 0.02%)       
+        bandwidth: <rate>               # Value is a string. For example: 100mbit
+    execution_type: <serial/parallel>   # Used to specify whether you want to apply filters on interfaces one at a time or all at once. Default is 'parallel'
+    instance_count: <number>            # Number of pods to perform action/select that match the label selector
+    wait_duration: <time_duration>      # Default is 300. Ensure that it is at least about twice of test_duration
+    test_duration: <time_duration>      # Default is 120 
