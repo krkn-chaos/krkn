@@ -1,7 +1,5 @@
 # Dockerfile for kraken
 
-FROM quay.io/openshift/origin-tests:latest as origintests
-
 FROM mcr.microsoft.com/azure-cli:latest as azure-cli
 
 FROM registry.access.redhat.com/ubi8/ubi:latest
@@ -18,7 +16,8 @@ RUN yum install -y git python39 python3-pip jq gettext wget && \
     python3.9 -m pip install -U pip && \
     git clone https://github.com/redhat-chaos/krkn.git --branch v1.3.4 /root/kraken && \
     mkdir -p /root/.kube && cd /root/kraken && \
-    pip3.9 install -r requirements.txt
+    pip3.9 install -r requirements.txt && \
+    wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
 
 # Get Kubernetes and OpenShift clients from stable releases
 WORKDIR /tmp
