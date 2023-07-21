@@ -128,7 +128,6 @@ def run(scenarios_list, config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
                         pod_name,
                         namespace,
                         container_name,
-                        "sh"
                     )
                 ).split()
                 pvc_used_kb = int(command_output[2])
@@ -186,14 +185,14 @@ def run(scenarios_list, config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
                     "Create temp file in the PVC command:\n %s" % command
                 )
                 kubecli.exec_cmd_in_pod(
-                    command, pod_name, namespace, container_name, "sh"
+                    command, pod_name, namespace, container_name
                 )
 
                 # Check if file is created
                 command = "ls -lh %s" % (str(mount_path))
                 logging.debug("Check file is created command:\n %s" % command)
                 response = kubecli.exec_cmd_in_pod(
-                    command, pod_name, namespace, container_name, "sh"
+                    command, pod_name, namespace, container_name
                 )
                 logging.info("\n" + str(response))
                 if str(file_name).lower() in str(response).lower():
@@ -260,15 +259,14 @@ def remove_temp_file(
 ):
     command = "rm -f %s" % (str(full_path))
     logging.debug("Remove temp file from the PVC command:\n %s" % command)
-    kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name, "sh")
+    kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
     command = "ls -lh %s" % (str(mount_path))
     logging.debug("Check temp file is removed command:\n %s" % command)
     response = kubecli.exec_cmd_in_pod(
         command,
         pod_name,
         namespace,
-        container_name,
-        "sh"
+        container_name
     )
     logging.info("\n" + str(response))
     if not (str(file_name).lower() in str(response).lower()):
