@@ -17,6 +17,7 @@ RUN yum install -y git python39 python3-pip jq gettext wget && \
     git clone https://github.com/redhat-chaos/krkn.git --branch v1.3.5 /root/kraken && \
     mkdir -p /root/.kube && cd /root/kraken && \
     pip3.9 install -r requirements.txt && \
+    pip3.9 install virtualenv && \
     wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
 
 # Get Kubernetes and OpenShift clients from stable releases
