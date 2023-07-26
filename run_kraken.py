@@ -102,7 +102,7 @@ def main(cfg):
             kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
             kubecli = KrknLibKubernetes(kubeconfig_path=kubeconfig_path)
-        except NameError:
+        except:
             kubecli.initialize_clients(None)
 
         # find node kraken might be running on
