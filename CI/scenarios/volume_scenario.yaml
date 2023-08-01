@@ -51,7 +51,7 @@ spec:
         claimName: kraken-test-pvc
   containers:
     - name: kraken-test-container
-      image: 'image-registry.openshift-image-registry.svc:5000/openshift/httpd:latest'
+      image: 'quay.io/centos7/httpd-24-centos7:latest'
       volumeMounts:
         - mountPath: "/home/krake-dir/"
           name: kraken-test-pv
