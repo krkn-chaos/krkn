@@ -380,11 +380,14 @@ def main(cfg):
         logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_request_id}")
         logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
 
-        telemetry.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
-        safe_logger.info("archives download started:")
-        prometheus_archive_files = telemetry.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
-        safe_logger.info("archives upload started:")
-        telemetry.put_ocp_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
+        try:
+            telemetry.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
+            safe_logger.info("archives download started:")
+            prometheus_archive_files = telemetry.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
+            safe_logger.info("archives upload started:")
+            telemetry.put_ocp_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
+        except Exception as e:
+            logging.error(f"failed to send telemetry data: {str(e)}")
 
         # Capture the end time
         end_time = int(time.time())
