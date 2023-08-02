@@ -69,3 +69,8 @@ telemetry:
     api_url: https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production
     username: username
     password: password
+    prometheus_backup: True
+    full_prometheus_backup: False
+    backup_threads: 5
+    archive_path: /tmp
+    max_retries: 0

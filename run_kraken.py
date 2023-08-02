@@ -25,7 +25,7 @@ import kraken.arcaflow_plugin as arcaflow_plugin
 import server as server
 import kraken.prometheus.client as promcli
 from kraken import plugins
-from krkn_lib_kubernetes import KrknLibKubernetes, KrknTelemetry, ChaosRunTelemetry
+from krkn_lib_kubernetes import KrknLibKubernetes, KrknTelemetry, ChaosRunTelemetry, SafeLogger
 
 KUBE_BURNER_URL = (
     "https://github.com/cloud-bulldozer/kube-burner/"
@@ -98,12 +98,31 @@ def main(cfg):
             )
             sys.exit(1)
         logging.info("Initializing client to talk to the Kubernetes cluster")
+
+        # Generate uuid for the run
+        if run_uuid:
+            logging.info(
+                "Using the uuid defined by the user for the run: %s" % run_uuid
+            )
+        else:
+            run_uuid = str(uuid.uuid4())
+            logging.info("Generated a uuid for the run: %s" % run_uuid)
+
+        # request_id for telemetry is generated once here and used everywhere
+        telemetry_request_id = f"{int(time.time())}-{run_uuid}"
+        telemetry_log_file = f'{config["telemetry"]["archive_path"]}/{telemetry_request_id}.log'
+        safe_logger = SafeLogger(filename=telemetry_log_file)
+
         try:
             kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
+            # krkn-lib-kubernetes init
             kubecli = KrknLibKubernetes(kubeconfig_path=kubeconfig_path)
         except:
             kubecli.initialize_clients(None)
+
+        # KrknTelemetry init
+        telemetry = KrknTelemetry(safe_logger, kubecli)
 
         # find node kraken might be running on
         kubecli.find_kraken_node()
@@ -141,14 +160,7 @@ def main(cfg):
         if deploy_performance_dashboards:
             performance_dashboards.setup(dashboard_repo, distribution)
 
-        # Generate uuid for the run
-        if run_uuid:
-            logging.info(
-                "Using the uuid defined by the user for the run: %s" % run_uuid
-            )
-        else:
-            run_uuid = str(uuid.uuid4())
-            logging.info("Generated a uuid for the run: %s" % run_uuid)
+
 
         # Initialize the start iteration to 0
         iteration = 0
@@ -172,6 +184,7 @@ def main(cfg):
         start_time = int(time.time())
         litmus_installed = False
         chaos_telemetry = ChaosRunTelemetry()
+        chaos_telemetry.run_uuid = run_uuid
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -362,9 +375,17 @@ def main(cfg):
 
             iteration += 1
             logging.info("")
-        # send telemetry
 
-        telemetry.send_telemetry(config["telemetry"],str(uuid.uuid1()), chaos_telemetry, kubecli)
+        # telemetry
+        logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_request_id}")
+        logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
+
+        telemetry.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
+        safe_logger.info("archives download started:")
+        prometheus_archive_files = telemetry.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
+        safe_logger.info("archives upload started:")
+        telemetry.put_ocp_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
+
         # Capture the end time
         end_time = int(time.time())
 
