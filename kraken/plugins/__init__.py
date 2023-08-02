@@ -243,7 +243,6 @@ def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_p
         else:
             scenario_telemetry.exitStatus = 0
             logging.info("Waiting for the specified duration: %s" % (wait_duration))
-            scenario_telemetries.append(scenario_telemetry)
             time.sleep(wait_duration)
         scenario_telemetries.append(scenario_telemetry)
         scenario_telemetry.endTimeStamp = time.time()

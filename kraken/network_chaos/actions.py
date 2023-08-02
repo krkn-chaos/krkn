@@ -104,6 +104,7 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
             telemetry.log_exception(net_config)
         else:
             scenario_telemetry.exitStatus = 0
+        scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 
 
