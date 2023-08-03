@@ -74,3 +74,4 @@ telemetry:
     backup_threads: 5
     archive_path: /tmp
     max_retries: 0
+    run_tag: chaos

@@ -110,6 +110,8 @@ def main(cfg):
 
         # request_id for telemetry is generated once here and used everywhere
         telemetry_request_id = f"{int(time.time())}-{run_uuid}"
+        if config["telemetry"].get("run_tag"):
+            telemetry_request_id = f"{telemetry_request_id}-{config['telemetry']['run_tag']}"
         telemetry_log_file = f'{config["telemetry"]["archive_path"]}/{telemetry_request_id}.log'
         safe_logger = SafeLogger(filename=telemetry_log_file)
 
