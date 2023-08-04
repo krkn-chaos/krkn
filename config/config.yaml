@@ -75,3 +75,4 @@ telemetry:
     archive_path: /tmp
     max_retries: 0
     run_tag: chaos
+    archive_size: 10000 #in KiloBytes
