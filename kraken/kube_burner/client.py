@@ -3,7 +3,10 @@ import logging
 import urllib.request
 import shutil
 import sys
+import requests
+import tempfile
 import kraken.prometheus.client as prometheus
+from urllib.parse import urlparse
 
 
 def setup(url):
@@ -71,6 +74,14 @@ def alerts(distribution, prometheus_url, prometheus_bearer_token, start_time, en
     """
     Scrapes metrics defined in the profile from Prometheus and alerts based on the severity defined
     """
+
+    is_url = urlparse(alert_profile)
+    if is_url.scheme and is_url.netloc:
+        response = requests.get(alert_profile)
+        temp_alerts = tempfile.NamedTemporaryFile()
+        temp_alerts.write(response.content)
+        temp_alerts.flush()
+        alert_profile = temp_alerts.name
 
     if not prometheus_url:
         if distribution == "openshift":
