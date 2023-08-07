@@ -79,7 +79,7 @@ def alerts(distribution, prometheus_url, prometheus_bearer_token, start_time, en
                 distribution, prometheus_url, prometheus_bearer_token
             )
         else:
-            logging.error("Looks like proemtheus url is not defined, exiting")
+            logging.error("Looks like prometheus url is not defined, exiting")
             sys.exit(1)
     command = (
         "./kube-burner check-alerts "
