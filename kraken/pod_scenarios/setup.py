@@ -80,7 +80,7 @@ def container_run(kubeconfig_path,
 
     for container_scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
-        scenario_telemetry.scenario = container_scenario_config
+        scenario_telemetry.scenario = container_scenario_config[0]
         scenario_telemetry.startTimeStamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, container_scenario_config[0])
         if len(container_scenario_config) > 1:

@@ -19,9 +19,9 @@ def run(scenarios_list, config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, 
     failed_scenarios = []
     for app_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
-        scenario_telemetry.scenario = app_config[0]
+        scenario_telemetry.scenario = app_config
         scenario_telemetry.startTimeStamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, app_config[0])
+        telemetry.set_parameters_base64(scenario_telemetry, app_config)
         try:
             if len(app_config) > 1:
                 with open(app_config, "r") as f:
@@ -307,8 +307,8 @@ def run(scenarios_list, config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, 
                     )
         except (RuntimeError, Exception):
             scenario_telemetry.exitStatus = 1
-            failed_scenarios.append(app_config[0])
-            telemetry.log_exception(app_config[0])
+            failed_scenarios.append(app_config)
+            telemetry.log_exception(app_config)
         else:
             scenario_telemetry.exitStatus = 0
         scenario_telemetries.append(scenario_telemetry)

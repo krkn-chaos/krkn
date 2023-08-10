@@ -14,9 +14,9 @@ def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetry) -> (lis
     failed_scenarios = []
     for app_outage_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
-        scenario_telemetry.scenario = app_outage_config[0]
+        scenario_telemetry.scenario = app_outage_config
         scenario_telemetry.startTimeStamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, app_outage_config[0])
+        telemetry.set_parameters_base64(scenario_telemetry, app_outage_config)
         if len(app_outage_config) > 1:
             try:
                 with open(app_outage_config, "r") as f:
@@ -65,8 +65,8 @@ spec:
                     cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
             except Exception as e :
                 scenario_telemetry.exitStatus = 1
-                failed_scenarios.append(app_outage_config[0])
-                telemetry.log_exception(app_outage_config[0])
+                failed_scenarios.append(app_outage_config)
+                telemetry.log_exception(app_outage_config)
             else:
                 scenario_telemetry.exitStatus = 0
             scenario_telemetry.endTimeStamp = time.time()

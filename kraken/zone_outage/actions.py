@@ -16,9 +16,9 @@ def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetry) -> (lis
 
     for zone_outage_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
-        scenario_telemetry.scenario = zone_outage_config[0]
+        scenario_telemetry.scenario = zone_outage_config
         scenario_telemetry.startTimeStamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, zone_outage_config[0])
+        telemetry.set_parameters_base64(scenario_telemetry, zone_outage_config)
         try:
             if len(zone_outage_config) > 1:
                 with open(zone_outage_config, "r") as f:
@@ -109,8 +109,8 @@ def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetry) -> (lis
                     )
         except (RuntimeError, Exception):
             scenario_telemetry.exitStatus = 1
-            failed_scenarios.append(zone_outage_config[0])
-            telemetry.log_exception(zone_outage_config[0])
+            failed_scenarios.append(zone_outage_config)
+            telemetry.log_exception(zone_outage_config)
         else:
             scenario_telemetry.exitStatus = 0
         scenario_telemetry.endTimeStamp = time.time()
