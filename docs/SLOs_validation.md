@@ -23,7 +23,7 @@ performance_monitoring:
 ```
 
 #### Alert profile
-A couple of [alert profiles](https://github.com/redhat-chaos/krkn/tree/main/config) [alerts](https://github.com/redhat-chaos/krkn/blob/main/config/alerts) are shipped by default and can be tweaked to add more queries to alert on. The following are a few alerts examples:
+A couple of [alert profiles](https://github.com/redhat-chaos/krkn/tree/main/config) [alerts](https://github.com/redhat-chaos/krkn/blob/main/config/alerts) are shipped by default and can be tweaked to add more queries to alert on. User can provide a URL or path to the file in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml). The following are a few alerts examples:
 
 ```
 - expr: avg_over_time(histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[2m]))[5m:]) > 0.01
