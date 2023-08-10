@@ -29,3 +29,15 @@ tunings:
     wait_duration: 6                                       # Duration to wait between each chaos scenario.
     iterations: 1                                          # Number of times to execute the scenarios.
     daemon_mode: False                                     # Iterations are set to infinity which means that the kraken will cause chaos forever.
+telemetry:
+    enabled: False                                           # enable/disables the telemetry collection feature
+    api_url: https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production #telemetry service endpoint
+    username: username                                      # telemetry service username
+    password: password                                      # telemetry service password
+    prometheus_backup: True                                 # enables/disables prometheus data collection
+    full_prometheus_backup: False                           # if is set to False only the /prometheus/wal folder will be downloaded.
+    backup_threads: 5                                       # number of telemetry download/upload threads
+    archive_path: /tmp                                      # local path where the archive files will be temporarly stored
+    max_retries: 0                                          # maximum number of upload retries (if 0 will retry forever)
+    run_tag: ''                                             # if set, this will be appended to the run folder in the bucket (useful to group the runs)
+    archive_size: 10000                                     # the size of the prometheus data archive size in KB. The lower the size of archive is
