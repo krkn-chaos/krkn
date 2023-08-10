@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import os
 import sys
 import yaml
 import logging
@@ -13,7 +13,7 @@ from ..node_actions.aws_node_scenarios import AWS
 from ..node_actions.openstack_node_scenarios import OPENSTACKCLOUD
 from ..node_actions.az_node_scenarios import Azure
 from ..node_actions.gcp_node_scenarios import GCP
-
+from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
 
 def multiprocess_nodes(cloud_object_function, nodes):
     try:
@@ -59,7 +59,9 @@ def cluster_shut_down(shut_down_config, kubecli: krkn_lib_kubernetes.KrknLibKube
             "Cloud type %s is not currently supported for cluster shut down" %
             cloud_type
         )
-        sys.exit(1)
+        # removed_exit
+        # sys.exit(1)
+        raise RuntimeError()
 
     nodes = kubecli.list_nodes()
     node_id = []
@@ -128,9 +130,16 @@ def cluster_shut_down(shut_down_config, kubecli: krkn_lib_kubernetes.KrknLibKube
 
 # krkn_lib_kubernetes
 
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = []
+    failed_scenarios = []
+    scenario_telemetries: list[ScenarioTelemetry] = []
+
     for shut_down_config in scenarios_list:
+        scenario_telemetry = ScenarioTelemetry()
+        scenario_telemetry.scenario = shut_down_config
+        scenario_telemetry.startTimeStamp = time.time()
+        telemetry.set_parameters_base64(scenario_telemetry, shut_down_config[0])
         if len(shut_down_config) > 1:
             pre_action_output = post_actions.run("", shut_down_config[1])
         else:
@@ -140,18 +149,32 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
             shut_down_config_scenario = \
                 shut_down_config_yaml["cluster_shut_down_scenario"]
             start_time = int(time.time())
-            cluster_shut_down(shut_down_config_scenario, kubecli)
-            logging.info(
-                "Waiting for the specified duration: %s" % (wait_duration)
-            )
-            time.sleep(wait_duration)
-            failed_post_scenarios = post_actions.check_recovery(
-                "", shut_down_config, failed_post_scenarios, pre_action_output
-            )
-            end_time = int(time.time())
-            cerberus.publish_kraken_status(
-                config,
-                failed_post_scenarios,
-                start_time,
-                end_time
-            )
+            try:
+                cluster_shut_down(shut_down_config_scenario, kubecli)
+                logging.info(
+                    "Waiting for the specified duration: %s" % (wait_duration)
+                )
+                time.sleep(wait_duration)
+                failed_post_scenarios = post_actions.check_recovery(
+                    "", shut_down_config, failed_post_scenarios, pre_action_output
+                )
+                end_time = int(time.time())
+                cerberus.publish_kraken_status(
+                    config,
+                    failed_post_scenarios,
+                    start_time,
+                    end_time
+                )
+
+            except (RuntimeError, Exception):
+                telemetry.log_exception(shut_down_config[0])
+                failed_scenarios.append(shut_down_config[0])
+                scenario_telemetry.exitStatus = 1
+            else:
+                scenario_telemetry.exitStatus = 0
+
+            scenario_telemetry.endTimeStamp = time.time()
+            scenario_telemetries.append(scenario_telemetry)
+
+    return failed_scenarios, scenario_telemetries
+

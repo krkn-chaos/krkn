@@ -10,7 +10,7 @@ import time
 import yaml
 import sys
 import random
-
+from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
 
 # Run pod based scenarios
 def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration):
@@ -67,8 +67,22 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
     return failed_post_scenarios
 
 # krkn_lib_kubernetes
-def container_run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def container_run(kubeconfig_path,
+                  scenarios_list,
+                  config,
+                  failed_post_scenarios,
+                  wait_duration,
+                  kubecli: krkn_lib_kubernetes.KrknLibKubernetes,
+                  telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+
+    failed_scenarios = []
+    scenario_telemetries: list[ScenarioTelemetry] = []
+
     for container_scenario_config in scenarios_list:
+        scenario_telemetry = ScenarioTelemetry()
+        scenario_telemetry.scenario = container_scenario_config[0]
+        scenario_telemetry.startTimeStamp = time.time()
+        telemetry.set_parameters_base64(scenario_telemetry, container_scenario_config[0])
         if len(container_scenario_config) > 1:
             pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
         else:
@@ -78,30 +92,41 @@ def container_run(kubeconfig_path, scenarios_list, config, failed_post_scenarios
             for cont_scenario in cont_scenario_config["scenarios"]:
                 # capture start time
                 start_time = int(time.time())
-                killed_containers = container_killing_in_pod(cont_scenario, kubecli)
-
-                if len(container_scenario_config) > 1:
-                    try:
+                try:
+                    killed_containers = container_killing_in_pod(cont_scenario, kubecli)
+                    if len(container_scenario_config) > 1:
                         failed_post_scenarios = post_actions.check_recovery(
-                            kubeconfig_path, container_scenario_config, failed_post_scenarios, pre_action_output
+                            kubeconfig_path,
+                            container_scenario_config,
+                            failed_post_scenarios,
+                            pre_action_output
                         )
-                    except Exception as e:
-                        logging.error("Failed to run post action checks: %s" % e)
-                        sys.exit(1)
+                    else:
+                        failed_post_scenarios = check_failed_containers(
+                            killed_containers, cont_scenario.get("retry_wait", 120), kubecli
+                        )
+
+                    logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                    time.sleep(wait_duration)
+
+                    # capture end time
+                    end_time = int(time.time())
+
+                    # publish cerberus status
+                    cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
+                except (RuntimeError, Exception):
+                    failed_scenarios.append(container_scenario_config[0])
+                    telemetry.log_exception(container_scenario_config[0])
+                    scenario_telemetry.exitStatus = 1
+                    # removed_exit
+                    # sys.exit(1)
                 else:
-                    failed_post_scenarios = check_failed_containers(
-                        killed_containers, cont_scenario.get("retry_wait", 120), kubecli
-                    )
+                    scenario_telemetry.exitStatus = 0
+                scenario_telemetry.endTimeStamp = time.time()
+                scenario_telemetries.append(scenario_telemetry)
 
-                logging.info("Waiting for the specified duration: %s" % (wait_duration))
-                time.sleep(wait_duration)
+    return failed_scenarios, scenario_telemetries
 
-                # capture end time
-                end_time = int(time.time())
-
-                # publish cerberus status
-                cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
-                logging.info("")
 
 
 def container_killing_in_pod(cont_scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
@@ -114,7 +139,9 @@ def container_killing_in_pod(cont_scenario, kubecli: krkn_lib_kubernetes.KrknLib
     kill_count = cont_scenario.get("count", 1)
     if type(pod_names) != list:
         logging.error("Please make sure your pod_names are in a list format")
-        sys.exit(1)
+        # removed_exit
+        # sys.exit(1)
+        raise RuntimeError()
     if len(pod_names) == 0:
         if namespace == "*":
             # returns double array of pod name and namespace
@@ -126,7 +153,9 @@ def container_killing_in_pod(cont_scenario, kubecli: krkn_lib_kubernetes.KrknLib
         if namespace == "*":
             logging.error("You must specify the namespace to kill a container in a specific pod")
             logging.error("Scenario " + scenario_name + " failed")
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
         pods = pod_names
     # get container and pod name
     container_pod_list = []
@@ -147,7 +176,9 @@ def container_killing_in_pod(cont_scenario, kubecli: krkn_lib_kubernetes.KrknLib
         if len(container_pod_list) == 0:
             logging.error("Trying to kill more containers than were found, try lowering kill count")
             logging.error("Scenario " + scenario_name + " failed")
-            sys.exit(1)
+            # removed_exit
+            # sys.exit(1)
+            raise RuntimeError()
         selected_container_pod = container_pod_list[random.randint(0, len(container_pod_list) - 1)]
         for c_name in selected_container_pod[2]:
             if container_name != "":
@@ -178,6 +209,7 @@ def retry_container_killing(kill_action, podname, namespace, container_name, kub
             time.sleep(2)
             continue
         else:
+            logging.warning(response)
             continue
 
 

@@ -25,7 +25,7 @@ import kraken.arcaflow_plugin as arcaflow_plugin
 import server as server
 import kraken.prometheus.client as promcli
 from kraken import plugins
-from krkn_lib_kubernetes import KrknLibKubernetes
+from krkn_lib_kubernetes import KrknLibKubernetes, KrknTelemetry, ChaosRunTelemetry, SafeLogger
 
 KUBE_BURNER_URL = (
     "https://github.com/cloud-bulldozer/kube-burner/"
@@ -98,12 +98,33 @@ def main(cfg):
             )
             sys.exit(1)
         logging.info("Initializing client to talk to the Kubernetes cluster")
+
+        # Generate uuid for the run
+        if run_uuid:
+            logging.info(
+                "Using the uuid defined by the user for the run: %s" % run_uuid
+            )
+        else:
+            run_uuid = str(uuid.uuid4())
+            logging.info("Generated a uuid for the run: %s" % run_uuid)
+
+        # request_id for telemetry is generated once here and used everywhere
+        telemetry_request_id = f"{int(time.time())}-{run_uuid}"
+        if config["telemetry"].get("run_tag"):
+            telemetry_request_id = f"{telemetry_request_id}-{config['telemetry']['run_tag']}"
+        telemetry_log_file = f'{config["telemetry"]["archive_path"]}/{telemetry_request_id}.log'
+        safe_logger = SafeLogger(filename=telemetry_log_file)
+
         try:
             kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
+            # krkn-lib-kubernetes init
             kubecli = KrknLibKubernetes(kubeconfig_path=kubeconfig_path)
         except:
             kubecli.initialize_clients(None)
+
+        # KrknTelemetry init
+        telemetry = KrknTelemetry(safe_logger, kubecli)
 
         # find node kraken might be running on
         kubecli.find_kraken_node()
@@ -141,14 +162,7 @@ def main(cfg):
         if deploy_performance_dashboards:
             performance_dashboards.setup(dashboard_repo, distribution)
 
-        # Generate uuid for the run
-        if run_uuid:
-            logging.info(
-                "Using the uuid defined by the user for the run: %s" % run_uuid
-            )
-        else:
-            run_uuid = str(uuid.uuid4())
-            logging.info("Generated a uuid for the run: %s" % run_uuid)
+
 
         # Initialize the start iteration to 0
         iteration = 0
@@ -171,7 +185,8 @@ def main(cfg):
         # Capture the start time
         start_time = int(time.time())
         litmus_installed = False
-
+        chaos_telemetry = ChaosRunTelemetry()
+        chaos_telemetry.run_uuid = run_uuid
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -203,36 +218,41 @@ def main(cfg):
                             )
                             sys.exit(1)
                         elif scenario_type == "arcaflow_scenarios":
-                            failed_post_scenarios = arcaflow_plugin.run(
-                                scenarios_list, kubeconfig_path
+                            failed_post_scenarios, scenario_telemetries = arcaflow_plugin.run(
+                                scenarios_list, kubeconfig_path, telemetry
                             )
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         elif scenario_type == "plugin_scenarios":
-                            failed_post_scenarios = plugins.run(
+                            failed_post_scenarios, scenario_telemetries = plugins.run(
                                 scenarios_list,
                                 kubeconfig_path,
                                 kraken_config,
                                 failed_post_scenarios,
                                 wait_duration,
+                                telemetry
                             )
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
                         # krkn_lib_kubernetes
                         elif scenario_type == "container_scenarios":
                             logging.info("Running container scenarios")
-                            failed_post_scenarios = pod_scenarios.container_run(
+                            failed_post_scenarios, scenario_telemetries = pod_scenarios.container_run(
                                 kubeconfig_path,
                                 scenarios_list,
                                 config,
                                 failed_post_scenarios,
                                 wait_duration,
-                                kubecli
+                                kubecli,
+                                telemetry
                             )
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Inject node chaos scenarios specified in the config
                         # krkn_lib_kubernetes
                         elif scenario_type == "node_scenarios":
                             logging.info("Running node scenarios")
-                            nodeaction.run(scenarios_list, config, wait_duration, kubecli)
-
+                            failed_post_scenarios, scenario_telemetries = nodeaction.run(scenarios_list, config, wait_duration, kubecli, telemetry)
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
                         # Inject managedcluster chaos scenarios specified in the config
                         # krkn_lib_kubernetes
                         elif scenario_type == "managedcluster_scenarios":
@@ -247,7 +267,8 @@ def main(cfg):
                         elif scenario_type == "time_scenarios":
                             if distribution == "openshift":
                                 logging.info("Running time skew scenarios")
-                                time_actions.run(scenarios_list, config, wait_duration, kubecli)
+                                failed_post_scenarios, scenario_telemetries = time_actions.run(scenarios_list, config, wait_duration, kubecli, telemetry)
+                                chaos_telemetry.scenarios.extend(scenario_telemetries)
                             else:
                                 logging.error(
                                     "Litmus scenarios are currently "
@@ -297,44 +318,48 @@ def main(cfg):
                         # Inject cluster shutdown scenarios
                         # krkn_lib_kubernetes
                         elif scenario_type == "cluster_shut_down_scenarios":
-                            shut_down.run(scenarios_list, config, wait_duration, kubecli)
+                            failed_post_scenarios, scenario_telemetries = shut_down.run(scenarios_list, config, wait_duration, kubecli, telemetry)
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Inject namespace chaos scenarios
                         # krkn_lib_kubernetes
                         elif scenario_type == "namespace_scenarios":
                             logging.info("Running namespace scenarios")
-                            namespace_actions.run(
+                            failed_post_scenarios, scenario_telemetries = namespace_actions.run(
                                 scenarios_list,
                                 config,
                                 wait_duration,
                                 failed_post_scenarios,
                                 kubeconfig_path,
-                                kubecli
+                                kubecli,
+                                telemetry
                             )
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Inject zone failures
                         elif scenario_type == "zone_outages":
                             logging.info("Inject zone outages")
-                            zone_outages.run(scenarios_list, config, wait_duration)
-
+                            failed_post_scenarios, scenario_telemetries = zone_outages.run(scenarios_list, config, wait_duration, telemetry)
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
                         # Application outages
                         elif scenario_type == "application_outages":
                             logging.info("Injecting application outage")
-                            application_outage.run(
-                                scenarios_list, config, wait_duration
-                            )
+                            failed_post_scenarios, scenario_telemetries = application_outage.run(
+                                scenarios_list, config, wait_duration, telemetry)
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # PVC scenarios
                         # krkn_lib_kubernetes
                         elif scenario_type == "pvc_scenarios":
                             logging.info("Running PVC scenario")
-                            pvc_scenario.run(scenarios_list, config, kubecli)
+                            failed_post_scenarios, scenario_telemetries = pvc_scenario.run(scenarios_list, config, kubecli, telemetry)
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Network scenarios
                         # krkn_lib_kubernetes
                         elif scenario_type == "network_chaos":
                             logging.info("Running Network Chaos")
-                            network_chaos.run(scenarios_list, config, wait_duration, kubecli)
+                            failed_post_scenarios, scenario_telemetries = network_chaos.run(scenarios_list, config, wait_duration, kubecli, telemetry)
 
                         # Check for critical alerts when enabled
                         if check_critical_alerts:
@@ -352,6 +377,21 @@ def main(cfg):
 
             iteration += 1
             logging.info("")
+
+        # telemetry
+        if config["telemetry"]["enabled"]:
+            logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_request_id}")
+            logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
+            try:
+                telemetry.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
+                safe_logger.info("archives download started:")
+                prometheus_archive_files = telemetry.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
+                safe_logger.info("archives upload started:")
+                telemetry.put_ocp_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
+            except Exception as e:
+                logging.error(f"failed to send telemetry data: {str(e)}")
+        else:
+            logging.info("telemetry collection disabled, skipping.")
 
         # Capture the end time
         end_time = int(time.time())

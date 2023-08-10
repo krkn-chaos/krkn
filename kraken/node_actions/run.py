@@ -13,7 +13,7 @@ from kraken.node_actions.bm_node_scenarios import bm_node_scenarios
 from kraken.node_actions.docker_node_scenarios import docker_node_scenarios
 import kraken.node_actions.common_node_functions as common_node_functions
 import kraken.cerberus.setup as cerberus
-
+from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
 
 node_general = False
 
@@ -53,8 +53,14 @@ def get_node_scenario_object(node_scenario, kubecli: krkn_lib_kubernetes.KrknLib
 
 # Run defined scenarios
 # krkn_lib_kubernetes
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+    scenario_telemetries: list[ScenarioTelemetry] = []
+    failed_scenarios = []
     for node_scenario_config in scenarios_list:
+        scenario_telemetry = ScenarioTelemetry()
+        scenario_telemetry.scenario = node_scenario_config
+        scenario_telemetry.startTimeStamp = time.time()
+        telemetry.set_parameters_base64(scenario_telemetry, node_scenario_config)
         with open(node_scenario_config, "r") as f:
             node_scenario_config = yaml.full_load(f)
             for node_scenario in node_scenario_config["node_scenarios"]:
@@ -62,12 +68,24 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
                 if node_scenario["actions"]:
                     for action in node_scenario["actions"]:
                         start_time = int(time.time())
-                        inject_node_scenario(action, node_scenario, node_scenario_object, kubecli)
-                        logging.info("Waiting for the specified duration: %s" % (wait_duration))
-                        time.sleep(wait_duration)
-                        end_time = int(time.time())
-                        cerberus.get_status(config, start_time, end_time)
-                        logging.info("")
+                        try:
+                            inject_node_scenario(action, node_scenario, node_scenario_object, kubecli)
+                            logging.info("Waiting for the specified duration: %s" % (wait_duration))
+                            time.sleep(wait_duration)
+                            end_time = int(time.time())
+                            cerberus.get_status(config, start_time, end_time)
+                            logging.info("")
+                        except (RuntimeError, Exception) as e:
+                            scenario_telemetry.exitStatus = 1
+                            failed_scenarios.append(node_scenario_config)
+                            telemetry.log_exception(node_scenario_config)
+                        else:
+                            scenario_telemetry.exitStatus = 0
+
+                        scenario_telemetry.endTimeStamp = time.time()
+                        scenario_telemetries.append(scenario_telemetry)
+
+    return failed_scenarios, scenario_telemetries
 
 
 # Inject the specified node scenario

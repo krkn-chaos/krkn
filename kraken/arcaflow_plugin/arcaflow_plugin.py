@@ -1,3 +1,5 @@
+import time
+
 import arcaflow
 import os
 import yaml
@@ -6,22 +8,31 @@ import sys
 from pathlib import Path
 from typing import List
 from .context_auth import ContextAuth
+from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
 
 
-def run(scenarios_list: List[str], kubeconfig_path: str):
+def run(scenarios_list: List[str], kubeconfig_path: str, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+    scenario_telemetries: list[ScenarioTelemetry] = []
+    failed_post_scenarios = []
     for scenario in scenarios_list:
+        scenario_telemetry = ScenarioTelemetry()
+        scenario_telemetry.scenario = scenario
+        scenario_telemetry.startTimeStamp = time.time()
+        telemetry.set_parameters_base64(scenario_telemetry,scenario)
         engine_args = build_args(scenario)
-        run_workflow(engine_args, kubeconfig_path)
+        status_code = run_workflow(engine_args, kubeconfig_path)
+        scenario_telemetry.endTimeStamp = time.time()
+        scenario_telemetry.exitStatus = status_code
+        scenario_telemetries.append(scenario_telemetry)
+        if status_code != 0:
+            failed_post_scenarios.append(scenario)
+    return failed_post_scenarios, scenario_telemetries
 
 
-def run_workflow(engine_args: arcaflow.EngineArgs, kubeconfig_path: str):
+def run_workflow(engine_args: arcaflow.EngineArgs, kubeconfig_path: str) -> int:
     set_arca_kubeconfig(engine_args, kubeconfig_path)
     exit_status = arcaflow.run(engine_args)
-    if exit_status != 0:
-        logging.error(
-            f"failed to run arcaflow scenario {engine_args.input}"
-        )
-        sys.exit(exit_status)
+    return exit_status
 
 
 def build_args(input_file: str) -> arcaflow.EngineArgs:
