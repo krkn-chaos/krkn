@@ -139,8 +139,7 @@ def run(scenarios_list, config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, 
                             command,
                             pod_name,
                             namespace,
-                            container_name,
-                            "sh"
+                            container_name
                         )
                     ).split()
                     pvc_used_kb = int(command_output[2])
@@ -209,7 +208,7 @@ def run(scenarios_list, config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, 
                     command = "ls -lh %s" % (str(mount_path))
                     logging.debug("Check file is created command:\n %s" % command)
                     response = kubecli.exec_cmd_in_pod(
-                        command, pod_name, namespace, container_name, "sh"
+                        command, pod_name, namespace, container_name
                     )
                     logging.info("\n" + str(response))
                     if str(file_name).lower() in str(response).lower():
