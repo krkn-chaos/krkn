@@ -2,16 +2,16 @@ import datetime
 import time
 import logging
 import re
-import sys
 import yaml
 import random
-import krkn_lib_kubernetes
 from ..cerberus import setup as cerberus
 from ..invoke import command as runcommand
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
 
-# krkn_lib_kubernetes
-def pod_exec(pod_name, command, namespace, container_name, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def pod_exec(pod_name, command, namespace, container_name, kubecli:KrknKubernetes):
     for i in range(5):
         response = kubecli.exec_cmd_in_pod(
             command,
@@ -40,8 +40,8 @@ def node_debug(node_name, command):
     return response
 
 
-# krkn_lib_kubernetes
-def get_container_name(pod_name, namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, container_name=""):
+# krkn_lib
+def get_container_name(pod_name, namespace, kubecli:KrknKubernetes, container_name=""):
 
     container_names = kubecli.get_containers_in_pod(pod_name, namespace)
     if container_name != "":
@@ -63,8 +63,8 @@ def get_container_name(pod_name, namespace, kubecli: krkn_lib_kubernetes.KrknLib
         return container_name
 
 
-# krkn_lib_kubernetes
-def skew_time(scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def skew_time(scenario, kubecli:KrknKubernetes):
     skew_command = "date --set "
     if scenario["action"] == "skew_date":
         skewed_date = "00-01-01"
@@ -231,8 +231,8 @@ def string_to_date(obj_datetime):
         return datetime.datetime(datetime.MINYEAR, 1, 1)
 
 
-# krkn_lib_kubernetes
-def check_date_time(object_type, names, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def check_date_time(object_type, names, kubecli:KrknKubernetes):
     skew_command = "date"
     not_reset = []
     max_retries = 30
@@ -307,8 +307,8 @@ def check_date_time(object_type, names, kubecli: krkn_lib_kubernetes.KrknLibKube
     return not_reset
 
 
-# krkn_lib_kubernetes
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+# krkn_lib
+def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []
     for time_scenario_config in scenarios_list:

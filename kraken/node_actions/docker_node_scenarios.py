@@ -1,10 +1,9 @@
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
-import krkn_lib_kubernetes
 import logging
 import sys
 import docker
-
+from krkn_lib.k8s import KrknKubernetes
 
 class Docker:
     def __init__(self):
@@ -37,7 +36,7 @@ class Docker:
 
 
 class docker_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+    def __init__(self, kubecli: KrknKubernetes):
         super().__init__(kubecli)
         self.docker = Docker()
 

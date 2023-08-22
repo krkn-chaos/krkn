@@ -1,14 +1,14 @@
 import sys
 import time
-import krkn_lib_kubernetes
+import logging
+import kraken.node_actions.common_node_functions as nodeaction
+import os
+import json
 from aliyunsdkcore.client import AcsClient
 from aliyunsdkecs.request.v20140526 import DescribeInstancesRequest, DeleteInstanceRequest
 from aliyunsdkecs.request.v20140526 import StopInstanceRequest, StartInstanceRequest, RebootInstanceRequest
-import logging
-import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
-import os
-import json
+from krkn_lib.k8s import KrknKubernetes
 
 
 class Alibaba:
@@ -180,9 +180,9 @@ class Alibaba:
         logging.info("ECS %s is released" % instance_id)
         return True
 
-# krkn_lib_kubernetes
+# krkn_lib
 class alibaba_node_scenarios(abstract_node_scenarios):
-    def __init__(self,kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+    def __init__(self,kubecli: KrknKubernetes):
         self.alibaba = Alibaba()
 
     # Node scenario to start the node

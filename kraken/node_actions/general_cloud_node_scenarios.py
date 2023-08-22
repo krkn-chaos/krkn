@@ -1,15 +1,14 @@
 import logging
-import krkn_lib_kubernetes
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
-
+from krkn_lib.k8s import KrknKubernetes
 
 class GENERAL:
     def __init__(self):
         pass
 
-# krkn_lib_kubernetes
+# krkn_lib
 class general_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes ):
+    def __init__(self, kubecli: KrknKubernetes):
         super().__init__(kubecli)
         self.general = GENERAL()
 

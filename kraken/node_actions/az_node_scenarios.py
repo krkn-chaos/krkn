@@ -1,13 +1,14 @@
-import sys
+
 import time
-from azure.mgmt.compute import ComputeManagementClient
-from azure.identity import DefaultAzureCredential
+import yaml
+import kraken.invoke.command as runcommand
 import logging
-import krkn_lib_kubernetes
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
-import kraken.invoke.command as runcommand
-import yaml
+from azure.mgmt.compute import ComputeManagementClient
+from azure.identity import DefaultAzureCredential
+from krkn_lib.k8s import KrknKubernetes
+
 
 
 class Azure:
@@ -129,9 +130,9 @@ class Azure:
                 logging.info("Vm %s is terminated" % vm_name)
                 return True
 
-# krkn_lib_kubernetes
+# krkn_lib
 class azure_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+    def __init__(self, kubecli: KrknKubernetes):
         super().__init__(kubecli)
         logging.info("init in azure")
         self.azure = Azure()

@@ -1,19 +1,17 @@
 #!/usr/bin/env python
-import os
-import sys
 import yaml
 import logging
 import time
-import krkn_lib_kubernetes
 from multiprocessing.pool import ThreadPool
-
 from ..cerberus import setup as cerberus
 from ..post_actions import actions as post_actions
 from ..node_actions.aws_node_scenarios import AWS
 from ..node_actions.openstack_node_scenarios import OPENSTACKCLOUD
 from ..node_actions.az_node_scenarios import Azure
 from ..node_actions.gcp_node_scenarios import GCP
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
 
 def multiprocess_nodes(cloud_object_function, nodes):
     try:
@@ -40,8 +38,8 @@ def multiprocess_nodes(cloud_object_function, nodes):
 
 
 # Inject the cluster shut down scenario
-# krkn_lib_kubernetes
-def cluster_shut_down(shut_down_config, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def cluster_shut_down(shut_down_config, kubecli: KrknKubernetes):
     runs = shut_down_config["runs"]
     shut_down_duration = shut_down_config["shut_down_duration"]
     cloud_type = shut_down_config["cloud_type"]
@@ -128,9 +126,9 @@ def cluster_shut_down(shut_down_config, kubecli: krkn_lib_kubernetes.KrknLibKube
 
         logging.info("Successfully injected cluster_shut_down scenario!")
 
-# krkn_lib_kubernetes
+# krkn_lib
 
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = []
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []

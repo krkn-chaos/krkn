@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass, field
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
-from krkn_lib_kubernetes import KrknLibKubernetes
+from krkn_lib.k8s import KrknKubernetes
 from arcaflow_plugin_sdk import plugin, validation
 from kubernetes import client
 from kubernetes.client.api.apiextensions_v1_api import ApiextensionsV1Api
@@ -19,7 +19,7 @@ from . import cerberus
 
 
 def get_test_pods(
-    pod_name: str, pod_label: str, namespace: str, kubecli: KrknLibKubernetes
+    pod_name: str, pod_label: str, namespace: str, kubecli: KrknKubernetes
 ) -> typing.List[str]:
     """
     Function that returns a list of pods to apply network policy
@@ -35,7 +35,7 @@ def get_test_pods(
         namepsace (string)
             - namespace in which the pod is present
 
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
     Returns:
@@ -54,12 +54,12 @@ def get_test_pods(
         return pods_list
 
 
-def get_job_pods(kubecli: KrknLibKubernetes, api_response):
+def get_job_pods(kubecli: KrknKubernetes, api_response):
     """
     Function that gets the pod corresponding to the job
 
     Args:
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
         api_response
@@ -78,12 +78,12 @@ def get_job_pods(kubecli: KrknLibKubernetes, api_response):
     return pods_list[0]
 
 
-def delete_jobs(kubecli: KrknLibKubernetes, job_list: typing.List[str]):
+def delete_jobs(kubecli: KrknKubernetes, job_list: typing.List[str]):
     """
     Function that deletes jobs
 
     Args:
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
         job_list (List of strings)
@@ -109,7 +109,7 @@ def delete_jobs(kubecli: KrknLibKubernetes, job_list: typing.List[str]):
 
 
 def wait_for_job(
-    job_list: typing.List[str], kubecli: KrknLibKubernetes, timeout: int = 300
+    job_list: typing.List[str], kubecli: KrknKubernetes, timeout: int = 300
 ) -> None:
     """
     Function that waits for a list of jobs to finish within a time period
@@ -118,7 +118,7 @@ def wait_for_job(
         job_list (List of strings)
             - The list of jobs to check for completion
 
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
         timeout (int)
@@ -195,7 +195,7 @@ def apply_outage_policy(
     direction: str,
     duration: str,
     bridge_name: str,
-    kubecli: KrknLibKubernetes,
+    kubecli: KrknKubernetes,
 ) -> typing.List[str]:
     """
     Function that applies filters(ingress or egress) to block traffic.
@@ -278,7 +278,7 @@ def apply_net_policy(
     network_params: typing.Dict[str, str],
     duration: str,
     bridge_name: str,
-    kubecli: KrknLibKubernetes,
+    kubecli: KrknKubernetes,
     test_execution: str,
 ) -> typing.List[str]:
     """
@@ -312,7 +312,7 @@ def apply_net_policy(
         bridge_name (string):
             - bridge to which  filter rules need to be applied
 
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
         test_execution (String)
@@ -393,7 +393,7 @@ def get_egress_cmd(
 
 
 def list_bridges(
-    node: str, pod_template, kubecli: KrknLibKubernetes
+    node: str, pod_template, kubecli: KrknKubernetes
 ) -> typing.List[str]:
     """
     Function that returns a list of bridges on the node
@@ -406,7 +406,7 @@ def list_bridges(
             - The YAML template used to instantiate a pod to query
               the node's interface
 
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
     Returns:
@@ -437,7 +437,7 @@ def list_bridges(
 
 
 def check_cookie(
-    node: str, pod_template, br_name, cookie, kubecli: KrknLibKubernetes
+    node: str, pod_template, br_name, cookie, kubecli: KrknKubernetes
 ) -> str:
     """
     Function to check for matching flow rules
@@ -496,7 +496,7 @@ def check_cookie(
 
 
 def get_pod_interface(
-    node: str, ip: str, pod_template, br_name, kubecli: KrknLibKubernetes
+    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes
 ) -> str:
     """
     Function to query the pod interface on a node
@@ -515,7 +515,7 @@ def get_pod_interface(
         br_name (string):
             - bridge against which the flows rules need to be checked
 
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
     Returns
@@ -576,7 +576,7 @@ def get_pod_interface(
 
 
 def check_bridge_interface(
-    node_name: str, pod_template, bridge_name: str, kubecli: KrknLibKubernetes
+    node_name: str, pod_template, bridge_name: str, kubecli: KrknKubernetes
 ) -> bool:
     """
     Function  is used to check if the required OVS or OVN bridge is found in
@@ -593,7 +593,7 @@ def check_bridge_interface(
         bridge_name (string):
             - bridge name to check for in the node.
 
-        kubecli (KrknLibKubernetes)
+        kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
     Returns:
@@ -815,7 +815,7 @@ def pod_outage(
         node_dict = {}
         label_set = set()
 
-        kubecli = KrknLibKubernetes(kubeconfig_path=params.kubeconfig_path)
+        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 
@@ -1073,7 +1073,7 @@ def pod_egress_shaping(
         param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
 
-        kubecli = KrknLibKubernetes(kubeconfig_path=params.kubeconfig_path)
+        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 

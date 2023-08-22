@@ -13,7 +13,9 @@ from kraken.plugins.run_python_plugin import run_python_file
 from kraken.plugins.network.ingress_shaping import network_chaos
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_outage
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_egress_shaping
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
+
 
 
 @dataclasses.dataclass

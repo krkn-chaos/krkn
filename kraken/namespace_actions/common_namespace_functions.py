@@ -1,21 +1,22 @@
 import time
 import random
 import logging
-import krkn_lib_kubernetes
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 import yaml
-import sys
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
 
-# krkn_lib_kubernetes
+
+# krkn_lib
 def run(
         scenarios_list,
         config,
         wait_duration,
         failed_post_scenarios,
         kubeconfig_path,
-        kubecli: krkn_lib_kubernetes.KrknLibKubernetes,
+        kubecli: KrknKubernetes,
         telemetry: KrknTelemetry
 ) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
@@ -106,8 +107,8 @@ def run(
         scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 
-# krkn_lib_kubernetes
-def check_active_namespace(killed_namespaces, wait_time, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def check_active_namespace(killed_namespaces, wait_time, kubecli: KrknKubernetes):
     active_namespace = []
     timer = 0
     while timer < wait_time and killed_namespaces:

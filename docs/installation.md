@@ -11,6 +11,11 @@ The following ways are supported to run Kraken:
 **NOTE**: To run Kraken on Power (ppc64le) architecture, build and run a containerized version by following the
  instructions given [here](https://github.com/redhat-chaos/krkn/blob/main/containers/build_own_image-README.md).
 
+**NOTE**: Helper functions for interactions in Krkn are part of [krkn-lib](https://github.com/redhat-chaos/krkn-lib). 
+Please feel free to reuse and expand them as you see fit when adding a new scenario or expanding 
+the capabilities of the current supported scenarios.
+
+
 ### Git
 
 #### Clone the repository
