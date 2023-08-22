@@ -2,10 +2,9 @@ import sys
 import time
 import boto3
 import logging
-import krkn_lib_kubernetes
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
-
+from krkn_lib.k8s import KrknKubernetes
 
 class AWS:
     def __init__(self):
@@ -166,9 +165,9 @@ class AWS:
             # sys.exit(1)
             raise RuntimeError()
 
-# krkn_lib_kubernetes
+# krkn_lib
 class aws_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+    def __init__(self, kubecli: KrknKubernetes):
         super().__init__(kubecli)
         self.aws = AWS()
 

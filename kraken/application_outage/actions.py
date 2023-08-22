@@ -4,7 +4,8 @@ import time
 import kraken.cerberus.setup as cerberus
 from jinja2 import Template
 import kraken.invoke.command as runcommand
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
 
 # Reads the scenario config, applies and deletes a network policy to
 # block the traffic for the specified duration

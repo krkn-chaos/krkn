@@ -2,7 +2,6 @@ import yaml
 import logging
 import sys
 import time
-import krkn_lib_kubernetes
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
 from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
 from kraken.node_actions.az_node_scenarios import azure_node_scenarios
@@ -13,14 +12,15 @@ from kraken.node_actions.bm_node_scenarios import bm_node_scenarios
 from kraken.node_actions.docker_node_scenarios import docker_node_scenarios
 import kraken.node_actions.common_node_functions as common_node_functions
 import kraken.cerberus.setup as cerberus
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.telemetry import KrknTelemetry, ScenarioTelemetry
 
 node_general = False
 
 
 # Get the node scenarios object of specfied cloud type
-# krkn_lib_kubernetes
-def get_node_scenario_object(node_scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def get_node_scenario_object(node_scenario, kubecli: KrknKubernetes):
     if "cloud_type" not in node_scenario.keys() or node_scenario["cloud_type"] == "generic":
         global node_general
         node_general = True
@@ -52,8 +52,8 @@ def get_node_scenario_object(node_scenario, kubecli: krkn_lib_kubernetes.KrknLib
 
 
 # Run defined scenarios
-# krkn_lib_kubernetes
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+# krkn_lib
+def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_scenarios = []
     for node_scenario_config in scenarios_list:
@@ -89,7 +89,7 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
 
 
 # Inject the specified node scenario
-def inject_node_scenario(action, node_scenario, node_scenario_object, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def inject_node_scenario(action, node_scenario, node_scenario_object, kubecli: KrknKubernetes):
     generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario")
     # Get the node scenario configurations
     run_kill_count = node_scenario.get("runs", 1)

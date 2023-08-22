@@ -4,19 +4,17 @@ import time
 import logging
 import sys
 import yaml
-import html
-import krkn_lib_kubernetes
 import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
-
+from krkn_lib.k8s import KrknKubernetes
 
 class GENERAL:
     def __init__(self):
         pass
 
-# krkn_lib_kubernetes
+# krkn_lib
 class managedcluster_scenarios():
-    kubecli: krkn_lib_kubernetes.KrknLibKubernetes
-    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+    kubecli: KrknKubernetes
+    def __init__(self, kubecli: KrknKubernetes):
         self.kubecli = kubecli
         self.general = GENERAL()
 

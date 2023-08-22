@@ -1,13 +1,12 @@
 import sys
 import time
 import logging
-import krkn_lib_kubernetes
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 from googleapiclient import discovery
 from oauth2client.client import GoogleCredentials
 import kraken.invoke.command as runcommand
-
+from krkn_lib.k8s import KrknKubernetes
 
 class GCP:
     def __init__(self):
@@ -143,9 +142,9 @@ class GCP:
             return True
 
 
-# krkn_lib_kubernetes
+# krkn_lib
 class gcp_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+    def __init__(self, kubecli: KrknKubernetes):
         super().__init__(kubecli)
         self.gcp = GCP()
 

@@ -1,14 +1,13 @@
 import time
-
 import arcaflow
 import os
 import yaml
 import logging
-import sys
 from pathlib import Path
 from typing import List
 from .context_auth import ContextAuth
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
 
 
 def run(scenarios_list: List[str], kubeconfig_path: str, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):

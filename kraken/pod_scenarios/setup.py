@@ -1,16 +1,15 @@
 import logging
-
-from arcaflow_plugin_sdk import serialization
-import arcaflow_plugin_kill_pod
-
-import kraken.cerberus.setup as cerberus
-import kraken.post_actions.actions as post_actions
-import krkn_lib_kubernetes
 import time
 import yaml
 import sys
 import random
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+import arcaflow_plugin_kill_pod
+import kraken.cerberus.setup as cerberus
+import kraken.post_actions.actions as post_actions
+from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
+from arcaflow_plugin_sdk import serialization
 
 # Run pod based scenarios
 def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration):
@@ -66,13 +65,13 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
         cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
     return failed_post_scenarios
 
-# krkn_lib_kubernetes
+# krkn_lib
 def container_run(kubeconfig_path,
                   scenarios_list,
                   config,
                   failed_post_scenarios,
                   wait_duration,
-                  kubecli: krkn_lib_kubernetes.KrknLibKubernetes,
+                  kubecli: KrknKubernetes,
                   telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
 
     failed_scenarios = []
@@ -129,7 +128,7 @@ def container_run(kubeconfig_path,
 
 
 
-def container_killing_in_pod(cont_scenario, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def container_killing_in_pod(cont_scenario, kubecli: KrknKubernetes):
     scenario_name = cont_scenario.get("name", "")
     namespace = cont_scenario.get("namespace", "*")
     label_selector = cont_scenario.get("label_selector", None)
@@ -196,7 +195,7 @@ def container_killing_in_pod(cont_scenario, kubecli: krkn_lib_kubernetes.KrknLib
     return killed_container_list
 
 
-def retry_container_killing(kill_action, podname, namespace, container_name, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def retry_container_killing(kill_action, podname, namespace, container_name, kubecli: KrknKubernetes):
     i = 0
     while i < 5:
         logging.info("Killing container %s in pod %s (ns %s)" % (str(container_name), str(podname), str(namespace)))
@@ -213,7 +212,7 @@ def retry_container_killing(kill_action, podname, namespace, container_name, kub
             continue
 
 
-def check_failed_containers(killed_container_list, wait_time, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+def check_failed_containers(killed_container_list, wait_time, kubecli: KrknKubernetes):
 
     container_ready = []
     timer = 0

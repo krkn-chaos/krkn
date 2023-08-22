@@ -1,14 +1,13 @@
 import kraken.invoke.command as runcommand
-import krkn_lib_kubernetes
 import logging
 import time
 import sys
 import requests
 import yaml
 import kraken.cerberus.setup as cerberus
+from krkn_lib.k8s import KrknKubernetes
 
-
-# krkn_lib_kubernetes
+# krkn_lib
 # Inject litmus scenarios defined in the config
 def run(
         scenarios_list,
@@ -16,7 +15,7 @@ def run(
         litmus_uninstall,
         wait_duration,
         litmus_namespace,
-        kubecli: krkn_lib_kubernetes.KrknLibKubernetes
+        kubecli: KrknKubernetes
 ):
     # Loop to run the scenarios starts here
     for l_scenario in scenarios_list:
@@ -94,8 +93,8 @@ def deploy_all_experiments(version_string, namespace):
     )
 
 
-# krkn_lib_kubernetes
-def wait_for_initialized(engine_name, experiment_name, namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def wait_for_initialized(engine_name, experiment_name, namespace, kubecli: KrknKubernetes):
 
     chaos_engine = kubecli.get_litmus_chaos_object(kind='chaosengine', name=engine_name,
                                                    namespace=namespace).engineStatus
@@ -119,13 +118,13 @@ def wait_for_initialized(engine_name, experiment_name, namespace, kubecli: krkn_
     return True
 
 
-# krkn_lib_kubernetes
+# krkn_lib
 def wait_for_status(
         engine_name,
         expected_status,
         experiment_name,
         namespace,
-        kubecli: krkn_lib_kubernetes.KrknLibKubernetes
+        kubecli: KrknKubernetes
 ):
 
     if expected_status == "running":
@@ -156,8 +155,8 @@ def wait_for_status(
 
 
 # Check status of experiment
-# krkn_lib_kubernetes
-def check_experiment(engine_name, experiment_name, namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def check_experiment(engine_name, experiment_name, namespace, kubecli: KrknKubernetes):
 
     wait_response = wait_for_status(engine_name, "running", experiment_name, namespace, kubecli)
 
@@ -183,8 +182,8 @@ def check_experiment(engine_name, experiment_name, namespace, kubecli: krkn_lib_
 
 
 # Delete all chaos engines in a given namespace
-# krkn_lib_kubernetes
-def delete_chaos_experiments(namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def delete_chaos_experiments(namespace, kubecli: KrknKubernetes):
 
     if kubecli.check_if_namespace_exists(namespace):
         chaos_exp_exists = runcommand.invoke_no_exit("kubectl get chaosexperiment")
@@ -194,8 +193,8 @@ def delete_chaos_experiments(namespace, kubecli: krkn_lib_kubernetes.KrknLibKube
 
 
 # Delete all chaos engines in a given namespace
-# krkn_lib_kubernetes
-def delete_chaos(namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def delete_chaos(namespace, kubecli:KrknKubernetes):
 
     if kubecli.check_if_namespace_exists(namespace):
         logging.info("Deleting all litmus run objects")
@@ -209,8 +208,8 @@ def delete_chaos(namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
         logging.info(namespace + " namespace doesn't exist")
 
 
-# krkn_lib_kubernetes
-def uninstall_litmus(version, litmus_namespace, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def uninstall_litmus(version, litmus_namespace, kubecli: KrknKubernetes):
 
     if kubecli.check_if_namespace_exists(litmus_namespace):
         logging.info("Uninstalling Litmus operator")

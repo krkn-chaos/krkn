@@ -1,18 +1,19 @@
 import yaml
 import logging
 import time
-import sys
 import os
 import random
-import krkn_lib_kubernetes
-from jinja2 import Environment, FileSystemLoader
 import kraken.cerberus.setup as cerberus
 import kraken.node_actions.common_node_functions as common_node_functions
-from krkn_lib_kubernetes import ScenarioTelemetry, KrknTelemetry
+from jinja2 import Environment, FileSystemLoader
+from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.models.telemetry import ScenarioTelemetry
 
-# krkn_lib_kubernetes
+
+# krkn_lib
 # Reads the scenario config and introduces traffic variations in Node's host network interface.
-def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = ""
     logging.info("Runing the Network Chaos tests")
     failed_post_scenarios = ""
@@ -108,8 +109,8 @@ def run(scenarios_list, config, wait_duration, kubecli: krkn_lib_kubernetes.Krkn
     return failed_scenarios, scenario_telemetries
 
 
-# krkn_lib_kubernetes
-def verify_interface(test_interface, nodelst, template, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def verify_interface(test_interface, nodelst, template, kubecli: KrknKubernetes):
     pod_index = random.randint(0, len(nodelst) - 1)
     pod_body = yaml.safe_load(template.render(nodename=nodelst[pod_index]))
     logging.info("Creating pod to query interface on node %s" % nodelst[pod_index])
@@ -134,16 +135,16 @@ def verify_interface(test_interface, nodelst, template, kubecli: krkn_lib_kubern
         kubecli.delete_pod("fedtools", "default")
 
 
-# krkn_lib_kubernetes
-def get_job_pods(api_response, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def get_job_pods(api_response, kubecli: KrknKubernetes):
     controllerUid = api_response.metadata.labels["controller-uid"]
     pod_label_selector = "controller-uid=" + controllerUid
     pods_list = kubecli.list_pods(label_selector=pod_label_selector, namespace="default")
     return pods_list[0]
 
 
-# krkn_lib_kubernetes
-def wait_for_job(joblst, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, timeout=300):
+# krkn_lib
+def wait_for_job(joblst, kubecli: KrknKubernetes, timeout=300):
     waittime = time.time() + timeout
     count = 0
     joblen = len(joblst)
@@ -161,8 +162,8 @@ def wait_for_job(joblst, kubecli: krkn_lib_kubernetes.KrknLibKubernetes, timeout
             time.sleep(5)
 
 
-# krkn_lib_kubernetes
-def delete_job(joblst, kubecli: krkn_lib_kubernetes.KrknLibKubernetes):
+# krkn_lib
+def delete_job(joblst, kubecli: KrknKubernetes):
     for jobname in joblst:
         try:
             api_response = kubecli.get_job_status(jobname, namespace="default")
