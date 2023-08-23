@@ -60,7 +60,7 @@ input:
 
 steps:
   kubeconfig:
-    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:latest
+    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:0.2.0
     input:
       kubeconfig: !expr $.input.kubeconfig
   stressng:
