@@ -6,7 +6,11 @@ kraken:
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address
     port: 8081                                             # Signal port
-    chaos_scenarios:                                       # List of policies/chaos scenarios to load
+    chaos_scenarios:
+        # List of policies/chaos scenarios to load
+        - arcaflow_scenarios:
+            - scenarios/arcaflow/cpu-hog/input.yaml
+            - scenarios/arcaflow/memory-hog/input.yaml
         - application_outages:
             - scenarios/openshift/app_outage.yaml
         - container_scenarios:                             # List of chaos pod scenarios to load
