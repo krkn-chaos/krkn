@@ -56,13 +56,13 @@ steps:
     input:
       kubeconfig: !expr $.input.kubeconfig
   stressng:
-    plugin: quay.io/arcalot/arcaflow-plugin-stressng:0.2.0
+    plugin: quay.io/arcalot/arcaflow-plugin-stressng:0.3.0
     step: workload
     input:
+      cleanup: "true"
       StressNGParams:
         timeout: !expr $.input.duration
-        cleanup: "true"
-        items:
+        stressors:
           - stressor: vm
             vm: !expr $.input.vm_workers
             vm_bytes: !expr $.input.vm_bytes
