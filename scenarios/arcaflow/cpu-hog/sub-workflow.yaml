@@ -64,7 +64,7 @@ steps:
     input:
       kubeconfig: !expr $.input.kubeconfig
   stressng:
-    plugin: quay.io/arcalot/arcaflow-plugin-stressng:0.3.0
+    plugin: quay.io/arcalot/arcaflow-plugin-stressng:0.3.1
     step: workload
     input:
       cleanup: "true"
