@@ -8,14 +8,14 @@ The following are the components of Kubernetes/OpenShift for which a basic chaos
 
 ```
 scenarios:
-- name: "<Name of scenario>"
+- name: "<name of scenario>"
   namespace: "<specific namespace>" # can specify "*" if you want to find in all namespaces
   label_selector: "<label of pod(s)>"
   container_name: "<specific container name>"  # This is optional, can take out and will kill all containers in all pods found under namespace and label
   pod_names:  # This is optional, can take out and will select all pods with given namespace and label
   - <pod_name>
   count: <number of containers to disrupt, default=1>
-  action: <Action to run. For example kill 1 ( hang up ) or kill 9. Default is set to kill 1>
+  action: <kill signal to run. For example 1 ( hang up ) or 9. Default is set to 1>
   expected_recovery_time: <number of seconds to wait for container to be running again> (defaults to 120seconds)
 ```
 
