@@ -20,6 +20,7 @@ kraken:
             - scenarios/openshift/regex_openshift_pod_kill.yml
             - scenarios/openshift/vmware_node_scenarios.yml
             - scenarios/openshift/network_chaos_ingress.yml
+            - scenarios/openshift/prom_kill.yml
         - node_scenarios:                                  # List of chaos node scenarios to load
             -   scenarios/openshift/node_scenarios_example.yml
         - plugin_scenarios:
