@@ -64,5 +64,6 @@ Each step is represented by a container that will be executed from the deployer 
 Note that we provide the scenarios as a template, but they can be manipulated to define more complex workflows.
 To have more details regarding the arcaflow workflows architecture and syntax it is suggested to refer to the [Arcaflow Documentation](https://arcalot.io/arcaflow/).
 
+This edit is no longer in quay image
 Working on fix in ticket: https://issues.redhat.com/browse/CHAOS-494
 This will effect all versions 4.12 and higher of OpenShift
