@@ -16,6 +16,42 @@
   description: etcd leader changes observed
   severity: warning
 
+- expr: (last_over_time(etcd_mvcc_db_total_size_in_bytes[5m]) / last_over_time(etcd_server_quota_backend_bytes[5m]))*100 > 95
+  description: etcd cluster database is running full. 
+  severity: critical
+  
+- expr: (last_over_time(etcd_mvcc_db_total_size_in_use_in_bytes[5m]) / last_over_time(etcd_mvcc_db_total_size_in_bytes[5m])) < 0.5
+  description: etcd database size in use is less than 50% of the actual allocated storage.
+  severity: warning  
+
+- expr: rate(etcd_server_proposals_failed_total{job=~".*etcd.*"}[15m]) > 5
+  description: etcd cluster has high number of proposal failures.
+  severity: warning 
+
+- expr: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket{job=~".*etcd.*"}[5m])) > 0.15
+  description: etcd cluster member communication is slow.
+  severity: warning 
+
+- expr: histogram_quantile(0.99, sum(rate(grpc_server_handling_seconds_bucket{job=~".*etcd.*", grpc_method!="Defragment", grpc_type="unary"}[5m])) without(grpc_type)) > 0.15
+  description: etcd grpc requests are slow.
+  severity: critical
+      
+- expr: 100 * sum(rate(grpc_server_handled_total{job=~".*etcd.*", grpc_code=~"Unknown|FailedPrecondition|ResourceExhausted|Internal|Unavailable|DataLoss|DeadlineExceeded"}[5m])) without (grpc_type, grpc_code) / sum(rate(grpc_server_handled_total{job=~".*etcd.*"}[5m])) without (grpc_type, grpc_code) > 5
+  description: etcd cluster has high number of failed grpc requests.
+  severity: critical      
+      
+- expr: etcd_server_has_leader{job=~".*etcd.*"} == 0
+  description: etcd cluster has no leader.
+  severity: warning    
+    
+- expr: sum(up{job=~".*etcd.*"} == bool 1) without (instance) < ((count(up{job=~".*etcd.*"}) without (instance) + 1) / 2)
+  description: etcd cluster has insufficient number of members.
+  severity: warning      
+
+- expr: max without (endpoint) ( sum without (instance) (up{job=~".*etcd.*"} == bool 0) or count without (To) ( sum without (instance) (rate(etcd_network_peer_sent_failures_total{job=~".*etcd.*"}[120s])) > 0.01 )) > 0
+  description: etcd cluster members are down.
+  severity: warning  
+
 # API server
 - expr: avg_over_time(histogram_quantile(0.99, sum(irate(apiserver_request_duration_seconds_bucket{apiserver="kube-apiserver", verb=~"POST|PUT|DELETE|PATCH", subresource!~"log|exec|portforward|attach|proxy"}[2m])) by (le, resource, verb))[10m:]) > 1
   description: 10 minutes avg. 99th mutating API call latency for {{$labels.verb}}/{{$labels.resource}} higher than 1 second. {{$value}}s
