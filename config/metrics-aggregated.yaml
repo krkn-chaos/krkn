@@ -139,6 +139,39 @@ metrics:
   - query: histogram_quantile(0.99,sum(rate(etcd_request_duration_seconds_bucket[2m])) by (le,operation,apiserver)) > 0
     metricName: P99APIEtcdRequestLatency
 
+  - query: sum(grpc_server_started_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"}) - sum(grpc_server_handled_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"})
+    metricName: ActiveWatchStreams
+
+  - query: sum(grpc_server_started_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Lease",grpc_type="bidi_stream"}) - sum(grpc_server_handled_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Lease",grpc_type="bidi_stream"})
+    metricName: ActiveLeaseStreams
+
+  - query: sum(rate(etcd_debugging_snap_save_total_duration_seconds_sum{namespace="openshift-etcd"}[2m]))
+    metricName: snapshotSaveLatency
+
+  - query: sum(rate(etcd_server_heartbeat_send_failures_total{namespace="openshift-etcd"}[2m]))
+    metricName: HeartBeatFailures
+
+  - query: sum(rate(etcd_server_health_failures{namespace="openshift-etcd"}[2m]))
+    metricName: HealthFailures
+
+  - query: sum(rate(etcd_server_slow_apply_total{namespace="openshift-etcd"}[2m]))
+    metricName: SlowApplies
+
+  - query: sum(rate(etcd_server_slow_read_indexes_total{namespace="openshift-etcd"}[2m]))
+    metricName: SlowIndexRead
+
+  - query: sum(etcd_server_proposals_pending)
+    metricName: PendingProposals
+
+  - query: histogram_quantile(1.0, sum(rate(etcd_debugging_mvcc_db_compaction_pause_duration_milliseconds_bucket[1m])) by (le, instance))
+    metricName: CompactionMaxPause
+
+  - query: sum by (instance) (apiserver_storage_objects)
+    metricName: etcdTotalObjectCount 
+
+  - query: topk(500, max by(resource) (apiserver_storage_objects))
+    metricName: etcdTopObectCount    
+
 # Cluster metrics
   - query: count(kube_namespace_created)
     metricName: namespaceCount
