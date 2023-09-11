@@ -1,5 +1,6 @@
 # Krkn aka Kraken
 [![Docker Repository on Quay](https://quay.io/repository/redhat-chaos/krkn/status "Docker Repository on Quay")](https://quay.io/repository/redhat-chaos/krkn?tab=tags&tag=latest)
+![Workflow-Status](https://github.com/redhat-chaos/krkn/actions/workflows/docker-image.yml/badge.svg)
 
 ![Krkn logo](media/logo.png)
 
