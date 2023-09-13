@@ -11,6 +11,7 @@ kraken:
         - arcaflow_scenarios:
             - scenarios/arcaflow/cpu-hog/input.yaml
             - scenarios/arcaflow/memory-hog/input.yaml
+            - scenarios/arcaflow/io-hog/input.yaml
         - application_outages:
             - scenarios/openshift/app_outage.yaml
         - container_scenarios:                             # List of chaos pod scenarios to load
