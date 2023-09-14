@@ -1,0 +1,9 @@
+- id: kill-pods
+  config:
+    namespace_pattern: ^openshift-monitoring$
+    label_selector: statefulset.kubernetes.io/pod-name=prometheus-k8s-0
+- id: wait-for-pods
+  config:
+    namespace_pattern: ^openshift-monitoring$
+    label_selector: statefulset.kubernetes.io/pod-name=prometheus-k8s-0
+    count: 1

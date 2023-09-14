@@ -1,0 +1,10 @@
+deployer:
+  connection: {}
+  type: kubernetes
+log:
+  level: debug
+logged_outputs:
+  error:
+    level: error
+  success:
+    level: debug
