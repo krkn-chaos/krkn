@@ -65,7 +65,7 @@ def get_container_name(pod_name, namespace, kubecli:KrknKubernetes, container_na
 
 # krkn_lib
 def skew_time(scenario, kubecli:KrknKubernetes):
-    skew_command = "date --set "
+    skew_command = "date --date "
     if scenario["action"] == "skew_date":
         skewed_date = "00-01-01"
         skew_command += skewed_date
