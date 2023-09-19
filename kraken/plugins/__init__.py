@@ -223,7 +223,7 @@ PLUGINS = Plugins(
             [
                 "error"
             ]
-        )       
+        )
     ]
 )
 
@@ -235,7 +235,7 @@ def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_p
         scenario_telemetry.scenario = scenario
         scenario_telemetry.startTimeStamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, scenario)
-        logging.info('scenario '+ str(scenario))
+        logging.info('scenario ' + str(scenario))
         try:
             PLUGINS.run(scenario, kubeconfig_path, kraken_config)
         except Exception as e:
