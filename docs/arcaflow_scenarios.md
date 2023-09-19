@@ -7,6 +7,7 @@ The engine uses containers to execute plugins and runs them either locally in Do
 #### Hog scenarios:
 - [CPU Hog](arcaflow_scenarios/cpu_hog.md)
 - [Memory Hog](arcaflow_scenarios/memory_hog.md)
+- [I/O Hog](arcaflow_scenarios/io_hog.md)
 
 
 ### Prequisites
