@@ -9,6 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry import KrknTelemetry
 from krkn_lib.models.telemetry import ScenarioTelemetry
+from krkn_lib.utils.functions import get_yaml_item_value
 
 
 # krkn_lib
@@ -29,13 +30,26 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                 param_lst = ["latency", "loss", "bandwidth"]
                 test_config = yaml.safe_load(file)
                 test_dict = test_config["network_chaos"]
-                test_duration = int(test_dict.get("duration", 300))
-                test_interface = test_dict.get("interfaces", [])
-                test_node = test_dict.get("node_name", "")
-                test_node_label = test_dict.get("label_selector", "node-role.kubernetes.io/master")
-                test_execution = test_dict.get("execution", "serial")
-                test_instance_count = test_dict.get("instance_count", 1)
-                test_egress = test_dict.get("egress", {"bandwidth": "100mbit"})
+                test_duration = int(
+                    get_yaml_item_value(test_dict, "duration", 300)
+                )
+                test_interface = get_yaml_item_value(
+                    test_dict, "interfaces", []
+                )
+                test_node = get_yaml_item_value(test_dict, "node_name", "")
+                test_node_label = get_yaml_item_value(
+                    test_dict, "label_selector",
+                    "node-role.kubernetes.io/master"
+                )
+                test_execution = get_yaml_item_value(
+                    test_dict, "execution", "serial"
+                )
+                test_instance_count = get_yaml_item_value(
+                    test_dict, "instance_count", 1
+                )
+                test_egress = get_yaml_item_value(
+                    test_dict, "egress", {"bandwidth": "100mbit"}
+                )
                 if test_node:
                     node_name_list = test_node.split(",")
                 else:

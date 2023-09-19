@@ -9,6 +9,7 @@ from ..invoke import command as runcommand
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry import KrknTelemetry
 from krkn_lib.models.telemetry import ScenarioTelemetry
+from krkn_lib.utils.functions import get_yaml_item_value
 
 # krkn_lib
 def pod_exec(pod_name, command, namespace, container_name, kubecli:KrknKubernetes):
@@ -88,7 +89,7 @@ def skew_time(scenario, kubecli:KrknKubernetes):
         return "node", node_names
 
     elif "pod" in scenario["object_type"]:
-        container_name = scenario.get("container_name", "")
+        container_name = get_yaml_item_value(scenario, "container_name", "")
         pod_names = []
         if "object_name" in scenario.keys() and scenario["object_name"]:
             for name in scenario["object_name"]:

@@ -30,6 +30,7 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry import KrknTelemetry
 from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.utils import SafeLogger
+from krkn_lib.utils.functions import get_yaml_item_value
 
 KUBE_BURNER_URL = (
     "https://github.com/cloud-bulldozer/kube-burner/"
@@ -49,50 +50,78 @@ def main(cfg):
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration, kraken_config
-        distribution = config["kraken"].get("distribution", "openshift")
+        distribution = get_yaml_item_value(
+            config["kraken"], "distribution", "openshift"
+        )
         kubeconfig_path = os.path.expanduser(
-            config["kraken"].get("kubeconfig_path", "")
+            get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
         kraken_config = cfg
-        chaos_scenarios = config["kraken"].get("chaos_scenarios", [])
-        publish_running_status = config["kraken"].get("publish_kraken_status", False)
-        port = config["kraken"].get("port")
-        signal_address = config["kraken"].get("signal_address")
-        run_signal = config["kraken"].get("signal_state", "RUN")
-        litmus_install = config["kraken"].get("litmus_install", True)
-        litmus_version = config["kraken"].get("litmus_version", "v1.9.1")
-        litmus_uninstall = config["kraken"].get("litmus_uninstall", False)
-        litmus_uninstall_before_run = config["kraken"].get(
-            "litmus_uninstall_before_run", True
+        chaos_scenarios = get_yaml_item_value(
+            config["kraken"], "chaos_scenarios", []
         )
-        wait_duration = config["tunings"].get("wait_duration", 60)
-        iterations = config["tunings"].get("iterations", 1)
-        daemon_mode = config["tunings"].get("daemon_mode", False)
-        deploy_performance_dashboards = config["performance_monitoring"].get(
-            "deploy_dashboards", False
+        publish_running_status = get_yaml_item_value(
+            config["kraken"], "publish_kraken_status", False
         )
-        dashboard_repo = config["performance_monitoring"].get(
-            "repo", "https://github.com/cloud-bulldozer/performance-dashboards.git"
+        port = get_yaml_item_value(config["kraken"], "port", 8081)
+        signal_address = get_yaml_item_value(
+            config["kraken"], "signal_address", "0.0.0.0")
+        run_signal = get_yaml_item_value(
+            config["kraken"], "signal_state", "RUN"
         )
-        capture_metrics = config["performance_monitoring"].get("capture_metrics", False)
-        kube_burner_url = config["performance_monitoring"].get(
-            "kube_burner_binary_url",
+        litmus_install = get_yaml_item_value(
+            config["kraken"], "litmus_install", False
+        )
+        litmus_version = get_yaml_item_value(
+            config["kraken"], "litmus_version", "v1.9.1"
+        )
+        litmus_uninstall = get_yaml_item_value(
+            config["kraken"], "litmus_uninstall", True
+        )
+        litmus_uninstall_before_run = get_yaml_item_value(
+            config["kraken"], "litmus_uninstall_before_run", True
+        )
+        wait_duration = get_yaml_item_value(
+            config["tunings"], "wait_duration", 60
+        )
+        iterations = get_yaml_item_value(config["tunings"], "iterations", 1)
+        daemon_mode = get_yaml_item_value(
+            config["tunings"], "daemon_mode", False
+        )
+        deploy_performance_dashboards = get_yaml_item_value(
+            config["performance_monitoring"], "deploy_dashboards", False
+        )
+        dashboard_repo = get_yaml_item_value(
+            config["performance_monitoring"], "repo",
+            "https://github.com/cloud-bulldozer/performance-dashboards.git"
+        )
+        capture_metrics = get_yaml_item_value(
+            config["performance_monitoring"], "capture_metrics", False
+        )
+        kube_burner_url = get_yaml_item_value(
+            config["performance_monitoring"], "kube_burner_binary_url",
             KUBE_BURNER_URL.format(version=KUBE_BURNER_VERSION),
         )
-        config_path = config["performance_monitoring"].get(
-            "config_path", "config/kube_burner.yaml"
+        config_path = get_yaml_item_value(
+            config["performance_monitoring"], "config_path",
+            "config/kube_burner.yaml"
         )
-        metrics_profile = config["performance_monitoring"].get(
-            "metrics_profile_path", "config/metrics-aggregated.yaml"
+        metrics_profile = get_yaml_item_value(
+            config["performance_monitoring"], "metrics_profile_path",
+            "config/metrics-aggregated.yaml"
         )
-        prometheus_url = config["performance_monitoring"].get("prometheus_url", "")
+        prometheus_url = config["performance_monitoring"].get("prometheus_url")
         prometheus_bearer_token = config["performance_monitoring"].get(
-            "prometheus_bearer_token", ""
+            "prometheus_bearer_token"
         )
-        run_uuid = config["performance_monitoring"].get("uuid", "")
-        enable_alerts = config["performance_monitoring"].get("enable_alerts", False)
-        alert_profile = config["performance_monitoring"].get("alert_profile", "")
-        check_critical_alerts = config["performance_monitoring"].get("check_critical_alerts", False)
+        run_uuid = config["performance_monitoring"].get("uuid")
+        enable_alerts = get_yaml_item_value(
+            config["performance_monitoring"], "enable_alerts", False
+        )
+        alert_profile = config["performance_monitoring"].get("alert_profile")
+        check_critical_alerts = get_yaml_item_value(
+            config["performance_monitoring"], "check_critical_alerts", False
+        )
 
         # Initialize clients
         if (not os.path.isfile(kubeconfig_path) and
