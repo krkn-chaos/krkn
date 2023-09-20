@@ -97,10 +97,10 @@ def delete_all_services_namespace(kubecli: KrknKubernetes, namespace: str):
     :param namespace: namespace
     """
     try: 
-        services = kubecli.get_all_statefulset(namespace)
+        services = kubecli.get_all_services(namespace)
         for service in services:
             logging.info("Deleting services" + services)
-            kubecli.delete_statefulset(service,namespace)
+            kubecli.delete_services(service,namespace)
     except Exception as e:
         logging.error(
             "Exception when calling delete_all_services_namespace: %s\n",
@@ -254,6 +254,7 @@ def check_all_running_deployment(killed_namespaces, wait_time, kubecli: KrknKube
                     services = kubecli.get_all_services(namespace_name)
                     if len(obj_list) == len(services): 
                         still_missing_obj.pop(obj_name)
+                logging.info("Still missing objects " + str(still_missing_obj))
             killed_namespaces[namespace_name] = still_missing_obj
             if len(killed_namespaces[namespace_name].keys()) == 0: 
                 logging.info("Wait for pods to become running for namespace" + namespace_name)
