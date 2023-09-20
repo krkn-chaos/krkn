@@ -218,14 +218,13 @@ def check_all_running_pods(kubecli: KrknKubernetes, namespace_name, wait_time):
         pods_running = 0
         for pod in pod_list: 
             pod_info = kubecli.get_pod_info(pod,namespace_name)
-            logging.info("pod info " + str(pod_info))
             if pod_info.status != "Running":
                 logging.info("Pod %s still not running" % pod_info.name)
                 break
             pods_running +=1 
         timer += 5
         time.sleep(5)
-        logging.info("Waiting 5 seconds for namespaces to become active")
+        logging.info("Waiting 5 seconds for pods to become active")
         if len(pod_list) == pods_running: 
             break
 
@@ -254,7 +253,7 @@ def check_all_running_deployment(killed_namespaces, wait_time, kubecli: KrknKube
                     services = kubecli.get_all_services(namespace_name)
                     if len(obj_list) == len(services): 
                         still_missing_obj.pop(obj_name)
-                logging.info("Still missing objects " + str(still_missing_obj))
+            logging.info("Still missing objects " + str(still_missing_obj))
             killed_namespaces[namespace_name] = still_missing_obj
             if len(killed_namespaces[namespace_name].keys()) == 0: 
                 logging.info("Wait for pods to become running for namespace" + namespace_name)
@@ -264,9 +263,9 @@ def check_all_running_deployment(killed_namespaces, wait_time, kubecli: KrknKube
         if len(killed_namespaces.keys()) == 0:
             return []
 
-        timer += 5
-        time.sleep(5)
-        logging.info("Waiting 5 seconds for objects in namespaces to become active")
+        timer += 10
+        time.sleep(10)
+        logging.info("Waiting 10 seconds for objects in namespaces to become active")
 
     logging.error("Objects are still not ready after waiting " + str(wait_time) + "seconds")
     logging.error("Non active namespaces " + str(killed_namespaces))
