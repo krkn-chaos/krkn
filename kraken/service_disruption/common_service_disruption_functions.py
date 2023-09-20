@@ -12,17 +12,29 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 def delete_objects(kubecli, namespace): 
     
     services = delete_all_services_namespace(kubecli, namespace)
+    daemonsets = delete_all_daemonset_namespace(kubecli, namespace)
     statefulsets = delete_all_statefulsets_namespace(kubecli, namespace)
     replicasets = delete_all_replicaset_namespace(kubecli, namespace)
     deployments = delete_all_deployment_namespace(kubecli, namespace)
 
-    objects = { "deployments": deployments,
+    objects = { "daemonsets": daemonsets,
+                "deployments": deployments,
                 "replicasets": replicasets,
                 "statefulsets": statefulsets, 
                 "services": services
                 }
 
     return objects
+
+def get_list_running_pods(kubecli: KrknKubernetes, namespace: str):
+    running_pods = []
+    pods = kubecli.list_pods(namespace)
+    for pod in pods:
+        pod_status = kubecli.get_pod_info(pod, namespace)
+        if pod_status and pod_status.status == "Running":
+            running_pods.append(pod)
+    logging.info('all running pods ' + str(running_pods))
+    return running_pods
 
 def delete_all_deployment_namespace(kubecli: KrknKubernetes, namespace: str):
     """
@@ -44,6 +56,27 @@ def delete_all_deployment_namespace(kubecli: KrknKubernetes, namespace: str):
         raise e
     
     return deployments
+
+def delete_all_daemonset_namespace(kubecli: KrknKubernetes, namespace: str):
+    """
+    Delete all the daemonset in the specified namespace
+
+    :param kubecli: krkn kubernetes python package
+    :param namespace: namespace
+    """
+    try: 
+        daemonsets = kubecli.get_daemonset(namespace)
+        for daemonset in daemonsets:
+            logging.info("Deleting daemonset" + daemonset)
+            kubecli.delete_daemonset(daemonset,namespace)
+    except Exception as e:
+        logging.error(
+            "Exception when calling delete_all_daemonset_namespace: %s\n",
+            str(e),
+        )
+        raise e
+    
+    return daemonsets
 
 def delete_all_statefulsets_namespace(kubecli: KrknKubernetes, namespace: str):
     """
@@ -154,9 +187,10 @@ def run(
                     run_count = scenario.get("runs", 1)
                     run_sleep = scenario.get("sleep", 10)
                     wait_time = scenario.get("wait_time", 30)
-                    killed_namespaces = {}
+                    
                     start_time = int(time.time())
                     for i in range(run_count):
+                        killed_namespaces = {}
                         namespaces = kubecli.check_namespaces([scenario_namespace], scenario_label)
                         for j in range(delete_count):
                             if len(namespaces) == 0:
@@ -218,15 +252,15 @@ def check_all_running_pods(kubecli: KrknKubernetes, namespace_name, wait_time):
         pods_running = 0
         for pod in pod_list: 
             pod_info = kubecli.get_pod_info(pod,namespace_name)
-            if pod_info.status != "Running":
-                logging.info("Pod %s still not running" % pod_info.name)
+            if pod_info.status != "Running" and pod_info.status != "Succeeded":
+                logging.info("Pods %s still not running or completed" % pod_info.name)
                 break
             pods_running +=1 
+        if len(pod_list) == pods_running: 
+            break
         timer += 5
         time.sleep(5)
         logging.info("Waiting 5 seconds for pods to become active")
-        if len(pod_list) == pods_running: 
-            break
 
 # krkn_lib
 def check_all_running_deployment(killed_namespaces, wait_time, kubecli: KrknKubernetes):
@@ -253,10 +287,14 @@ def check_all_running_deployment(killed_namespaces, wait_time, kubecli: KrknKube
                     services = kubecli.get_all_services(namespace_name)
                     if len(obj_list) == len(services): 
                         still_missing_obj.pop(obj_name)
+                elif "daemonsets" == obj_name: 
+                    daemonsets = kubecli.get_daemonset(namespace_name)
+                    if len(obj_list) == len(daemonsets): 
+                        still_missing_obj.pop(obj_name)
             logging.info("Still missing objects " + str(still_missing_obj))
-            killed_namespaces[namespace_name] = still_missing_obj
+            killed_namespaces[namespace_name] = still_missing_obj.copy()
             if len(killed_namespaces[namespace_name].keys()) == 0: 
-                logging.info("Wait for pods to become running for namespace" + namespace_name)
+                logging.info("Wait for pods to become running for namespace: " + namespace_name)
                 check_all_running_pods(kubecli, namespace_name, wait_time)
                 still_missing_ns.pop(namespace_name)
         killed_namespaces = still_missing_ns
