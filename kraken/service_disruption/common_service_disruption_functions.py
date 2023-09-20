@@ -99,7 +99,7 @@ def delete_all_services_namespace(kubecli: KrknKubernetes, namespace: str):
     try: 
         services = kubecli.get_all_services(namespace)
         for service in services:
-            logging.info("Deleting services" + services)
+            logging.info("Deleting services" + service)
             kubecli.delete_services(service,namespace)
     except Exception as e:
         logging.error(
