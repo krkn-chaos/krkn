@@ -37,4 +37,4 @@ prometheus_api_client
 ibm_cloud_sdk_core
 ibm_vpc
 pytest
-krkn-lib >= 1.0.0
+krkn-lib@git+https://github.com/redhat-chaos/krkn-lib.git@telemetry_json_output

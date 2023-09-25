@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-
+import json
 import os
 import sys
 import yaml
@@ -92,7 +92,7 @@ def main(cfg):
         run_uuid = config["performance_monitoring"].get("uuid", "")
         enable_alerts = config["performance_monitoring"].get("enable_alerts", False)
         alert_profile = config["performance_monitoring"].get("alert_profile", "")
-        check_critical_alerts = config["performance_monitoring"].get("check_critical_alerts", False)                          
+        check_critical_alerts = config["performance_monitoring"].get("check_critical_alerts", False)
 
         # Initialize clients
         if (not os.path.isfile(kubeconfig_path) and
@@ -383,15 +383,23 @@ def main(cfg):
             logging.info("")
 
         # telemetry
+        # in order to print decoded telemetry data even if telemetry collection
+        # is disabled, it's necessary to serialize the ChaosRunTelemetry object
+        # to json, and recreate a new object from it.
+
+        telemetry.collect_cluster_metadata(chaos_telemetry)
+        decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(chaos_telemetry.to_json()))
+        logging.info(f"Telemetry data:\n{decoded_chaos_run_telemetry.to_json()}")
         if config["telemetry"]["enabled"]:
             logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_request_id}")
             logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
             try:
                 telemetry.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
-                safe_logger.info("archives download started:")
-                prometheus_archive_files = telemetry.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
-                safe_logger.info("archives upload started:")
-                telemetry.put_ocp_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
+                if config["telemetry"]["prometheus_backup"]:
+                    safe_logger.info("archives download started:")
+                    prometheus_archive_files = telemetry.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
+                    safe_logger.info("archives upload started:")
+                    telemetry.put_ocp_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
             except Exception as e:
                 logging.error(f"failed to send telemetry data: {str(e)}")
         else:
@@ -431,7 +439,7 @@ def main(cfg):
             else:
                 logging.error("Alert profile is not defined")
                 sys.exit(1)
-  
+
         if litmus_uninstall and litmus_installed:
             common_litmus.delete_chaos(litmus_namespace, kubecli)
             common_litmus.delete_chaos_experiments(litmus_namespace, kubecli)
