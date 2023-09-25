@@ -89,3 +89,10 @@ telemetry:
                                                             # For unstable/slow connection is better to keep this value low
                                                             # increasing the number of backup_threads, in this way, on upload failure, the retry will happen only on the
                                                             # failed chunk without affecting the whole upload.
+    logs_backup: True
+    logs_filter_patterns:
+     - "(\w{3}\s\d{1,2}\s\d{2}:\d{2}:\d{2}\.\d+).+"         # Sep 9 11:20:36.123425532
+     - "kinit (\d+/\d+/\d+\s\d{2}:\d{2}:\d{2})\s+"          # kinit 2023/09/15 11:20:36 log
+     - "(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z).+"      # 2023-09-15T11:20:36.123425532Z log
+    oc_cli_path: /usr/bin/oc                                # optional, if not specified will be search in $PATH
+
