@@ -10,3 +10,4 @@ Following are a list of enhancements that we are planning to work on adding supp
 - [ ] Support for running all the scenarios of Kraken on Kubernetes distribution - see https://github.com/redhat-chaos/krkn/issues/185, https://github.com/redhat-chaos/krkn/issues/186
 - [ ] Continue to improve [Chaos Testing Guide](https://redhat-chaos.github.io/krkn) in terms of adding best practices, test environment recommendations and scenarios to make sure the OpenShift platform, as well the applications running on top it, are resilient and performant under chaotic conditions.
 - [ ] [Switch documentation references to Kubernetes](https://github.com/redhat-chaos/krkn/issues/495)
+- [ ] [OCP and Kubernetes functionalities segregation](https://github.com/redhat-chaos/krkn/issues/497)
