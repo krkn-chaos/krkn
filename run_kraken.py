@@ -386,7 +386,7 @@ def main(cfg):
         # in order to print decoded telemetry data even if telemetry collection
         # is disabled, it's necessary to serialize the ChaosRunTelemetry object
         # to json, and recreate a new object from it.
-
+        end_time = int(time.time())
         telemetry.collect_cluster_metadata(chaos_telemetry)
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(chaos_telemetry.to_json()))
         logging.info(f"Telemetry data:\n{decoded_chaos_run_telemetry.to_json()}")
@@ -400,13 +400,15 @@ def main(cfg):
                     prometheus_archive_files = telemetry.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
                     safe_logger.info("archives upload started:")
                     telemetry.put_ocp_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
+                if config["telemetry"]["logs_backup"]:
+                    telemetry.put_ocp_logs(telemetry_request_id, config["telemetry"], start_time, end_time)
             except Exception as e:
                 logging.error(f"failed to send telemetry data: {str(e)}")
         else:
             logging.info("telemetry collection disabled, skipping.")
 
         # Capture the end time
-        end_time = int(time.time())
+
 
         # Capture metrics for the run
         if capture_metrics:
