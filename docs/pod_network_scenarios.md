@@ -27,6 +27,15 @@ Scenario to introduce network latency, packet loss, and bandwidth restriction in
     network_params:
         latency: 500ms             # Add 500ms latency to egress traffic from the pod.
 ```
+##### Sample scenario config for ingress traffic shaping (using plugin)
+```
+- id: pod_ingress_shaping
+  config:
+    namespace: openshift-console   # Required - Namespace of the pod to which filter need to be applied.
+    label_selector: 'component=ui' # Applies traffic shaping to access openshift console.
+    network_params:
+        latency: 500ms             # Add 500ms latency to egress traffic from the pod.
+```
 
 ##### Steps
  - Pick the pods to introduce the network anomaly either from label_selector or pod_name.
