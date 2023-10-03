@@ -14,6 +14,7 @@ from kraken.plugins.network.ingress_shaping import network_chaos
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_outage
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_egress_shaping
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
+from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_ingress_shaping
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import log_exception
 
@@ -223,7 +224,13 @@ PLUGINS = Plugins(
             [
                 "error"
             ]
-        )
+        ),
+         PluginStep(
+            pod_ingress_shaping,
+            [
+                "error"
+            ]
+        )                  
     ]
 )
 

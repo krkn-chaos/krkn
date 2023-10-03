@@ -12,9 +12,9 @@ network_chaos:                                    # Scenario to create an outage
   - "ens5"                                        # Interface name would be the Kernel host network interface name.
   execution: serial|parallel                      # Execute each of the egress options as a single scenario(parallel) or as separate scenario(serial).
   egress:
-    latency: 50ms
-    loss: 0.02                                    # percentage
-    bandwidth: 100mbit
+    latency: 500ms
+    loss: 50%                                    # percentage
+    bandwidth: 10mbit
 ```
 
 ##### Sample scenario config for ingress traffic shaping (using a plugin)
@@ -30,9 +30,9 @@ network_chaos:                                    # Scenario to create an outage
     kubeconfig_path: ~/.kube/config                 # Path to kubernetes config file. If not specified, it defaults to ~/.kube/config
     execution_type: parallel                        # Execute each of the ingress options as a single scenario(parallel) or as separate scenario(serial).
     network_params:
-        latency: 50ms
-        loss: '0.02'
-        bandwidth: 100mbit
+        latency: 500ms
+        loss: '50%'
+        bandwidth: 10mbit
     wait_duration: 120
     test_duration: 60
   '''
