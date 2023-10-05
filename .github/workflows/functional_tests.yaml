@@ -34,7 +34,7 @@ jobs:
       - name: Check out Kraken
         uses: actions/checkout@v3
       - name: Checkout Pull Request
-        run: hub pr checkout ${{ github.event.issue.number }}
+        run: gh pr checkout ${{ github.event.issue.number }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install OC CLI
