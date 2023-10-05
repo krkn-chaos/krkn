@@ -5,13 +5,13 @@ import time
 import yaml
 from ..cerberus import setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value
 
 
 # krkn_lib
-def run(scenarios_list, config, kubecli: KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     """
     Reads the scenario config and creates a temp file to fill up the PVC
     """

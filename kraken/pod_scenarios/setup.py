@@ -7,7 +7,7 @@ import arcaflow_plugin_kill_pod
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from arcaflow_plugin_sdk import serialization
 from krkn_lib.utils.functions import get_yaml_item_value
@@ -75,7 +75,7 @@ def container_run(kubeconfig_path,
                   failed_post_scenarios,
                   wait_duration,
                   kubecli: KrknKubernetes,
-                  telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+                  telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
 
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []

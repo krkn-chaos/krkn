@@ -6,11 +6,11 @@ import logging
 from pathlib import Path
 from typing import List
 from .context_auth import ContextAuth
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 
 
-def run(scenarios_list: List[str], kubeconfig_path: str, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list: List[str], kubeconfig_path: str, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_post_scenarios = []
     for scenario in scenarios_list:

@@ -13,7 +13,7 @@ from kraken.plugins.run_python_plugin import run_python_file
 from kraken.plugins.network.ingress_shaping import network_chaos
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_outage
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_egress_shaping
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 
 
@@ -228,7 +228,7 @@ PLUGINS = Plugins(
 )
 
 
-def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_post_scenarios: List[str], wait_duration: int, telemetry: KrknTelemetry) -> (List[str], list[ScenarioTelemetry]):
+def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_post_scenarios: List[str], wait_duration: int, telemetry: KrknTelemetryKubernetes) -> (List[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     for scenario in scenarios:
         scenario_telemetry = ScenarioTelemetry()

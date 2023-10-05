@@ -7,7 +7,7 @@ import random
 from ..cerberus import setup as cerberus
 from ..invoke import command as runcommand
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value
 
@@ -309,7 +309,7 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
 
 
 # krkn_lib
-def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []
     for time_scenario_config in scenarios_list:

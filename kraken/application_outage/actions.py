@@ -4,13 +4,13 @@ import time
 import kraken.cerberus.setup as cerberus
 from jinja2 import Template
 import kraken.invoke.command as runcommand
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value
 
 # Reads the scenario config, applies and deletes a network policy to
 # block the traffic for the specified duration
-def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = ""
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_scenarios = []
