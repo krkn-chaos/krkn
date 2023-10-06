@@ -1,6 +1,6 @@
-###  Delete Namespace Scenarios
+###  Service Disruption Scenarios (Previously Delete Namespace Scenario)
 
-Using this type of scenario configuration one is able to delete a specific namespace, or a namespace matching a certain regex string.
+Using this type of scenario configuration one is able to delete crucial objects in a specific namespace, or a namespace matching a certain regex string.
 
 Configuration Options:
 
@@ -27,12 +27,20 @@ scenarios:
   sleep: 15
 ```
 
-**NOTE:** Many openshift namespaces have finalizers built that protect the namespace from being fully deleted: see documentation [here](https://kubernetes.io/blog/2021/05/14/using-finalizers-to-control-deletion/).
-The namespaces that do have finalizers enabled will be in left in a terminating state but all the pods running on that namespace will get deleted.
+
+### Steps
+
+This scenario will select a namespace (or multiple) dependent on the configuration and will kill all of the below object types in that namespace and will wait for them to be Running in the post action 
+1. Services 
+2. Daemonsets
+3. Statefulsets
+4. Replicasets
+5. Deployments 
+
 
 #### Post Action
 
-In all scenarios we do a post chaos check to wait and verify the specific component.
+We do a post chaos check to wait and verify the specific objects in each namespace are Ready
 
 Here there are two options:
 
@@ -47,8 +55,8 @@ See [scenarios/post_action_namespace.py](https://github.com/cloud-bulldozer/krak
 ```
 
 
-2. Allow kraken to wait and check the killed namespaces become 'Active' again. Kraken keeps a list of the specific
-namespaces that were killed to verify all that were affected recover properly.
+1. Allow kraken to wait and check all killed objects in the namespaces become 'Running' again. Kraken keeps a list of the specific
+objects in namespaces that were killed to verify all that were affected recover properly.
 
 ```
 wait_time: <seconds to wait for namespace to recover>

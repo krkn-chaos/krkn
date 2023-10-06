@@ -12,7 +12,7 @@ import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
 import kraken.pod_scenarios.setup as pod_scenarios
-import kraken.namespace_actions.common_namespace_functions as namespace_actions
+import kraken.service_disruption.common_service_disruption_functions as service_disruption
 import kraken.shut_down.common_shut_down_func as shut_down
 import kraken.node_actions.run as nodeaction
 import kraken.managedcluster_scenarios.run as managedcluster_scenarios
@@ -327,9 +327,9 @@ def main(cfg):
 
                         # Inject namespace chaos scenarios
                         # krkn_lib
-                        elif scenario_type == "namespace_scenarios":
-                            logging.info("Running namespace scenarios")
-                            failed_post_scenarios, scenario_telemetries = namespace_actions.run(
+                        elif scenario_type == "service_disruption_scenarios":
+                            logging.info("Running service disruption scenarios")
+                            failed_post_scenarios, scenario_telemetries = service_disruption.run(
                                 scenarios_list,
                                 config,
                                 wait_duration,

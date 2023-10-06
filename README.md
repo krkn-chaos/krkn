@@ -66,7 +66,7 @@ Scenario type               | Kubernetes    | OpenShift
 [Time Scenarios](docs/time_scenarios.md) | :x: | :heavy_check_mark: |
 [Hog Scenarios: CPU, Memory](docs/arcaflow_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Namespace Scenarios](docs/namespace_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
+[Service Disruption Scenarios](docs/service_disruption_scenarios.md.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Zone Outage Scenarios](docs/zone_outage.md) | :heavy_check_mark: | :heavy_check_mark: |
 [Application_outages](docs/application_outages.md) | :heavy_check_mark: | :heavy_check_mark: |
 [PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: | :heavy_check_mark: |
