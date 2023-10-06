@@ -129,5 +129,5 @@ Please read [this file]((CI/README.md#adding-a-test-case)) for more information 
 
 ### Community
 Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, ravielluri/Naga Ravi Chaitanya Elluri.
-* [**#sig-scalability on Kubernetes Slack**](https://kubernetes.slack.com)
+* [**#krkn on Kubernetes Slack**](https://kubernetes.slack.com)
 * [**#forum-chaos on CoreOS Slack internal to Red Hat**](https://coreos.slack.com)
