@@ -40,7 +40,7 @@ This scenario will select a namespace (or multiple) dependent on the configurati
 
 #### Post Action
 
-We do a post chaos check to wait and verify the specific objects in each namespace are Ru
+We do a post chaos check to wait and verify the specific objects in each namespace are Ready
 
 Here there are two options:
 
