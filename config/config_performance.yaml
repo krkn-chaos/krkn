@@ -27,7 +27,7 @@ kraken:
         -   cluster_shut_down_scenarios:
             - - scenarios/openshift/cluster_shut_down_scenario.yml
               - scenarios/openshift/post_action_shut_down.py
-        -   namespace_scenarios:
+        -   service_disruption_scenarios:
             - scenarios/openshift/regex_namespace.yaml
             - scenarios/openshift/ingress_namespace.yaml
         -   zone_outages:

@@ -327,8 +327,8 @@ def main(cfg):
 
                         # Inject namespace chaos scenarios
                         # krkn_lib
-                        elif scenario_type == "namespace_scenarios" or scenario_type == "service_disruption_scenarios":
-                            logging.info("Running namespace scenarios")
+                        elif scenario_type == "service_disruption_scenarios":
+                            logging.info("Running service disruption scenarios")
                             failed_post_scenarios, scenario_telemetries = service_disruption.run(
                                 scenarios_list,
                                 config,
