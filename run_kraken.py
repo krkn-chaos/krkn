@@ -447,7 +447,7 @@ def main(cfg):
                     safe_logger.info("archives upload started:")
                     telemetry_k8s.put_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
                 if config["telemetry"]["logs_backup"]:
-                    telemetry.put_ocp_logs(telemetry_request_id, config["telemetry"], start_time, end_time)
+                    telemetry_ocp.put_ocp_logs(telemetry_request_id, config["telemetry"], start_time, end_time)
             except Exception as e:
                 logging.error(f"failed to send telemetry data: {str(e)}")
         else:
