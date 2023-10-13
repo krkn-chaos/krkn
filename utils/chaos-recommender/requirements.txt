@@ -1,1 +1,2 @@
-pandas
+pandas<2.0.0
+prometheus-api-client
