@@ -5,7 +5,7 @@ Following are a list of enhancements that we are planning to work on adding supp
 - [ ] [Ability to run multiple chaos scenarios in parallel under load to mimic real world outages](https://github.com/redhat-chaos/krkn/issues/424)
 - [x] [Centralized storage for chaos experiments artifacts](https://github.com/redhat-chaos/krkn/issues/423)
 - [ ] [Support for causing DNS outages](https://github.com/redhat-chaos/krkn/issues/394)
-- [ ] Recommend chaos scenarios based on the service under test profiling results
+- [x] [Chaos recommender](https://github.com/redhat-chaos/krkn/tree/main/utils/chaos-recommender) to suggest scenarios having probability of impacting the service under test using profiling results 
 - [ ] Chaos AI integration to improve and automate test coverage
 - [x] [Support for pod level network traffic shaping](https://github.com/redhat-chaos/krkn/issues/393)
 - [ ] [Ability to visualize the metrics that are being captured by Kraken and stored in Elasticsearch](https://github.com/redhat-chaos/krkn/issues/124)
