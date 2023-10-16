@@ -6,4 +6,4 @@ COPY . .
 
 RUN pip install -r requirements.txt
 
-CMD [ "python", "commandline.py" ]
+CMD [ "python", "chaos-recommender.py", "-p"]
