@@ -42,6 +42,15 @@ You can also provide the input values through command-line arguments. The follow
 
 If you provide the input values through command-line arguments, the corresponding config file inputs would be ignored.
 
+## Docker 
+
+To run chaos recommendation to via Docker. please follow the steps below. 
+
+- Build a docker image  `make build`
+- Run the tool `make run`  or alternatively `docker run -it --rm <IMAGE_NAME:TAG> python3 chaos-recommender.py -p`
+
+PS: Please note that either one should provide populated config.ini during the image build, or use -p flag to ask for a prompt when running in docker. 
+
 ## How it works
 
 After obtaining telemetry data, sourced either locally or from Prometheus, the tool conducts a comprehensive data analysis to detect anomalies. Employing the Z-score method and heatmaps, it identifies outliers by evaluating CPU, memory, and network usage against established limits. Services with Z-scores surpassing a specified threshold are categorized as outliers. This categorization classifies services as network, CPU, or memory-sensitive, consequently leading to the recommendation of relevant test cases.
