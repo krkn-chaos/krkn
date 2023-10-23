@@ -1,0 +1,29 @@
+application: openshift-etcd
+namespace: openshift-etcd
+labels: app=openshift-etcd
+kubeconfig: ~/.kube/config.yaml
+prometheus_endpoint: <Prometheus_Endpoint>
+auth_token: <Auth_Token>
+scrape_duration: 10m
+chaos_library: "kraken"
+log_level: INFO
+
+# for output purpose only do not change if not needed
+chaos_tests:
+  GENERIC:
+    - pod_failure
+    - container_failure
+    - node_failure
+    - zone_outage
+    - time_skew
+    - namespace_failure
+    - power_outage
+  CPU:
+    - node_cpu_hog
+  NETWORK:
+    - application_outage
+    - node_network_chaos
+    - pod_network_chaos
+  MEM:
+    - node_memory_hog
+    - pvc_disk_fill

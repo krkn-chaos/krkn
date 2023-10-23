@@ -1,7 +1,6 @@
-import random
+import logging
 from prometheus_api_client import PrometheusConnect
 import pandas as pd
-from functools import reduce
 import urllib3
 
 
@@ -31,21 +30,13 @@ def convert_data(data, service):
         pod_name = entry['metric']['pod']
         value = entry['value'][1]
         result[pod_name] = value
-    #print(result)
     return result.get(service, '100000000000') # for those pods whose limits are not defined they can take as much resources, there assigning a very high value
 
 def save_utilization_to_file(cpu_data, cpu_limits_result, mem_data, mem_limits_result, network_data, filename):
-
-    #print(cpu_data)
     df_cpu = convert_data_to_dataframe(cpu_data, "CPU")
-
-
     merged_df = pd.DataFrame(columns=['service','CPU','CPU_LIMITS','MEM','MEM_LIMITS','NETWORK'])
-
-
     services = df_cpu.service.unique()
-
-    print(services)
+    logging.info(services)
 
     for s in services:
 
@@ -78,30 +69,30 @@ def fetch_utilization_from_prometheus(prometheus_endpoint, auth_token, namespace
 
     # Fetch CPU utilization
     cpu_query = 'sum (rate (container_cpu_usage_seconds_total{image!="", namespace="%s"}[%s])) by (pod) *1000' % (namespace,duration)
-    print(cpu_query)
+    logging.info(cpu_query)
     cpu_result = prometheus.custom_query(cpu_query)
     cpu_data = cpu_result
 
 
     cpu_limits_query = '(sum by (pod) (kube_pod_container_resource_limits{resource="cpu", namespace="%s"}))*1000' %(namespace)
-    print(cpu_limits_query)
+    logging.info(cpu_limits_query)
     cpu_limits_result = prometheus.custom_query(cpu_limits_query)
 
 
     mem_query = 'sum by (pod) (avg_over_time(container_memory_usage_bytes{image!="", namespace="%s"}[%s]))' % (namespace, duration)
-    print(mem_query)
+    logging.info(mem_query)
     mem_result = prometheus.custom_query(mem_query)
     mem_data = mem_result
 
     mem_limits_query = 'sum by (pod) (kube_pod_container_resource_limits{resource="memory", namespace="%s"})  ' %(namespace)
-    print(mem_limits_query)
+    logging.info(mem_limits_query)
     mem_limits_result = prometheus.custom_query(mem_limits_query)
 
 
     network_query = 'sum by (pod) ((avg_over_time(container_network_transmit_bytes_total{namespace="%s"}[%s])) + \
     (avg_over_time(container_network_receive_bytes_total{namespace="%s"}[%s])))' % (namespace, duration, namespace, duration)
     network_result = prometheus.custom_query(network_query)
-    print(network_query)
+    logging.info(network_query)
     network_data = network_result
 
 
@@ -109,10 +100,3 @@ def fetch_utilization_from_prometheus(prometheus_endpoint, auth_token, namespace
     return saved_metrics_path
 
 
-# Example usage
-#prometheus_endpoint = "http://localhost:9090"
-#namespace ="robot-shop"
-#n = 1  # Number of minutes
-
-#fetch_utilization_from_prometheus(prometheus_endpoint, namespace, n)
-#save_utilization_to_file(cpu_data, mem_data, network_data, 'utilization.txt')
