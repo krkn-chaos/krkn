@@ -1,5 +1,5 @@
 import pandas as pd
-import kraken_tests
+import kraken.chaos_recommender.kraken_tests as kraken_tests
 import time
 
 threshold = .7  # Adjust the threshold as needed

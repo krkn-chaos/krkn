@@ -1,7 +1,12 @@
 import argparse
 import configparser
-import analysis
-import prometheus
+import sys
+
+# kraken module import
+sys.path.insert(0, '../../')
+import kraken.chaos_recommender.analysis as analysis
+import kraken.chaos_recommender.prometheus as prometheus
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Command-line tool")
