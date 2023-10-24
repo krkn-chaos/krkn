@@ -12,6 +12,7 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from arcaflow_plugin_sdk import serialization
 from krkn_lib.utils.functions import get_yaml_item_value
 
+
 # Run pod based scenarios
 def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration):
     # Loop to run the scenarios starts here
@@ -65,6 +66,7 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
         # publish cerberus status
         cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
     return failed_post_scenarios
+
 
 # krkn_lib
 def container_run(kubeconfig_path,
@@ -134,8 +136,16 @@ def container_killing_in_pod(cont_scenario, kubecli: KrknKubernetes):
     label_selector = get_yaml_item_value(cont_scenario, "label_selector", None)
     pod_names = get_yaml_item_value(cont_scenario, "pod_names", [])
     container_name = get_yaml_item_value(cont_scenario, "container_name", "")
-    kill_action = get_yaml_item_value(cont_scenario, "action", "kill 1")
+    kill_action = get_yaml_item_value(cont_scenario, "action", 1)
     kill_count = get_yaml_item_value(cont_scenario, "count", 1)
+    if not isinstance(kill_action, int):
+        logging.error("Please make sure the action parameter defined in the "
+                      "config is an integer")
+        raise RuntimeError()
+    if (kill_action < 1) or (kill_action > 15):
+        logging.error("Only 1-15 kill signals are supported.")
+        raise RuntimeError()
+    kill_action = "kill " + str(kill_action)
     if type(pod_names) != list:
         logging.error("Please make sure your pod_names are in a list format")
         # removed_exit
