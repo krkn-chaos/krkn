@@ -5,6 +5,7 @@ from kraken.managedcluster_scenarios.managedcluster_scenarios import managedclus
 import kraken.managedcluster_scenarios.common_managedcluster_functions as common_managedcluster_functions
 import kraken.cerberus.setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.utils.functions import get_yaml_item_value
 
 # Get the managedcluster scenarios object of specfied cloud type
 # krkn_lib
@@ -34,11 +35,19 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes):
 # krkn_lib
 def inject_managedcluster_scenario(action, managedcluster_scenario, managedcluster_scenario_object, kubecli: KrknKubernetes):
     # Get the managedcluster scenario configurations
-    run_kill_count = managedcluster_scenario.get("runs", 1)
-    instance_kill_count = managedcluster_scenario.get("instance_count", 1)
-    managedcluster_name = managedcluster_scenario.get("managedcluster_name", "")
-    label_selector = managedcluster_scenario.get("label_selector", "")
-    timeout = managedcluster_scenario.get("timeout", 120)
+    run_kill_count = get_yaml_item_value(
+        managedcluster_scenario, "runs", 1
+    )
+    instance_kill_count = get_yaml_item_value(
+        managedcluster_scenario, "instance_count", 1
+    )
+    managedcluster_name = get_yaml_item_value(
+        managedcluster_scenario, "managedcluster_name", ""
+    )
+    label_selector = get_yaml_item_value(
+        managedcluster_scenario, "label_selector", ""
+    )
+    timeout = get_yaml_item_value(managedcluster_scenario, "timeout", 120)
     # Get the managedcluster to apply the scenario
     if managedcluster_name:
         managedcluster_name_list = managedcluster_name.split(",")

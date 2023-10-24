@@ -14,6 +14,7 @@ import kraken.node_actions.common_node_functions as common_node_functions
 import kraken.cerberus.setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry import KrknTelemetry, ScenarioTelemetry
+from krkn_lib.utils.functions import get_yaml_item_value
 
 node_general = False
 
@@ -92,13 +93,17 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
 def inject_node_scenario(action, node_scenario, node_scenario_object, kubecli: KrknKubernetes):
     generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario")
     # Get the node scenario configurations
-    run_kill_count = node_scenario.get("runs", 1)
-    instance_kill_count = node_scenario.get("instance_count", 1)
-    node_name = node_scenario.get("node_name", "")
-    label_selector = node_scenario.get("label_selector", "")
-    timeout = node_scenario.get("timeout", 120)
-    service = node_scenario.get("service", "")
-    ssh_private_key = node_scenario.get("ssh_private_key", "~/.ssh/id_rsa")
+    run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
+    instance_kill_count = get_yaml_item_value(
+        node_scenario, "instance_count", 1
+    )
+    node_name = get_yaml_item_value(node_scenario, "node_name", "")
+    label_selector = get_yaml_item_value(node_scenario, "label_selector", "")
+    timeout = get_yaml_item_value(node_scenario, "timeout", 120)
+    service = get_yaml_item_value(node_scenario, "service", "")
+    ssh_private_key = get_yaml_item_value(
+        node_scenario, "ssh_private_key", "~/.ssh/id_rsa"
+    )
     # Get the node to apply the scenario
     if node_name:
         node_name_list = node_name.split(",")
