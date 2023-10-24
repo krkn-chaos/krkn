@@ -26,7 +26,7 @@ def parse_arguments(parser):
     parser.add_argument("-p", "--prometheus-endpoint", action="store", default="", help="Prometheus endpoint URI")
     parser.add_argument("-k", "--kubeconfig", action="store", default=kube_config.KUBE_CONFIG_DEFAULT_LOCATION, help="Kubeconfig path")
     parser.add_argument("-t", "--token", action="store", default="", help="Kubernetes authentication token")
-    parser.add_argument("-s", "--scrape-duration", action="store", default="1m", help="Prometheus scrape duration")
+    parser.add_argument("-s", "--scrape-duration", action="store", default="10m", help="Prometheus scrape duration")
     parser.add_argument("-i", "--library", action="store",default="kraken",  help="Chaos library")
     parser.add_argument("-L", "--log-level", action="store", default="INFO", help="log level (DEBUG, INFO, WARNING, ERROR, CRITICAL")
 
@@ -58,7 +58,7 @@ def read_configuration(config_file_path):
 
     prometheus_endpoint = config.get("prometheus_endpoint", "")
     auth_token = config.get("auth_token", "")
-    scrape_duration = config.get("scrape_duration", "1m")
+    scrape_duration = config.get("scrape_duration", "10m")
     chaos_library = config.get("chaos_library", "kraken")
     chaos_tests = config.get("chaos_tests" , {})
     return (application, namespace, labels, kubeconfig, prometheus_endpoint, auth_token, scrape_duration, chaos_library,
