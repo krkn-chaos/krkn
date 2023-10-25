@@ -35,6 +35,6 @@ python-openstackclient
 requests
 service_identity
 setuptools==65.5.1
-werkzeug==2.2.3
+werkzeug==3.0.1
 wheel
 zope.interface==5.4.0
