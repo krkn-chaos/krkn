@@ -3,8 +3,8 @@
 The following ways are supported to run Kraken:
 
 - Standalone python program through Git.
-- Containerized version using either Podman or Docker as the runtime.
-- Kubernetes or OpenShift deployment.
+- Containerized version using either Podman or Docker as the runtime via [Krkn-hub](https://github.com/redhat-chaos/krkn-hub)
+- Kubernetes or OpenShift deployment ( unsupported )
 
 **NOTE**: It is recommended to run Kraken external to the cluster ( Standalone or Containerized ) hitting the Kubernetes/OpenShift API as running it internal to the cluster might be disruptive to itself and also might not report back the results if the chaos leads to cluster's API server instability.
 
@@ -40,26 +40,12 @@ $ python3.9 run_kraken.py --config <config_file_location>
 ```
 
 ### Run containerized version
-Assuming that the latest docker ( 17.05 or greater with multi-build support ) is installed on the host, run:
-```
-$ docker pull quay.io/redhat-chaos/krkn:latest
-$ docker run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -d quay.io/redhat-chaos/krkn:latest
-$ docker run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -v <path_to_scenarios_directory>:/root/kraken/scenarios:Z -d quay.io/redhat-chaos/krkn:latest #custom or tweaked scenario configs
-$ docker logs -f kraken
-```
+[Krkn-hub](https://github.com/redhat-chaos/krkn-hub) is a wrapper that allows running Krkn chaos scenarios via podman or docker runtime with scenario parameters/configuration defined as environment variables.
 
-Similarly, podman can be used to achieve the same:
-```
-$ podman pull quay.io/redhat-chaos/krkn
-$ podman run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -d quay.io/redhat-chaos/krkn:latest
-$ podman run --name=kraken --net=host -v <path_to_kubeconfig>:/root/.kube/config:Z -v <path_to_kraken_config>:/root/kraken/config/config.yaml:Z -v <path_to_scenarios_directory>:/root/kraken/scenarios:Z -d quay.io/redhat-chaos/krkn:latest #custom or tweaked scenario configs
-$ podman logs -f kraken
-```
-
-If you want to build your own kraken image see [here](https://github.com/redhat-chaos/krkn/blob/main/containers/build_own_image-README.md)
+Refer [instructions](https://github.com/redhat-chaos/krkn-hub#supported-chaos-scenarios) to get started.
 
 
-### Run Kraken as a Kubernetes deployment
+### Run Kraken as a Kubernetes deployment ( unsupported option - standalone or containerized deployers are recommended )
 Refer [Instructions](https://github.com/redhat-chaos/krkn/blob/main/containers/README.md) on how to deploy and run Kraken as a Kubernetes/OpenShift deployment.
 
 
