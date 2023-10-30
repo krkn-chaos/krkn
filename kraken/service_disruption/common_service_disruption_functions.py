@@ -5,7 +5,7 @@ import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 import yaml
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value
 
@@ -158,7 +158,7 @@ def run(
         failed_post_scenarios,
         kubeconfig_path,
         kubecli: KrknKubernetes,
-        telemetry: KrknTelemetry
+        telemetry: KrknTelemetryKubernetes
 ) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_scenarios = []
