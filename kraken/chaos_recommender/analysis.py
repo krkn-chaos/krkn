@@ -1,5 +1,7 @@
+import logging
+
 import pandas as pd
-import kraken_tests
+import kraken.chaos_recommender.kraken_tests as kraken_tests
 import time
 
 threshold = .7  # Adjust the threshold as needed
@@ -23,8 +25,6 @@ def calculate_zscores(data):
     zscores["CPU"] = (data["CPU"] - data["CPU"].mean()) / data["CPU"].std()
     zscores["Memory"] = (data["MEM"] - data["MEM"].mean()) / data["MEM"].std()
     zscores["Network"] = (data["NETWORK"] - data["NETWORK"].mean()) / data["NETWORK"].std()
-    #print("wdfdsfsdfsdfssd")
-    #print(zscores)
     return zscores
 
 def identify_outliers(data):
@@ -47,7 +47,7 @@ def get_services_above_heatmap_threshold(dataframe, cpu_threshold, mem_threshold
     return cpu_services, mem_services
 
 
-def analysis(file_path):
+def analysis(file_path, chaos_tests_config):
     # Load the telemetry data from file
     data = load_telemetry_data(file_path)
 
@@ -59,37 +59,32 @@ def analysis(file_path):
     cpu_services, mem_services = get_services_above_heatmap_threshold(data, heatmap_cpu_threshold, heatmap_mem_threshold)
 
     # Display the identified outliers
-    print("======================== Profiling ==================================")
-    print("CPU outliers:", outliers_cpu)
-    print("Memory outliers:", outliers_memory)
-    print("Network outliers:", outliers_network)
-    print("===================== HeatMap Analysis ==============================")
+    logging.info("======================== Profiling ==================================")
+    logging.info(f"CPU outliers: {outliers_cpu}")
+    logging.info(f"Memory outliers: {outliers_memory}")
+    logging.info(f"Network outliers: {outliers_network}")
+    logging.info("===================== HeatMap Analysis ==============================")
 
     if cpu_services:
-        print("Services with CPU_HEATMAP above threshold:", cpu_services)
+        logging.info("Services with CPU_HEATMAP above threshold:", cpu_services)
     else:
-        print("There are no services that are using siginificant CPU compared to their assigned limits (infinite in case no limits are set).")
+        logging.info("There are no services that are using siginificant CPU compared to their assigned limits (infinite in case no limits are set).")
     if mem_services:
-        print("Services with MEM_HEATMAP above threshold:", mem_services)
+        logging.info("Services with MEM_HEATMAP above threshold:", mem_services)
     else:
-        print("There are no services that are using siginificant MEMORY compared to their assigned limits (infinite in case no limits are set).")
+        logging.info("There are no services that are using siginificant MEMORY compared to their assigned limits (infinite in case no limits are set).")
     time.sleep(2)
-    print("======================= Recommendations =============================")
+    logging.info("======================= Recommendations =============================")
     if cpu_services:
-        print("Recommended tests for " + str(cpu_services) + " :\n" + str(kraken_tests.get_entries_by_category(KRAKEN_TESTS_PATH, "CPU")) )
-        print("\n")
+        logging.info(f"Recommended tests for {str(cpu_services)}  :\n {chaos_tests_config['CPU']}")
+        logging.info("\n")
     if mem_services:
-        print("Recommended tests for " + str(mem_services) + " :\n" + str(kraken_tests.get_entries_by_category(KRAKEN_TESTS_PATH, "MEM")) )
-        print("\n")
+        logging.info(f"Recommended tests for {str(mem_services)}  :\n {chaos_tests_config['MEM']}")
+        logging.info("\n")
 
     if outliers_network:
-        print("Recommended tests for " + str(outliers_network) + " :\n" + str(kraken_tests.get_entries_by_category(KRAKEN_TESTS_PATH, "NETWORK")) )
-        print("\n")
+        logging.info(f"Recommended tests for  str(outliers_network)  :\n {chaos_tests_config['NETWORK']}")
+        logging.info("\n")
 
-    #print("Recommended tests for " + str(return_critical_services()) + " :\n" + str(kraken_tests.get_entries_by_category(KRAKEN_TESTS_PATH, "GENERIC")) )
-    print("\n")
-    print("Please check data in utilisation.txt for further analysis")
-
-#if __name__ == "__main__":
-#    file_path = "./utilisation.txt"  # Replace with the actual file path
-#    analysis(file_path)
+    logging.info("\n")
+    logging.info("Please check data in utilisation.txt for further analysis")

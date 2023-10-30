@@ -38,3 +38,4 @@ setuptools==65.5.1
 werkzeug==3.0.1
 wheel
 zope.interface==5.4.0
+pandas<2.0.0
