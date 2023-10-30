@@ -43,6 +43,15 @@ You can customize the default values by editing the `krkn/config/recommender_con
     - `NETWORK`: list of network related tests available in Krkn
     - `CPU`: list of memory related tests available in Krkn
 
+*TIP:* to collect prometheus endpoint and token from your OpenShift cluster you can run the following commands:
+        ```
+         prometheus_url=$(kubectl get routes -n openshift-monitoring prometheus-k8s --no-headers | awk '{print $2}')
+         #TO USE YOUR CURRENT SESSION TOKEN
+         token=$(oc whoami -t)
+         #TO CREATE A NEW TOKEN
+         token=$(kubectl create token -n openshift-monitoring prometheus-k8s --duration=6h || oc sa new-token -n openshift-monitoring prometheus-k8s)
+        ```
+
 You can also provide the input values through command-line arguments launching the recommender with `-o` option:
 
 ```

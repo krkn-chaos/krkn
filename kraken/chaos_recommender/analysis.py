@@ -60,9 +60,9 @@ def analysis(file_path, chaos_tests_config):
 
     # Display the identified outliers
     logging.info("======================== Profiling ==================================")
-    logging.info("CPU outliers:", outliers_cpu)
-    logging.info("Memory outliers:", outliers_memory)
-    logging.info("Network outliers:", outliers_network)
+    logging.info(f"CPU outliers: {outliers_cpu}")
+    logging.info(f"Memory outliers: {outliers_memory}")
+    logging.info(f"Network outliers: {outliers_network}")
     logging.info("===================== HeatMap Analysis ==============================")
 
     if cpu_services:

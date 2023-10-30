@@ -1,4 +1,6 @@
 import logging
+
+import pandas
 from prometheus_api_client import PrometheusConnect
 import pandas as pd
 import urllib3
@@ -31,11 +33,12 @@ def save_utilization_to_file(cpu_data, cpu_limits_result, mem_data, mem_limits_r
 
     for s in services:
 
-        new_row = {"service": s, "CPU" : convert_data(cpu_data, s),
+        new_row_df = pd.DataFrame( {"service": s, "CPU" : convert_data(cpu_data, s),
                     "CPU_LIMITS" : convert_data(cpu_limits_result, s),
                     "MEM" : convert_data(mem_data, s), "MEM_LIMITS" : convert_data(mem_limits_result, s),
-                    "NETWORK" : convert_data(network_data, s)}
-        merged_df = merged_df.append(new_row, ignore_index=True)
+                    "NETWORK" : convert_data(network_data, s)}, index=[0])
+        merged_df = pd.concat([merged_df, new_row_df], ignore_index=True)
+
 
 
     # Convert columns to string

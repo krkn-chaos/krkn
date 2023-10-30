@@ -111,7 +111,7 @@ def main():
     logging.info("Fetching the Telemetry data")
 
     file_path = prometheus.fetch_utilization_from_prometheus(prometheus_endpoint, auth_token, namespace, scrape_duration)
-    analysis.analysis(file_path, chaos_tests)
+    analysis(file_path, chaos_tests)
 
 if __name__ == "__main__":
     main()
