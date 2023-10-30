@@ -10,7 +10,7 @@ from ..node_actions.openstack_node_scenarios import OPENSTACKCLOUD
 from ..node_actions.az_node_scenarios import Azure
 from ..node_actions.gcp_node_scenarios import GCP
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 
 def multiprocess_nodes(cloud_object_function, nodes):
@@ -128,7 +128,7 @@ def cluster_shut_down(shut_down_config, kubecli: KrknKubernetes):
 
 # krkn_lib
 
-def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = []
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []

@@ -13,9 +13,8 @@ from kraken.node_actions.docker_node_scenarios import docker_node_scenarios
 import kraken.node_actions.common_node_functions as common_node_functions
 import kraken.cerberus.setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry import KrknTelemetry, ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
-
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
+from krkn_lib.models.telemetry import ScenarioTelemetry
 node_general = False
 
 
@@ -54,7 +53,7 @@ def get_node_scenario_object(node_scenario, kubecli: KrknKubernetes):
 
 # Run defined scenarios
 # krkn_lib
-def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_scenarios = []
     for node_scenario_config in scenarios_list:

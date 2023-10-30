@@ -7,14 +7,14 @@ import kraken.cerberus.setup as cerberus
 import kraken.node_actions.common_node_functions as common_node_functions
 from jinja2 import Environment, FileSystemLoader
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry import KrknTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value
 
 
 # krkn_lib
 # Reads the scenario config and introduces traffic variations in Node's host network interface.
-def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetry) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = ""
     logging.info("Runing the Network Chaos tests")
     failed_post_scenarios = ""
