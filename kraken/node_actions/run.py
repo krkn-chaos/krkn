@@ -78,7 +78,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                         except (RuntimeError, Exception) as e:
                             scenario_telemetry.exitStatus = 1
                             failed_scenarios.append(node_scenario_config)
-                            telemetry.log_exception(node_scenario_config)
+                            log_exception(node_scenario_config)
                         else:
                             scenario_telemetry.exitStatus = 0
 

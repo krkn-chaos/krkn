@@ -7,7 +7,7 @@ import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 
 def delete_objects(kubecli, namespace):
@@ -251,7 +251,7 @@ def run(
         except (Exception, RuntimeError):
             scenario_telemetry.exitStatus = 1
             failed_scenarios.append(scenario_config[0])
-            telemetry.log_exception(scenario_config[0])
+            log_exception(scenario_config[0])
         else:
             scenario_telemetry.exitStatus = 0
         scenario_telemetry.endTimeStamp = time.time()

@@ -12,6 +12,7 @@ from ..node_actions.gcp_node_scenarios import GCP
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
+from krkn_lib.utils.functions import log_exception
 
 def multiprocess_nodes(cloud_object_function, nodes):
     try:
@@ -165,7 +166,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                 )
 
             except (RuntimeError, Exception):
-                telemetry.log_exception(shut_down_config[0])
+                log_exception(shut_down_config[0])
                 failed_scenarios.append(shut_down_config[0])
                 scenario_telemetry.exitStatus = 1
             else:

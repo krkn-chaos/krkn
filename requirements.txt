@@ -19,7 +19,7 @@ ibm_cloud_sdk_core
 ibm_vpc
 itsdangerous==2.0.1
 jinja2==3.0.3
-krkn-lib>=1.4.0
+krkn-lib@git+https://github.com/redhat-chaos/krkn-lib.git@events_collection
 kubernetes
 lxml >= 4.3.0
 oauth2client>=4.1.3

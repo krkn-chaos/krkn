@@ -10,7 +10,7 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from arcaflow_plugin_sdk import serialization
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 
 # Run pod based scenarios
@@ -118,7 +118,7 @@ def container_run(kubeconfig_path,
                     cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
                 except (RuntimeError, Exception):
                     failed_scenarios.append(container_scenario_config[0])
-                    telemetry.log_exception(container_scenario_config[0])
+                    log_exception(container_scenario_config[0])
                     scenario_telemetry.exitStatus = 1
                     # removed_exit
                     # sys.exit(1)

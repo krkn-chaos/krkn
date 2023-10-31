@@ -440,6 +440,7 @@ def main(cfg):
             logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
             try:
                 telemetry_k8s.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
+                telemetry_k8s.put_cluster_events(telemetry_request_id, config["telemetry"], start_time, end_time)
                 # prometheus data collection is available only on Openshift
                 if config["telemetry"]["prometheus_backup"] and config["kraken"]["distribution"] == "openshift":
                     safe_logger.info("archives download started:")
