@@ -15,7 +15,7 @@ from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_outa
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_egress_shaping
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-
+from krkn_lib.utils.functions import log_exception
 
 
 @dataclasses.dataclass
@@ -241,7 +241,7 @@ def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_p
         except Exception as e:
             scenario_telemetry.exitStatus = 1
             failed_post_scenarios.append(scenario)
-            telemetry.log_exception(scenario)
+            log_exception(scenario)
         else:
             scenario_telemetry.exitStatus = 0
             logging.info("Waiting for the specified duration: %s" % (wait_duration))

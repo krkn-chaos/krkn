@@ -9,7 +9,8 @@ from ..invoke import command as runcommand
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
+
 
 # krkn_lib
 def pod_exec(pod_name, command, namespace, container_name, kubecli:KrknKubernetes):
@@ -339,7 +340,7 @@ def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry
                     )
         except (RuntimeError, Exception):
             scenario_telemetry.exitStatus = 1
-            telemetry.log_exception(time_scenario_config)
+            log_exception(time_scenario_config)
             failed_scenarios.append(time_scenario_config)
         else:
             scenario_telemetry.exitStatus = 0

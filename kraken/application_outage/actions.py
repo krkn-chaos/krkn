@@ -6,7 +6,8 @@ from jinja2 import Template
 import kraken.invoke.command as runcommand
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
+
 
 # Reads the scenario config, applies and deletes a network policy to
 # block the traffic for the specified duration
@@ -76,7 +77,7 @@ spec:
             except Exception as e :
                 scenario_telemetry.exitStatus = 1
                 failed_scenarios.append(app_outage_config)
-                telemetry.log_exception(app_outage_config)
+                log_exception(app_outage_config)
             else:
                 scenario_telemetry.exitStatus = 0
             scenario_telemetry.endTimeStamp = time.time()

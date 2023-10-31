@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 
 # krkn_lib
@@ -116,7 +116,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
         except (RuntimeError, Exception):
             scenario_telemetry.exitStatus = 1
             failed_scenarios.append(net_config)
-            telemetry.log_exception(net_config)
+            log_exception(net_config)
         else:
             scenario_telemetry.exitStatus = 0
         scenario_telemetries.append(scenario_telemetry)

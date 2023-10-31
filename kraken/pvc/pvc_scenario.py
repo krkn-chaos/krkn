@@ -7,7 +7,7 @@ from ..cerberus import setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 
 # krkn_lib
@@ -316,7 +316,7 @@ def run(scenarios_list, config, kubecli: KrknKubernetes, telemetry: KrknTelemetr
         except (RuntimeError, Exception):
             scenario_telemetry.exitStatus = 1
             failed_scenarios.append(app_config)
-            telemetry.log_exception(app_config)
+            log_exception(app_config)
         else:
             scenario_telemetry.exitStatus = 0
         scenario_telemetries.append(scenario_telemetry)
