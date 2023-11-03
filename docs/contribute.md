@@ -62,7 +62,7 @@ If changes go into the main repository while you're working on your code it is b
 
 If not already configured, set the upstream url for kraken.
 ```
- git remote add upstream https://github.com/cloud-bulldozer/kraken.git
+ git remote add upstream https://github.com/redhat-chaos/krkn.git
 ```
 
 Rebase to upstream master branch.
