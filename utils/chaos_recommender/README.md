@@ -15,12 +15,12 @@ This tool profiles an application and gathers telemetry data such as CPU, Memory
 1. To run
 
     ```
-    $ python3 -m venv chaos
+    $ python3.9 -m venv chaos
     $ source chaos/bin/activate
     $ git clone https://github.com/redhat-chaos/krkn.git 
     $ cd krkn
     $ pip3 install -r requirements.txt
-    $ python3 utils/chaos_recommender/chaos_recommender.py
+    $ python3.9 utils/chaos_recommender/chaos_recommender.py
     ```
 
 2. Follow the prompts to provide the required information.
