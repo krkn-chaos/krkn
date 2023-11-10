@@ -71,18 +71,6 @@ def main(cfg):
         run_signal = get_yaml_item_value(
             config["kraken"], "signal_state", "RUN"
         )
-        litmus_install = get_yaml_item_value(
-            config["kraken"], "litmus_install", False
-        )
-        litmus_version = get_yaml_item_value(
-            config["kraken"], "litmus_version", "v1.9.1"
-        )
-        litmus_uninstall = get_yaml_item_value(
-            config["kraken"], "litmus_uninstall", True
-        )
-        litmus_uninstall_before_run = get_yaml_item_value(
-            config["kraken"], "litmus_uninstall_before_run", True
-        )
         wait_duration = get_yaml_item_value(
             config["tunings"], "wait_duration", 60
         )
@@ -124,7 +112,8 @@ def main(cfg):
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
         )
-
+        telemetry_api_url = config["telemetry"].get("api_url")
+        
         # Initialize clients
         if (not os.path.isfile(kubeconfig_path) and
             not os.path.isfile("/var/run/secrets/kubernetes.io/serviceaccount/token")):
@@ -436,7 +425,7 @@ def main(cfg):
         logging.info(f"Telemetry data:\n{decoded_chaos_run_telemetry.to_json()}")
 
         if config["telemetry"]["enabled"]:
-            logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_request_id}")
+            logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/download/{telemetry_request_id}")
             logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
             try:
                 telemetry_k8s.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
@@ -488,11 +477,6 @@ def main(cfg):
             else:
                 logging.error("Alert profile is not defined")
                 sys.exit(1)
-
-        if litmus_uninstall and litmus_installed:
-            common_litmus.delete_chaos(litmus_namespace, kubecli)
-            common_litmus.delete_chaos_experiments(litmus_namespace, kubecli)
-            common_litmus.uninstall_litmus(litmus_version, litmus_namespace, kubecli)
 
         if failed_post_scenarios:
             logging.error(
