@@ -8,7 +8,6 @@ import optparse
 import pyfiglet
 import uuid
 import time
-import kraken.litmus.common_litmus as common_litmus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
 import kraken.pod_scenarios.setup as pod_scenarios
@@ -213,7 +212,6 @@ def main(cfg):
 
         # Capture the start time
         start_time = int(time.time())
-        litmus_installed = False
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
         # Loop to run the chaos starts here
@@ -304,46 +302,6 @@ def main(cfg):
                                     "supported only on openshift"
                                 )
                                 sys.exit(1)
-
-                        # Inject litmus based chaos scenarios
-                        elif scenario_type == "litmus_scenarios":
-                            if distribution == "openshift":
-                                logging.info("Running litmus scenarios")
-                                litmus_namespace = "litmus"
-                                if litmus_install:
-                                    # Remove Litmus resources
-                                    # before running the scenarios
-                                    common_litmus.delete_chaos(litmus_namespace, kubecli)
-                                    common_litmus.delete_chaos_experiments(
-                                        litmus_namespace,
-                                        kubecli
-                                    )
-                                    if litmus_uninstall_before_run:
-                                        common_litmus.uninstall_litmus(
-                                            litmus_version, litmus_namespace, kubecli
-                                        )
-                                    common_litmus.install_litmus(
-                                        litmus_version, litmus_namespace
-                                    )
-                                    common_litmus.deploy_all_experiments(
-                                        litmus_version, litmus_namespace
-                                    )
-                                litmus_installed = True
-                                common_litmus.run(
-                                    scenarios_list,
-                                    config,
-                                    litmus_uninstall,
-                                    wait_duration,
-                                    litmus_namespace,
-                                    kubecli
-                                )
-                            else:
-                                logging.error(
-                                    "Litmus scenarios are currently "
-                                    "only supported on openshift"
-                                )
-                                sys.exit(1)
-
                         # Inject cluster shutdown scenarios
                         # krkn_lib
                         elif scenario_type == "cluster_shut_down_scenarios":
