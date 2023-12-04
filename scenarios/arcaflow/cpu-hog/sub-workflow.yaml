@@ -1,4 +1,4 @@
-version: v0.1.0
+version: v0.2.0
 input:
   root: RootObject
   objects:
@@ -61,11 +61,15 @@ input:
 
 steps:
   kubeconfig:
-    plugin: quay.io/arcalot/arcaflow-plugin-kubeconfig:0.2.0
+    plugin:
+      src: quay.io/arcalot/arcaflow-plugin-kubeconfig:0.2.0
+      deployment_type: image
     input:
       kubeconfig: !expr $.input.kubeconfig
   stressng:
-    plugin: quay.io/arcalot/arcaflow-plugin-stressng:0.5.0
+    plugin:
+      src: quay.io/arcalot/arcaflow-plugin-stressng:0.5.0
+      deployment_type: image
     step: workload
     input:
       cleanup: "true"
@@ -77,8 +81,8 @@ steps:
             cpu_method: !expr $.input.cpu_method
             cpu_load: !expr $.input.cpu_load_percentage
     deploy:
-      type: kubernetes
       connection: !expr $.steps.kubeconfig.outputs.success.connection
+      deployer_name: kubernetes
       pod:
         metadata:
           namespace: !expr $.input.namespace
