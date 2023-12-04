@@ -1,4 +1,4 @@
-version: v0.1.0
+version: v0.2.0
 input:
   root: RootObject
   objects:
@@ -81,7 +81,7 @@ input:
                       the node storage only hosPath mode is currently supported
                   type:
                     type_id: object
-                    id: k8s_volume
+                    id: Volume
                     properties:
                       name:
                         display:
