@@ -1,7 +1,11 @@
----
-deployer:
-  connection: {}
-  type: kubernetes
+deployers:
+  image:
+    deployer_name: kubernetes
+    connection:
+      cacert: ''
+      cert: ''
+      host: ''
+      key: ''
 log:
   level: debug
 logged_outputs:
