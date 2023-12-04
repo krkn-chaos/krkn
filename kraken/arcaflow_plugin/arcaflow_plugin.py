@@ -87,20 +87,25 @@ def set_arca_kubeconfig(engine_args: arcaflow.EngineArgs, kubeconfig_path: str):
         if "input_list" in input_file and isinstance(input_file["input_list"],list):
             for index, _ in enumerate(input_file["input_list"]):
                 if isinstance(input_file["input_list"][index], dict):
-                    input_file["input_list"][index]["kubeconfig"] = kubeconfig_str
-        else:
+                    if 'kubeconfig' in input_file["input_list"][index]:
+                        input_file["input_list"][index]["kubeconfig"] = kubeconfig_str
+        if "kubeconfig" in input_file:
             input_file["kubeconfig"] = kubeconfig_str
         stream.close()
+
     with open(engine_args.input, "w") as stream:
         yaml.safe_dump(input_file, stream)
 
     with open(engine_args.config, "r") as stream:
         config_file = yaml.safe_load(stream)
-    if config_file["deployer"]["type"] == "kubernetes":
-        kube_connection = set_kubernetes_deployer_auth(config_file["deployer"]["connection"], context_auth)
-        config_file["deployer"]["connection"]=kube_connection
-        with open(engine_args.config, "w") as stream:
-            yaml.safe_dump(config_file, stream,explicit_start=True, width=4096)
+
+    for deployer in config_file["deployers"]:
+        if deployer == 'image' and config_file['deployers']['image']['deployer_name'] == 'kubernetes':
+            kube_connection = set_kubernetes_deployer_auth(config_file['deployers']['image']['connection'], context_auth)
+            config_file['deployers']['image']['connection'] = kube_connection
+
+            with open(engine_args.config, "w") as stream:
+                yaml.safe_dump(config_file, stream,explicit_start=True, width=4096)
 
 
 def set_kubernetes_deployer_auth(deployer: any, context_auth: ContextAuth) -> any:
