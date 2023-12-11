@@ -1,16 +1,11 @@
 #!/bin/bash
 SCRIPT_PATH=./CI/CRC
 DEPLOYMENT_PATH=$SCRIPT_PATH/deployment.yaml
-CLUSTER_INFO=cluster_infos.json
-
-[[ -z $WORKDIR_PATH ]] && echo "[ERROR] please set \$WORKDIR_PATH environment variable" && exit 1
-CLUSTER_INFO_PATH=$WORKDIR_PATH/crc/$CLUSTER_INFO
 
 [[ ! -f $DEPLOYMENT_PATH ]] && echo "[ERROR] please run $0 from GitHub action root directory" && exit 1
-[[ -z $KUBEADMIN_PWD ]] && echo "[ERROR] kubeadmin password not set, please check the repository secrets" && exit 1
 [[ -z $DEPLOYMENT_NAME ]] && echo "[ERROR] please set \$DEPLOYMENT_NAME environment variable" && exit 1
 [[ -z $NAMESPACE ]] && echo "[ERROR] please set \$NAMESPACE environment variable" && exit 1
-[[ ! -f $CLUSTER_INFO_PATH ]] && echo  "[ERROR] cluster_info.json not found in $CLUSTER_INFO_PATH" && exit 1 
+
 
 OPENSSL=`which openssl 2>/dev/null`
 [[ $? != 0 ]] && echo "[ERROR]: openssl missing, please install it and try again" && exit 1
@@ -23,20 +18,11 @@ JQ=`which jq 2>/dev/null`
 ENVSUBST=`which envsubst 2>/dev/null`
 [[ $? != 0 ]] && echo "[ERROR]: envsubst missing, please install it and try again" && exit 1
 
-API_ADDRESS="$($JQ -r '.api.address' $CLUSTER_INFO_PATH)"
-API_PORT="$($JQ -r '.api.port' $CLUSTER_INFO_PATH)"
-BASE_HOST=`$JQ -r '.api.address'  $CLUSTER_INFO_PATH | sed -r 's#https:\/\/api\.(.+\.nip\.io)#\1#'`
-FQN=$DEPLOYMENT_NAME.apps.$BASE_HOST
 
-echo "[INF] logging on $API_ADDRESS:$API_PORT"
-COUNTER=1
-until `$OC login  --insecure-skip-tls-verify -u kubeadmin -p $KUBEADMIN_PWD $API_ADDRESS:$API_PORT > /dev/null 2>&1`
-do 
-    echo "[INF] login attempt $COUNTER"
-    [[ $COUNTER == 20 ]] && echo "[ERR] maximum login attempts exceeded, failing" && exit 1
-    ((COUNTER++))
-    sleep 10
-done
+API_PORT="6443"
+API_ADDRESS="https://api.`cat host`.nip.io:${API_PORT}"
+FQN=$DEPLOYMENT_NAME.apps.$API_ADDRESS
+
 
 echo "[INF] deploying example deployment: $DEPLOYMENT_NAME in namespace: $NAMESPACE"
 $ENVSUBST < $DEPLOYMENT_PATH | $OC apply -f - > /dev/null 2>&1
