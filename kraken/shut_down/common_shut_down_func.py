@@ -135,15 +135,19 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
     scenario_telemetries: list[ScenarioTelemetry] = []
 
     for shut_down_config in scenarios_list:
-        scenario_telemetry = ScenarioTelemetry()
-        scenario_telemetry.scenario = shut_down_config
-        scenario_telemetry.startTimeStamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, shut_down_config[0])
         if len(shut_down_config) > 1:
+            config_path = shut_down_config[0]
             pre_action_output = post_actions.run("", shut_down_config[1])
         else:
+            config_path = shut_down_config
             pre_action_output = ""
-        with open(shut_down_config[0], "r") as f:
+
+        scenario_telemetry = ScenarioTelemetry()
+        scenario_telemetry.scenario = config_path
+        scenario_telemetry.startTimeStamp = time.time()
+        telemetry.set_parameters_base64(scenario_telemetry, config_path)
+
+        with open(config_path, "r") as f:
             shut_down_config_yaml = yaml.full_load(f)
             shut_down_config_scenario = \
                 shut_down_config_yaml["cluster_shut_down_scenario"]
@@ -166,8 +170,8 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                 )
 
             except (RuntimeError, Exception):
-                log_exception(shut_down_config[0])
-                failed_scenarios.append(shut_down_config[0])
+                log_exception(config_path)
+                failed_scenarios.append(config_path)
                 scenario_telemetry.exitStatus = 1
             else:
                 scenario_telemetry.exitStatus = 0
