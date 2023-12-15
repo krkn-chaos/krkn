@@ -135,12 +135,15 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
     scenario_telemetries: list[ScenarioTelemetry] = []
 
     for shut_down_config in scenarios_list:
-        if len(shut_down_config) > 1:
+        config_path = shut_down_config
+        pre_action_output = ""
+        if isinstance(shut_down_config, list) :
+            if len(shut_down_config) == 0:
+                raise Exception("bad config file format for shutdown scenario")
+
             config_path = shut_down_config[0]
-            pre_action_output = post_actions.run("", shut_down_config[1])
-        else:
-            config_path = shut_down_config
-            pre_action_output = ""
+            if len(shut_down_config) > 1:
+                pre_action_output = post_actions.run("", shut_down_config[1])
 
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = config_path
