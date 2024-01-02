@@ -96,9 +96,9 @@ def set_arca_kubeconfig(engine_args: arcaflow.EngineArgs, kubeconfig_path: str):
 
     with open(engine_args.config, "r") as stream:
         config_file = yaml.safe_load(stream)
-    if config_file["deployer"]["type"] == "kubernetes":
-        kube_connection = set_kubernetes_deployer_auth(config_file["deployer"]["connection"], context_auth)
-        config_file["deployer"]["connection"]=kube_connection
+    if config_file["deployers"]["image"]["deployer_name"] == "kubernetes":
+        kube_connection = set_kubernetes_deployer_auth(config_file["deployers"]["image"]["connection"], context_auth)
+        config_file["deployers"]["image"]["connection"]=kube_connection
         with open(engine_args.config, "w") as stream:
             yaml.safe_dump(config_file, stream,explicit_start=True, width=4096)
 

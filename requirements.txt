@@ -1,8 +1,8 @@
 PyYAML>=5.1
 aliyun-python-sdk-core==2.13.36
 aliyun-python-sdk-ecs==4.24.25
-arcaflow >= 0.8.0
-arcaflow-plugin-sdk >= 0.10.0
+arcaflow==0.9.0
+arcaflow-plugin-sdk==0.10.0
 azure-identity
 azure-keyvault
 azure-mgmt-compute

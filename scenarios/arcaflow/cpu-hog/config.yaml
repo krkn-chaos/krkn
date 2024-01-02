@@ -1,11 +1,8 @@
 ---
-deployer:
-  connection:
-    cacert: ''
-    cert: ''
-    host: https://api.tsebasti-lab.aws.rhperfscale.org:6443
-    key: ''
-  type: kubernetes
+deployers:
+  image:
+    connection: {}
+    deployer_name: kubernetes
 log:
   level: debug
 logged_outputs:
