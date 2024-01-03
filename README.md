@@ -24,7 +24,7 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 - Test environment recommendations as to how and where to run chaos tests.
 - Chaos testing in practice.
 
-The guide is hosted at https://redhat-chaos.github.io/krkn.
+The guide is hosted at https://redhat-chaos.github.io/krknChaos.
 
 
 ### How to Get Started
