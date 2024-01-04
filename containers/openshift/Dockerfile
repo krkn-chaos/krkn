@@ -4,6 +4,8 @@ FROM mcr.microsoft.com/azure-cli:latest as azure-cli
 
 FROM registry.access.redhat.com/ubi8/ubi:latest
 
+LABEL org.opencontainers.image.authors="Red Hat OpenShift Chaos Engineering"
+
 ENV KUBECONFIG /root/.kube/config
 
 # Copy azure client binary from azure-cli image
@@ -18,9 +20,9 @@ RUN yum install -y git python39 python3-pip jq gettext wget && \
     pip3.9 install virtualenv && \
     wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq
 
-# Setuo Kubernetes clients from stable releases
+# Get Kubernetes and OpenShift clients from stable releases
 WORKDIR /tmp
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && chmod +x kubectl && mv ./kubectl /usr/local/bin/kubectl
+RUN wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz && tar -xvf openshift-client-linux.tar.gz && cp oc /usr/local/bin/oc && cp kubectl /usr/local/bin/kubectl
 
 WORKDIR /root/kraken
 

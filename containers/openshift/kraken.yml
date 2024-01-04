@@ -1,0 +1,49 @@
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kraken
+spec:
+  parallelism: 1
+  completions: 1
+  template:
+    metadata:
+      labels:
+        tool: Kraken
+    spec:
+      serviceAccountName: useroot
+      containers:
+        - name: kraken
+          securityContext:
+            privileged: true
+          image: quay.io/redhat-chaos/krkn
+          command: ["/bin/sh", "-c"]
+          args: ["python3.9 run_kraken.py -c config/config.yaml"]
+          volumeMounts:
+            - mountPath: "/root/.kube"
+              name: config
+            - mountPath: "/root/kraken/config"
+              name: kraken-config
+            - mountPath: "/root/kraken/scenarios"
+              name: scenarios-config
+            - mountPath: "/root/kraken/scenarios/openshift"
+              name: scenarios-openshift-config
+            - mountPath: "/root/kraken/scenarios/kube"
+              name: scenarios-kube-config
+      restartPolicy: Never
+      volumes:
+        - name: config
+          configMap:
+            name: kube-config
+        - name: kraken-config
+          configMap:
+            name: kraken-config
+        - name: scenarios-config
+          configMap:
+            name: scenarios-config
+        - name: scenarios-openshift-config
+          configMap:
+            name: scenarios-openshift-config
+        - name: scenarios-kube-config
+          configMap:
+            name: scenarios-kube-config

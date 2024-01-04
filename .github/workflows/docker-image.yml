@@ -11,8 +11,10 @@ jobs:
     steps:
     - name: Check out code
       uses: actions/checkout@v3
-    - name: Build the Docker images
+    - name: Build the kubernetes Docker images
       run: docker build --no-cache -t quay.io/redhat-chaos/krkn containers/
+    - name: Build the OpenShift Docker images
+      run: docker build --no-cache -t quay.io/redhat-chaos/krkn-ocp containers/openshift/
     - name: Login in quay
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
