@@ -48,7 +48,7 @@ Failures in production are costly. To help mitigate risk to service health, cons
 
 
 ### Best Practices
-Now that we understand the test methodology, let us take a look at the best practices for an OpenShift cluster.  On that platform there are user applications and cluster workloads that need to be designed for stability and to provide the best user experience possible:
+Now that we understand the test methodology, let us take a look at the best practices for an Kubernetes cluster.  On that platform there are user applications and cluster workloads that need to be designed for stability and to provide the best user experience possible:
 
 - Alerts with appropriate severity should get fired.
   - Alerts are key to identify when a component starts degrading, and can help focus the investigation effort on affected system components.
@@ -77,11 +77,11 @@ We want to look at this in terms of CPU, Memory, Disk, Throughput, Network etc.
   - The controller watching the component should recognize a failure as soon as possible. The component needs to have minimal initialization time to avoid extended downtime or overloading the replicas if it is a highly available configuration. The cause of failure can be because of issues with the infrastructure on top of which it is running, application failures, or because of service failures that it depends on.
 
 - High Availability deployment strategy.
-  - There should be multiple replicas ( both OpenShift and application control planes ) running preferably in different availability zones to survive outages while still serving the user/system requests. Avoid single points of failure.
+  - There should be multiple replicas ( both Kubernetes and application control planes ) running preferably in different availability zones to survive outages while still serving the user/system requests. Avoid single points of failure.
 - Backed by persistent storage
   - It is important to have the system/application backed by persistent storage. This is especially important in cases where the application is a database or a stateful application given that a node, pod, or container failure will wipe off the data.
 
-- There should be fallback routes to the backend in case of using CDN, for example, Akamai in case of console.redhat.com - a managed service deployed on top of OpenShift dedicated:
+- There should be fallback routes to the backend in case of using CDN, for example, Akamai in case of console.redhat.com - a managed service deployed on top of Kubernetes dedicated:
   - Content delivery networks (CDNs) are commonly used to host resources such as images, JavaScript files, and CSS. The average web page is nearly 2 MB in size, and offloading heavy resources to third-parties is extremely effective for reducing backend server traffic and latency. However, this makes each CDN an additional point of failure for every site that relies on it. If the CDN fails, its customers could also fail.
   - To test how the application reacts to failures, drop all network traffic between the system and CDN. The application should still serve the content to the user irrespective of the failure.
 
@@ -92,10 +92,10 @@ We want to look at this in terms of CPU, Memory, Disk, Throughput, Network etc.
 
 
 ### Tooling
-Now that we looked at the best practices, In this section, we will go through how [Kraken](https://github.com/redhat-chaos/krkn) - a chaos testing framework can help test the resilience of OpenShift and make sure the applications and services are following the best practices.
+Now that we looked at the best practices, In this section, we will go through how [Kraken](https://github.com/redhat-chaos/krkn) - a chaos testing framework can help test the resilience of Kubernetes and make sure the applications and services are following the best practices.
 
 #### Workflow
-Let us start by understanding the workflow of kraken: the user will start by running kraken by pointing to a specific OpenShift cluster using kubeconfig to be able to talk to the platform on top of which the OpenShift cluster is hosted. This can be done by either the oc/kubectl API or the cloud API. Based on the configuration of kraken, it will inject specific chaos scenarios as shown below, talk to [Cerberus](https://github.com/redhat-chaos/cerberus) to get the go/no-go signal representing the overall health of the cluster ( optional - can be turned off ), scrapes metrics from in-cluster prometheus given a metrics profile with the promql queries and stores them long term in Elasticsearch configured  ( optional - can be turned off ), evaluates the promql expressions specified in the alerts profile ( optional - can be turned off ) and aggregated everything to set the pass/fail i.e. exits 0 or 1. More about the metrics collection, cerberus and metrics evaluation can be found in the next section.
+Let us start by understanding the workflow of kraken: the user will start by running kraken by pointing to a specific Kubernetes cluster using kubeconfig to be able to talk to the platform on top of which the Kubernetes cluster is hosted. This can be done by either the oc/kubectl API or the cloud API. Based on the configuration of kraken, it will inject specific chaos scenarios as shown below, talk to [Cerberus](https://github.com/redhat-chaos/cerberus) to get the go/no-go signal representing the overall health of the cluster ( optional - can be turned off ), scrapes metrics from in-cluster prometheus given a metrics profile with the promql queries and stores them long term in Elasticsearch configured  ( optional - can be turned off ), evaluates the promql expressions specified in the alerts profile ( optional - can be turned off ) and aggregated everything to set the pass/fail i.e. exits 0 or 1. More about the metrics collection, cerberus and metrics evaluation can be found in the next section.
 
 ![Kraken workflow](../media/kraken-workflow.png)
 
@@ -112,15 +112,15 @@ If the monitoring tool, cerberus is enabled it will consume the signal and conti
 
 ### Scenarios
 
-Let us take a look at how to run the chaos scenarios on your OpenShift clusters using Kraken-hub - a lightweight wrapper around Kraken to ease the runs by providing the ability to run them by just running container images using podman with parameters set as environment variables. This eliminates the need to carry around and edit configuration files and makes it easy for any CI framework integration. Here are the scenarios supported:
+Let us take a look at how to run the chaos scenarios on your Kubernetes clusters using Kraken-hub - a lightweight wrapper around Kraken to ease the runs by providing the ability to run them by just running container images using podman with parameters set as environment variables. This eliminates the need to carry around and edit configuration files and makes it easy for any CI framework integration. Here are the scenarios supported:
 
 - Pod Scenarios ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/pod-scenarios.md))
-  - Disrupts OpenShift/Kubernetes and applications deployed as pods:
+  - Disrupts Kubernetes/Kubernetes and applications deployed as pods:
     - Helps understand the availability of the application, the initialization timing and recovery status.
   - [Demo](https://asciinema.org/a/452351?speed=3&theme=solarized-dark)
 
 - Container Scenarios ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/container-scenarios.md))
-  - Disrupts OpenShift/Kubernetes and applications deployed as containers running as part of a pod(s) using a specified kill signal to mimic failures:
+  - Disrupts Kubernetes/Kubernetes and applications deployed as containers running as part of a pod(s) using a specified kill signal to mimic failures:
     - Helps understand the impact and recovery timing when the program/process running in the containers are disrupted - hangs, paused, killed etc., using various kill signals, i.e. SIGHUP, SIGTERM, SIGKILL etc.
   - [Demo](https://asciinema.org/a/BXqs9JSGDSEKcydTIJ5LpPZBM?speed=3&theme=solarized-dark)
 
@@ -134,8 +134,8 @@ Let us take a look at how to run the chaos scenarios on your OpenShift clusters 
   - [Demo](https://asciinema.org/a/ANZY7HhPdWTNaWt4xMFanF6Q5)
 
 - Zone Outages ([Documentation](https://github.com/redhat-chaos/krkn-hub/blob/main/docs/zone-outages.md))
-  - Creates outage of availability zone(s) in a targeted region in the public cloud where the OpenShift cluster is running by tweaking the network acl of the zone to simulate the failure, and that in turn will stop both ingress and egress traffic from all nodes in a particular zone for the specified duration and reverts it back to the previous state.
-    - Helps understand the impact on both Kubernetes/OpenShift control plane as well as applications and services running on the worker nodes in that zone.
+  - Creates outage of availability zone(s) in a targeted region in the public cloud where the Kubernetes cluster is running by tweaking the network acl of the zone to simulate the failure, and that in turn will stop both ingress and egress traffic from all nodes in a particular zone for the specified duration and reverts it back to the previous state.
+    - Helps understand the impact on both Kubernetes/Kubernetes control plane as well as applications and services running on the worker nodes in that zone.
     - Currently, only set up for AWS cloud platform: 1 VPC and multiples subnets within the VPC can be specified.
     - [Demo](https://asciinema.org/a/452672?speed=3&theme=solarized-dark)
 
@@ -200,7 +200,7 @@ Let us take a look at few recommendations on how and where to run the chaos test
 - Enable Observability:
   - Chaos Engineering Without Observability ... Is Just Chaos.
   - Make sure to have logging and monitoring installed on the cluster to help with understanding the behaviour as to why it is happening. In case of running the tests in the CI where it is not humanly possible to monitor the cluster all the time, it is recommended to leverage Cerberus to capture the state during the runs and metrics collection in Kraken to store metrics long term even after the cluster is gone.
-  - Kraken ships with dashboards that will help understand API, Etcd and OpenShift cluster level stats and performance metrics.
+  - Kraken ships with dashboards that will help understand API, Etcd and Kubernetes cluster level stats and performance metrics.
   - Pay attention to Prometheus alerts. Check if they are firing as expected.
 
 - Run multiple chaos tests at once to mimic the production outages:
