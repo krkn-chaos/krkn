@@ -95,7 +95,7 @@ Monitoring the Kubernetes/OpenShift cluster to observe the impact of Kraken chao
 
 
 ### Scraping and storing metrics long term
-Kraken supports capturing metrics for the duration of the scenarios defined in the config and indexes then into Elasticsearch to be able to store and evaluate the state of the runs long term. The indexed metrics can be visualized with the help of Grafana. It uses [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Information on enabling and leveraging this feature can be found [here](docs/metrics.md).
+Kraken supports capturing metrics for the duration of the scenarios defined in the config and indexes then into Elasticsearch to be able to store and evaluate the state of the runs long term. The indexed metrics can be visualized with the help of Grafana. It uses [Kube-burner](https://github.com/kube-burner/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Information on enabling and leveraging this feature can be found [here](docs/metrics.md).
 
 
 ### SLOs validation during and post chaos
