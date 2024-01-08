@@ -38,7 +38,7 @@ After installation, refer back to the below sections for supported scenarios and
 
 
 #### Running Kraken with minimal configuration tweaks
-For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/redhat-chaos/krkn-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
+For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/redhat-chaos/krknChaos-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
 
 ### Setting up infrastructure dependencies
 Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastructure pieces can be easily installed and uninstalled by running:
