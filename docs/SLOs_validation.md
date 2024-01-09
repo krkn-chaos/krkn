@@ -11,19 +11,18 @@ performance_monitoring:
 ```
 
 ### Validation and alerting based on the queries defined by the user during chaos
-Takes PromQL queries as input and modifies the return code of the run to determine pass/fail. It's especially useful in case of automated runs in CI where user won't be able to monitor the system. It uses [Kube-burner](https://kube-burner.readthedocs.io/en/latest/) under the hood. This feature can be enabled in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) by setting the following:
+Takes PromQL queries as input and modifies the return code of the run to determine pass/fail. It's especially useful in case of automated runs in CI where user won't be able to monitor the system. This feature can be enabled in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) by setting the following:
 
 ```
 performance_monitoring:
-    kube_burner_binary_url: "https://github.com/cloud-bulldozer/kube-burner/releases/download/v0.9.1/kube-burner-0.9.1-Linux-x86_64.tar.gz"
     prometheus_url:                                       # The prometheus url/route is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.
     prometheus_bearer_token:                              # The bearer token is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes. This is needed to authenticate with prometheus.
     enable_alerts: True                                   # Runs the queries specified in the alert profile and displays the info or exits 1 when severity=error.
-    alert_profile: config/alerts                          # Path to alert profile with the prometheus queries.
+    alert_profile: config/alerts.yaml                          # Path to alert profile with the prometheus queries.
 ```
 
 #### Alert profile
-A couple of [alert profiles](https://github.com/redhat-chaos/krkn/tree/main/config) [alerts](https://github.com/redhat-chaos/krkn/blob/main/config/alerts) are shipped by default and can be tweaked to add more queries to alert on. User can provide a URL or path to the file in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml). The following are a few alerts examples:
+A couple of [alert profiles](https://github.com/redhat-chaos/krkn/tree/main/config) [alerts](https://github.com/redhat-chaos/krkn/blob/main/config/alerts.yaml) are shipped by default and can be tweaked to add more queries to alert on. User can provide a URL or path to the file in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml). The following are a few alerts examples:
 
 ```
 - expr: avg_over_time(histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[2m]))[5m:]) > 0.01
