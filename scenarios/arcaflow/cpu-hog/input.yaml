@@ -2,13 +2,7 @@ input_list:
 - cpu_count: 1
   cpu_load_percentage: 80
   cpu_method: all
-  duration: 30s
-  node_selector: {}
-  # node selector example
-  # node_selector:
-  #   kubernetes.io/hostname: master
-  kubeconfig: ""
+  duration: 1s
+  kubeconfig: ''
   namespace: default
-
-# duplicate this section to run simultaneous stressors in the same run
-
+  node_selector: {}

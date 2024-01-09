@@ -1,14 +1,12 @@
 ## Scraping and storing metrics for the run
 
-There are cases where the state of the cluster and metrics on the cluster during the chaos test run need to be stored long term to review after the cluster is terminated, for example CI and automation test runs. To help with this, Kraken supports capturing metrics for the duration of the scenarios defined in the config and indexes them into Elasticsearch. The indexed metrics can be visualized with the help of Grafana.
+There are cases where the state of the cluster and metrics on the cluster during the chaos test run need to be stored long term to review after the cluster is terminated, for example CI and automation test runs. To help with this, Kraken supports capturing metrics for the duration of the scenarios defined in the config.
 
-It uses [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Each run has a unique identifier ( uuid ) and all the metrics/documents in Elasticsearch will be associated with it. The uuid is generated automatically if not set in the config. This feature can be enabled in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) by setting the following:
+The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus with the start and end timestamp of the run. Each run has a unique identifier ( uuid ). The uuid is generated automatically if not set in the config. This feature can be enabled in the [config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) by setting the following:
 
 ```
 performance_monitoring:
-    kube_burner_binary_url: "https://github.com/cloud-bulldozer/kube-burner/releases/download/v0.9.1/kube-burner-0.9.1-Linux-x86_64.tar.gz"
     capture_metrics: True
-    config_path: config/kube_burner.yaml                  # Define the Elasticsearch url and index name in this config.
     metrics_profile_path: config/metrics-aggregated.yaml
     prometheus_url:                                       # The prometheus url/route is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.
     prometheus_bearer_token:                              # The bearer token is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes. This is needed to authenticate with prometheus.
@@ -31,21 +29,3 @@ metrics:
     metricName: APIInflightRequests
 ```
 
-### Indexing
-Define the Elasticsearch and index to store the metrics/documents in the kube_burner config:
-
-```
-global:
-  writeToFile: true
-  metricsDirectory: collected-metrics
-  measurements:
-    - name: podLatency
-      esIndex: kube-burner
-
-  indexerConfig:
-    enabled: true
-    esServers: [https://elastic.example.com:9200]
-    insecureSkipVerify: true
-    defaultIndex: kraken
-    type: elastic
-```
