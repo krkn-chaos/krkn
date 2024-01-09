@@ -24,7 +24,7 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 - Test environment recommendations as to how and where to run chaos tests.
 - Chaos testing in practice.
 
-The guide is hosted at https://redhat-chaos.github.io/krkn.
+The guide is hosted at https://redhat-chaos.github.io/krknChoas.
 
 
 ### How to Get Started
@@ -38,7 +38,7 @@ After installation, refer back to the below sections for supported scenarios and
 
 
 #### Running Kraken with minimal configuration tweaks
-For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/redhat-chaos/krkn-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
+For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/redhat-chaos/krknChaos-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
 
 ### Setting up infrastructure dependencies
 Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastructure pieces can be easily installed and uninstalled by running:
@@ -95,7 +95,7 @@ Monitoring the Kubernetes/OpenShift cluster to observe the impact of Kraken chao
 
 
 ### Scraping and storing metrics long term
-Kraken supports capturing metrics for the duration of the scenarios defined in the config and indexes then into Elasticsearch to be able to store and evaluate the state of the runs long term. The indexed metrics can be visualized with the help of Grafana. It uses [Kube-burner](https://github.com/cloud-bulldozer/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Information on enabling and leveraging this feature can be found [here](docs/metrics.md).
+Kraken supports capturing metrics for the duration of the scenarios defined in the config and indexes then into Elasticsearch to be able to store and evaluate the state of the runs long term. The indexed metrics can be visualized with the help of Grafana. It uses [Kube-burner](https://github.com/kube-burner/kube-burner) under the hood. The metrics to capture need to be defined in a metrics profile which Kraken consumes to query prometheus ( installed by default in OpenShift ) with the start and end timestamp of the run. Information on enabling and leveraging this feature can be found [here](docs/metrics.md).
 
 
 ### SLOs validation during and post chaos
