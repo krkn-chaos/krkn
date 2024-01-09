@@ -1,6 +1,10 @@
 ---
 deployer:
-  connection: {}
+  connection:
+    cacert: ''
+    cert: ''
+    host: https://api.tsebasti-lab.aws.rhperfscale.org:6443
+    key: ''
   type: kubernetes
 log:
   level: debug

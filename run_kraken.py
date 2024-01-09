@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import datetime
 import json
 import os
 import sys
@@ -8,6 +9,7 @@ import optparse
 import pyfiglet
 import uuid
 import time
+from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
 import kraken.pod_scenarios.setup as pod_scenarios
@@ -15,16 +17,14 @@ import kraken.service_disruption.common_service_disruption_functions as service_
 import kraken.shut_down.common_shut_down_func as shut_down
 import kraken.node_actions.run as nodeaction
 import kraken.managedcluster_scenarios.run as managedcluster_scenarios
-import kraken.kube_burner.client as kube_burner
 import kraken.zone_outage.actions as zone_outages
 import kraken.application_outage.actions as application_outage
 import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import kraken.arcaflow_plugin as arcaflow_plugin
+import kraken.prometheus as prometheus_plugin
 import server as server
-import kraken.prometheus.client as promcli
 from kraken import plugins
-
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -33,11 +33,7 @@ from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value
 
-KUBE_BURNER_URL = (
-    "https://github.com/cloud-bulldozer/kube-burner/"
-    "releases/download/v{version}/kube-burner-{version}-Linux-x86_64.tar.gz"
-)
-KUBE_BURNER_VERSION = "1.7.0"
+
 
 
 # Main function
@@ -84,21 +80,7 @@ def main(cfg):
             config["performance_monitoring"], "repo",
             "https://github.com/cloud-bulldozer/performance-dashboards.git"
         )
-        capture_metrics = get_yaml_item_value(
-            config["performance_monitoring"], "capture_metrics", False
-        )
-        kube_burner_url = get_yaml_item_value(
-            config["performance_monitoring"], "kube_burner_binary_url",
-            KUBE_BURNER_URL.format(version=KUBE_BURNER_VERSION),
-        )
-        config_path = get_yaml_item_value(
-            config["performance_monitoring"], "config_path",
-            "config/kube_burner.yaml"
-        )
-        metrics_profile = get_yaml_item_value(
-            config["performance_monitoring"], "metrics_profile_path",
-            "config/metrics-aggregated.yaml"
-        )
+
         prometheus_url = config["performance_monitoring"].get("prometheus_url")
         prometheus_bearer_token = config["performance_monitoring"].get(
             "prometheus_bearer_token"
@@ -147,9 +129,6 @@ def main(cfg):
         except:
             kubecli.initialize_clients(None)
 
-        # KrknTelemetry init
-        telemetry_k8s = KrknTelemetryKubernetes(safe_logger, kubecli)
-        telemetry_ocp = KrknTelemetryOpenshift(safe_logger, ocpcli)
 
 
         # find node kraken might be running on
@@ -179,10 +158,19 @@ def main(cfg):
         cv = ""
         if config["kraken"]["distribution"] == "openshift":
             cv = ocpcli.get_clusterversion_string()
+            if prometheus_url is None:
+                connection_data = ocpcli.get_prometheus_api_connection_data()
+                prometheus_url = connection_data.endpoint
+                prometheus_bearer_token = connection_data.token
         if cv != "":
             logging.info(cv)
         else:
             logging.info("Cluster version CRD not detected, skipping")
+
+        # KrknTelemetry init
+        telemetry_k8s = KrknTelemetryKubernetes(safe_logger, kubecli)
+        telemetry_ocp = KrknTelemetryOpenshift(safe_logger, ocpcli)
+        prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
 
         logging.info("Server URL: %s" % kubecli.get_host())
 
@@ -351,9 +339,10 @@ def main(cfg):
                         # Check for critical alerts when enabled
                         if check_critical_alerts:
                             logging.info("Checking for critical alerts firing post choas")
-                            promcli.initialize_prom_client(distribution, prometheus_url, prometheus_bearer_token)
+
+                            ##PROM
                             query = r"""ALERTS{severity="critical"}"""
-                            critical_alerts = promcli.process_prom_query(query)
+                            critical_alerts = prometheus.process_prom_query_in_range(query, datetime.datetime.fromtimestamp(start_time))
                             critical_alerts_count = len(critical_alerts)
                             if critical_alerts_count > 0:
                                 logging.error("Critical alerts are firing: %s", critical_alerts)
@@ -401,33 +390,13 @@ def main(cfg):
         else:
             logging.info("telemetry collection disabled, skipping.")
 
-        # Capture the end time
-
-
-        # Capture metrics for the run
-        if capture_metrics:
-            logging.info("Capturing metrics")
-            kube_burner.setup(kube_burner_url)
-            kube_burner.scrape_metrics(
-                distribution,
-                run_uuid,
-                prometheus_url,
-                prometheus_bearer_token,
-                start_time,
-                end_time,
-                config_path,
-                metrics_profile,
-            )
 
         # Check for the alerts specified
         if enable_alerts:
             logging.info("Alerts checking is enabled")
-            kube_burner.setup(kube_burner_url)
             if alert_profile:
-                kube_burner.alerts(
-                    distribution,
-                    prometheus_url,
-                    prometheus_bearer_token,
+                prometheus_plugin.alerts(
+                    prometheus,
                     start_time,
                     end_time,
                     alert_profile,
