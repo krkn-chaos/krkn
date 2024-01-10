@@ -170,7 +170,10 @@ def main(cfg):
         # KrknTelemetry init
         telemetry_k8s = KrknTelemetryKubernetes(safe_logger, kubecli)
         telemetry_ocp = KrknTelemetryOpenshift(safe_logger, ocpcli)
-        prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
+
+
+        if enable_alerts:
+            prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
 
         logging.info("Server URL: %s" % kubecli.get_host())
 
@@ -337,7 +340,7 @@ def main(cfg):
                             failed_post_scenarios, scenario_telemetries = network_chaos.run(scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
 
                         # Check for critical alerts when enabled
-                        if check_critical_alerts:
+                        if enable_alerts and check_critical_alerts :
                             logging.info("Checking for critical alerts firing post choas")
 
                             ##PROM
