@@ -116,7 +116,8 @@ Kraken supports injecting faults into [Open Cluster Management (OCM)](https://op
 - Blog post emphasizing the importance of making Chaos part of Performance and Scale runs to mimic the production environments: https://www.openshift.com/blog/making-chaos-part-of-kubernetes/openshift-performance-and-scalability-tests
 - Blog post on findings from Chaos test runs: https://cloud.redhat.com/blog/openshift/kubernetes-chaos-stories
 - Discussion with CNCF TAG App Delivery on Krkn workflow, features and addition to CNCF sandbox: [Github](https://github.com/cncf/sandbox/issues/44), [Tracker](https://github.com/cncf/tag-app-delivery/issues/465), [recording](https://www.youtube.com/watch?v=nXQkBFK_MWc&t=722s)
-
+- Blog post on supercharging chaos testing using AI integration in Krkn: https://www.redhat.com/en/blog/supercharging-chaos-testing-using-ai
+- Blog post announcing Krkn joining CNCF Sandbox: https://www.redhat.com/en/blog/krknchaos-joining-cncf-sandbox
 
 ### Roadmap
 Enhancements being planned can be found in the [roadmap](ROADMAP.md).
