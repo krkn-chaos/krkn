@@ -1,7 +1,8 @@
 ---
-deployer:
-  connection: {}
-  type: kubernetes
+deployers:
+  image:
+    connection: {}
+    deployer_name: kubernetes
 log:
   level: debug
 logged_outputs:
