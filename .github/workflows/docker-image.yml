@@ -12,14 +12,25 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
     - name: Build the Docker images
-      run: docker build --no-cache -t quay.io/redhat-chaos/krkn containers/
+      run:  |
+        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/
+        docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn
     - name: Login in quay
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
+      env:
+        QUAY_USER: ${{ secrets.QUAY_USERNAME }}
+        QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
+    - name: Push the KrknChaos Docker images
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: docker push quay.io/krkn-chaos/krkn
+    - name: Login in to redhat-chaos quay
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
       env:
         QUAY_USER: ${{ secrets.QUAY_USER_1 }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
-    - name: Push the Docker images
+    - name: Push the RedHat Chaos Docker images
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: docker push quay.io/redhat-chaos/krkn
     - name: Rebuild krkn-hub
