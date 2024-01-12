@@ -19,9 +19,12 @@ jobs:
       env:
         QUAY_USER: ${{ secrets.QUAY_USER_1 }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
-    - name: Push the Docker images
+    - name: Push the RedHat Chaos Docker images
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: docker push quay.io/redhat-chaos/krkn
+    - name: Push the KrknChaos Docker images
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      run: docker push quay.io/krkn-chaos/krkn
     - name: Rebuild krkn-hub
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       uses: redhat-chaos/actions/krkn-hub@main
