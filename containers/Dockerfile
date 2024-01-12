@@ -4,8 +4,6 @@ FROM mcr.microsoft.com/azure-cli:latest as azure-cli
 
 FROM registry.access.redhat.com/ubi8/ubi:latest
 
-LABEL org.opencontainers.image.authors="Red Hat OpenShift Chaos Engineering"
-
 ENV KUBECONFIG /root/.kube/config
 
 # Copy azure client binary from azure-cli image
@@ -14,7 +12,7 @@ COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 # Install dependencies
 RUN yum install -y git python39 python3-pip jq gettext wget && \
     python3.9 -m pip install -U pip && \
-    git clone https://github.com/redhat-chaos/krkn.git --branch v1.5.3 /root/kraken && \
+    git clone https://github.com/krkn-chaos/krkn.git --branch v1.5.3 /root/kraken && \
     mkdir -p /root/.kube && cd /root/kraken && \
     pip3.9 install -r requirements.txt && \
     pip3.9 install virtualenv && \

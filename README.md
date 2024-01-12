@@ -1,11 +1,11 @@
-# KrknChaos aka Kraken
+# Krkn aka Kraken
 [![Docker Repository on Quay](https://quay.io/repository/redhat-chaos/krkn/status "Docker Repository on Quay")](https://quay.io/repository/redhat-chaos/krkn?tab=tags&tag=latest)
 ![Workflow-Status](https://github.com/redhat-chaos/krkn/actions/workflows/docker-image.yml/badge.svg)
 
 ![Krkn logo](media/logo.png)
 
-Chaos and resiliency testing tool for Kubernetes and OpenShift.
-Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check if it is resilient to turbulent conditions.
+Chaos and resiliency testing tool for Kubernetes.
+Kraken injects deliberate failures into Kubernetes clusters to check if it is resilient to turbulent conditions.
 
 
 ### Workflow
@@ -18,13 +18,13 @@ Kraken injects deliberate failures into Kubernetes/OpenShift clusters to check i
 ### Chaos Testing Guide
 [Guide](docs/index.md) encapsulates:
 - Test methodology that needs to be embraced.
-- Best practices that an OpenShift cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability.
+- Best practices that an Kubernetes cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability.
 - Tooling.
 - Scenarios supported.
 - Test environment recommendations as to how and where to run chaos tests.
 - Chaos testing in practice.
 
-The guide is hosted at https://redhat-chaos.github.io/krknChoas.
+The guide is hosted at https://krkn-chaos.github.io/krkn.
 
 
 ### How to Get Started
@@ -57,29 +57,29 @@ This will manage the Cerberus and Elasticsearch containers on the host on which 
 Instructions on how to setup the config and the options supported can be found at [Config](docs/config.md).
 
 
-### Kubernetes/OpenShift chaos scenarios supported
+### Kubernetes chaos scenarios supported
 
-Scenario type               | Kubernetes    | OpenShift          
---------------------------- | ------------- |--------------------|  
-[Pod Scenarios](docs/pod_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Pod Network Scenarios](docs/pod_network_scenarios.md) | :x: | :heavy_check_mark: |
-[Container Scenarios](docs/container_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Node Scenarios](docs/node_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Time Scenarios](docs/time_scenarios.md) | :x: | :heavy_check_mark: |
-[Hog Scenarios: CPU, Memory](docs/arcaflow_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Service Disruption Scenarios](docs/service_disruption_scenarios.md.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Zone Outage Scenarios](docs/zone_outage.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Application_outages](docs/application_outages.md) | :heavy_check_mark: | :heavy_check_mark: |
-[PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: | :heavy_check_mark: |
-[Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: | :heavy_check_mark: |
-[ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: | :question:         |
+Scenario type               | Kubernetes    
+--------------------------- | ------------- | 
+[Pod Scenarios](docs/pod_scenarios.md) | :heavy_check_mark: |
+[Pod Network Scenarios](docs/pod_network_scenarios.md) | :x: |
+[Container Scenarios](docs/container_scenarios.md) | :heavy_check_mark: |
+[Node Scenarios](docs/node_scenarios.md) | :heavy_check_mark: |
+[Time Scenarios](docs/time_scenarios.md) | :x: |
+[Hog Scenarios: CPU, Memory](docs/arcaflow_scenarios.md) | :heavy_check_mark: |
+[Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md) | :heavy_check_mark: |
+[Service Disruption Scenarios](docs/service_disruption_scenarios.md.md) | :heavy_check_mark: |
+[Zone Outage Scenarios](docs/zone_outage.md) | :heavy_check_mark: |
+[Application_outages](docs/application_outages.md) | :heavy_check_mark: |
+[PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: |
+[Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: |
+[ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: |
 
 
 ### Kraken scenario pass/fail criteria and report
 It is important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
 - Having built in checks for pod and node based scenarios to ensure the expected number of replicas and nodes are up. It also supports running custom scripts with the checks.
-- Leveraging [Cerberus](https://github.com/openshift-scale/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail post chaos. It is highly recommended to turn on the Cerberus health check feature available in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation) or can be installed from Kraken using the [instructions](https://github.com/redhat-chaos/krkn#setting-up-infrastructure-dependencies). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file. Cerberus can monitor [application routes](https://github.com/redhat-chaos/cerberus/blob/main/docs/config.md#watch-routes) during the chaos and fails the run if it encounters downtime as it is a potential downtime in a customers, or users environment as well. It is especially important during the control plane chaos scenarios including the API server, Etcd, Ingress etc. It can be enabled by setting `check_applicaton_routes: True` in the [Kraken config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) provided application routes are being monitored in the [cerberus config](https://github.com/redhat-chaos/krkn/blob/main/config/cerberus.yaml).
+- Leveraging [Cerberus](https://github.com/redhat-chaos/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail post chaos. It is highly recommended to turn on the Cerberus health check feature available in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation) or can be installed from Kraken using the [instructions](https://github.com/redhat-chaos/krkn#setting-up-infrastructure-dependencies). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file. Cerberus can monitor [application routes](https://github.com/redhat-chaos/cerberus/blob/main/docs/config.md#watch-routes) during the chaos and fails the run if it encounters downtime as it is a potential downtime in a customers, or users environment as well. It is especially important during the control plane chaos scenarios including the API server, Etcd, Ingress etc. It can be enabled by setting `check_applicaton_routes: True` in the [Kraken config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) provided application routes are being monitored in the [cerberus config](https://github.com/redhat-chaos/krkn/blob/main/config/cerberus.yaml).
 - Leveraging built-in alert collection feature to fail the runs in case of critical alerts.
 
 ### Signaling
