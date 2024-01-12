@@ -5,13 +5,15 @@ import re
 
 import yaml
 import random
+
+from krkn_lib import utils
 from kubernetes.client import ApiException
 
 from ..cerberus import setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value, log_exception
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception, get_random_string
 
 
 # krkn_lib
@@ -63,6 +65,8 @@ def get_container_name(pod_name, namespace, kubecli:KrknKubernetes, container_na
 
 def skew_node(node_name: str, action: str, kubecli: KrknKubernetes):
     pod_namespace = "default"
+    status_pod_name = f"time-skew-pod-{get_random_string(5)}"
+    skew_pod_name = f"time-skew-pod-{get_random_string(5)}"
     ntp_enabled = True
     logging.info(f'Creating pod to skew {"time" if action == "skew_time" else "date"} on node {node_name}')
     status_command = ["timedatectl"]
@@ -73,12 +77,11 @@ def skew_node(node_name: str, action: str, kubecli: KrknKubernetes):
     else:
         skew_command.append("2001-01-01")
 
-    status_pod_name = f"time-skew-pod-{str(int(time.time()))}"
     try:
         status_response = kubecli.exec_command_on_node(node_name,status_command,status_pod_name,pod_namespace)
         if "Network time on: no" in status_response:
             ntp_enabled = False
-            skew_pod_name = f"time-skew-pod-{str(int(time.time()))}"
+
             logging.warning(f'ntp unactive on node {node_name} skewing {"time" if action == "skew_time" else "date"} to {param}')
             pod_exec(skew_pod_name, skew_command, pod_namespace, None, kubecli)
         else:
@@ -269,7 +272,7 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
     skew_command = "date"
     not_reset = []
     max_retries = 30
-    check_pod_name = f"time-skew-pod-{str(int(time.time()))}"
+    check_pod_name = f"time-skew-pod-{get_random_string(5)}"
     if object_type == "node":
         for node_name in names:
             first_date_time = datetime.datetime.utcnow()
