@@ -2,14 +2,18 @@ import datetime
 import time
 import logging
 import re
+
 import yaml
 import random
+
+from krkn_lib import utils
+from kubernetes.client import ApiException
+
 from ..cerberus import setup as cerberus
-from ..invoke import command as runcommand
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value, log_exception
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception, get_random_string
 
 
 # krkn_lib
@@ -32,13 +36,6 @@ def pod_exec(pod_name, command, namespace, container_name, kubecli:KrknKubernete
             continue
         else:
             break
-    return response
-
-
-def node_debug(node_name, command):
-    response = runcommand.invoke(
-        "oc debug node/" + node_name + " -- chroot /host " + command
-    )
     return response
 
 
@@ -65,15 +62,46 @@ def get_container_name(pod_name, namespace, kubecli:KrknKubernetes, container_na
         return container_name
 
 
+
+def skew_node(node_name: str, action: str, kubecli: KrknKubernetes):
+    pod_namespace = "default"
+    status_pod_name = f"time-skew-pod-{get_random_string(5)}"
+    skew_pod_name = f"time-skew-pod-{get_random_string(5)}"
+    ntp_enabled = True
+    logging.info(f'Creating pod to skew {"time" if action == "skew_time" else "date"} on node {node_name}')
+    status_command = ["timedatectl"]
+    param = "2001-01-01"
+    skew_command = ["timedatectl", "set-time"]
+    if action == "skew_time":
+        skew_command.append("01:01:01")
+    else:
+        skew_command.append("2001-01-01")
+
+    try:
+        status_response = kubecli.exec_command_on_node(node_name, status_command, status_pod_name, pod_namespace)
+        if "Network time on: no" in status_response:
+            ntp_enabled = False
+
+            logging.warning(f'ntp unactive on node {node_name} skewing {"time" if action == "skew_time" else "date"} to {param}')
+            pod_exec(skew_pod_name, skew_command, pod_namespace, None, kubecli)
+        else:
+            logging.info(f'ntp active in cluster node, {"time" if action == "skew_time" else "date"} skewing will have no effect, skipping')
+    except ApiException:
+        pass
+    except Exception as e:
+        logging.error(f"failed to execute skew command in pod: {e}")
+    finally:
+        kubecli.delete_pod(status_pod_name, pod_namespace)
+        if not ntp_enabled :
+            kubecli.delete_pod(skew_pod_name, pod_namespace)
+
+
+
 # krkn_lib
 def skew_time(scenario, kubecli:KrknKubernetes):
-    skew_command = "date --date "
-    if scenario["action"] == "skew_date":
-        skewed_date = "00-01-01"
-        skew_command += skewed_date
-    elif scenario["action"] == "skew_time":
-        skewed_time = "01:01:01"
-        skew_command += skewed_time
+    if scenario["action"] not in ["skew_date","skew_time"]:
+        raise RuntimeError(f'{scenario["action"]} is not a valid time skew action')
+
     if "node" in scenario["object_type"]:
         node_names = []
         if "object_name" in scenario.keys() and scenario["object_name"]:
@@ -83,13 +111,19 @@ def skew_time(scenario, kubecli:KrknKubernetes):
             scenario["label_selector"]
         ):
             node_names = kubecli.list_nodes(scenario["label_selector"])
-
         for node in node_names:
-            node_debug(node, skew_command)
+            skew_node(node, scenario["action"], kubecli)
             logging.info("Reset date/time on node " + str(node))
         return "node", node_names
 
     elif "pod" in scenario["object_type"]:
+        skew_command = "date --date "
+        if scenario["action"] == "skew_date":
+            skewed_date = "00-01-01"
+            skew_command += skewed_date
+        elif scenario["action"] == "skew_time":
+            skewed_time = "01:01:01"
+            skew_command += skewed_time
         container_name = get_yaml_item_value(scenario, "container_name", "")
         pod_names = []
         if "object_name" in scenario.keys() and scenario["object_name"]:
@@ -241,7 +275,8 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
     if object_type == "node":
         for node_name in names:
             first_date_time = datetime.datetime.utcnow()
-            node_datetime_string = node_debug(node_name, skew_command)
+            check_pod_name = f"time-skew-pod-{get_random_string(5)}"
+            node_datetime_string = kubecli.exec_command_on_node(node_name, [skew_command], check_pod_name)
             node_datetime = string_to_date(node_datetime_string)
             counter = 0
             while not (
@@ -252,7 +287,8 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
                     "Date/time on node %s still not reset, "
                     "waiting 10 seconds and retrying" % node_name
                 )
-                node_datetime_string = node_debug(node_name, skew_command)
+
+                node_datetime_string = kubecli.exec_cmd_in_pod([skew_command], check_pod_name, "default")
                 node_datetime = string_to_date(node_datetime_string)
                 counter += 1
                 if counter > max_retries:
@@ -266,6 +302,8 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
                 logging.info(
                     "Date in node " + str(node_name) + " reset properly"
                 )
+            kubecli.delete_pod(check_pod_name)
+
     elif object_type == "pod":
         for pod_name in names:
             first_date_time = datetime.datetime.utcnow()

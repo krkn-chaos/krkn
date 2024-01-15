@@ -284,16 +284,9 @@ def main(cfg):
                         # in the config
                         # krkn_lib
                         elif scenario_type == "time_scenarios":
-                            if distribution == "openshift":
                                 logging.info("Running time skew scenarios")
                                 failed_post_scenarios, scenario_telemetries = time_actions.run(scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
                                 chaos_telemetry.scenarios.extend(scenario_telemetries)
-                            else:
-                                logging.error(
-                                    "Litmus scenarios are currently "
-                                    "supported only on openshift"
-                                )
-                                sys.exit(1)
                         # Inject cluster shutdown scenarios
                         # krkn_lib
                         elif scenario_type == "cluster_shut_down_scenarios":
