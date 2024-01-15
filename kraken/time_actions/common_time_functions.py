@@ -78,7 +78,7 @@ def skew_node(node_name: str, action: str, kubecli: KrknKubernetes):
         skew_command.append("2001-01-01")
 
     try:
-        status_response = kubecli.exec_command_on_node(node_name,status_command,status_pod_name,pod_namespace)
+        status_response = kubecli.exec_command_on_node(node_name, status_command, status_pod_name, pod_namespace)
         if "Network time on: no" in status_response:
             ntp_enabled = False
 
@@ -272,12 +272,10 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
     skew_command = "date"
     not_reset = []
     max_retries = 30
-    check_pod_name = f"time-skew-pod-{get_random_string(5)}"
     if object_type == "node":
         for node_name in names:
             first_date_time = datetime.datetime.utcnow()
-            # def skew_node(node_name: str, action: str, kubecli: KrknKubernetes):
-
+            check_pod_name = f"time-skew-pod-{get_random_string(5)}"
             node_datetime_string = kubecli.exec_command_on_node(node_name, [skew_command], check_pod_name)
             node_datetime = string_to_date(node_datetime_string)
             counter = 0
@@ -304,7 +302,7 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
                 logging.info(
                     "Date in node " + str(node_name) + " reset properly"
                 )
-        kubecli.delete_pod(check_pod_name)
+            kubecli.delete_pod(check_pod_name)
 
     elif object_type == "pod":
         for pod_name in names:
