@@ -13,7 +13,7 @@ ci_test=`echo $1`
 
 results_file=$2
 
-echo -e "FUNCTIONAL test: ${ci_test}" >&2
+echo -e "test: ${ci_test}" >&2
 
 ci_results="CI/out/$ci_test.out"
 # Test ci
