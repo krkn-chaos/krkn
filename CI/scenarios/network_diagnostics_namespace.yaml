@@ -1,6 +1,6 @@
 scenarios:
   - action: delete
-    namespace: "^$openshift-network-diagnostics$"
+    namespace: "^namespace-scenario$"
     label_selector:
     runs: 1
     sleep: 15
