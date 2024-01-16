@@ -2,7 +2,8 @@ name: Functional & Unit Tests
 on:
   pull_request:
 jobs:
-  build:
+  tests:
+    name: Functional & Unit Tests
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
