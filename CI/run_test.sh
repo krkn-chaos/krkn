@@ -13,7 +13,7 @@ ci_test=`echo $1`
 
 results_file=$2
 
-echo -e "FUNCTIONAL test: ${ci_test}\n" >&2
+echo -e "FUNCTIONAL test: ${ci_test}" >&2
 
 ci_results="CI/out/$ci_test.out"
 # Test ci
@@ -25,7 +25,7 @@ then
   # if the test passes update the results and complete
   duration=$SECONDS
   duration=$(get_time_format $duration)
-  echo -e  "> $ci_test: Successful\n\n" >&2
+  echo -e  "> $ci_test: Successful\n" >&2
   echo "$ci_test | Pass | $duration" >> $results_file
   count=$retries
   # return value for run.sh
@@ -33,7 +33,7 @@ then
 else
   duration=$SECONDS
   duration=$(get_time_format $duration)
-  echo -e "> $ci_test: Failed\n\n" >&2
+  echo -e "> $ci_test: Failed\n" >&2
   echo "$ci_test | Fail | $duration" >> $results_file
   # return value for run.sh
   echo 1

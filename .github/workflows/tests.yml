@@ -69,7 +69,7 @@ jobs:
             # echo "test_app_outages_gh" > ./CI/tests/my_tests
             echo "test_container"      >> ./CI/tests/my_tests
             echo "test_namespace"      >> ./CI/tests/my_tests
-            # echo "test_net_chaos"      >> ./CI/tests/my_tests
+            echo "test_net_chaos"      >> ./CI/tests/my_tests
             echo "test_time"           >> ./CI/tests/my_tests
       - name: Run Functional tests
         run: |
