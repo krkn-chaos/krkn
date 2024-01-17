@@ -1,0 +1,14 @@
+input_list:
+- duration: 30s
+  io_block_size: 1m
+  io_workers: 1
+  io_write_bytes: 10m
+  kubeconfig: ''
+  namespace: default
+  node_selector:
+    kubernetes.io/hostname: kind-worker2
+  target_pod_folder: /hog-data
+  target_pod_volume:
+    hostPath:
+      path: /tmp
+    name: node-volume

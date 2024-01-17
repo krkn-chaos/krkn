@@ -1,0 +1,12 @@
+---
+deployers:
+  image:
+    connection: {}
+    deployer_name: kubernetes
+log:
+  level: debug
+logged_outputs:
+  error:
+    level: error
+  success:
+    level: debug
