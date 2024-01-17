@@ -1,0 +1,14 @@
+input_list:
+- duration: 30s
+  vm_bytes: 10%
+  vm_workers: 2
+  node_selector:
+    kubernetes.io/hostname: kind-worker2
+  # node selector example
+  # node_selector:
+  #   kubernetes.io/hostname: master
+  kubeconfig: ""
+  namespace: default
+
+# duplicate this section to run simultaneous stressors in the same run
+

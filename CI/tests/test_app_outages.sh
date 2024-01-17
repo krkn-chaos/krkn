@@ -7,7 +7,8 @@ trap finish EXIT
 
 
 function functional_test_app_outage {
-
+  yq -i '.application_outage.pod_selector={"scenario":"outage"}' CI/scenarios/app_outage.yaml
+  yq -i '.application_outage.namespace="default"' CI/scenarios/app_outage.yaml
   export scenario_type="application_outages"
   export scenario_file="CI/scenarios/app_outage.yaml"
   export post_config=""
