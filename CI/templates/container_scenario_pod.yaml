@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: container
+  labels:
+    scenario: container
+spec:
+  hostNetwork: true
+  containers:
+  - name: fedtools
+    image: docker.io/fedora/tools
+    command:
+    - /bin/sh
+    - -c
+    - |
+      sleep infinity

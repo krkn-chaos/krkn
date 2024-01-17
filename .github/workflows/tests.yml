@@ -1,0 +1,102 @@
+name: Functional & Unit Tests
+on:
+  pull_request:
+jobs:
+  tests:
+    name: Functional & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      - name: Create multi-node KinD cluster
+        uses: redhat-chaos/actions/kind@main
+      - name: Install Helm & add repos
+        run: |
+          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+          helm repo add stable https://charts.helm.sh/stable
+          helm repo update
+      - name: Deploy prometheus & Port Forwarding
+        run: |
+          kubectl create namespace prometheus-k8s
+          helm install \
+          --wait --timeout 360s \
+          kind-prometheus \
+          prometheus-community/kube-prometheus-stack \
+          --namespace prometheus-k8s \
+          --set prometheus.service.nodePort=30000 \
+          --set prometheus.service.type=NodePort \
+          --set grafana.service.nodePort=31000 \
+          --set grafana.service.type=NodePort \
+          --set alertmanager.service.nodePort=32000 \
+          --set alertmanager.service.type=NodePort \
+          --set prometheus-node-exporter.service.nodePort=32001 \
+          --set prometheus-node-exporter.service.type=NodePort
+
+          SELECTOR=`kubectl -n prometheus-k8s get service kind-prometheus-kube-prome-prometheus -o wide --no-headers=true | awk '{ print $7 }'`
+          POD_NAME=`kubectl -n prometheus-k8s get pods --selector="$SELECTOR" --no-headers=true | awk '{ print $1 }'`
+          kubectl -n prometheus-k8s port-forward $POD_NAME 9090:9090 &
+          sleep 5
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          architecture: 'x64'
+      - name: Install environment
+        run: |
+          sudo apt-get install build-essential python3-dev
+          pip install --upgrade pip
+          pip install -r requirements.txt
+#      - name: Run unit tests
+#        run: python -m coverage run -a -m unittest discover -s tests -v
+      - name: Deploy test workloads
+        run: |
+          kubectl apply -f CI/templates/container_scenario_pod.yaml
+          kubectl wait --for=condition=ready pod -l scenario=container --timeout=300s
+          kubectl create namespace namespace-scenario
+          kubectl apply -f CI/templates/time_pod.yaml
+          kubectl wait --for=condition=ready pod -l scenario=time-skew --timeout=300s
+      - name: Get Kind nodes
+        run: |
+          kubectl get nodes --show-labels=true
+
+      - name: Setup Functional Tests
+        run: |
+            yq -i '.kraken.distribution="kubernetes"' CI/config/common_test_config.yaml
+            yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
+            yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
+            yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
+            # echo "test_app_outages_gh" > ./CI/tests/my_tests
+            echo "test_container"      >> ./CI/tests/my_tests
+            echo "test_namespace"      >> ./CI/tests/my_tests
+            echo "test_net_chaos"      >> ./CI/tests/my_tests
+            echo "test_time"           >> ./CI/tests/my_tests
+      - name: Run Functional tests
+        run: |
+          ./CI/run.sh
+          cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
+          echo >> $GITHUB_STEP_SUMMARY
+      - name: Run Unit tests
+        run: python -m coverage run -a -m unittest discover -s tests -v
+      - name: Upload CI logs
+        uses: actions/upload-artifact@v3
+        with:
+          name: ci-logs
+          path: CI/out
+          if-no-files-found: error
+      - name: Collect coverage report
+        run: |
+          python -m coverage html
+      - name: Publish coverage report to job summary
+        run: |
+          pip install html2text
+          html2text --ignore-images --ignore-links -b 0 htmlcov/index.html >> $GITHUB_STEP_SUMMARY
+      - name: Upload coverage data
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage
+          path: htmlcov
+          if-no-files-found: error
+      - name: Check CI results
+        run: grep Fail CI/results.markdown && false || true
+      
