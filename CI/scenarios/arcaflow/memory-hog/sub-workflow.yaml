@@ -1,0 +1,90 @@
+version: v0.2.0
+input:
+  root: RootObject
+  objects:
+    RootObject:
+      id: input_item
+      properties:
+        kubeconfig:
+          display:
+            description: The complete kubeconfig file as a string
+            name: Kubeconfig file contents
+          type:
+            type_id: string
+          required: true
+        namespace:
+          display:
+            description: The namespace where the container will be deployed
+            name: Namespace
+          type:
+            type_id: string
+          required: true
+        node_selector:
+            display:
+              description: kubernetes node name where the plugin must be deployed
+            type:
+              type_id: map
+              values:
+                type_id: string
+              keys:
+                type_id: string
+            required: true
+        duration:
+          display:
+            name: duration the scenario expressed in seconds
+            description: stop stress test after T seconds. One can also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or  y
+          type:
+            type_id: string
+          required: true
+        vm_workers:
+          display:
+            description: Number of VM stressors to be run (0 means 1 stressor per CPU)
+            name: Number of VM stressors
+          type:
+            type_id: integer
+          required: true
+        vm_bytes:
+          display:
+            description: N bytes per vm process, the default is 256MB. The size can be expressed in units of Bytes, KBytes, MBytes and GBytes using the suffix b, k, m or g.
+            name: Kubeconfig file contents
+          type:
+            type_id: string
+          required: true
+
+steps:
+  kubeconfig:
+    plugin: 
+      src: quay.io/arcalot/arcaflow-plugin-kubeconfig:0.2.0
+      deployment_type: image
+    input:
+      kubeconfig: !expr $.input.kubeconfig
+  stressng:
+    plugin: 
+      src: quay.io/arcalot/arcaflow-plugin-stressng:0.5.0
+      deployment_type: image
+    step: workload
+    input:
+      cleanup: "true"
+      StressNGParams:
+        timeout: !expr $.input.duration
+        stressors:
+          - stressor: vm
+            vm: !expr $.input.vm_workers
+            vm_bytes: !expr $.input.vm_bytes
+    deploy:
+      deployer_name: kubernetes
+      connection: !expr $.steps.kubeconfig.outputs.success.connection
+      pod:
+        metadata:
+          namespace: !expr $.input.namespace
+          labels:
+            arcaflow: stressng
+        spec:
+          nodeSelector: !expr $.input.node_selector
+          pluginContainer:
+            imagePullPolicy: Always
+
+outputs:
+  success:
+    stressng: !expr $.steps.stressng.outputs.success
+

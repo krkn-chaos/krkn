@@ -1,0 +1,113 @@
+version: v0.2.0
+input:
+  root: RootObject
+  objects:
+    hostPath:
+      id: HostPathVolumeSource
+      properties:
+        path:
+          type:
+            type_id: string
+    Volume:
+      id: Volume
+      properties:
+        name:
+          type:
+            type_id: string
+        hostPath:
+          type:
+            id: hostPath
+            type_id: ref
+    RootObject:
+      id: RootObject
+      properties:
+        input_list:
+          type:
+            type_id: list
+            items:
+              id: input_item
+              type_id: object
+              properties:
+                kubeconfig:
+                  display:
+                    description: The complete kubeconfig file as a string
+                    name: Kubeconfig file contents
+                  type:
+                    type_id: string
+                  required: true
+                namespace:
+                  display:
+                    description: The namespace where the container will be deployed
+                    name: Namespace
+                  type:
+                    type_id: string
+                  required: true
+                node_selector:
+                  display:
+                    description: kubernetes node name where the plugin must be deployed
+                  type:
+                    type_id: map
+                    values:
+                      type_id: string
+                    keys:
+                      type_id: string
+                  required: true
+                duration:
+                  display:
+                    name: duration the scenario expressed in seconds
+                    description: stop  stress  test  after  T  seconds.  One  can  also specify the units of time in
+                      seconds, minutes, hours, days or years with the suffix s, m, h, d or  y
+                  type:
+                    type_id: string
+                  required: true
+                io_workers:
+                  display:
+                    description: number of workers
+                    name: start N workers continually writing, reading  and  removing  temporary  files
+                  type:
+                    type_id: integer
+                  required: true
+                io_block_size:
+                  display:
+                    description: single write size
+                    name: specify size of each write in bytes. Size can be from 1 byte to 4MB.
+                  type:
+                    type_id: string
+                  required: true
+                io_write_bytes:
+                  display:
+                    description: Total number of bytes written
+                    name: write  N  bytes for each hdd process, the default is 1 GB. One can specify the size
+                      as % of free space on the file system or in units  of  Bytes,  KBytes,  MBytes  and
+                      GBytes using the suffix b, k, m or g
+                  type:
+                    type_id: string
+                  required: true
+                target_pod_folder:
+                  display:
+                    description: Target Folder
+                    name: Folder in the pod where the test will be executed and the test files will be written
+                  type:
+                    type_id: string
+                  required: true
+                target_pod_volume:
+                  display:
+                    name: kubernetes volume definition
+                    description: the volume that will be attached to the pod. In order to stress
+                      the node storage only hosPath mode is currently supported
+                  type:
+                    type_id: ref
+                    id: Volume
+                  required: true
+steps:
+  workload_loop:
+    kind: foreach
+    items: !expr $.input.input_list
+    workflow: sub-workflow.yaml
+    parallelism: 1000
+outputs:
+  success:
+    workloads: !expr $.steps.workload_loop.outputs.success.data
+
+
+

@@ -51,6 +51,8 @@ jobs:
 #        run: python -m coverage run -a -m unittest discover -s tests -v
       - name: Deploy test workloads
         run: |
+          kubectl apply -f CI/templates/outage_pod.yaml
+          kubectl wait --for=condition=ready pod -l scenario=outage --timeout=300s
           kubectl apply -f CI/templates/container_scenario_pod.yaml
           kubectl wait --for=condition=ready pod -l scenario=container --timeout=300s
           kubectl create namespace namespace-scenario
@@ -66,11 +68,14 @@ jobs:
             yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
             yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
             yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
-            # echo "test_app_outages_gh" > ./CI/tests/my_tests
+            echo "test_app_outages" > ./CI/tests/my_tests
             echo "test_container"      >> ./CI/tests/my_tests
             echo "test_namespace"      >> ./CI/tests/my_tests
             echo "test_net_chaos"      >> ./CI/tests/my_tests
             echo "test_time"           >> ./CI/tests/my_tests
+            echo "test_arca_cpu_hog" >> ./CI/tests/my_tests
+            echo "test_arca_memory_hog" >> ./CI/tests/my_tests
+            echo "test_arca_io_hog" >> ./CI/tests/my_tests
       - name: Run Functional tests
         run: |
           ./CI/run.sh
