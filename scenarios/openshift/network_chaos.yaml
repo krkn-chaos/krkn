@@ -1,12 +1,11 @@
-network_chaos:                       # Scenario to create an outage by simulating random variations in the network.
-  duration: 300                      # seconds
-  node_name:                         # node on which scenario has to be injected;
-  label_selector: <label_selector>   # when node_name is not specified, a node with matching label_selector is selected for running the scenario.
+network_chaos: # Scenario to create an outage by simulating random variations in the network.
+  duration: 300 # seconds
+  node_name: # node on which scenario has to be injected;
+  label_selector: <label_selector> # when node_name is not specified, a node with matching label_selector is selected for running the scenario.
   instance_count: 1
-  interfaces:                        # Interface name would be the Kernel host network interface name.
-  - "<interface_name>"
+  interfaces: # Interface name would be the Kernel host network interface name.
+    - "<interface_name>"
   execution: serial
   egress:
-    latency: 50ms                    # 50ms
-    loss: 0.02                       # percentage
-    bandwidth: 100mbit
+    latency: 50ms # 50ms
+    loss: 0.02 # percentage

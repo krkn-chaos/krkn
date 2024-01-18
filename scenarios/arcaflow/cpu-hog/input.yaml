@@ -1,8 +1,9 @@
 input_list:
-- cpu_count: 1
-  cpu_load_percentage: 80
-  cpu_method: all
-  duration: 1s
-  kubeconfig: ''
-  namespace: default
-  node_selector: {}
+  - cpu_count: 1
+    cpu_load_percentage: 80
+    cpu_method: all
+    duration: 1s
+    kubeconfig: ''
+    namespace: default
+    node_selector:
+      kubernetes.io/hostname: kind-worker2

@@ -17,7 +17,7 @@ wait_cluster_become_ready() {
 
 
 
-ci_tests_loc="CI/tests/my_tests"
+ci_tests_loc="CI/tests/functional_tests"
 
 echo -e "********* Running Functional Tests Suite *********\n\n"
 
@@ -37,7 +37,7 @@ echo '-----------------------|--------|---------' >> $results
 
 # Run each test
 failed_tests=()
-for test_name in `cat CI/tests/my_tests`
+for test_name in `cat CI/tests/functional_tests`
 do
   wait_cluster_become_ready
   return_value=`./CI/run_test.sh $test_name $results`
