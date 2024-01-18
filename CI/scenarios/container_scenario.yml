@@ -1,8 +1,0 @@
-scenarios:
-- name: "kill test container"
-  namespace: "default"
-  label_selector: "scenario=container"
-  container_name: "fedtools"
-  action: 1
-  count: 1
-  retry_wait: 60

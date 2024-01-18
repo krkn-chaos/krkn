@@ -61,7 +61,7 @@ inspect.local.*
 !CI/config/common_test_config.yaml
 CI/out/*
 CI/ci_results
-CI/scenarios/*node.yaml
+CI/legacy/*node.yaml
 CI/results.markdown
 
 #env
