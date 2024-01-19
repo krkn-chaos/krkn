@@ -77,3 +77,8 @@ telemetry:
      - "kinit (\\d+/\\d+/\\d+\\s\\d{2}:\\d{2}:\\d{2})\\s+"          # kinit 2023/09/15 11:20:36 log
      - "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z).+"      # 2023-09-15T11:20:36.123425532Z log
     oc_cli_path: /usr/bin/oc                                # optional, if not specified will be search in $PATH
+elastic: 
+    elastic_url: ""                                         # To track results in elasticsearch, give url to server here; will post telemetry details when url and index not blank
+    elastic_index: ""                                       # Elastic search index pattern to post results to
+
+
