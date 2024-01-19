@@ -27,6 +27,7 @@ import server as server
 from kraken import plugins
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
+from krkn_lib.telemetry.elastic import KrknElastic
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ChaosRunTelemetry
@@ -94,6 +95,9 @@ def main(cfg):
             config["performance_monitoring"], "check_critical_alerts", False
         )
         telemetry_api_url = config["telemetry"].get("api_url")
+        elastic_config = get_yaml_item_value(config,"elastic",{})
+        elastic_url = get_yaml_item_value(elastic_config,"elastic_url","")
+        elastic_index = get_yaml_item_value(elastic_config,"elastic_index","")
         
         # Initialize clients
         if (not os.path.isfile(kubeconfig_path) and
@@ -128,8 +132,6 @@ def main(cfg):
             ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
         except:
             kubecli.initialize_clients(None)
-
-
 
         # find node kraken might be running on
         kubecli.find_kraken_node()
@@ -175,7 +177,7 @@ def main(cfg):
         # KrknTelemetry init
         telemetry_k8s = KrknTelemetryKubernetes(safe_logger, kubecli)
         telemetry_ocp = KrknTelemetryOpenshift(safe_logger, ocpcli)
-
+        telemetry_elastic = KrknElastic(safe_logger,elastic_url)
 
         if enable_alerts:
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
@@ -378,7 +380,7 @@ def main(cfg):
 
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(chaos_telemetry.to_json()))
         logging.info(f"Telemetry data:\n{decoded_chaos_run_telemetry.to_json()}")
-
+        telemetry_elastic.upload_data_to_elasticsearch(decoded_chaos_run_telemetry.to_json(), elastic_index)
         if config["telemetry"]["enabled"]:
             logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/download/{telemetry_request_id}")
             logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
