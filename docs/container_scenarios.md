@@ -4,7 +4,7 @@ This can be based on the pods namespace or labels. If you know the exact object 
 These scenarios are in a simple yaml format that you can manipulate to run your specific tests or use the pre-existing scenarios to see how it works.
 
 ####  Example Config
-The following are the components of Kubernetes/OpenShift for which a basic chaos scenario config exists today.
+The following are the components of Kubernetes for which a basic chaos scenario config exists today.
 
 ```
 scenarios:
@@ -25,7 +25,7 @@ In all scenarios we do a post chaos check to wait and verify the specific compon
 Here there are two options:
 1. Pass a custom script in the main config scenario list that will run before the chaos and verify the output matches post chaos scenario.
 
-See [scenarios/post_action_etcd_container.py](https://github.com/redhat-chaos/krkn/blob/main/scenarios/post_action_etcd_container.py) for an example.
+See [scenarios/post_action_etcd_container.py](https://github.com/krkn-chaos/krkn/blob/main/scenarios/post_action_etcd_container.py) for an example.
 ```
 -   container_scenarios:                                 # List of chaos pod scenarios to load.
             - -    scenarios/container_etcd.yml
