@@ -17,7 +17,7 @@ This tool profiles an application and gathers telemetry data such as CPU, Memory
     ```
     $ python3.9 -m venv chaos
     $ source chaos/bin/activate
-    $ git clone https://github.com/redhat-chaos/krkn.git 
+    $ git clone https://github.com/krkn-chaos/krkn.git 
     $ cd krkn
     $ pip3 install -r requirements.txt
     $ python3.9 utils/chaos_recommender/chaos_recommender.py
@@ -89,7 +89,7 @@ If you provide the input values through command-line arguments, the correspondin
 
 ## Podman & Docker image
 
-To run the recommender image please visit the [krkn-hub](https://github.com/redhat-chaos/krkn-hub for further infos.
+To run the recommender image please visit the [krkn-hub](https://github.com/krkn-chaos/krkn-hub for further infos.
 
 ## How it works
 

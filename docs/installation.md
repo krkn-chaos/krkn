@@ -3,13 +3,13 @@
 The following ways are supported to run Kraken:
 
 - Standalone python program through Git.
-- Containerized version using either Podman or Docker as the runtime via [Krkn-hub](https://github.com/redhat-chaos/krkn-hub)
+- Containerized version using either Podman or Docker as the runtime via [Krkn-hub](https://github.com/krkn-chaos/krkn-hub)
 - Kubernetes or OpenShift deployment ( unsupported )
 
 **NOTE**: It is recommended to run Kraken external to the cluster ( Standalone or Containerized ) hitting the Kubernetes/OpenShift API as running it internal to the cluster might be disruptive to itself and also might not report back the results if the chaos leads to cluster's API server instability.
 
 **NOTE**: To run Kraken on Power (ppc64le) architecture, build and run a containerized version by following the
- instructions given [here](https://github.com/redhat-chaos/krkn/blob/main/containers/build_own_image-README.md).
+ instructions given [here](https://github.com/krkn-chaos/krkn/blob/main/containers/build_own_image-README.md).
 
 **NOTE**: Helper functions for interactions in Krkn are part of [krkn-lib](https://github.com/redhat-chaos/krkn-lib). 
 Please feel free to reuse and expand them as you see fit when adding a new scenario or expanding 
@@ -19,9 +19,9 @@ the capabilities of the current supported scenarios.
 ### Git
 
 #### Clone the repository
-Pick the latest stable release to install [here](https://github.com/redhat-chaos/krkn/releases).
+Pick the latest stable release to install [here](https://github.com/krkn-chaos/krkn/releases).
 ```
-$ git clone https://github.com/redhat-chaos/krkn.git --branch <release version>
+$ git clone https://github.com/krkn-chaos/krkn.git --branch <release version>
 $ cd kraken
 ```
 
@@ -40,13 +40,13 @@ $ python3.9 run_kraken.py --config <config_file_location>
 ```
 
 ### Run containerized version
-[Krkn-hub](https://github.com/redhat-chaos/krkn-hub) is a wrapper that allows running Krkn chaos scenarios via podman or docker runtime with scenario parameters/configuration defined as environment variables.
+[Krkn-hub](https://github.com/krkn-chaos/krkn-hub) is a wrapper that allows running Krkn chaos scenarios via podman or docker runtime with scenario parameters/configuration defined as environment variables.
 
-Refer [instructions](https://github.com/redhat-chaos/krkn-hub#supported-chaos-scenarios) to get started.
+Refer [instructions](https://github.com/krkn-chaos/krkn-hub#supported-chaos-scenarios) to get started.
 
 
 ### Run Kraken as a Kubernetes deployment ( unsupported option - standalone or containerized deployers are recommended )
-Refer [Instructions](https://github.com/redhat-chaos/krkn/blob/main/containers/README.md) on how to deploy and run Kraken as a Kubernetes/OpenShift deployment.
+Refer [Instructions](https://github.com/krkn-chaos/krkn/blob/main/containers/README.md) on how to deploy and run Kraken as a Kubernetes/OpenShift deployment.
 
 
 Refer to the [chaos-kraken chart manpage](https://artifacthub.io/packages/helm/startx/chaos-kraken)
