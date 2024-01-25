@@ -37,5 +37,5 @@ jobs:
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       uses: redhat-chaos/actions/krkn-hub@main
       with:
-        QUAY_USER: ${{ secrets.QUAY_USER_1 }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
+        QUAY_USER: ${{ secrets.QUAY_USERNAME }}
+        QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
