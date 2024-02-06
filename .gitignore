@@ -16,6 +16,7 @@ __pycache__/*
 *.out
 kube-burner*
 kube_burner*
+recommender_*.json
 
 # Project files
 .ropeproject

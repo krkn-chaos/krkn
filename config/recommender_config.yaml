@@ -7,6 +7,8 @@ auth_token: <Auth_Token>
 scrape_duration: 10m
 chaos_library: "kraken"
 log_level: INFO
+json_output_file: False
+json_output_folder_path:
 
 # for output purpose only do not change if not needed
 chaos_tests:
@@ -27,3 +29,7 @@ chaos_tests:
   MEM:
     - node_memory_hog
     - pvc_disk_fill
+
+threshold: .7
+cpu_threshold: .5
+mem_threshold: .5
