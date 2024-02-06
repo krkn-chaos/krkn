@@ -39,6 +39,8 @@ You can customize the default values by editing the `krkn/config/recommender_con
   - `auth_token`: Auth token to connect to prometheus endpoint (must).
   - `scrape_duration`: For how long data should be fetched, e.g., '1m' (must).
   - `chaos_library`: "kraken" (currently it only supports kraken).
+  - `json_output_file`: True or False (by default False).
+  - `json_output_folder_path`: Specify folder path where output should be saved. If empty the default path is used.
   - `chaos_tests`: (for output purpose only do not change if not needed)
     - `GENERAL`: list of general purpose tests available in Krkn
     - `MEM`: list of memory related tests available in Krkn
@@ -79,6 +81,8 @@ You can also provide the input values through command-line arguments launching t
                         Chaos library
   -L LOG_LEVEL, --log-level LOG_LEVEL
                         log level (DEBUG, INFO, WARNING, ERROR, CRITICAL
+  -J [FOLDER_PATH], --json-output-file [FOLDER_PATH]
+                        Create output file, the path to the folder can be specified, if not specified the default folder is used.
   -M MEM [MEM ...], --MEM MEM [MEM ...]
                         Memory related chaos tests (space separated list)
   -C CPU [CPU ...], --CPU CPU [CPU ...]
