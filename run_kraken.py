@@ -156,12 +156,17 @@ def main(cfg):
         # Cluster info
         logging.info("Fetching cluster info")
         cv = ""
-        if config["kraken"]["distribution"] == "openshift":
+        if distribution == "openshift":
             cv = ocpcli.get_clusterversion_string()
             if prometheus_url is None:
-                connection_data = ocpcli.get_prometheus_api_connection_data()
-                prometheus_url = connection_data.endpoint
-                prometheus_bearer_token = connection_data.token
+                try:
+                    connection_data = ocpcli.get_prometheus_api_connection_data()
+                    prometheus_url = connection_data.endpoint
+                    prometheus_bearer_token = connection_data.token
+                except Exception:
+                    logging.error("invalid distribution selected, running openshift scenarios against kubernetes cluster."
+                                  "Please set 'kubernetes' in config.yaml krkn.platform and try again")
+                    sys.exit(1)
         if cv != "":
             logging.info(cv)
         else:
@@ -366,7 +371,7 @@ def main(cfg):
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
-        if config["kraken"]["distribution"] == "openshift":
+        if distribution == "openshift":
             telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
         else:
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
@@ -381,12 +386,33 @@ def main(cfg):
                 telemetry_k8s.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
                 telemetry_k8s.put_cluster_events(telemetry_request_id, config["telemetry"], start_time, end_time)
                 # prometheus data collection is available only on Openshift
-                if config["telemetry"]["prometheus_backup"] and config["kraken"]["distribution"] == "openshift":
-                    safe_logger.info("archives download started:")
-                    prometheus_archive_files = telemetry_ocp.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
-                    safe_logger.info("archives upload started:")
-                    telemetry_k8s.put_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
-                if config["telemetry"]["logs_backup"]:
+                if config["telemetry"]["prometheus_backup"]:
+                    prometheus_archive_files = ''
+                    if distribution == "openshift" :
+                        prometheus_archive_files = telemetry_ocp.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
+                    else:
+                        if (config["telemetry"]["prometheus_namespace"] and
+                                config["telemetry"]["prometheus_pod_name"] and
+                                config["telemetry"]["prometheus_container_name"]):
+                            try:
+                                prometheus_archive_files = telemetry_k8s.get_prometheus_pod_data(
+                                    config["telemetry"],
+                                    telemetry_request_id,
+                                    config["telemetry"]["prometheus_pod_name"],
+                                    config["telemetry"]["prometheus_container_name"],
+                                    config["telemetry"]["prometheus_namespace"]
+                                )
+                            except Exception as e:
+                                logging.error(f"failed to get prometheus backup with exception {str(e)}")
+                        else:
+                            logging.warning("impossible to backup prometheus,"
+                                            "check if config contains telemetry.prometheus_namespace, "
+                                            "telemetry.prometheus_pod_name and "
+                                            "telemetry.prometheus_container_name")
+                    if prometheus_archive_files:
+                        safe_logger.info("starting prometheus archive upload:")
+                        telemetry_k8s.put_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
+                if config["telemetry"]["logs_backup"] and distribution == "openshift":
                     telemetry_ocp.put_ocp_logs(telemetry_request_id, config["telemetry"], start_time, end_time)
             except Exception as e:
                 logging.error(f"failed to send telemetry data: {str(e)}")

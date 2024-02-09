@@ -39,7 +39,7 @@ echo '-----------------------|--------|---------' >> $results
 failed_tests=()
 for test_name in `cat CI/tests/functional_tests`
 do
-  wait_cluster_become_ready
+  #wait_cluster_become_ready
   return_value=`./CI/run_test.sh $test_name $results`
   if [[ $return_value == 1 ]]
   then
@@ -48,6 +48,7 @@ do
   fi
   wait_cluster_become_ready
 done
+
 
 if (( ${#failed_tests[@]}>0 ))
 then

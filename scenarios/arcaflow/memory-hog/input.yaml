@@ -2,10 +2,10 @@ input_list:
 - duration: 30s
   vm_bytes: 10%
   vm_workers: 2
-  node_selector: { }
-  # node selector example
+  # set the node selector as a key-value pair eg.
   # node_selector:
-  #   kubernetes.io/hostname: master
+  #  kubernetes.io/hostname: kind-worker2
+  node_selector: { }
   kubeconfig: ""
   namespace: default
 

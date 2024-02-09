@@ -1,8 +1,12 @@
 name: Functional & Unit Tests
 on:
   pull_request:
+  push:
+    branches:
+      - main
 jobs:
   tests:
+    # Common steps
     name: Functional & Unit Tests
     runs-on: ubuntu-latest
     steps:
@@ -47,8 +51,7 @@ jobs:
           sudo apt-get install build-essential python3-dev
           pip install --upgrade pip
           pip install -r requirements.txt
-#      - name: Run unit tests
-#        run: python -m coverage run -a -m unittest discover -s tests -v
+
       - name: Deploy test workloads
         run: |
           kubectl apply -f CI/templates/outage_pod.yaml
@@ -61,10 +64,14 @@ jobs:
       - name: Get Kind nodes
         run: |
           kubectl get nodes --show-labels=true
+      # Pull request only steps
+      - name: Run unit tests
+        if: github.event_name == 'pull_request'
+        run: python -m coverage run -a -m unittest discover -s tests -v
 
-      - name: Setup Functional Tests
+      - name: Setup Pull Request Functional Tests
+        if: github.event_name == 'pull_request'
         run: |
-            yq -i '.kraken.distribution="kubernetes"' CI/config/common_test_config.yaml
             yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
             yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
             yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
@@ -76,13 +83,33 @@ jobs:
             echo "test_arca_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_arca_memory_hog" >> ./CI/tests/functional_tests
             echo "test_arca_io_hog" >> ./CI/tests/functional_tests
+
+      # Push on main only steps
+      - name: Configure AWS Credentials
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region : ${{ secrets.AWS_REGION }}
+      - name: Setup Post Merge Request Functional Tests
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
+          yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
+          yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
+          yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
+          yq -i '.telemetry.password="${{secrets.TELEMETRY_PASSWORD}}"' CI/config/common_test_config.yaml
+          echo "test_telemetry" > ./CI/tests/functional_tests
+
+      # Final common steps
       - name: Run Functional tests
+        env:
+          AWS_BUCKET: ${{ secrets.AWS_BUCKET }}
         run: |
           ./CI/run.sh
           cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
-      - name: Run Unit tests
-        run: python -m coverage run -a -m unittest discover -s tests -v
       - name: Upload CI logs
         uses: actions/upload-artifact@v3
         with:
