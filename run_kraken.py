@@ -34,7 +34,7 @@ from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value
 
 
-
+report_file = ""
 
 # Main function
 def main(cfg):
@@ -414,10 +414,9 @@ def main(cfg):
             )
             sys.exit(1)
 
-        run_dir = os.getcwd() + "/kraken.report"
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
-            "%s. Report generated at %s. Exiting" % (run_uuid, run_dir)
+            "%s. Report generated at %s. Exiting" % (run_uuid, report_file)
         )
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
@@ -434,12 +433,21 @@ if __name__ == "__main__":
         help="config location",
         default="config/config.yaml",
     )
+    parser.add_option(
+        "-o",
+        "--output",
+        dest="output",
+        help="output report location",
+        default="kraken.report",
+    )
+    
     (options, args) = parser.parse_args()
+    report_file = options.output
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
-            logging.FileHandler("kraken.report", mode="w"),
+            logging.FileHandler(report_file, mode="w"),
             logging.StreamHandler(),
         ],
     )

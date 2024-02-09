@@ -1,6 +1,6 @@
 # Krkn aka Kraken
-[![Docker Repository on Quay](https://quay.io/repository/redhat-chaos/krkn/status "Docker Repository on Quay")](https://quay.io/repository/redhat-chaos/krkn?tab=tags&tag=latest)
-![Workflow-Status](https://github.com/redhat-chaos/krkn/actions/workflows/docker-image.yml/badge.svg)
+[![Docker Repository on Quay](https://quay.io/repository/krkn-chaos/krkn/status "Docker Repository on Quay")](https://quay.io/repository/krkn-chaos/krkn?tab=tags&tag=latest)
+![Workflow-Status](https://github.com/krkn-chaos/krkn/actions/workflows/docker-image.yml/badge.svg)
 
 ![Krkn logo](media/logo.png)
 
@@ -38,10 +38,10 @@ After installation, refer back to the below sections for supported scenarios and
 
 
 #### Running Kraken with minimal configuration tweaks
-For cases where you want to run Kraken with minimal configuration changes, refer to [Kraken-hub](https://github.com/redhat-chaos/krknChaos-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
+For cases where you want to run Kraken with minimal configuration changes, refer to [krkn-hub](https://github.com/krkn-chaos/krkn-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
 
 ### Setting up infrastructure dependencies
-Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes/OpenShift cluster under test. More information on the features is documented below. The infrastructure pieces can be easily installed and uninstalled by running:
+Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes cluster under test. More information on the features is documented below. The infrastructure pieces can be easily installed and uninstalled by running:
 
 ```
 $ cd kraken
@@ -65,7 +65,7 @@ Scenario type               | Kubernetes
 [Pod Network Scenarios](docs/pod_network_scenarios.md) | :x: |
 [Container Scenarios](docs/container_scenarios.md) | :heavy_check_mark: |
 [Node Scenarios](docs/node_scenarios.md) | :heavy_check_mark: |
-[Time Scenarios](docs/time_scenarios.md) | :x: |
+[Time Scenarios](docs/time_scenarios.md) | :heavy_check_mark: |
 [Hog Scenarios: CPU, Memory](docs/arcaflow_scenarios.md) | :heavy_check_mark: |
 [Cluster Shut Down Scenarios](docs/cluster_shut_down_scenarios.md) | :heavy_check_mark: |
 [Service Disruption Scenarios](docs/service_disruption_scenarios.md.md) | :heavy_check_mark: |
@@ -77,9 +77,9 @@ Scenario type               | Kubernetes
 
 
 ### Kraken scenario pass/fail criteria and report
-It is important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes/OpenShift cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
+It is important to make sure to check if the targeted component recovered from the chaos injection and also if the Kubernetes cluster is healthy as failures in one component can have an adverse impact on other components. Kraken does this by:
 - Having built in checks for pod and node based scenarios to ensure the expected number of replicas and nodes are up. It also supports running custom scripts with the checks.
-- Leveraging [Cerberus](https://github.com/redhat-chaos/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail post chaos. It is highly recommended to turn on the Cerberus health check feature available in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation) or can be installed from Kraken using the [instructions](https://github.com/redhat-chaos/krkn#setting-up-infrastructure-dependencies). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file. Cerberus can monitor [application routes](https://github.com/redhat-chaos/cerberus/blob/main/docs/config.md#watch-routes) during the chaos and fails the run if it encounters downtime as it is a potential downtime in a customers, or users environment as well. It is especially important during the control plane chaos scenarios including the API server, Etcd, Ingress etc. It can be enabled by setting `check_applicaton_routes: True` in the [Kraken config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) provided application routes are being monitored in the [cerberus config](https://github.com/redhat-chaos/krkn/blob/main/config/cerberus.yaml).
+- Leveraging [Cerberus](https://github.com/krkn-chaos/cerberus) to monitor the cluster under test and consuming the aggregated go/no-go signal to determine pass/fail post chaos. It is highly recommended to turn on the Cerberus health check feature available in Kraken. Instructions on installing and setting up Cerberus can be found [here](https://github.com/openshift-scale/cerberus#installation) or can be installed from Kraken using the [instructions](https://github.com/krkn-chaos/krkn#setting-up-infrastructure-dependencies). Once Cerberus is up and running, set cerberus_enabled to True and cerberus_url to the url where Cerberus publishes go/no-go signal in the Kraken config file. Cerberus can monitor [application routes](https://github.com/redhat-chaos/cerberus/blob/main/docs/config.md#watch-routes) during the chaos and fails the run if it encounters downtime as it is a potential downtime in a customers, or users environment as well. It is especially important during the control plane chaos scenarios including the API server, Etcd, Ingress etc. It can be enabled by setting `check_applicaton_routes: True` in the [Kraken config](https://github.com/redhat-chaos/krkn/blob/main/config/config.yaml) provided application routes are being monitored in the [cerberus config](https://github.com/redhat-chaos/krkn/blob/main/config/cerberus.yaml).
 - Leveraging built-in alert collection feature to fail the runs in case of critical alerts.
 
 ### Signaling
@@ -103,7 +103,7 @@ Information on enabling and leveraging this feature can be found [here](docs/SLO
 
 ### OCM / ACM integration
 
-Kraken supports injecting faults into [Open Cluster Management (OCM)](https://open-cluster-management.io/) and [Red Hat Advanced Cluster Management for Kubernetes (ACM)](https://www.redhat.com/en/technologies/management/advanced-cluster-management) managed clusters through [ManagedCluster Scenarios](docs/managedcluster_scenarios.md).
+Kraken supports injecting faults into [Open Cluster Management (OCM)](https://open-cluster-management.io/) and [Red Hat Advanced Cluster Management for Kubernetes (ACM)](https://www.krkn.com/en/technologies/management/advanced-cluster-management) managed clusters through [ManagedCluster Scenarios](docs/managedcluster_scenarios.md).
 
 
 ### Blogs and other useful resources
@@ -129,6 +129,7 @@ Please read [this file]((CI/README.md#adding-a-test-case)) for more information 
 
 
 ### Community
-Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, ravielluri/Naga Ravi Chaitanya Elluri.
-* [**#krkn on Kubernetes Slack**](https://kubernetes.slack.com)
-* [**#forum-chaos on CoreOS Slack internal to Red Hat**](https://coreos.slack.com)
+Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, tsebasti/Tullio Sebastiani, yogi/Yogananth Subramanian, sahil/Sahil Shah, pradeep/Pradeep Surisetty and ravielluri/Naga Ravi Chaitanya Elluri.
+* [**#krkn on Kubernetes Slack**](https://kubernetes.slack.com/messages/C05SFMHRWK1)
+
+The Linux Foundation® (TLF) has registered trademarks and uses trademarks. For a list of TLF trademarks, see [Trademark Usage](https://www.linuxfoundation.org/legal/trademark-usage).

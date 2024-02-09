@@ -13,6 +13,6 @@ function error {
 }
 
 function get_node {
-  worker_node=$(oc get nodes --no-headers | grep worker | head -n 1)
+  worker_node=$(kubectl get nodes --no-headers | grep worker | head -n 1)
   export WORKER_NODE=$worker_node
 }

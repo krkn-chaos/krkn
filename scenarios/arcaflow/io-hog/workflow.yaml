@@ -2,6 +2,22 @@ version: v0.2.0
 input:
   root: RootObject
   objects:
+    hostPath:
+      id: HostPathVolumeSource
+      properties:
+        path:
+          type:
+            type_id: string
+    Volume:
+      id: Volume
+      properties:
+        name:
+          type:
+            type_id: string
+        hostPath:
+          type:
+            id: hostPath
+            type_id: ref
     RootObject:
       id: RootObject
       properties:
@@ -80,25 +96,8 @@ input:
                     description: the volume that will be attached to the pod. In order to stress
                       the node storage only hosPath mode is currently supported
                   type:
-                    type_id: object
-                    id: k8s_volume
-                    properties:
-                      name:
-                        display:
-                          description: name of the volume (must match the name in pod definition)
-                        type:
-                          type_id: string
-                        required: true
-                      hostPath:
-                        display:
-                          description: hostPath options expressed as string map (key-value)
-                        type:
-                          type_id: map
-                          values:
-                            type_id: string
-                          keys:
-                            type_id: string
-                        required: true
+                    type_id: ref
+                    id: Volume
                   required: true
 steps:
   workload_loop:
