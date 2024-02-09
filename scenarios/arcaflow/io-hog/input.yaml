@@ -5,6 +5,9 @@ input_list:
   io_write_bytes: 10m
   kubeconfig: ''
   namespace: default
+  # set the node selector as a key-value pair eg.
+  # node_selector:
+  #  kubernetes.io/hostname: kind-worker2
   node_selector: {}
   target_pod_folder: /hog-data
   target_pod_volume:

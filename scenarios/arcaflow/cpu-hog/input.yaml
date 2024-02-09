@@ -5,5 +5,9 @@ input_list:
     duration: 1s
     kubeconfig: ''
     namespace: default
-    node_selector:
-      kubernetes.io/hostname: kind-worker2
+    # set the node selector as a key-value pair eg.
+    # node_selector:
+    #  kubernetes.io/hostname: kind-worker2
+    node_selector: {}
+
+

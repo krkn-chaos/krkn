@@ -1,5 +1,5 @@
 kraken:
-    distribution: openshift                                # Distribution can be kubernetes or openshift.
+    distribution: kubernetes                                # Distribution can be kubernetes or openshift.
     kubeconfig_path: ~/.kube/config                        # Path to kubeconfig.
     exit_on_failure: False                                 # Exit when a post action scenario fails.
     litmus_version: v1.13.6                                # Litmus version to install.
@@ -30,8 +30,11 @@ tunings:
 telemetry:
     enabled: False                                           # enable/disables the telemetry collection feature
     api_url: https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production #telemetry service endpoint
-    username: username                                      # telemetry service username
-    password: password                                      # telemetry service password
+    username: $TELEMETRY_USERNAME                                      # telemetry service username
+    password: $TELEMETRY_PASSWORD                                      # telemetry service password
+    prometheus_namespace: 'prometheus-k8s'                                # prometheus namespace
+    prometheus_pod_name: 'prometheus-kind-prometheus-kube-prome-prometheus-0'                                 # prometheus pod_name
+    prometheus_container_name: 'prometheus'
     prometheus_backup: True                                 # enables/disables prometheus data collection
     full_prometheus_backup: False                           # if is set to False only the /prometheus/wal folder will be downloaded.
     backup_threads: 5                                       # number of telemetry download/upload threads
@@ -39,3 +42,10 @@ telemetry:
     max_retries: 0                                          # maximum number of upload retries (if 0 will retry forever)
     run_tag: ''                                             # if set, this will be appended to the run folder in the bucket (useful to group the runs)
     archive_size: 10000                                     # the size of the prometheus data archive size in KB. The lower the size of archive is
+    logs_backup: True
+    logs_filter_patterns:
+        - "(\\w{3}\\s\\d{1,2}\\s\\d{2}:\\d{2}:\\d{2}\\.\\d+).+"         # Sep 9 11:20:36.123425532
+        - "kinit (\\d+/\\d+/\\d+\\s\\d{2}:\\d{2}:\\d{2})\\s+"          # kinit 2023/09/15 11:20:36 log
+        - "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z).+"      # 2023-09-15T11:20:36.123425532Z log
+    oc_cli_path: /usr/bin/oc                                # optional, if not specified will be search in $PATH
+    events_backup: True                                     # enables/disables cluster events collection
