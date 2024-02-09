@@ -8,7 +8,7 @@
   description: 10 minutes avg. 99th etcd fsync latency on {{$labels.pod}} higher than 1s. {{$value}}s
   severity: error
 
-- expr: avg_over_time(histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[2m]))[10m:]) > 0.007
+- expr: avg_over_time(histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[2m]))[10m:]) > 0.03
   description: 10 minutes avg. 99th etcd commit latency on {{$labels.pod}} higher than 30ms. {{$value}}s
   severity: warning
 
