@@ -29,7 +29,7 @@ tunings:
     daemon_mode: False                                     # Iterations are set to infinity which means that the kraken will cause chaos forever.
 telemetry:
     enabled: False                                           # enable/disables the telemetry collection feature
-    api_url: https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production #telemetry service endpoint
+    api_url: https://yvnn4rfoi7.execute-api.us-west-2.amazonaws.com/test #telemetry service endpoint
     username: $TELEMETRY_USERNAME                                      # telemetry service username
     password: $TELEMETRY_PASSWORD                                      # telemetry service password
     prometheus_namespace: 'prometheus-k8s'                                # prometheus namespace
