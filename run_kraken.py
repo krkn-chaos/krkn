@@ -359,7 +359,7 @@ def main(cfg):
                             if critical_alerts_count > 0:
                                 logging.error("Critical alerts are firing: %s", critical_alerts)
                                 logging.error("Please check, exiting")
-                                sys.exit(1)
+                                break
                             else:
                                 logging.info("No critical alerts are firing!!")
 
