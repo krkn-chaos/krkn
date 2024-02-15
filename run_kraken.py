@@ -163,8 +163,13 @@ def main(cfg):
             if prometheus_url is None:
                 try:
                     connection_data = ocpcli.get_prometheus_api_connection_data()
-                    prometheus_url = connection_data.endpoint
-                    prometheus_bearer_token = connection_data.token
+                    if connection_data:
+                        prometheus_url = connection_data.endpoint
+                        prometheus_bearer_token = connection_data.token
+                    else: 
+                        # If can't make a connection, set alerts to false
+                        enable_alerts = False
+                        critical_alerts = False
                 except Exception:
                     logging.error("invalid distribution selected, running openshift scenarios against kubernetes cluster."
                                   "Please set 'kubernetes' in config.yaml krkn.platform and try again")
@@ -341,7 +346,7 @@ def main(cfg):
                             failed_post_scenarios, scenario_telemetries = network_chaos.run(scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
 
                         # Check for critical alerts when enabled
-                        if enable_alerts and check_critical_alerts :
+                        if enable_alerts and check_critical_alerts:
                             logging.info("Checking for critical alerts firing post choas")
 
                             ##PROM
