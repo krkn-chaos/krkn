@@ -353,10 +353,7 @@ def main(cfg):
                             query = r"""ALERTS{severity="critical"}"""
                             end_time = datetime.datetime.now()
                             critical_alerts = prometheus.process_prom_query_in_range(
-                                query,
-                                start_time = datetime.datetime.fromtimestamp(start_time),
-                                end_time = end_time
-
+                                query
                             )
                             critical_alerts_count = len(critical_alerts)
                             if critical_alerts_count > 0:
