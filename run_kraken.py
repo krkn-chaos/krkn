@@ -353,7 +353,7 @@ def main(cfg):
                             ##PROM
                             query = r"""ALERTS{severity="critical"}"""
                             end_time = datetime.datetime.now()
-                            critical_alerts = prometheus.process_prom_query_in_range(
+                            critical_alerts = prometheus.process_query(
                                 query
                             )
                             critical_alerts_count = len(critical_alerts)
