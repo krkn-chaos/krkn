@@ -14,7 +14,10 @@ function functional_test_telemetry {
   export RUN_TAG="funtest-telemetry"
   yq -i '.telemetry.enabled=True' CI/config/common_test_config.yaml
   yq -i '.telemetry.full_prometheus_backup=True' CI/config/common_test_config.yaml
+  yq -i '.performance_monitoring.enable_alerts=True' CI/config/common_test_config.yaml
+  yq -i '.performance_monitoring.prometheus_url=http://localhost:9090' CI/config/common_test_config.yaml
   yq -i '.telemetry.run_tag=env(RUN_TAG)' CI/config/common_test_config.yaml
+
   export scenario_type="arcaflow_scenarios"
   export scenario_file="scenarios/arcaflow/cpu-hog/input.yaml"
   export post_config=""
@@ -24,6 +27,7 @@ function functional_test_telemetry {
   $AWS_CLI s3 ls "s3://$AWS_BUCKET/$RUN_FOLDER/" | awk '{ print $4 }' > s3_remote_files
   echo "checking if telemetry files are uploaded on s3"
   cat s3_remote_files | grep events-00.json || ( echo "FAILED: events-00.json not uploaded" && exit 1 )
+  cat s3_remote_files | grep alerts-00.json || ( echo "FAILED: alerts-00.json not uploaded" && exit 1 )
   cat s3_remote_files | grep prometheus-00.tar || ( echo "FAILED: prometheus backup not uploaded" && exit 1 )
   cat s3_remote_files | grep telemetry.json || ( echo "FAILED: telemetry.json not uploaded" && exit 1 )
   echo "all files uploaded!"

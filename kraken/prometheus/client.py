@@ -7,12 +7,12 @@ import sys
 import yaml
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-def alerts(prom_cli: KrknPrometheus, start_time, end_time, alert_profile):
+def alerts(prom_cli: KrknPrometheus, start_time, end_time, alert_profile) -> list[str]:
 
     if alert_profile is None or os.path.exists(alert_profile) is False:
         logging.error(f"{alert_profile} alert profile does not exist")
         sys.exit(1)
-
+    alert_strings = []
     with open(alert_profile) as profile:
         profile_yaml = yaml.safe_load(profile)
         if not isinstance(profile_yaml, list):
@@ -21,10 +21,15 @@ def alerts(prom_cli: KrknPrometheus, start_time, end_time, alert_profile):
                           f"expr, description, severity" )
             sys.exit(1)
 
+
         for alert in profile_yaml:
             if list(alert.keys()).sort() != ["expr", "description", "severity"].sort():
                 logging.error(f"wrong alert {alert}, skipping")
 
-            prom_cli.process_alert(alert,
+            log_tuple = prom_cli.process_alert(alert,
                                    datetime.datetime.fromtimestamp(start_time),
                                    datetime.datetime.fromtimestamp(end_time))
+            if log_tuple[0] and log_tuple[1]:
+                alert_strings.append(f"{log_tuple[0]} {log_tuple[1]}")
+
+    return alert_strings

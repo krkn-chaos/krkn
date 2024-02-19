@@ -378,6 +378,20 @@ def main(cfg):
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
+        # Check for the alerts specified
+        telemetry_alerts = []
+        if enable_alerts:
+            logging.info("Alerts checking is enabled")
+            if alert_profile:
+                telemetry_alerts = prometheus_plugin.alerts(
+                    prometheus,
+                    start_time,
+                    end_time,
+                    alert_profile,
+                )
+            else:
+                logging.error("Alert profile is not defined")
+                sys.exit(1)
         if distribution == "openshift":
             telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
         else:
@@ -392,6 +406,8 @@ def main(cfg):
             try:
                 telemetry_k8s.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
                 telemetry_k8s.put_cluster_events(telemetry_request_id, config["telemetry"], start_time, end_time)
+                if enable_alerts:
+                    telemetry_k8s.put_alerts(telemetry_request_id, config["telemetry"], telemetry_alerts)
                 # prometheus data collection is available only on Openshift
                 if config["telemetry"]["prometheus_backup"]:
                     prometheus_archive_files = ''
@@ -427,19 +443,7 @@ def main(cfg):
             logging.info("telemetry collection disabled, skipping.")
 
 
-        # Check for the alerts specified
-        if enable_alerts:
-            logging.info("Alerts checking is enabled")
-            if alert_profile:
-                prometheus_plugin.alerts(
-                    prometheus,
-                    start_time,
-                    end_time,
-                    alert_profile,
-                )
-            else:
-                logging.error("Alert profile is not defined")
-                sys.exit(1)
+
 
         if failed_post_scenarios:
             logging.error(
