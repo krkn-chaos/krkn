@@ -215,6 +215,7 @@ def main(cfg):
 
         # Capture the start time
         start_time = int(time.time())
+        critical_alerts_count = 0
 
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
@@ -352,17 +353,14 @@ def main(cfg):
                             ##PROM
                             query = r"""ALERTS{severity="critical"}"""
                             end_time = datetime.datetime.now()
-                            critical_alerts = prometheus.process_prom_query_in_range(
-                                query,
-                                start_time = datetime.datetime.fromtimestamp(start_time),
-                                end_time = end_time
-
+                            critical_alerts = prometheus.process_query(
+                                query
                             )
                             critical_alerts_count = len(critical_alerts)
                             if critical_alerts_count > 0:
                                 logging.error("Critical alerts are firing: %s", critical_alerts)
                                 logging.error("Please check, exiting")
-                                sys.exit(1)
+                                break
                             else:
                                 logging.info("No critical alerts are firing!!")
 
@@ -440,6 +438,10 @@ def main(cfg):
             else:
                 logging.error("Alert profile is not defined")
                 sys.exit(1)
+
+        if critical_alerts_count > 0:
+            logging.error("Critical alerts are firing, please check; exiting")
+            sys.exit(1)
 
         if failed_post_scenarios:
             logging.error(
