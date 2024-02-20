@@ -69,11 +69,9 @@ def critical_alerts(prom_cli: KrknPrometheus,
     firing_alerts = False
 
     if during_critical_alerts_count > 0:
-        logging.error("During Chaos Critical alerts are firing: %s", during_critical_alerts)
         firing_alerts = True
 
     if post_critical_alerts_count > 0:
-        logging.error("Post Chaos Critical alerts are firing: %s", during_critical_alerts)
         firing_alerts = True
 
     if not firing_alerts:

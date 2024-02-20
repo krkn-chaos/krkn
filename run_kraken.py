@@ -359,7 +359,7 @@ def main(cfg):
 
                             chaos_output.critical_alerts = summary
                             if len(summary.post_chaos_alerts) > 0:
-                                logging.error("Please check, exiting")
+                                logging.error("Post chaos critical alerts firing please check, exiting")
                                 break
 
 
