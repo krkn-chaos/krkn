@@ -41,7 +41,7 @@ def critical_alerts(prom_cli: KrknPrometheus,
                     end_time):
     summary.scenario = scenario
     summary.run_id = run_id
-    query = r"""ALERTS{severity="warning"}"""
+    query = r"""ALERTS{severity="critical"}"""
     logging.info("Checking for critical alerts firing post chaos")
 
     during_critical_alerts = prom_cli.process_prom_query_in_range(
