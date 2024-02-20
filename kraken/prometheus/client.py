@@ -1,10 +1,13 @@
 import datetime
 import os.path
+from typing import Optional
+
 import urllib3
 import logging
 import sys
 
 import yaml
+from krkn_lib.models.krkn import ChaosRunAlertSummary, ChaosRunAlert
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 def alerts(prom_cli: KrknPrometheus, start_time, end_time, alert_profile):
@@ -28,3 +31,52 @@ def alerts(prom_cli: KrknPrometheus, start_time, end_time, alert_profile):
             prom_cli.process_alert(alert,
                                    datetime.datetime.fromtimestamp(start_time),
                                    datetime.datetime.fromtimestamp(end_time))
+
+
+def critical_alerts(prom_cli: KrknPrometheus,
+                    summary: ChaosRunAlertSummary,
+                    run_id,
+                    scenario,
+                    start_time,
+                    end_time):
+    summary.scenario = scenario
+    summary.run_id = run_id
+    query = r"""ALERTS{severity="warning"}"""
+    logging.info("Checking for critical alerts firing post chaos")
+
+    during_critical_alerts = prom_cli.process_prom_query_in_range(
+        query,
+        start_time=datetime.datetime.fromtimestamp(start_time),
+        end_time=end_time
+
+    )
+
+    for alert in during_critical_alerts:
+        alert = ChaosRunAlert(alert["metric"]["alertname"], alert["metric"]["alertstate"], alert["metric"]["namespace"], alert["metric"]["severity"])
+        summary.chaos_alerts.append(alert)
+
+
+    post_critical_alerts = prom_cli.process_query(
+        query
+    )
+
+    for alert in post_critical_alerts:
+        alert = ChaosRunAlert(alert["metric"]["alertname"], alert["metric"]["alertstate"], alert["metric"]["namespace"], alert["metric"]["severity"])
+        summary.post_chaos_alerts.append(alert)
+
+    during_critical_alerts_count = len(during_critical_alerts)
+    post_critical_alerts_count = len(post_critical_alerts)
+    firing_alerts = False
+
+    if during_critical_alerts_count > 0:
+        logging.error("During Chaos Critical alerts are firing: %s", during_critical_alerts)
+        logging.error("Please check, exiting")
+        firing_alerts = True
+
+    if post_critical_alerts_count > 0:
+        logging.error("Post Chaos Critical alerts are firing: %s", during_critical_alerts)
+        logging.error("Please check, exiting")
+        firing_alerts = True
+
+    if not firing_alerts:
+        logging.info("No critical alerts are firing!!")
