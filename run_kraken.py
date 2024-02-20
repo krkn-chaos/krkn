@@ -356,8 +356,10 @@ def main(cfg):
                                                               scenario_type,
                                                               start_time,
                                                               datetime.datetime.now())
-                            if len(summary.chaos_alerts) > 0 and len(summary.post_chaos_alerts) > 0:
-                                chaos_output.critical_alerts = summary
+
+                            chaos_output.critical_alerts = summary
+                            if len(summary.post_chaos_alerts) > 0:
+                                logging.error("Please check, exiting")
                                 break
 
 
