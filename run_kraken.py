@@ -217,7 +217,7 @@ def main(cfg):
 
         # Capture the start time
         start_time = int(time.time())
-        critical_alerts_count = 0
+        post_critical_alerts = 0
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
@@ -349,6 +349,7 @@ def main(cfg):
                             failed_post_scenarios, scenario_telemetries = network_chaos.run(scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
 
                         # Check for critical alerts when enabled
+                        post_critical_alerts = 0
                         if check_critical_alerts:
                             prometheus_plugin.critical_alerts(prometheus,
                                                               summary,
@@ -358,7 +359,8 @@ def main(cfg):
                                                               datetime.datetime.now())
 
                             chaos_output.critical_alerts = summary
-                            if len(summary.post_chaos_alerts) > 0:
+                            post_critical_alerts = len(summary.post_chaos_alerts)
+                            if post_critical_alerts > 0:
                                 logging.error("Post chaos critical alerts firing please check, exiting")
                                 break
 
@@ -440,7 +442,7 @@ def main(cfg):
                 logging.error("Alert profile is not defined")
                 sys.exit(1)
 
-        if critical_alerts_count > 0:
+        if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
             sys.exit(1)
 
