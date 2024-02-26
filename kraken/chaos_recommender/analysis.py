@@ -4,10 +4,6 @@ import pandas as pd
 import kraken.chaos_recommender.kraken_tests as kraken_tests
 import time
 
-threshold = .7  # Adjust the threshold as needed
-heatmap_cpu_threshold = .5
-heatmap_mem_threshold = .5
-
 KRAKEN_TESTS_PATH = "./kraken_chaos_tests.txt"
 
 #Placeholder, this should be done with topology
@@ -27,7 +23,7 @@ def calculate_zscores(data):
     zscores["Network"] = (data["NETWORK"] - data["NETWORK"].mean()) / data["NETWORK"].std()
     return zscores
 
-def identify_outliers(data):
+def identify_outliers(data, threshold):
     outliers_cpu = data[data["CPU"] > threshold]["Service"].tolist()
     outliers_memory = data[data["Memory"] > threshold]["Service"].tolist()
     outliers_network = data[data["Network"] > threshold]["Service"].tolist()
@@ -47,7 +43,7 @@ def get_services_above_heatmap_threshold(dataframe, cpu_threshold, mem_threshold
     return cpu_services, mem_services
 
 
-def analysis(file_path, chaos_tests_config):
+def analysis(file_path, chaos_tests_config, threshold, heatmap_cpu_threshold, heatmap_mem_threshold):
     # Load the telemetry data from file
     data = load_telemetry_data(file_path)
 
@@ -55,7 +51,7 @@ def analysis(file_path, chaos_tests_config):
     zscores = calculate_zscores(data)
 
     # Identify outliers
-    outliers_cpu, outliers_memory, outliers_network = identify_outliers(zscores)
+    outliers_cpu, outliers_memory, outliers_network = identify_outliers(zscores, threshold)
     cpu_services, mem_services = get_services_above_heatmap_threshold(data, heatmap_cpu_threshold, heatmap_mem_threshold)
 
     # Display the identified outliers

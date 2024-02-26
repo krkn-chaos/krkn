@@ -20,6 +20,8 @@ This tool profiles an application and gathers telemetry data such as CPU, Memory
     $ git clone https://github.com/krkn-chaos/krkn.git 
     $ cd krkn
     $ pip3 install -r requirements.txt
+    Edit configuration file:
+    $ vi config/recommender_config.yaml 
     $ python3.9 utils/chaos_recommender/chaos_recommender.py
     ```
 
@@ -42,6 +44,9 @@ You can customize the default values by editing the `krkn/config/recommender_con
     - `MEM`: list of memory related tests available in Krkn
     - `NETWORK`: list of network related tests available in Krkn
     - `CPU`: list of memory related tests available in Krkn
+  - `threshold`: Specify the threshold to use for comparison and identifying outliers
+  - `cpu_threshold`: Specify the cpu threshold to compare with the cpu limits set on the pods and identify outliers
+  - `mem_threshold`: Specify the memory threshold to compare with the memory limits set on the pods and identify outliers
 
 *TIP:* to collect prometheus endpoint and token from your OpenShift cluster you can run the following commands:
         ```
@@ -82,7 +87,12 @@ You can also provide the input values through command-line arguments launching t
                         Network related chaos tests (space separated list)
   -G GENERIC [GENERIC ...], --GENERIC GENERIC [GENERIC ...]
                         Memory related chaos tests (space separated list)
-
+  --threshold THRESHOLD
+                        Threshold
+  --cpu_threshold CPU_THRESHOLD
+                        CPU threshold to compare with the cpu limits
+  --mem_threshold MEM_THRESHOLD
+                        Memory threshold to compare with the memory limits
 ```
 
 If you provide the input values through command-line arguments, the corresponding config file inputs would be ignored.
@@ -97,7 +107,7 @@ After obtaining telemetry data, sourced either locally or from Prometheus, the t
 
 ## Customizing Thresholds and Options
 
-You can customize the thresholds and options used for data analysis by modifying the `krkn/kraken/chaos_recommender/analysis.py` file. For example, you can adjust the threshold for identifying outliers by changing the value of the `threshold` variable in the `identify_outliers` function.
+You can customize the thresholds and options used for data analysis and identifying the outliers by setting the threshold, cpu_threshold and mem_threshold parameters in the config.
 
 ## Additional Files
 

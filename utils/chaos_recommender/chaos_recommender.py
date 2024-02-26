@@ -26,7 +26,6 @@ def parse_arguments(parser):
     parser.add_argument("-t", "--token", action="store", default="", help="Kubernetes authentication token")
     parser.add_argument("-s", "--scrape-duration", action="store", default="10m", help="Prometheus scrape duration")
     parser.add_argument("-L", "--log-level", action="store", default="INFO", help="log level (DEBUG, INFO, WARNING, ERROR, CRITICAL")
-
     parser.add_argument("-M", "--MEM", nargs='+', action="store", default=[],
                         help="Memory related chaos tests (space separated list)")
     parser.add_argument("-C", "--CPU", nargs='+', action="store", default=[],
@@ -35,7 +34,9 @@ def parse_arguments(parser):
                         help="Network related chaos tests (space separated list)")
     parser.add_argument("-G", "--GENERIC", nargs='+', action="store", default=[],
                         help="Memory related chaos tests (space separated list)")
-
+    parser.add_argument("--threshold", action="store", default="", help="Threshold")
+    parser.add_argument("--cpu_threshold", action="store", default="", help="CPU threshold")
+    parser.add_argument("--mem_threshold", action="store", default="", help="Memory threshold")
 
     return parser.parse_args()
 
@@ -55,8 +56,11 @@ def read_configuration(config_file_path):
     auth_token = config.get("auth_token", "")
     scrape_duration = config.get("scrape_duration", "10m")
     chaos_tests = config.get("chaos_tests" , {})
+    threshold = config.get("threshold", ".7")
+    heatmap_cpu_threshold = config.get("cpu_threshold", ".5")
+    heatmap_mem_threshold = config.get("mem_threshold", ".5")
     return (namespace, kubeconfig, prometheus_endpoint, auth_token, scrape_duration,
-            chaos_tests, log_level)
+            chaos_tests, log_level, threshold, heatmap_cpu_threshold, heatmap_mem_threshold)
 
 def prompt_input(prompt, default_value):
     user_input = input(f"{prompt} [{default_value}]: ")
@@ -81,7 +85,10 @@ def main():
          auth_token,
          scrape_duration,
          chaos_tests,
-         log_level
+         log_level,
+         threshold,
+         heatmap_cpu_threshold,
+         heatmap_mem_threshold
          ) = read_configuration(args.config_file)
 
     if args.options:
@@ -92,6 +99,9 @@ def main():
         log_level = args.log_level
         prometheus_endpoint = args.prometheus_endpoint
         chaos_tests = {"MEM": args.MEM, "GENERIC": args.GENERIC, "CPU": args.CPU, "NETWORK": args.NETWORK}
+        threshold = args.threshold
+        heatmap_mem_threshold = args.heatmap_mem_threshold
+        heatmap_cpu_threshold = args.heatmap_cpu_threshold
 
     if log_level not in ["DEBUG","INFO", "WARNING", "ERROR","CRITICAL"]:
         logging.error(f"{log_level} not a valid log level")
@@ -111,7 +121,7 @@ def main():
     logging.info("Fetching the Telemetry data")
 
     file_path = prometheus.fetch_utilization_from_prometheus(prometheus_endpoint, auth_token, namespace, scrape_duration)
-    analysis(file_path, chaos_tests)
+    analysis(file_path, chaos_tests, threshold, heatmap_cpu_threshold, heatmap_mem_threshold)
 
 if __name__ == "__main__":
     main()
