@@ -387,7 +387,9 @@ def main(cfg):
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         telemetry_elastic.upload_data_to_elasticsearch(decoded_chaos_run_telemetry.to_json(), elastic_index)
         if config["telemetry"]["enabled"]:
-            logging.info(f"telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/download/{telemetry_request_id}")
+            logging.info(f'telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/files/'
+                         f'{(config["telemetry"]["telemetry_group"] if config["telemetry"]["telemetry_group"] else "default")}/'
+                         f'{telemetry_request_id}')
             logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
             try:
                 telemetry_k8s.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
