@@ -15,7 +15,7 @@ function functional_test_telemetry {
   yq -i '.telemetry.enabled=True' CI/config/common_test_config.yaml
   yq -i '.telemetry.full_prometheus_backup=True' CI/config/common_test_config.yaml
   yq -i '.performance_monitoring.check_critical_alerts=True' CI/config/common_test_config.yaml
-  yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml"
+  yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
   yq -i '.telemetry.run_tag=env(RUN_TAG)' CI/config/common_test_config.yaml
 
   export scenario_type="arcaflow_scenarios"
