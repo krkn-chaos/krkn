@@ -52,8 +52,13 @@ def critical_alerts(prom_cli: KrknPrometheus,
     )
 
     for alert in during_critical_alerts:
-        alert = ChaosRunAlert(alert["metric"]["alertname"], alert["metric"]["alertstate"], alert["metric"]["namespace"], alert["metric"]["severity"])
-        summary.chaos_alerts.append(alert)
+        if "metric" in alert:
+            alertname = alert["metric"]["alertname"] if "alertname" in alert["metric"] else "none"
+            alertstate = alert["metric"]["alertstate"] if "alertstate" in alert["metric"] else "none"
+            namespace = alert["metric"]["namespace"] if "namespace" in alert["metric"] else "none"
+            severity = alert["metric"]["severity"] if "severity" in alert["metric"] else "none"
+            alert = ChaosRunAlert(alertname, alertstate, namespace, severity)
+            summary.chaos_alerts.append(alert)
 
 
     post_critical_alerts = prom_cli.process_query(
