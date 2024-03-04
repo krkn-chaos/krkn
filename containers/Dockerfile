@@ -5,6 +5,7 @@ FROM mcr.microsoft.com/azure-cli:latest as azure-cli
 FROM registry.access.redhat.com/ubi8/ubi:latest
 
 ENV KUBECONFIG /root/.kube/config
+ENV PATH=$PATH:/usr/local/bin
 
 # Copy azure client binary from azure-cli image
 COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
