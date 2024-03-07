@@ -3,7 +3,7 @@ deployers:
     connection: {}
     deployer_name: kubernetes
 log:
-  level: debug
+  level: error
 logged_outputs:
   error:
     level: error
