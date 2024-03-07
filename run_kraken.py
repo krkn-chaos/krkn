@@ -446,13 +446,13 @@ def main(cfg):
 
         if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
-            sys.exit(1)
+            sys.exit(2)
 
         if failed_post_scenarios:
             logging.error(
                 "Post scenarios are still failing at the end of all iterations"
             )
-            sys.exit(1)
+            sys.exit(2)
 
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
