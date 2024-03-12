@@ -22,7 +22,7 @@ the capabilities of the current supported scenarios.
 Pick the latest stable release to install [here](https://github.com/krkn-chaos/krkn/releases).
 ```
 $ git clone https://github.com/krkn-chaos/krkn.git --branch <release version>
-$ cd kraken
+$ cd krkn
 ```
 
 #### Install the dependencies

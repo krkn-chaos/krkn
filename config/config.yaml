@@ -15,7 +15,7 @@ kraken:
         - application_outages:
             - scenarios/openshift/app_outage.yaml
         - container_scenarios:                             # List of chaos pod scenarios to load
-            - -    scenarios/openshift/container_etcd.yml
+            - - scenarios/openshift/container_etcd.yml
         - plugin_scenarios:
             - scenarios/openshift/etcd.yml
             - scenarios/openshift/regex_openshift_pod_kill.yml
@@ -23,7 +23,7 @@ kraken:
             - scenarios/openshift/network_chaos_ingress.yml
             - scenarios/openshift/prom_kill.yml
         - node_scenarios:                                  # List of chaos node scenarios to load
-            -   scenarios/openshift/node_scenarios_example.yml
+            - scenarios/openshift/node_scenarios_example.yml
         - plugin_scenarios:
             - scenarios/openshift/openshift-apiserver.yml
             - scenarios/openshift/openshift-kube-apiserver.yml
