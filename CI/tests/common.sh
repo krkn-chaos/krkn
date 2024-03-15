@@ -8,8 +8,14 @@ function finish {
 }
 
 function error {
-    echo "Error caught."
-    ERRORED=true
+    exit_code=$?
+    if [ $exit_code == 1 ]
+    then
+      echo "Error caught."
+      ERRORED=true
+    else
+      echo "Exit code greater than zero detected: $exit_code"
+    fi
 }
 
 function get_node {
