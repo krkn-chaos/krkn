@@ -1,5 +1,6 @@
 # Krkn aka Kraken
 ![Workflow-Status](https://github.com/krkn-chaos/krkn/actions/workflows/docker-image.yml/badge.svg)
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fkrkn-chaos%2Fkrkn.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fkrkn-chaos%2Fkrkn?ref=badge_shield)
 
 ![Krkn logo](media/logo.png)
 
@@ -132,3 +133,7 @@ Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/M
 * [**#krkn on Kubernetes Slack**](https://kubernetes.slack.com/messages/C05SFMHRWK1)
 
 The Linux Foundation® (TLF) has registered trademarks and uses trademarks. For a list of TLF trademarks, see [Trademark Usage](https://www.linuxfoundation.org/legal/trademark-usage).
+
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fkrkn-chaos%2Fkrkn.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fkrkn-chaos%2Fkrkn?ref=badge_large)
