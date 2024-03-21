@@ -1,5 +1,5 @@
 application: openshift-etcd
-namespace: openshift-etcd
+namespaces: openshift-etcd
 labels: app=openshift-etcd
 kubeconfig: ~/.kube/config.yaml
 prometheus_endpoint: <Prometheus_Endpoint>
