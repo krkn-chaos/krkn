@@ -7,7 +7,6 @@ FROM mcr.microsoft.com/azure-cli:latest as azure-cli
 LABEL org.opencontainers.image.authors="Red Hat OpenShift Chaos Engineering"
 
 ENV KUBECONFIG /root/.kube/config
-ENV PATH=$PATH:/usr/local/bin
 
 # Copy azure client binary from azure-cli image
 COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
@@ -23,7 +22,7 @@ RUN yum install -y git python39 python3-pip jq gettext wget && \
 
 # Get Kubernetes and OpenShift clients from stable releases
 WORKDIR /tmp
-RUN wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz && tar -xvf openshift-client-linux.tar.gz && cp oc /usr/local/bin/oc && cp kubectl /usr/local/bin/kubectl
+RUN wget https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz && tar -xvf openshift-client-linux.tar.gz && cp oc /usr/local/bin/oc && cp oc /usr/bin/oc && cp kubectl /usr/local/bin/kubectl && cp kubectl /usr/bin/kubectl
 
 WORKDIR /root/kraken
 
