@@ -32,7 +32,7 @@ To run the recommender with a config file specify the config file path with the 
 You can customize the default values by editing the `krkn/config/recommender_config.yaml` file. The configuration file contains the following options:
 
   - `application`: Specify the application name.
-  - `namespace`: Specify the namespace name. If you want to profile
+  - `namespaces`: Specify the namespaces names (separated by coma or space). If you want to profile
   - `labels`: Specify the labels (not used).
   - `kubeconfig`: Specify the location of the kubeconfig file (not used).
   - `prometheus_endpoint`: Specify the prometheus endpoint (must).
@@ -65,8 +65,8 @@ You can also provide the input values through command-line arguments launching t
   -o, --options         Evaluate command line options
   -a APPLICATION, --application APPLICATION
                         Kubernetes application name
-  -n NAMESPACE, --namespace NAMESPACE
-                        Kubernetes application namespace
+  -n NAMESPACES, --namespaces NAMESPACE
+                        Kubernetes application namespaces separated by space
   -l LABELS, --labels LABELS
                         Kubernetes application labels
   -p PROMETHEUS_ENDPOINT, --prometheus-endpoint PROMETHEUS_ENDPOINT

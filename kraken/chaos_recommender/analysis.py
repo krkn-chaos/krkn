@@ -19,6 +19,7 @@ def load_telemetry_data(file_path):
 
 def calculate_zscores(data):
     zscores = pd.DataFrame()
+    zscores["Namespace"] = data["namespace"]
     zscores["Service"] = data["service"]
     zscores["CPU"] = (data["CPU"] - data["CPU"].mean()) / data["CPU"].std()
     zscores["Memory"] = (data["MEM"] - data["MEM"].mean()) / data["MEM"].std()
@@ -46,28 +47,49 @@ def get_services_above_heatmap_threshold(dataframe, cpu_threshold, mem_threshold
     return cpu_services, mem_services
 
 
-def analysis(file_path, chaos_tests_config, threshold, heatmap_cpu_threshold, heatmap_mem_threshold):
+def analysis(file_path, namespaces, chaos_tests_config, threshold,
+             heatmap_cpu_threshold, heatmap_mem_threshold):
     # Load the telemetry data from file
-    logging.info("Fetching the Telemetry data")
+    logging.info("Fetching the Telemetry data...")
     data = load_telemetry_data(file_path)
 
     # Calculate Z-scores for CPU, Memory, and Network columns
     zscores = calculate_zscores(data)
+    # Dict for saving analysis data -- key is the namespace
+    analysis_data = {}
 
-    # Identify outliers
-    logging.info("Identifying outliers")
-    outliers_cpu, outliers_memory, outliers_network = identify_outliers(zscores, threshold)
-    cpu_services, mem_services = get_services_above_heatmap_threshold(data, heatmap_cpu_threshold, heatmap_mem_threshold)
+    # Identify outliers for each namespace
+    for namespace in namespaces:
 
-    analysis_data = analysis_json(outliers_cpu, outliers_memory,
-                                  outliers_network, cpu_services,
-                                  mem_services, chaos_tests_config)
+        logging.info(f"Identifying outliers for namespace {namespace}...")
 
-    if not cpu_services:
-        logging.info("There are no services that are using significant CPU compared to their assigned limits (infinite in case no limits are set).")
-    if not mem_services:
-        logging.info("There are no services that are using significant MEMORY compared to their assigned limits (infinite in case no limits are set).")
-    time.sleep(2)
+        namespace_zscores = zscores.loc[zscores["Namespace"] == namespace]
+        namespace_data = data.loc[data["namespace"] == namespace]
+        outliers_cpu, outliers_memory, outliers_network = identify_outliers(
+            namespace_zscores, threshold)
+        cpu_services, mem_services = get_services_above_heatmap_threshold(
+            namespace_data, heatmap_cpu_threshold, heatmap_mem_threshold)
+
+        analysis_data[namespace] = analysis_json(outliers_cpu, outliers_memory,
+                                                 outliers_network,
+                                                 cpu_services, mem_services,
+                                                 chaos_tests_config)
+
+        if cpu_services:
+            logging.info(f"These services use significant CPU compared to "
+                         f"their assigned limits: {cpu_services}")
+        else:
+            logging.info("There are no services that are using significant "
+                         "CPU compared to their assigned limits "
+                         "(infinite in case no limits are set).")
+        if mem_services:
+            logging.info(f"These services use significant MEMORY compared to "
+                         f"their assigned limits: {mem_services}")
+        else:
+            logging.info("There are no services that are using significant "
+                         "MEMORY compared to their assigned limits "
+                         "(infinite in case no limits are set).")
+        time.sleep(2)
 
     logging.info("Please check data in utilisation.txt for further analysis")
 
