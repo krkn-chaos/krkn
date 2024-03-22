@@ -62,7 +62,7 @@ class NetworkScenarioConfig:
         typing.Optional[int],
         validation.min(1)
     ] = field(
-        default=300,
+        default=30,
         metadata={
             "name": "Wait Duration",
             "description":
@@ -864,7 +864,7 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
                 )
             logging.info("Waiting for parallel job to finish")
             start_time = int(time.time())
-            wait_for_job(batch_cli, job_list[:], cfg.wait_duration)
+            wait_for_job(batch_cli, job_list[:], cfg.test_duration+100)
             end_time = int(time.time())
             if publish:
                 cerberus.publish_kraken_status(
@@ -893,7 +893,7 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
                     )
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
-                wait_for_job(batch_cli, job_list[:], cfg.wait_duration)
+                wait_for_job(batch_cli, job_list[:], cfg.test_duration+100)
                 logging.info("Deleting jobs")
                 delete_jobs(cli, batch_cli, job_list[:])
                 job_list = []

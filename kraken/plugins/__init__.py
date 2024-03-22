@@ -214,6 +214,12 @@ PLUGINS = Plugins(
             ]
         ),
         PluginStep(
+            network_chaos,
+            [
+                "error"
+            ]
+        ),        
+        PluginStep(
             pod_outage,
             [
                 "error"
