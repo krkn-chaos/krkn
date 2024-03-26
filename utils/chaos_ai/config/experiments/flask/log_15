@@ -1,0 +1,51 @@
+INFO:root:[INITIALIZING]
+INFO:root:Chaos Engine: litmus
+DEBUG:root:Faults:['pod-delete:service=cart', 'pod-delete:service=payment', 'cpu-hog:service=cart', 'cpu-hog:service=payment', 'disk-fill:service=cart', 'disk-fill:service=payment', 'io-stress:service=cart', 'io-stress:service=payment', 'network-loss:service=cart', 'network-loss:service=payment', 'network-corruption:service=cart', 'network-corruption:service=payment']
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+INFO:root:[Exploration]
+DEBUG:root:[Realistic] ['network-corruption:service=cart', 'cpu-hog:service=payment', 'disk-fill:service=cart', 'pod-delete:service=payment', 'io-stress:service=cart']
+DEBUG:root:[INJECT_FAULT] network-corruption:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=cart.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=cart.json
+DEBUG:root:[INJECT_FAULT] pod-delete:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=payment.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=cart.json
+INFO:root:[create_episode]['network-corruption:service=cart', 'disk-fill:service=cart', 'pod-delete:service=payment', 'io-stress:service=cart']
+INFO:root:[status] engine-service-cart-network-corruption
+DEBUG:root:[exp_status]engine-service-cart-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-corruption:Running
+INFO:root:[status] engine-service-cart-disk-fill
+DEBUG:root:[exp_status]engine-service-cart-disk-fill:Running
+INFO:root:[status] engine-service-payment-pod-delete
+DEBUG:root:[exp_status]engine-service-payment-pod-delete:Running
+INFO:root:[status] engine-service-cart-io-stress
+DEBUG:root:[exp_status]engine-service-cart-io-stress:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8097/api/payment/health 0:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8097/api/payment/health 1:200 0.87
+INFO:root:http://chaos.sl.cloud9.ibm.com:8097/api/payment/health 2:502 1.82
+INFO:root:[CREATE EPISODE]200,502
+INFO:root:[CREATEEPISODE]http://chaos.sl.cloud9.ibm.com:8097/api/payment/health:1
+INFO:root:[UPDATE_Q] 1 network-corruption:service=cart 200->502
+INFO:root:[UPDATE_Q] 1 disk-fill:service=cart 200->502
+INFO:root:[UPDATE_Q] 1 pod-delete:service=payment 200->502
+INFO:root:[UPDATE_Q] 1 io-stress:service=cart 200->502
+INFO:root:http://chaos.sl.cloud9.ibm.com:8097/api/cart/health 0:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8097/api/cart/health 1:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8097/api/cart/health 2:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8097/api/cart/health 3:Timeout Exception!
+INFO:root:[CREATE EPISODE]200,Timeout
+INFO:root:[CREATEEPISODE]http://chaos.sl.cloud9.ibm.com:8097/api/cart/health:0
+INFO:root:[UPDATE_Q] 0 network-corruption:service=cart 200->Timeout
+INFO:root:[UPDATE_Q] 0 disk-fill:service=cart 200->Timeout
+INFO:root:[UPDATE_Q] 0 pod-delete:service=payment 200->Timeout
+INFO:root:[UPDATE_Q] 0 io-stress:service=cart 200->Timeout
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'network-corruption', 'pod_name': 'service=cart'}, {'fault': 'disk-fill', 'pod_name': 'service=cart'}, {'fault': 'pod-delete', 'pod_name': 'service=payment'}, {'fault': 'io-stress', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:Timeout
+DEBUG:root:[Chaos Result] engine-service-cart-network-corruption : 
+INFO:werkzeug: * Detected change in '/Users/sandeephans/Downloads/github/aichaos/src/swagger_api.py', reloading

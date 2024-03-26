@@ -1,0 +1,78 @@
+
+Generate chaos on an application deployed on a cluster.
+---
+    tags:
+      - ChaosAI API
+    parameters:
+      - name: file
+        in: formData
+        type: file
+#        type: string
+#        default: /home/chaos/minikube-config-raw
+        required: true
+        description: Kube-config file
+      - name: namespace
+        in: formData
+        type: string
+        default: robot-shop
+        required: false
+        description: Namespace to test
+      - name: podlabels
+        in: formData
+        type: string
+        default: service=cart,service=payment
+        required: false
+        description: Pod labels to test
+      - name: nodelabels
+        in: formData
+        type: string
+        required: false
+        description: Node labels to test
+#      - name: command
+#        in: formData
+#        type: string
+#        default: podman
+#        required: false
+#        description: podman/docker
+      - name: urls
+        in: formData
+        type: string
+        default: http://chaos.sl.cloud9.ibm.com:8097/api/cart/health,http://chaos.sl.cloud9.ibm.com:8097/api/payment/health
+        required: false
+        description: Application URLs to test
+#      - name: chaosengine
+#        in: formData
+#        type: string
+#        default: kraken
+#        required: false
+#        description: Chaos engine - kraken, litmus or dstk
+      # - name: probeurl
+      #   in: formData
+      #   type: string
+      #   default: https://chaos-cluster-1-7a888cdce298b4e224aa3876651f5eba-0000.che01.containers.appdomain.cloud/
+      #   required: false
+      #   description: STK Probes URL
+#      - name: faults
+#        in: formData
+#        type: string
+#        default: pod-delete
+#        required: false
+#        description: Fault types
+#      - name: iterations
+#        in: formData
+#        type: int
+#        default: 1
+#        required: false
+#        description: No. of iterations to run the chaos for
+#      - name: maxfaults
+#        in: formData
+#        type: int
+#        default: 5
+#        required: false
+#        description: Max faults in an iteration
+
+    responses:
+      500:
+        description: Error!
+      200:
+        description: Chaos ID for the initiated chaos.

@@ -1,0 +1,36 @@
+{
+  "apiVersion": "litmuschaos.io/v1alpha1",
+  "kind": "ChaosEngine",
+  "metadata": {
+    "name": "engine-cartns3"
+  },
+  "spec": {
+    "engineState": "active",
+    "annotationCheck": "false",
+    "appinfo": {
+      "appns": "robot-shop",
+      "applabel": "service=payment",
+      "appkind": "deployment"
+    },
+    "chaosServiceAccount": "pod-delete-sa",
+    "experiments": [
+      {
+        "name": "pod-delete",
+        "spec": {
+          "components": {
+            "env": [
+              {
+                "name": "FORCE",
+                "value": "true"
+              },
+              {
+                "name": "TOTAL_CHAOS_DURATION",
+                "value": "120"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

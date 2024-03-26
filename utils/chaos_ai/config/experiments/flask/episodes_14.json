@@ -1,0 +1,48 @@
+[
+    {
+        "start_state": "200",
+        "next_state": "Timeout",
+        "url": "http://chaos.sl.cloud9.ibm.com:8097/api/cart/health",
+        "faults": [
+            {
+                "fault": "disk-fill",
+                "pod_name": "service=payment"
+            },
+            {
+                "fault": "disk-fill",
+                "pod_name": "service=cart"
+            },
+            {
+                "fault": "cpu-hog",
+                "pod_name": "service=cart"
+            },
+            {
+                "fault": "network-corruption",
+                "pod_name": "service=cart"
+            }
+        ]
+    },
+    {
+        "start_state": "200",
+        "next_state": "200",
+        "url": "http://chaos.sl.cloud9.ibm.com:8097/api/payment/health",
+        "faults": [
+            {
+                "fault": "disk-fill",
+                "pod_name": "service=payment"
+            },
+            {
+                "fault": "disk-fill",
+                "pod_name": "service=cart"
+            },
+            {
+                "fault": "cpu-hog",
+                "pod_name": "service=cart"
+            },
+            {
+                "fault": "network-corruption",
+                "pod_name": "service=cart"
+            }
+        ]
+    }
+]

@@ -1,0 +1,40 @@
+{
+  "apiVersion": "litmuschaos.io/v1alpha1",
+  "kind": "ChaosEngine",
+  "metadata": {
+    "name": "engine-nginx"
+  },
+  "spec": {
+    "engineState": "active",
+    "annotationCheck": "false",
+    "appinfo": {
+      "appns": "robot-shop",
+      "applabel": "service=cart",
+      "appkind": "deployment"
+    },
+    "chaosServiceAccount": "pod-cpu-hog-sa",
+    "experiments": [
+      {
+        "name": "pod-cpu-hog",
+        "spec": {
+          "components": {
+            "env": [
+              {
+                "name": "CPU_LOAD",
+                "value": "100"
+              },
+              {
+                "name": "CPU_CORES",
+                "value": "0"
+              },
+              {
+                "name": "TOTAL_CHAOS_DURATION",
+                "value": "60"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

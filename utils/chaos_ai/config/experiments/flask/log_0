@@ -1,0 +1,199 @@
+INFO:root:[INITIALIZING]
+INFO:root:Chaos Engine: litmus
+DEBUG:root:Faults:['pod-delete:service=cart', 'pod-delete:service=payment', 'cpu-hog:service=cart', 'cpu-hog:service=payment', 'disk-fill:service=cart', 'disk-fill:service=payment', 'io-stress:service=cart', 'io-stress:service=payment', 'network-loss:service=cart', 'network-loss:service=payment', 'network-corruption:service=cart', 'network-corruption:service=payment']
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+INFO:root:[Exploration]
+DEBUG:root:[Realistic] ['io-stress:service=payment']
+DEBUG:root:[INJECT_FAULT] io-stress:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=payment.json
+INFO:root:[create_episode]['io-stress:service=payment']
+INFO:root:[status] engine-service-payment-io-stress
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[start_chaos]0 None
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+INFO:root:COMPLETE!!!
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:39:48] "GET /apidocs/ HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:39:48] "[36mGET /flasgger_static/lib/jquery.min.js HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:39:48] "[36mGET /flasgger_static/swagger-ui-standalone-preset.js HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:39:48] "[36mGET /flasgger_static/swagger-ui.css HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:39:48] "[36mGET /flasgger_static/swagger-ui-bundle.js HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:39:48] "GET /apispec_1.json HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:40:06] "POST /GenerateChaos/ HTTP/1.1" 200 -
+INFO:root:[INITIALIZING]
+INFO:root:Chaos Engine: litmus
+DEBUG:root:Faults:['pod-delete:ms5', 'pod-delete:ms6', 'pod-delete:ms7', 'cpu-hog:ms5', 'cpu-hog:ms6', 'cpu-hog:ms7', 'disk-fill:ms5', 'disk-fill:ms6', 'disk-fill:ms7', 'io-stress:ms5', 'io-stress:ms6', 'io-stress:ms7', 'network-loss:ms5', 'network-loss:ms6', 'network-loss:ms7', 'network-corruption:ms5', 'network-corruption:ms6', 'network-corruption:ms7']
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+INFO:root:[Exploration]
+DEBUG:root:[Realistic] ['network-corruption:ms5', 'io-stress:ms5', 'disk-fill:ms5']
+DEBUG:root:[INJECT_FAULT] network-corruption:ms5
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_ms5.json
+DEBUG:root:[INJECT_FAULT] io-stress:ms5
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_ms5.json
+DEBUG:root:[INJECT_FAULT] disk-fill:ms5
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_ms5.json
+INFO:root:[create_episode]['network-corruption:ms5', 'io-stress:ms5', 'disk-fill:ms5']
+INFO:root:[status] engine-ms5-network-corruption
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[start_chaos]0 None
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+INFO:root:COMPLETE!!!
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:48:29] "POST /GenerateChaos/ HTTP/1.1" 200 -
+INFO:root:[INITIALIZING]
+INFO:root:Chaos Engine: litmus
+DEBUG:root:Faults:['pod-delete:ms5', 'pod-delete:ms6', 'pod-delete:ms7', 'cpu-hog:ms5', 'cpu-hog:ms6', 'cpu-hog:ms7', 'disk-fill:ms5', 'disk-fill:ms6', 'disk-fill:ms7', 'io-stress:ms5', 'io-stress:ms6', 'io-stress:ms7', 'network-loss:ms5', 'network-loss:ms6', 'network-loss:ms7', 'network-corruption:ms5', 'network-corruption:ms6', 'network-corruption:ms7']
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+INFO:root:[Exploration]
+DEBUG:root:[Realistic] ['io-stress:ms5', 'pod-delete:ms7', 'network-corruption:ms7', 'io-stress:ms6', 'disk-fill:ms6']
+DEBUG:root:[INJECT_FAULT] io-stress:ms5
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_ms5.json
+DEBUG:root:[INJECT_FAULT] pod-delete:ms7
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_ms7.json
+DEBUG:root:[INJECT_FAULT] io-stress:ms6
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_ms6.json
+DEBUG:root:[INJECT_FAULT] disk-fill:ms6
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_ms6.json
+INFO:root:[create_episode]['io-stress:ms5', 'pod-delete:ms7', 'io-stress:ms6', 'disk-fill:ms6']
+INFO:root:[status] engine-ms5-io-stress
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[start_chaos]0 None
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+INFO:root:COMPLETE!!!
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:53:38] "GET /apidocs/ HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:53:38] "[36mGET /flasgger_static/lib/jquery.min.js HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:53:38] "[36mGET /flasgger_static/swagger-ui.css HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:53:38] "[36mGET /flasgger_static/swagger-ui-standalone-preset.js HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:53:38] "[36mGET /flasgger_static/swagger-ui-bundle.js HTTP/1.1[0m" 304 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:53:38] "GET /apispec_1.json HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 18:54:04] "POST /GenerateChaos/ HTTP/1.1" 200 -
+INFO:root:[INITIALIZING]
+INFO:root:Chaos Engine: litmus
+DEBUG:root:Faults:['pod-delete:service=cart', 'pod-delete:service=payment', 'cpu-hog:service=cart', 'cpu-hog:service=payment', 'disk-fill:service=cart', 'disk-fill:service=payment', 'io-stress:service=cart', 'io-stress:service=payment', 'network-loss:service=cart', 'network-loss:service=payment', 'network-corruption:service=cart', 'network-corruption:service=payment']
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+INFO:root:[Exploration]
+DEBUG:root:[Realistic] ['cpu-hog:service=payment', 'network-loss:service=cart', 'cpu-hog:service=cart', 'disk-fill:service=payment']
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=payment.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=cart.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=payment.json
+INFO:root:[create_episode]['cpu-hog:service=payment', 'network-loss:service=cart', 'cpu-hog:service=cart', 'disk-fill:service=payment']
+INFO:root:[status] engine-service-payment-cpu-hog
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[start_chaos]0 None
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+INFO:root:COMPLETE!!!
+INFO:werkzeug:127.0.0.1 - - [20/Feb/2023 19:00:26] "POST /GenerateChaos/ HTTP/1.1" 200 -
+INFO:root:[INITIALIZING]
+INFO:root:Chaos Engine: litmus
+DEBUG:root:Faults:['pod-delete:service=cart', 'pod-delete:service=payment', 'cpu-hog:service=cart', 'cpu-hog:service=payment', 'disk-fill:service=cart', 'disk-fill:service=payment', 'io-stress:service=cart', 'io-stress:service=payment', 'network-loss:service=cart', 'network-loss:service=payment', 'network-corruption:service=cart', 'network-corruption:service=payment']
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+INFO:root:[Exploration]
+DEBUG:root:[Realistic] ['pod-delete:service=cart', 'pod-delete:service=payment', 'network-loss:service=payment', 'cpu-hog:service=payment']
+DEBUG:root:[INJECT_FAULT] pod-delete:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=cart.json
+DEBUG:root:[INJECT_FAULT] pod-delete:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=payment.json
+INFO:root:[create_episode]['pod-delete:service=cart', 'pod-delete:service=payment']
+INFO:root:[status] engine-service-cart-pod-delete
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 

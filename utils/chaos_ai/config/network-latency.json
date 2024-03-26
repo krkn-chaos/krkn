@@ -1,0 +1,36 @@
+{
+  "apiVersion": "litmuschaos.io/v1alpha1",
+  "kind": "ChaosEngine",
+  "metadata": {
+    "name": "engine-nginx"
+  },
+  "spec": {
+    "engineState": "active",
+    "annotationCheck": "false",
+    "appinfo": {
+      "appns": "robot-shop",
+      "applabel": "service=cart",
+      "appkind": "deployment"
+    },
+    "chaosServiceAccount": "pod-network-latency-sa",
+    "experiments": [
+      {
+        "name": "pod-network-latency",
+        "spec": {
+          "components": {
+            "env": [
+              {
+                "name": "NETWORK_LATENCY",
+                "value": "2000"
+              },
+              {
+                "name": "TOTAL_CHAOS_DURATION",
+                "VALUE": "60"
+              }
+            ]
+          }
+        }
+      }
+    ]
+  }
+}

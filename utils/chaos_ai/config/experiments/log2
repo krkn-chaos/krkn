@@ -1,0 +1,194 @@
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Realistic] ['pod-delete:service=dispatch', 'cpu-hog:service=dispatch']
+DEBUG:root:[INJECT_FAULT] pod-delete:service=dispatch
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=dispatch.json
+INFO:root:[create_episode]['pod-delete:service=dispatch']
+INFO:root:[status] engine-service-dispatch-pod-delete
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Realistic] ['cpu-hog:service=dispatch', 'pod-delete:service=dispatch']
+DEBUG:root:[INJECT_FAULT] pod-delete:service=dispatch
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=dispatch.json
+INFO:root:[create_episode]['pod-delete:service=dispatch']
+INFO:root:[status] engine-service-dispatch-pod-delete
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status]engine-service-dispatch-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-pod-delete:Running
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] pod-delete:service=dispatch 200->200
+DEBUG:root:[update_q]pod-delete:service=dispatch1-1.0
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 0:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 1:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 2:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 3:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 4:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 5:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 6:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 7:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 8:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] pod-delete:service=dispatch 200->200
+DEBUG:root:[update_q]pod-delete:service=dispatch1-1.0
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'pod-delete', 'pod_name': 'service=dispatch'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]0 [{'fault': 'pod-delete', 'pod_name': 'service=dispatch'}]
+INFO:root:0[[ 0.  -0.9  0.   0.   0.   0. ]
+ [ 0.  -0.9  0.   0.   0.   0. ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Realistic] ['disk-fill:service=dispatch', 'cpu-hog:service=user']
+DEBUG:root:[INJECT_FAULT] disk-fill:service=dispatch
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=dispatch.json
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=user
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=user.json
+INFO:root:[create_episode]['disk-fill:service=dispatch', 'cpu-hog:service=user']
+INFO:root:[status] engine-service-dispatch-disk-fill
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status]engine-service-dispatch-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-disk-fill:Running
+INFO:root:[status] engine-service-user-cpu-hog
+DEBUG:root:[exp_status]engine-service-user-cpu-hog:Running
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/cart/health HTTP/1.1" 200 25
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] disk-fill:service=dispatch 200->200
+DEBUG:root:[update_q]disk-fill:service=dispatch5-0.5
+INFO:root:[UPDATE_Q] cpu-hog:service=user 200->200
+DEBUG:root:[update_q]cpu-hog:service=user2-0.5
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 0:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 1:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 2:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 3:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 4:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 5:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 6:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 7:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 8:200
+DEBUG:urllib3.connectionpool:Starting new HTTP connection (1): chaos.sl.cloud9.ibm.com:8080
+DEBUG:urllib3.connectionpool:http://chaos.sl.cloud9.ibm.com:8080 "GET /api/payment/health HTTP/1.1" 200 2
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/payment/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] disk-fill:service=dispatch 200->200
+DEBUG:root:[update_q]disk-fill:service=dispatch5-0.5
+INFO:root:[UPDATE_Q] cpu-hog:service=user 200->200
+DEBUG:root:[update_q]cpu-hog:service=user2-0.5
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'disk-fill', 'pod_name': 'service=dispatch'}, {'fault': 'cpu-hog', 'pod_name': 'service=user'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]1 [{'fault': 'disk-fill', 'pod_name': 'service=dispatch'}, {'fault': 'cpu-hog', 'pod_name': 'service=user'}]
+INFO:root:1[[ 0.   -0.9  -0.45  0.    0.   -0.45]
+ [ 0.   -0.9  -0.45  0.    0.   -0.45]]
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:COMPLETE!!!

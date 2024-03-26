@@ -1,0 +1,3 @@
+,pod-delete:service=cart,pod-delete:service=payment,cpu-hog:service=cart,cpu-hog:service=payment,disk-fill:service=cart,disk-fill:service=payment,io-stress:service=cart,io-stress:service=payment,network-loss:service=cart,network-loss:service=payment,network-corruption:service=cart,network-corruption:service=payment
+http://chaos.sl.cloud9.ibm.com:8097/api/cart/health,0.0,0.0,0.225,0.0,0.225,0.225,0.0,0.0,0.0,0.0,0.225,0.0
+http://chaos.sl.cloud9.ibm.com:8097/api/payment/health,0.0,0.0,-0.225,0.0,-0.225,-0.225,0.0,0.0,0.0,0.0,-0.225,0.0

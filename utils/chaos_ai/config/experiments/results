@@ -1,0 +1,18 @@
+iterations=20, epsilon=0.1, cpu-hog:payment(0.39),	network-loss:payment(0.45),	network-latency:shipping(0.39)
+iterations=20, epsilon=0.5, disk-fill:mysql(0.33),	network-loss:cart(0.33),	io-stress:catalogue(0.33)
+iterations=50, epsilon=0.1, pod-delete:user(0.99),	network-loss:mongodb(0.87),	network-loss:user(0.88)
+
+stk
+
+iterations=50, epsilon=0.1, pod-delete:service=cart(0.31), pod-delete:service=rabbitmq(0.22), io-stress:service=ratings(0.22)
+
+pod-delete:service=cart(0.31),	pod-delete:service=rabbitmq(0.22)	pod-delete:service=web(0.14)	cpu-hog:service=shipping(0.11)	network-loss:service=cart(0.11)	network-latency:service=ratings(0.11)	dns-error:service=rabbitmq(0.11)	dns-error:service=user(0.11)	io-stress:service=mysql(0.10)	io-stress:service=ratings(0.22)
+http://169.38.74.150:30328/api/cart/health	0.315138	0.22020	0.143571	0.116271	0.113571	0.116271	0.115714	0.113271	0.109311	0.22074
+http://169.38.74.150:30328/api/payment/health	-0.345923	-0.27498	-0.143571	-0.139251	-0.143571	-0.139251	-0.141429	-0.142251	-0.146751	-0.27498
+
+
+iterations=50, epsilon=0.1, pod-delete:service=cart(0.13), io-stress:service=rabbitmq(0.13), pod-delete:service=mongodb(0.13)
+
+pod-delete:service=cart	pod-delete:service=mongodb	network-loss:service=catalogue	dns-error:service=ratings	io-stress:service=rabbitmq
+http://169.38.74.150:30328/api/cart/health	0.136002	0.135943	0.135943	0.135943	0.135968
+http://169.38.74.150:30328/api/payment/health	-0.170003	-0.169929	-0.169929	-0.169929	-0.169960

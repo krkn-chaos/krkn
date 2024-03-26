@@ -1,0 +1,2 @@
+,pod-delete:service=ratings,pod-delete:service=shipping,cpu-hog:service=ratings,cpu-hog:service=shipping,disk-fill:service=ratings,disk-fill:service=shipping
+http://192.168.49.2:31902/api/cart/health,0.0,0.0,0.0,0.45,0.45,0.0

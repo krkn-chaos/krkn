@@ -1,0 +1,38 @@
+INFO:root:[INITIALIZING]
+INFO:root:Chaos Engine: litmus
+DEBUG:root:Faults:['pod-delete:service=cart', 'pod-delete:service=payment', 'cpu-hog:service=cart', 'cpu-hog:service=payment', 'disk-fill:service=cart', 'disk-fill:service=payment', 'io-stress:service=cart', 'io-stress:service=payment', 'network-loss:service=cart', 'network-loss:service=payment', 'network-corruption:service=cart', 'network-corruption:service=payment']
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+INFO:root:[Exploration]
+DEBUG:root:[Realistic] ['disk-fill:service=cart', 'cpu-hog:service=payment']
+DEBUG:root:[INJECT_FAULT] disk-fill:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=cart.json
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=payment.json
+INFO:root:[create_episode]['disk-fill:service=cart', 'cpu-hog:service=payment']
+INFO:root:[status] engine-service-cart-disk-fill
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[exp_status] Not Running! 
+DEBUG:root:[start_chaos]0 None
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+INFO:root:COMPLETE!!!

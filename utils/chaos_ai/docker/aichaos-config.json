@@ -1,0 +1,7 @@
+{
+  "command": "podman",
+  "chaosengine": "kraken",
+  "faults": "pod-delete",
+  "iterations": 1,
+  "maxfaults": 5
+}

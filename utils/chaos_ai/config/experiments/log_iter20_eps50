@@ -1,0 +1,1372 @@
+INFO:root:[INITIALIZING]
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['disk-fill:service=ratings', 'disk-fill:service=user', 'disk-fill:service=shipping', 'io-stress:service=web']
+DEBUG:root:[INJECT_FAULT] disk-fill:service=ratings
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=ratings.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=user
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=user.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=shipping
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=shipping.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=web
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=web.json
+INFO:root:[create_episode]['disk-fill:service=ratings', 'disk-fill:service=user', 'disk-fill:service=shipping', 'io-stress:service=web']
+INFO:root:[status] engine-service-ratings-disk-fill
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Running
+INFO:root:[status] engine-service-user-disk-fill
+DEBUG:root:[exp_status]engine-service-user-disk-fill:Running
+INFO:root:[status] engine-service-shipping-disk-fill
+DEBUG:root:[exp_status]engine-service-shipping-disk-fill:Running
+INFO:root:[status] engine-service-web-io-stress
+DEBUG:root:[exp_status]engine-service-web-io-stress:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] disk-fill:service=ratings 200->200
+DEBUG:root:[update_q]disk-fill:service=ratings29-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.225
+INFO:root:[UPDATE_Q] disk-fill:service=user 200->200
+DEBUG:root:[update_q]disk-fill:service=user31-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.225
+INFO:root:[UPDATE_Q] disk-fill:service=shipping 200->200
+DEBUG:root:[update_q]disk-fill:service=shipping30-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.225
+INFO:root:[UPDATE_Q] io-stress:service=web 200->200
+DEBUG:root:[update_q]io-stress:service=web87-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.225
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'disk-fill', 'pod_name': 'service=ratings'}, {'fault': 'disk-fill', 'pod_name': 'service=user'}, {'fault': 'disk-fill', 'pod_name': 'service=shipping'}, {'fault': 'io-stress', 'pod_name': 'service=web'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]0 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'disk-fill', 'pod_name': 'service=ratings'}, {'fault': 'disk-fill', 'pod_name': 'service=user'}, {'fault': 'disk-fill', 'pod_name': 'service=shipping'}, {'fault': 'io-stress', 'pod_name': 'service=web'}]}
+INFO:root:0[[ 0.     0.     0.     0.     0.     0.     0.     0.     0.     0.
+   0.     0.     0.     0.     0.     0.     0.     0.     0.     0.
+   0.     0.     0.     0.     0.     0.     0.     0.     0.    -0.225
+  -0.225 -0.225  0.     0.     0.     0.     0.     0.     0.     0.
+   0.     0.     0.     0.     0.     0.     0.     0.     0.     0.
+   0.     0.     0.     0.     0.     0.     0.     0.     0.     0.
+   0.     0.     0.     0.     0.     0.     0.     0.     0.     0.
+   0.     0.     0.     0.     0.     0.     0.     0.     0.     0.
+   0.     0.     0.     0.     0.     0.     0.    -0.225]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['pod-delete:service=shipping', 'disk-fill:service=ratings']
+DEBUG:root:[INJECT_FAULT] pod-delete:service=shipping
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=shipping.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=ratings
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=ratings.json
+INFO:root:[create_episode]['pod-delete:service=shipping', 'disk-fill:service=ratings']
+INFO:root:[status] engine-service-shipping-pod-delete
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-pod-delete:Running
+INFO:root:[status] engine-service-ratings-disk-fill
+DEBUG:root:[exp_status]engine-service-ratings-disk-fill:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] pod-delete:service=shipping 200->200
+DEBUG:root:[update_q]pod-delete:service=shipping8-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.45
+INFO:root:[UPDATE_Q] disk-fill:service=ratings 200->200
+DEBUG:root:[update_q]disk-fill:service=ratings29-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:-0.225
+DEBUG:root:updated Q-0.47250000000000003
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'pod-delete', 'pod_name': 'service=shipping'}, {'fault': 'disk-fill', 'pod_name': 'service=ratings'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]1 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'pod-delete', 'pod_name': 'service=shipping'}, {'fault': 'disk-fill', 'pod_name': 'service=ratings'}]}
+INFO:root:1[[ 0.      0.      0.      0.      0.      0.      0.      0.     -0.45
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.     -0.4725 -0.225  -0.225   0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.     -0.225 ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['network-loss:service=cart', 'dns-error:service=payment', 'disk-fill:service=mysql', 'disk-fill:service=mongodb', 'io-stress:service=catalogue']
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=payment.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mysql.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mongodb
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mongodb.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=catalogue.json
+INFO:root:[create_episode]['network-loss:service=cart', 'dns-error:service=payment', 'disk-fill:service=mysql', 'disk-fill:service=mongodb', 'io-stress:service=catalogue']
+INFO:root:[status] engine-service-cart-network-loss
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Running
+INFO:root:[status] engine-service-payment-dns-error
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Running
+INFO:root:[status] engine-service-mysql-disk-fill
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Running
+INFO:root:[status] engine-service-mongodb-disk-fill
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Running
+INFO:root:[status] engine-service-catalogue-io-stress
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:502
+INFO:root:[CREATE EPISODE]200,502
+INFO:root:[UPDATE_Q] network-loss:service=cart 200->502
+DEBUG:root:[update_q]network-loss:service=cart440.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.14400000000000002
+INFO:root:[UPDATE_Q] dns-error:service=payment 200->502
+DEBUG:root:[update_q]dns-error:service=payment710.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.14400000000000002
+INFO:root:[UPDATE_Q] disk-fill:service=mysql 200->502
+DEBUG:root:[update_q]disk-fill:service=mysql260.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.14400000000000002
+INFO:root:[UPDATE_Q] disk-fill:service=mongodb 200->502
+DEBUG:root:[update_q]disk-fill:service=mongodb250.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.14400000000000002
+INFO:root:[UPDATE_Q] io-stress:service=catalogue 200->502
+DEBUG:root:[update_q]io-stress:service=catalogue780.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.14400000000000002
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'network-loss', 'pod_name': 'service=cart'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'disk-fill', 'pod_name': 'service=mongodb'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:502
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]2 {'start_state': '200', 'next_state': 502, 'faults': [{'fault': 'network-loss', 'pod_name': 'service=cart'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'disk-fill', 'pod_name': 'service=mongodb'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}]}
+INFO:root:2[[ 0.      0.      0.      0.      0.      0.      0.      0.     -0.45
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.144   0.144
+   0.      0.     -0.4725 -0.225  -0.225   0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.144
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.
+   0.      0.      0.      0.      0.      0.      0.      0.      0.144
+   0.      0.      0.      0.      0.      0.      0.144   0.      0.
+   0.      0.      0.      0.      0.      0.     -0.225 ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['network-latency:service=shipping', 'network-loss:service=shipping']
+DEBUG:root:[INJECT_FAULT] network-latency:service=shipping
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-latency_service=shipping.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=shipping
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=shipping.json
+INFO:root:[create_episode]['network-latency:service=shipping', 'network-loss:service=shipping']
+INFO:root:[status] engine-service-shipping-network-latency
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-shipping-network-latency:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-latency:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-latency:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-latency:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-latency:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-latency:Running
+INFO:root:[status] engine-service-shipping-network-loss
+DEBUG:root:[exp_status]engine-service-shipping-network-loss:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] network-latency:service=shipping 200->200
+DEBUG:root:[update_q]network-latency:service=shipping63-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.028800000000000006
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.42408
+INFO:root:[UPDATE_Q] network-loss:service=shipping 200->200
+DEBUG:root:[update_q]network-loss:service=shipping52-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.028800000000000006
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.42408
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'network-latency', 'pod_name': 'service=shipping'}, {'fault': 'network-loss', 'pod_name': 'service=shipping'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]3 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'network-latency', 'pod_name': 'service=shipping'}, {'fault': 'network-loss', 'pod_name': 'service=shipping'}]}
+INFO:root:3[[ 0.       0.       0.       0.       0.       0.       0.       0.
+  -0.45     0.       0.       0.       0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.
+   0.       0.144    0.144    0.       0.      -0.4725  -0.225   -0.225
+   0.       0.       0.       0.       0.       0.       0.       0.
+   0.       0.       0.       0.       0.144    0.       0.       0.
+   0.       0.       0.       0.      -0.42408  0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.      -0.42408
+   0.       0.       0.       0.       0.       0.       0.       0.144
+   0.       0.       0.       0.       0.       0.       0.144    0.
+   0.       0.       0.       0.       0.       0.       0.      -0.225  ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['disk-fill:service=mongodb', 'io-stress:service=catalogue', 'dns-error:service=payment', 'disk-fill:service=mysql', 'network-loss:service=cart']
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mongodb
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mongodb.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=payment.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mysql.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+INFO:root:[create_episode]['disk-fill:service=mongodb', 'io-stress:service=catalogue', 'dns-error:service=payment', 'disk-fill:service=mysql', 'network-loss:service=cart']
+INFO:root:[status] engine-service-mongodb-disk-fill
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Running
+INFO:root:[status] engine-service-catalogue-io-stress
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Running
+INFO:root:[status] engine-service-payment-dns-error
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Running
+INFO:root:[status] engine-service-mysql-disk-fill
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Running
+INFO:root:[status] engine-service-cart-network-loss
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:502
+INFO:root:[CREATE EPISODE]200,502
+INFO:root:[UPDATE_Q] disk-fill:service=mongodb 200->502
+DEBUG:root:[update_q]disk-fill:service=mongodb250.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.14400000000000002
+DEBUG:root:updated Q0.1584
+INFO:root:[UPDATE_Q] io-stress:service=catalogue 200->502
+DEBUG:root:[update_q]io-stress:service=catalogue780.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.14400000000000002
+DEBUG:root:updated Q0.1584
+INFO:root:[UPDATE_Q] dns-error:service=payment 200->502
+DEBUG:root:[update_q]dns-error:service=payment710.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.14400000000000002
+DEBUG:root:updated Q0.1584
+INFO:root:[UPDATE_Q] disk-fill:service=mysql 200->502
+DEBUG:root:[update_q]disk-fill:service=mysql260.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.14400000000000002
+DEBUG:root:updated Q0.1584
+INFO:root:[UPDATE_Q] network-loss:service=cart 200->502
+DEBUG:root:[update_q]network-loss:service=cart440.16
+DEBUG:root:reward, gamma0.16 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.14400000000000002
+DEBUG:root:updated Q0.1584
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'disk-fill', 'pod_name': 'service=mongodb'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:502
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]4 {'start_state': '200', 'next_state': 502, 'faults': [{'fault': 'disk-fill', 'pod_name': 'service=mongodb'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]}
+INFO:root:4[[ 0.       0.       0.       0.       0.       0.       0.       0.
+  -0.45     0.       0.       0.       0.       0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.       0.
+   0.       0.1584   0.1584   0.       0.      -0.4725  -0.225   -0.225
+   0.       0.       0.       0.       0.       0.       0.       0.
+   0.       0.       0.       0.       0.1584   0.       0.       0.
+   0.       0.       0.       0.      -0.42408  0.       0.       0.
+   0.       0.       0.       0.       0.       0.       0.      -0.42408
+   0.       0.       0.       0.       0.       0.       0.       0.1584
+   0.       0.       0.       0.       0.       0.       0.1584   0.
+   0.       0.       0.       0.       0.       0.       0.      -0.225  ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['network-corruption:service=dispatch', 'dns-error:service=catalogue']
+DEBUG:root:[INJECT_FAULT] network-corruption:service=dispatch
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=dispatch.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=catalogue.json
+INFO:root:[create_episode]['network-corruption:service=dispatch', 'dns-error:service=catalogue']
+INFO:root:[status] engine-service-dispatch-network-corruption
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-dispatch-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-dispatch-network-corruption:Running
+INFO:root:[status] engine-service-catalogue-dns-error
+DEBUG:root:[exp_status]engine-service-catalogue-dns-error:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] network-corruption:service=dispatch 200->200
+DEBUG:root:[update_q]network-corruption:service=dispatch35-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.03168000000000001
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.42148800000000003
+INFO:root:[UPDATE_Q] dns-error:service=catalogue 200->200
+DEBUG:root:[update_q]dns-error:service=catalogue67-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.03168000000000001
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.42148800000000003
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'network-corruption', 'pod_name': 'service=dispatch'}, {'fault': 'dns-error', 'pod_name': 'service=catalogue'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]5 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'network-corruption', 'pod_name': 'service=dispatch'}, {'fault': 'dns-error', 'pod_name': 'service=catalogue'}]}
+INFO:root:5[[ 0.        0.        0.        0.        0.        0.        0.
+   0.       -0.45      0.        0.        0.        0.        0.
+   0.        0.        0.        0.        0.        0.        0.
+   0.        0.        0.        0.        0.1584    0.1584    0.
+   0.       -0.4725   -0.225    -0.225     0.        0.        0.
+  -0.421488  0.        0.        0.        0.        0.        0.
+   0.        0.        0.1584    0.        0.        0.        0.
+   0.        0.        0.       -0.42408   0.        0.        0.
+   0.        0.        0.        0.        0.        0.        0.
+  -0.42408   0.        0.        0.       -0.421488  0.        0.
+   0.        0.1584    0.        0.        0.        0.        0.
+   0.        0.1584    0.        0.        0.        0.        0.
+   0.        0.        0.       -0.225   ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['disk-fill:service=mysql', 'disk-fill:service=mongodb', 'dns-error:service=payment', 'io-stress:service=catalogue', 'network-loss:service=cart']
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mysql.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mongodb
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mongodb.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=payment.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+INFO:root:[create_episode]['disk-fill:service=mysql', 'disk-fill:service=mongodb', 'dns-error:service=payment', 'io-stress:service=catalogue', 'network-loss:service=cart']
+INFO:root:[status] engine-service-mysql-disk-fill
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Running
+INFO:root:[status] engine-service-mongodb-disk-fill
+DEBUG:root:[exp_status]engine-service-mongodb-disk-fill:Running
+INFO:root:[status] engine-service-payment-dns-error
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Running
+INFO:root:[status] engine-service-catalogue-io-stress
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Running
+INFO:root:[status] engine-service-cart-network-loss
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:[CREATE EPISODE]200,Timeout
+INFO:root:[UPDATE_Q] disk-fill:service=mysql 200->Timeout
+DEBUG:root:[update_q]disk-fill:service=mysql260.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.1584
+DEBUG:root:updated Q0.19584000000000001
+INFO:root:[UPDATE_Q] disk-fill:service=mongodb 200->Timeout
+DEBUG:root:[update_q]disk-fill:service=mongodb250.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.1584
+DEBUG:root:updated Q0.19584000000000001
+INFO:root:[UPDATE_Q] dns-error:service=payment 200->Timeout
+DEBUG:root:[update_q]dns-error:service=payment710.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.1584
+DEBUG:root:updated Q0.19584000000000001
+INFO:root:[UPDATE_Q] io-stress:service=catalogue 200->Timeout
+DEBUG:root:[update_q]io-stress:service=catalogue780.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.1584
+DEBUG:root:updated Q0.19584000000000001
+INFO:root:[UPDATE_Q] network-loss:service=cart 200->Timeout
+DEBUG:root:[update_q]network-loss:service=cart440.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.1584
+DEBUG:root:updated Q0.19584000000000001
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'disk-fill', 'pod_name': 'service=mongodb'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:Timeout
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]6 {'start_state': '200', 'next_state': 'Timeout', 'faults': [{'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'disk-fill', 'pod_name': 'service=mongodb'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]}
+INFO:root:6[[ 0.        0.        0.        0.        0.        0.        0.
+   0.       -0.45      0.        0.        0.        0.        0.
+   0.        0.        0.        0.        0.        0.        0.
+   0.        0.        0.        0.        0.19584   0.19584   0.
+   0.       -0.4725   -0.225    -0.225     0.        0.        0.
+  -0.421488  0.        0.        0.        0.        0.        0.
+   0.        0.        0.19584   0.        0.        0.        0.
+   0.        0.        0.       -0.42408   0.        0.        0.
+   0.        0.        0.        0.        0.        0.        0.
+  -0.42408   0.        0.        0.       -0.421488  0.        0.
+   0.        0.19584   0.        0.        0.        0.        0.
+   0.        0.19584   0.        0.        0.        0.        0.
+   0.        0.        0.       -0.225   ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['io-stress:service=catalogue', 'dns-error:service=payment', 'network-loss:service=cart']
+DEBUG:root:[INJECT_FAULT] io-stress:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=payment.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+INFO:root:[create_episode]['io-stress:service=catalogue', 'dns-error:service=payment', 'network-loss:service=cart']
+INFO:root:[status] engine-service-catalogue-io-stress
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Running
+INFO:root:[status] engine-service-payment-dns-error
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Running
+INFO:root:[status] engine-service-cart-network-loss
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:502
+INFO:root:[CREATE EPISODE]200,502
+INFO:root:[UPDATE_Q] io-stress:service=catalogue 200->502
+DEBUG:root:[update_q]io-stress:service=catalogue780.26666666666666666
+DEBUG:root:reward, gamma0.26666666666666666 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.19584000000000001
+DEBUG:root:updated Q0.259584
+INFO:root:[UPDATE_Q] dns-error:service=payment 200->502
+DEBUG:root:[update_q]dns-error:service=payment710.26666666666666666
+DEBUG:root:reward, gamma0.26666666666666666 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.19584000000000001
+DEBUG:root:updated Q0.259584
+INFO:root:[UPDATE_Q] network-loss:service=cart 200->502
+DEBUG:root:[update_q]network-loss:service=cart440.26666666666666666
+DEBUG:root:reward, gamma0.26666666666666666 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.19584000000000001
+DEBUG:root:updated Q0.259584
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:502
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]7 {'start_state': '200', 'next_state': 502, 'faults': [{'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]}
+INFO:root:7[[ 0.        0.        0.        0.        0.        0.        0.
+   0.       -0.45      0.        0.        0.        0.        0.
+   0.        0.        0.        0.        0.        0.        0.
+   0.        0.        0.        0.        0.19584   0.19584   0.
+   0.       -0.4725   -0.225    -0.225     0.        0.        0.
+  -0.421488  0.        0.        0.        0.        0.        0.
+   0.        0.        0.259584  0.        0.        0.        0.
+   0.        0.        0.       -0.42408   0.        0.        0.
+   0.        0.        0.        0.        0.        0.        0.
+  -0.42408   0.        0.        0.       -0.421488  0.        0.
+   0.        0.259584  0.        0.        0.        0.        0.
+   0.        0.259584  0.        0.        0.        0.        0.
+   0.        0.        0.       -0.225   ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['dns-error:service=mongodb', 'disk-fill:service=web', 'network-latency:service=mysql']
+DEBUG:root:[INJECT_FAULT] dns-error:service=mongodb
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=mongodb.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=web
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=web.json
+DEBUG:root:[INJECT_FAULT] network-latency:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-latency_service=mysql.json
+INFO:root:[create_episode]['dns-error:service=mongodb', 'disk-fill:service=web', 'network-latency:service=mysql']
+INFO:root:[status] engine-service-mongodb-dns-error
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-mongodb-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-dns-error:Running
+INFO:root:[status] engine-service-web-disk-fill
+DEBUG:root:[exp_status]engine-service-web-disk-fill:Running
+INFO:root:[status] engine-service-mysql-network-latency
+DEBUG:root:[exp_status]engine-service-mysql-network-latency:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] dns-error:service=mongodb 200->200
+DEBUG:root:[update_q]dns-error:service=mongodb69-0.3333333333333333
+DEBUG:root:reward, gamma-0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.25327488
+INFO:root:[UPDATE_Q] disk-fill:service=web 200->200
+DEBUG:root:[update_q]disk-fill:service=web32-0.3333333333333333
+DEBUG:root:reward, gamma-0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.25327488
+INFO:root:[UPDATE_Q] network-latency:service=mysql 200->200
+DEBUG:root:[update_q]network-latency:service=mysql59-0.3333333333333333
+DEBUG:root:reward, gamma-0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.25327488
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'dns-error', 'pod_name': 'service=mongodb'}, {'fault': 'disk-fill', 'pod_name': 'service=web'}, {'fault': 'network-latency', 'pod_name': 'service=mysql'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]8 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'dns-error', 'pod_name': 'service=mongodb'}, {'fault': 'disk-fill', 'pod_name': 'service=web'}, {'fault': 'network-latency', 'pod_name': 'service=mysql'}]}
+INFO:root:8[[ 0.          0.          0.          0.          0.          0.
+   0.          0.         -0.45        0.          0.          0.
+   0.          0.          0.          0.          0.          0.
+   0.          0.          0.          0.          0.          0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225      -0.225      -0.25327488  0.          0.         -0.421488
+   0.          0.          0.          0.          0.          0.
+   0.          0.          0.259584    0.          0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+   0.         -0.421488    0.         -0.25327488  0.          0.259584
+   0.          0.          0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+   0.          0.          0.         -0.225     ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['cpu-hog:service=cart', 'network-corruption:service=mysql', 'cpu-hog:service=ratings', 'disk-fill:service=user', 'network-corruption:service=cart']
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=cart.json
+DEBUG:root:[INJECT_FAULT] network-corruption:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=mysql.json
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=ratings
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=ratings.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=user
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=user.json
+DEBUG:root:[INJECT_FAULT] network-corruption:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=cart.json
+INFO:root:[create_episode]['cpu-hog:service=cart', 'network-corruption:service=mysql', 'cpu-hog:service=ratings', 'disk-fill:service=user', 'network-corruption:service=cart']
+INFO:root:[status] engine-service-cart-cpu-hog
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-cart-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-cart-cpu-hog:Running
+INFO:root:[status] engine-service-mysql-network-corruption
+DEBUG:root:[exp_status]engine-service-mysql-network-corruption:Running
+INFO:root:[status] engine-service-ratings-cpu-hog
+DEBUG:root:[exp_status]engine-service-ratings-cpu-hog:Running
+INFO:root:[status] engine-service-user-disk-fill
+DEBUG:root:[exp_status]engine-service-user-disk-fill:Running
+INFO:root:[status] engine-service-cart-network-corruption
+DEBUG:root:[exp_status]engine-service-cart-network-corruption:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:[CREATE EPISODE]200,Timeout
+INFO:root:[UPDATE_Q] cpu-hog:service=cart 200->Timeout
+DEBUG:root:[update_q]cpu-hog:service=cart110.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.18000000000000002
+INFO:root:[UPDATE_Q] network-corruption:service=mysql 200->Timeout
+DEBUG:root:[update_q]network-corruption:service=mysql370.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.18000000000000002
+INFO:root:[UPDATE_Q] cpu-hog:service=ratings 200->Timeout
+DEBUG:root:[update_q]cpu-hog:service=ratings180.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.18000000000000002
+INFO:root:[UPDATE_Q] disk-fill:service=user 200->Timeout
+DEBUG:root:[update_q]disk-fill:service=user310.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:-0.225
+DEBUG:root:updated Q0.15750000000000006
+INFO:root:[UPDATE_Q] network-corruption:service=cart 200->Timeout
+DEBUG:root:[update_q]network-corruption:service=cart330.2
+DEBUG:root:reward, gamma0.2 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q0.18000000000000002
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'cpu-hog', 'pod_name': 'service=cart'}, {'fault': 'network-corruption', 'pod_name': 'service=mysql'}, {'fault': 'cpu-hog', 'pod_name': 'service=ratings'}, {'fault': 'disk-fill', 'pod_name': 'service=user'}, {'fault': 'network-corruption', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:Timeout
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]9 {'start_state': '200', 'next_state': 'Timeout', 'faults': [{'fault': 'cpu-hog', 'pod_name': 'service=cart'}, {'fault': 'network-corruption', 'pod_name': 'service=mysql'}, {'fault': 'cpu-hog', 'pod_name': 'service=ratings'}, {'fault': 'disk-fill', 'pod_name': 'service=user'}, {'fault': 'network-corruption', 'pod_name': 'service=cart'}]}
+INFO:root:9[[ 0.          0.          0.          0.          0.          0.
+   0.          0.         -0.45        0.          0.          0.18
+   0.          0.          0.          0.          0.          0.
+   0.18        0.          0.          0.          0.          0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18        0.         -0.421488
+   0.          0.18        0.          0.          0.          0.
+   0.          0.          0.259584    0.          0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+   0.         -0.421488    0.         -0.25327488  0.          0.259584
+   0.          0.          0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+   0.          0.          0.         -0.225     ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['network-corruption:service=shipping', 'dns-error:service=mysql']
+DEBUG:root:[INJECT_FAULT] network-corruption:service=shipping
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=shipping.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=mysql.json
+INFO:root:[create_episode]['network-corruption:service=shipping', 'dns-error:service=mysql']
+INFO:root:[status] engine-service-shipping-network-corruption
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-shipping-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-shipping-network-corruption:Running
+INFO:root:[status] engine-service-mysql-dns-error
+DEBUG:root:[exp_status]engine-service-mysql-dns-error:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] network-corruption:service=shipping 200->200
+DEBUG:root:[update_q]network-corruption:service=shipping41-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.40327488
+INFO:root:[UPDATE_Q] dns-error:service=mysql 200->200
+DEBUG:root:[update_q]dns-error:service=mysql70-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.40327488
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'network-corruption', 'pod_name': 'service=shipping'}, {'fault': 'dns-error', 'pod_name': 'service=mysql'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]10 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'network-corruption', 'pod_name': 'service=shipping'}, {'fault': 'dns-error', 'pod_name': 'service=mysql'}]}
+INFO:root:10[[ 0.          0.          0.          0.          0.          0.
+   0.          0.         -0.45        0.          0.          0.18
+   0.          0.          0.          0.          0.          0.
+   0.18        0.          0.          0.          0.          0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18        0.         -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+   0.          0.          0.259584    0.          0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+   0.         -0.421488    0.         -0.25327488 -0.40327488  0.259584
+   0.          0.          0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+   0.          0.          0.         -0.225     ]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['io-stress:service=web', 'network-loss:service=catalogue', 'disk-fill:service=cart', 'pod-delete:service=rabbitmq']
+DEBUG:root:[INJECT_FAULT] io-stress:service=web
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=web.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] disk-fill:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=cart.json
+DEBUG:root:[INJECT_FAULT] pod-delete:service=rabbitmq
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=rabbitmq.json
+INFO:root:[create_episode]['io-stress:service=web', 'network-loss:service=catalogue', 'disk-fill:service=cart', 'pod-delete:service=rabbitmq']
+INFO:root:[status] engine-service-web-io-stress
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-web-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-web-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-web-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-web-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-web-io-stress:Running
+INFO:root:[status] engine-service-catalogue-network-loss
+DEBUG:root:[exp_status]engine-service-catalogue-network-loss:Running
+INFO:root:[status] engine-service-cart-disk-fill
+DEBUG:root:[exp_status]engine-service-cart-disk-fill:Running
+INFO:root:[status] engine-service-rabbitmq-pod-delete
+DEBUG:root:[exp_status]engine-service-rabbitmq-pod-delete:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] io-stress:service=web 200->200
+DEBUG:root:[update_q]io-stress:service=web87-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:-0.225
+DEBUG:root:updated Q-0.20077488000000002
+INFO:root:[UPDATE_Q] network-loss:service=catalogue 200->200
+DEBUG:root:[update_q]network-loss:service=catalogue45-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.17827488000000002
+INFO:root:[UPDATE_Q] disk-fill:service=cart 200->200
+DEBUG:root:[update_q]disk-fill:service=cart22-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.17827488000000002
+INFO:root:[UPDATE_Q] pod-delete:service=rabbitmq 200->200
+DEBUG:root:[update_q]pod-delete:service=rabbitmq6-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.17827488000000002
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'io-stress', 'pod_name': 'service=web'}, {'fault': 'network-loss', 'pod_name': 'service=catalogue'}, {'fault': 'disk-fill', 'pod_name': 'service=cart'}, {'fault': 'pod-delete', 'pod_name': 'service=rabbitmq'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]11 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'io-stress', 'pod_name': 'service=web'}, {'fault': 'network-loss', 'pod_name': 'service=catalogue'}, {'fault': 'disk-fill', 'pod_name': 'service=cart'}, {'fault': 'pod-delete', 'pod_name': 'service=rabbitmq'}]}
+INFO:root:11[[ 0.          0.          0.          0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+   0.          0.          0.          0.          0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18        0.         -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+   0.          0.          0.259584   -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+   0.         -0.421488    0.         -0.25327488 -0.40327488  0.259584
+   0.          0.          0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+   0.          0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['io-stress:service=ratings', 'dns-error:service=ratings', 'pod-delete:service=dispatch', 'dns-error:service=cart']
+DEBUG:root:[INJECT_FAULT] io-stress:service=ratings
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=ratings.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=ratings
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=ratings.json
+DEBUG:root:[INJECT_FAULT] pod-delete:service=dispatch
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_pod-delete_service=dispatch.json
+DEBUG:root:[INJECT_FAULT] dns-error:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=cart.json
+INFO:root:[create_episode]['io-stress:service=ratings', 'dns-error:service=ratings', 'pod-delete:service=dispatch', 'dns-error:service=cart']
+INFO:root:[status] engine-service-ratings-io-stress
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-ratings-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-ratings-io-stress:Running
+INFO:root:[status] engine-service-ratings-dns-error
+DEBUG:root:[exp_status]engine-service-ratings-dns-error:Running
+INFO:root:[status] engine-service-dispatch-pod-delete
+DEBUG:root:[exp_status]engine-service-dispatch-pod-delete:Running
+INFO:root:[status] engine-service-cart-dns-error
+DEBUG:root:[exp_status]engine-service-cart-dns-error:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] io-stress:service=ratings 200->200
+DEBUG:root:[update_q]io-stress:service=ratings84-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.17827488000000002
+INFO:root:[UPDATE_Q] dns-error:service=ratings 200->200
+DEBUG:root:[update_q]dns-error:service=ratings73-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.17827488000000002
+INFO:root:[UPDATE_Q] pod-delete:service=dispatch 200->200
+DEBUG:root:[update_q]pod-delete:service=dispatch2-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.17827488000000002
+INFO:root:[UPDATE_Q] dns-error:service=cart 200->200
+DEBUG:root:[update_q]dns-error:service=cart66-0.25
+DEBUG:root:reward, gamma-0.25 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.17827488000000002
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'io-stress', 'pod_name': 'service=ratings'}, {'fault': 'dns-error', 'pod_name': 'service=ratings'}, {'fault': 'pod-delete', 'pod_name': 'service=dispatch'}, {'fault': 'dns-error', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]12 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'io-stress', 'pod_name': 'service=ratings'}, {'fault': 'dns-error', 'pod_name': 'service=ratings'}, {'fault': 'pod-delete', 'pod_name': 'service=dispatch'}, {'fault': 'dns-error', 'pod_name': 'service=cart'}]}
+INFO:root:12[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+   0.          0.          0.          0.          0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18        0.         -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+   0.          0.          0.259584   -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488  0.259584
+   0.         -0.17827488  0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['cpu-hog:service=mysql', 'cpu-hog:service=catalogue', 'network-corruption:service=user']
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=mysql.json
+DEBUG:root:[INJECT_FAULT] cpu-hog:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_cpu-hog_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] network-corruption:service=user
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=user.json
+INFO:root:[create_episode]['cpu-hog:service=mysql', 'cpu-hog:service=catalogue', 'network-corruption:service=user']
+INFO:root:[status] engine-service-mysql-cpu-hog
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-mysql-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-cpu-hog:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-cpu-hog:Running
+INFO:root:[status] engine-service-catalogue-cpu-hog
+DEBUG:root:[exp_status]engine-service-catalogue-cpu-hog:Running
+INFO:root:[status] engine-service-user-network-corruption
+DEBUG:root:[exp_status]engine-service-user-network-corruption:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] cpu-hog:service=mysql 200->200
+DEBUG:root:[update_q]cpu-hog:service=mysql15-0.3333333333333333
+DEBUG:root:reward, gamma-0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.25327488
+INFO:root:[UPDATE_Q] cpu-hog:service=catalogue 200->200
+DEBUG:root:[update_q]cpu-hog:service=catalogue12-0.3333333333333333
+DEBUG:root:reward, gamma-0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.25327488
+INFO:root:[UPDATE_Q] network-corruption:service=user 200->200
+DEBUG:root:[update_q]network-corruption:service=user42-0.3333333333333333
+DEBUG:root:reward, gamma-0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0519168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.25327488
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'cpu-hog', 'pod_name': 'service=mysql'}, {'fault': 'cpu-hog', 'pod_name': 'service=catalogue'}, {'fault': 'network-corruption', 'pod_name': 'service=user'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]13 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'cpu-hog', 'pod_name': 'service=mysql'}, {'fault': 'cpu-hog', 'pod_name': 'service=catalogue'}, {'fault': 'network-corruption', 'pod_name': 'service=user'}]}
+INFO:root:13[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+  -0.25327488  0.          0.         -0.25327488  0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18        0.         -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+  -0.25327488  0.          0.259584   -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488  0.259584
+   0.         -0.17827488  0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['dns-error:service=payment', 'network-loss:service=cart']
+DEBUG:root:[INJECT_FAULT] dns-error:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=payment.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+INFO:root:[create_episode]['dns-error:service=payment', 'network-loss:service=cart']
+INFO:root:[status] engine-service-payment-dns-error
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Running
+INFO:root:[status] engine-service-cart-network-loss
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:502
+INFO:root:[CREATE EPISODE]200,502
+INFO:root:[UPDATE_Q] dns-error:service=payment 200->502
+DEBUG:root:[update_q]dns-error:service=payment710.4
+DEBUG:root:reward, gamma0.4 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.259584
+DEBUG:root:updated Q0.38595840000000003
+INFO:root:[UPDATE_Q] network-loss:service=cart 200->502
+DEBUG:root:[update_q]network-loss:service=cart440.4
+DEBUG:root:reward, gamma0.4 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.259584
+DEBUG:root:updated Q0.38595840000000003
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:502
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]14 {'start_state': '200', 'next_state': 502, 'faults': [{'fault': 'dns-error', 'pod_name': 'service=payment'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]}
+INFO:root:14[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+  -0.25327488  0.          0.         -0.25327488  0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18        0.         -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+  -0.25327488  0.          0.3859584  -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488  0.3859584
+   0.         -0.17827488  0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['dns-error:service=payment']
+DEBUG:root:[INJECT_FAULT] dns-error:service=payment
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_dns-error_service=payment.json
+INFO:root:[create_episode]['dns-error:service=payment']
+INFO:root:[status] engine-service-payment-dns-error
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-payment-dns-error:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] dns-error:service=payment 200->200
+DEBUG:root:[update_q]dns-error:service=payment71-1.0
+DEBUG:root:reward, gamma-1.0 0.2
+DEBUG:root:gamma*val0.07719168000000001
+DEBUG:root:current state val:0.38595840000000003
+DEBUG:root:updated Q-0.791931648
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'dns-error', 'pod_name': 'service=payment'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]15 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'dns-error', 'pod_name': 'service=payment'}]}
+INFO:root:15[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+  -0.25327488  0.          0.         -0.25327488  0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18        0.         -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+  -0.25327488  0.          0.3859584  -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488 -0.79193165
+   0.         -0.17827488  0.          0.          0.          0.
+   0.259584    0.          0.          0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['network-corruption:service=catalogue', 'io-stress:service=mongodb']
+DEBUG:root:[INJECT_FAULT] network-corruption:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=mongodb
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=mongodb.json
+INFO:root:[create_episode]['network-corruption:service=catalogue', 'io-stress:service=mongodb']
+INFO:root:[status] engine-service-catalogue-network-corruption
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-catalogue-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-network-corruption:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-catalogue-network-corruption:Running
+INFO:root:[status] engine-service-mongodb-io-stress
+DEBUG:root:[exp_status]engine-service-mongodb-io-stress:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mongodb-io-stress:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] network-corruption:service=catalogue 200->200
+DEBUG:root:[update_q]network-corruption:service=catalogue34-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.07719168000000001
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.380527488
+INFO:root:[UPDATE_Q] io-stress:service=mongodb 200->200
+DEBUG:root:[update_q]io-stress:service=mongodb80-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.07719168000000001
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.380527488
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'network-corruption', 'pod_name': 'service=catalogue'}, {'fault': 'io-stress', 'pod_name': 'service=mongodb'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]16 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'network-corruption', 'pod_name': 'service=catalogue'}, {'fault': 'io-stress', 'pod_name': 'service=mongodb'}]}
+INFO:root:16[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+  -0.25327488  0.          0.         -0.25327488  0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.19584     0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18       -0.38052749 -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+  -0.25327488  0.          0.3859584  -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488 -0.79193165
+   0.         -0.17827488  0.          0.          0.          0.
+   0.259584    0.         -0.38052749  0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['disk-fill:service=mysql', 'io-stress:service=catalogue', 'network-loss:service=cart']
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mysql.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+INFO:root:[create_episode]['disk-fill:service=mysql', 'io-stress:service=catalogue', 'network-loss:service=cart']
+INFO:root:[status] engine-service-mysql-disk-fill
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Running
+INFO:root:[status] engine-service-catalogue-io-stress
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Running
+INFO:root:[status] engine-service-cart-network-loss
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:[CREATE EPISODE]200,Timeout
+INFO:root:[UPDATE_Q] disk-fill:service=mysql 200->Timeout
+DEBUG:root:[update_q]disk-fill:service=mysql260.3333333333333333
+DEBUG:root:reward, gamma0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.19584000000000001
+DEBUG:root:updated Q0.319584
+INFO:root:[UPDATE_Q] io-stress:service=catalogue 200->Timeout
+DEBUG:root:[update_q]io-stress:service=catalogue780.3333333333333333
+DEBUG:root:reward, gamma0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.259584
+DEBUG:root:updated Q0.3259584
+INFO:root:[UPDATE_Q] network-loss:service=cart 200->Timeout
+DEBUG:root:[update_q]network-loss:service=cart440.3333333333333333
+DEBUG:root:reward, gamma0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.38595840000000003
+DEBUG:root:updated Q0.33859584
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:Timeout
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]17 {'start_state': '200', 'next_state': 'Timeout', 'faults': [{'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]}
+INFO:root:17[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+  -0.25327488  0.          0.         -0.25327488  0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.319584    0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18       -0.38052749 -0.421488
+   0.          0.18        0.          0.          0.         -0.40327488
+  -0.25327488  0.          0.33859584 -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408     0.
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488 -0.79193165
+   0.         -0.17827488  0.          0.          0.          0.
+   0.3259584   0.         -0.38052749  0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploration]
+DEBUG:root:[Realistic] ['network-loss:service=user', 'network-corruption:service=rabbitmq']
+DEBUG:root:[INJECT_FAULT] network-loss:service=user
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=user.json
+DEBUG:root:[INJECT_FAULT] network-corruption:service=rabbitmq
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-corruption_service=rabbitmq.json
+INFO:root:[create_episode]['network-loss:service=user', 'network-corruption:service=rabbitmq']
+INFO:root:[status] engine-service-user-network-loss
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-user-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-user-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-user-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-user-network-loss:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-user-network-loss:Running
+INFO:root:[status] engine-service-rabbitmq-network-corruption
+DEBUG:root:[exp_status]engine-service-rabbitmq-network-corruption:Running
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 0:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 1:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 2:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 3:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 4:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 5:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 6:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 7:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 8:200
+INFO:root:http://chaos.sl.cloud9.ibm.com:8080/api/cart/health 9:200
+INFO:root:[CREATE EPISODE]200,200
+INFO:root:[UPDATE_Q] network-loss:service=user 200->200
+DEBUG:root:[update_q]network-loss:service=user53-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.067719168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.3890527488
+INFO:root:[UPDATE_Q] network-corruption:service=rabbitmq 200->200
+DEBUG:root:[update_q]network-corruption:service=rabbitmq39-0.5
+DEBUG:root:reward, gamma-0.5 0.2
+DEBUG:root:gamma*val0.067719168
+DEBUG:root:current state val:0.0
+DEBUG:root:updated Q-0.3890527488
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'network-loss', 'pod_name': 'service=user'}, {'fault': 'network-corruption', 'pod_name': 'service=rabbitmq'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:200
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]18 {'start_state': '200', 'next_state': '200', 'faults': [{'fault': 'network-loss', 'pod_name': 'service=user'}, {'fault': 'network-corruption', 'pod_name': 'service=rabbitmq'}]}
+INFO:root:18[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+  -0.25327488  0.          0.         -0.25327488  0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.319584    0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18       -0.38052749 -0.421488
+   0.          0.18        0.         -0.38905275  0.         -0.40327488
+  -0.25327488  0.          0.33859584 -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408    -0.38905275
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488 -0.79193165
+   0.         -0.17827488  0.          0.          0.          0.
+   0.3259584   0.         -0.38052749  0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:[CREATE_EPISODE]
+DEBUG:root:[Exploitation]
+DEBUG:root:[Realistic] ['disk-fill:service=mysql', 'io-stress:service=catalogue', 'network-loss:service=cart']
+DEBUG:root:[INJECT_FAULT] disk-fill:service=mysql
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_disk-fill_service=mysql.json
+DEBUG:root:[INJECT_FAULT] io-stress:service=catalogue
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_io-stress_service=catalogue.json
+DEBUG:root:[INJECT_FAULT] network-loss:service=cart
+DEBUG:root:[INJECT_FAULT] ../config/experiments/experiment_network-loss_service=cart.json
+INFO:root:[create_episode]['disk-fill:service=mysql', 'io-stress:service=catalogue', 'network-loss:service=cart']
+INFO:root:[status] engine-service-mysql-disk-fill
+DEBUG:root:[exp_status] Not Running!
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Waiting for Job Creation
+DEBUG:root:[exp_status]engine-service-mysql-disk-fill:Running
+INFO:root:[status] engine-service-catalogue-io-stress
+DEBUG:root:[exp_status]engine-service-catalogue-io-stress:Running
+INFO:root:[status] engine-service-cart-network-loss
+DEBUG:root:[exp_status]engine-service-cart-network-loss:Running
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+DEBUG:root:Timeout Exception!
+INFO:root:[CREATE EPISODE]200,Timeout
+INFO:root:[UPDATE_Q] disk-fill:service=mysql 200->Timeout
+DEBUG:root:[update_q]disk-fill:service=mysql260.3333333333333333
+DEBUG:root:reward, gamma0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.319584
+DEBUG:root:updated Q0.3319584
+INFO:root:[UPDATE_Q] io-stress:service=catalogue 200->Timeout
+DEBUG:root:[update_q]io-stress:service=catalogue780.3333333333333333
+DEBUG:root:reward, gamma0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.3259584
+DEBUG:root:updated Q0.33259584
+INFO:root:[UPDATE_Q] network-loss:service=cart 200->Timeout
+DEBUG:root:[update_q]network-loss:service=cart440.3333333333333333
+DEBUG:root:reward, gamma0.3333333333333333 0.2
+DEBUG:root:gamma*val0.0
+DEBUG:root:current state val:0.33859584
+DEBUG:root:updated Q0.333859584
+DEBUG:root:[CREATE_EPISODE] EPISODE CREATED:[{'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]
+DEBUG:root:[CREATE_EPISODE] END STATE:Timeout
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+DEBUG:root:[start_chaos]19 {'start_state': '200', 'next_state': 'Timeout', 'faults': [{'fault': 'disk-fill', 'pod_name': 'service=mysql'}, {'fault': 'io-stress', 'pod_name': 'service=catalogue'}, {'fault': 'network-loss', 'pod_name': 'service=cart'}]}
+INFO:root:19[[ 0.          0.         -0.17827488  0.          0.          0.
+  -0.17827488  0.         -0.45        0.          0.          0.18
+  -0.25327488  0.          0.         -0.25327488  0.          0.
+   0.18        0.          0.          0.         -0.17827488  0.
+   0.          0.19584     0.3319584   0.          0.         -0.4725
+  -0.225       0.1575     -0.25327488  0.18       -0.38052749 -0.421488
+   0.          0.18        0.         -0.38905275  0.         -0.40327488
+  -0.25327488  0.          0.33385958 -0.17827488  0.          0.
+   0.          0.          0.          0.         -0.42408    -0.38905275
+   0.          0.          0.          0.          0.         -0.25327488
+   0.          0.          0.         -0.42408     0.          0.
+  -0.17827488 -0.421488    0.         -0.25327488 -0.40327488 -0.79193165
+   0.         -0.17827488  0.          0.          0.          0.
+   0.33259584  0.         -0.38052749  0.          0.          0.
+  -0.17827488  0.          0.         -0.20077488]]
+DEBUG:root:Removing previous engines
+DEBUG:root:Engines removed
+INFO:root:COMPLETE!!!
