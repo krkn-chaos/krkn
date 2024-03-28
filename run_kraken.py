@@ -332,7 +332,7 @@ def main(cfg):
                         elif scenario_type == "application_outages":
                             logging.info("Injecting application outage")
                             failed_post_scenarios, scenario_telemetries = application_outage.run(
-                                scenarios_list, config, wait_duration, telemetry_k8s)
+                                scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
                             chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # PVC scenarios
