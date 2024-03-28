@@ -1,5 +1,0 @@
-cpu-hog:ms2,disk-fill:ms7
-cpu-hog:ms1,cpu-hog:ms4
-disk-fill:ms3,pod-delete:ms2
-cpu-hog:ms6,pod-delete:ms1
-cpu-hog:ms6

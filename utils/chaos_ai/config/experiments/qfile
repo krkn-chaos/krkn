@@ -1,3 +1,0 @@
-,pod-delete:ms1,pod-delete:ms2,pod-delete:ms3,pod-delete:ms4,pod-delete:ms5,pod-delete:ms6,pod-delete:ms7,cpu-hog:ms1,cpu-hog:ms2,cpu-hog:ms3,cpu-hog:ms4,cpu-hog:ms5,cpu-hog:ms6,cpu-hog:ms7,disk-fill:ms1,disk-fill:ms2,disk-fill:ms3,disk-fill:ms4,disk-fill:ms5,disk-fill:ms6,disk-fill:ms7
-http://169.38.86.203/ms4,-0.45,-0.45,0.0,0.0,0.0,0.0,0.0,-0.45,-0.45,0.0,-0.45,0.0,-0.9450000000000001,0.0,0.0,0.0,-0.45,0.0,0.0,0.0,-0.45
-http://169.38.86.203/ms6,-0.45,-0.45,0.0,0.0,0.0,0.0,0.0,-0.45,-0.45,0.0,-0.45,0.0,-0.9450000000000001,0.0,0.0,0.0,-0.45,0.0,0.0,0.0,-0.45

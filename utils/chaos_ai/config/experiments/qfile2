@@ -1,3 +1,0 @@
-,pod-delete:service=user,pod-delete:service=dispatch,cpu-hog:service=user,cpu-hog:service=dispatch,disk-fill:service=user,disk-fill:service=dispatch
-http://chaos.sl.cloud9.ibm.com:8080/api/cart/health,0.0,-0.9,-0.45,0.0,0.0,-0.45
-http://chaos.sl.cloud9.ibm.com:8080/api/payment/health,0.0,-0.9,-0.45,0.0,0.0,-0.45

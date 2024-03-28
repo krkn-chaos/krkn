@@ -1,2 +1,0 @@
-disk-fill:service=payment,disk-fill:service=cart,cpu-hog:service=cart,network-corruption:service=cart,http://chaos.sl.cloud9.ibm.com:8097/api/cart/health,Timeout
-disk-fill:service=payment,disk-fill:service=cart,cpu-hog:service=cart,network-corruption:service=cart,http://chaos.sl.cloud9.ibm.com:8097/api/payment/health,200

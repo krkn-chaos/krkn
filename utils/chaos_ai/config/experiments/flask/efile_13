@@ -1,2 +1,0 @@
-network-loss:service=payment,http://chaos.sl.cloud9.ibm.com:8097/api/cart/health,200
-network-loss:service=payment,http://chaos.sl.cloud9.ibm.com:8097/api/payment/health,Timeout
