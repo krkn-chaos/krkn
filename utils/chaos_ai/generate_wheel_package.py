@@ -18,9 +18,4 @@ setuptools.setup(
         "Operating System :: OS Independent",
     ],
     python_requires='>=3.9',
-    #install_requires=['numpy==1.18.1','pandas==0.25.3',
-    #'scikit-learn==0.22.1',
-    #'datetime','scipy==1.4.1',
-    #'tqdm==4.47.0','requests==2.23.0',
-    #'flasgger==0.9.4','Flask==1.1.2']
 )

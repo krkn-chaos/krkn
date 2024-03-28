@@ -1,13 +1,6 @@
 import json
 import os
 import random
-import sys
-import re
-import threading
-
-import requests
-import time
-# import yaml
 
 import numpy as np
 import pandas as pd
@@ -15,8 +8,6 @@ import logging
 
 # sys.path.insert(1, os.path.join(sys.path[0], '..'))
 import src.utils as utils
-from src.dstk_utils import DSTKUtils
-from src.litmus_utils import LitmusUtils
 from src.kraken_utils import KrakenUtils
 from src.qlearning import QLearning
 from src.test_application import TestApplication
@@ -28,7 +19,7 @@ class AIChaos:
                  chaos_experiment='experiment.json', logfile='log', qfile='qfile.csv', efile='efile', epfile='episodes.json',
                  loglevel=logging.INFO,
                  chaos_journal='journal.json', iterations=10, alpha=0.9, gamma=0.2, epsilon=0.3,
-                 num_requests=10, sleep_time=1, timeout=2, chaos_engine='litmus', dstk_probes=None,
+                 num_requests=10, sleep_time=1, timeout=2, chaos_engine='kraken', dstk_probes=None,
                  static_run=False, all_faults=False, command='podman'):
         self.namespace = namespace
         self.faults = faults
@@ -49,12 +40,10 @@ class AIChaos:
         self.chaos_journal = chaos_journal
         self.command = command
 
-        if chaos_engine == 'dstk':
-            self.chaos_engine = DSTKUtils(dstk_probes, namespace)
-        elif chaos_engine == 'kraken':
+        if chaos_engine == 'kraken':
             self.chaos_engine = KrakenUtils(namespace, kubeconfig=kubeconfig, chaos_dir=chaos_dir, chaos_experiment=chaos_experiment, command=self.command)
         else:
-            self.chaos_engine = LitmusUtils(namespace, chaos_dir=chaos_dir, chaos_experiment=chaos_experiment)
+            self.chaos_engine = None
 
         self.iterations = iterations
         # Initialize RL parameters
@@ -73,11 +62,7 @@ class AIChaos:
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.basicConfig(filename=logfile, filemode='w+', level=loglevel)
         self.logger = logging.getLogger(logfile.replace('/',''))
-        # while self.logger.hasHandlers():
-        #     self.logger.removeHandler(self.logger.handlers[0])
         self.logger.addHandler(logging.FileHandler(logfile))
-        # file_handler = logging.FileHandler(self.logfile)
-        # self.logger.addHandler(file_handler)
 
         self.testapp = TestApplication(num_requests, timeout, sleep_time)
         self.ql = QLearning(gamma, alpha, faults, states, rewards, urls)
@@ -261,64 +246,3 @@ class AIChaos:
         for f in filelist:
             print(f)
             os.remove(os.path.join(mydir, f))
-
-
-def test_chaos():
-    svc_list = ['cart', 'catalogue', 'dispatch', 'mongodb', 'mysql', 'payment', 'rabbitmq', 'ratings', 'redis',
-                'shipping', 'user', 'web']
-    pod_labels = ['service=cart', 'service=catalogue', 'service=dispatch', 'service=mongodb', 'service=mysql',
-                  'service=payment',
-                  'service=rabbitmq', 'service=ratings', 'service=shipping', 'service=user', 'service=web']
-    # pod_labels = ['service=payment']
-    # Define faults
-    # faults = ['terminate_pods']
-    # faults = ['terminate_pods:' + x for x in pod_names]
-    kill_faults = ['pod-delete:' + x for x in pod_labels]
-    cpu_faults = ['pod-cpu-hog:' + x for x in pod_labels]
-    disk_faults = ['disk-fill:' + x for x in pod_labels]
-    # faults = ['kill_microservice:' + x for x in svc_list]
-    faults = kill_faults + cpu_faults + disk_faults
-    # faults = kill_faults
-    # Define the states
-    states = {
-        '200': 0,
-        '500': 1,
-        '502': 2,
-        '404': 3,
-        'Timeout': 4
-    }
-    # Define rewards, currently not used
-    rewards = {
-        '200': -1,
-        '500': 0.8,
-        '502': 0.8,
-        '404': 1,
-        'Timeout': 1
-    }
-    # Define application end points
-    urls = ['http://192.168.49.2:31902/api/cart/health', 'http://192.168.49.2:31902/api/payment/health',
-            'http://192.168.49.2:31902']
-    urls = ['http://192.168.49.2:31902/api/cart/health', 'http://192.168.49.2:31902/api/payment/health']
-    # urls = ['http://192.168.49.2:31902/api/payment/health']
-
-    # cdir = '/Users/sandeephans/Downloads/chaos/chaostoolkit-samples-master/service-down-not-visible-to-users/'
-    # cdir = '/Users/sandeephans/Downloads/openshift/'
-    # cexp = 'experiment.json'
-    # cjournal = 'journal.json'
-    cdir = '/home/chaos/robot-shop/chaos/aichaos/config/'
-    cexp = {'pod-delete': 'pod-delete.json', 'pod-cpu-hog': 'pod-cpu-hog.json', 'disk-fill': 'disk-fill.json'}
-    cjournal = 'journal.json'
-
-    aichaos = AIChaos(states=states, faults=faults, rewards=rewards, urls=urls, max_faults=5,
-                            chaos_dir=cdir, chaos_experiment=cexp, chaos_journal=cjournal,
-                            static_run=False, iterations=50)
-    aichaos.start_chaos()
-    # aichaos.get_stats()
-
-
-if __name__ == '__main__':
-    start = time.time()
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-    test_chaos()
-    end = time.time()
-    print('Time Taken:', end - start, 's')

@@ -41,7 +41,7 @@ class AIChaosSwagger:
         os.system("echo $KUBECONFIG")
         print('setting kubeconfig')
         params['command'] = 'podman'
-        params['chaos_engine'] = 'kraken'
+        params['chaosengine'] = 'kraken'
         params['faults'] = 'pod-delete'
         params['iterations'] = 1
         params['maxfaults'] = 5
@@ -77,29 +77,6 @@ class AIChaosSwagger:
         efile = self.flaskdir + 'efile_' + str(file_id)
         epfile = self.flaskdir + 'episodes_' + str(file_id) + '.json'
         # probe_url = params['probeurl']
-        # probes = {'pod-delete': 'executeprobe', 'cpu-hog': 'wolffi/cpu_load', 'disk-fill': 'wolffi/memory_load',
-        #           'io_load': 'wolffi/io_load', 'http_delay': 'wolffi/http_delay', 'packet_delay': 'wolffi/packet_delay',
-        #           'packet_duplication': 'wolffi/packet_duplication', 'packet_loss': 'wolffi/packet_loss',
-        #           'packet_corruption': 'wolffi/packet_corruption',
-        #           'packet_reordering': 'wolffi/packet_reordering', 'network_load': 'wolffi/network_load',
-        #           'http_bad_request': 'wolffi/http_bad_request',
-        #           'http_unauthorized': 'wolffi/http_unauthorized', 'http_forbidden': 'wolffi/http_forbidden',
-        #           'http_not_found': 'wolffi/http_not_found',
-        #           'http_method_not_allowed': 'wolffi/http_method_not_allowed',
-        #           'http_not_acceptable': 'wolffi/http_not_acceptable',
-        #           'http_request_timeout': 'wolffi/http_request_timeout',
-        #           'http_unprocessable_entity': 'wolffi/http_unprocessable_entity',
-        #           'http_internal_server_error': 'wolffi/http_internal_server_error',
-        #           'http_not_implemented': 'wolffi/http_not_implemented',
-        #           'http_bad_gateway': 'wolffi/http_bad_gateway',
-        #           'http_service_unavailable': 'wolffi/http_service_unavailable',
-        #           'bandwidth_restrict': 'wolffi/bandwidth_restrict',
-        #           'pod_cpu_load': 'wolffi/pod_cpu_load', 'pod_memory_load': 'wolffi/pod_memory_load',
-        #           'pod_io_load': 'wolffi/pod_io_load',
-        #           'pod_network_load': 'wolffi/pod_network_load'
-        #           }
-        # dstk_probes = {k: probe_url + v for k, v in probes.items()}
-        # dstk_probes = None
         cexp = {'pod-delete': 'pod-delete.json', 'cpu-hog': 'pod-cpu-hog.json',
                 'disk-fill': 'disk-fill.json', 'network-loss': 'network-loss.json',
                 'network-corruption': 'network-corruption.json', 'io-stress': 'io-stress.json'}
