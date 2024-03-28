@@ -1,0 +1,10 @@
+numpy
+pandas
+notebook
+jupyterlab
+jupyter
+seaborn
+requests
+wheel
+Flask==2.1.0
+flasgger==0.9.5

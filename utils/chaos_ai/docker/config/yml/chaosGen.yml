@@ -1,0 +1,40 @@
+
+Generate chaos on an application deployed on a cluster.
+---
+    tags:
+      - ChaosAI API
+    parameters:
+      - name: file
+        in: formData
+        type: file
+        required: true
+        description: Kube-config file
+      - name: namespace
+        in: formData
+        type: string
+        default: robot-shop
+        required: true
+        description: Namespace to test
+      - name: podlabels
+        in: formData
+        type: string
+        default: service=cart,service=payment
+        required: true
+        description: Pod labels to test
+      - name: nodelabels
+        in: formData
+        type: string
+        required: false
+        description: Node labels to test
+      - name: urls
+        in: formData
+        type: string
+        default: http://<application-url>:8097/api/cart/health,http://<application-url>:8097/api/payment/health
+        required: true
+        description: Application URLs to test
+
+    responses:
+      500:
+        description: Error!
+      200:
+        description: Chaos ID for the initiated chaos.
