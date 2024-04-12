@@ -1,5 +1,5 @@
 {
-  "apiVersion": "litmuschaos.io/v1alpha1",
+  "apiVersion": "1.0",
   "kind": "ChaosEngine",
   "metadata": {
     "name": "engine-cartns3"
