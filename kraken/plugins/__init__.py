@@ -2,11 +2,14 @@ import dataclasses
 import json
 import logging
 from os.path import abspath
-from typing import List, Dict
+from typing import List, Dict, Any
 import time
 
 from arcaflow_plugin_sdk import schema, serialization, jsonschema
 from arcaflow_plugin_kill_pod import kill_pods, wait_for_pods
+from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
+
 import kraken.plugins.node_scenarios.vmware_plugin as vmware_plugin
 import kraken.plugins.node_scenarios.ibmcloud_plugin as ibmcloud_plugin
 from kraken.plugins.run_python_plugin import run_python_file
@@ -47,11 +50,14 @@ class Plugins:
                 )
             self.steps_by_id[step.schema.id] = step
 
+    def unserialize_scenario(self, file: str) -> Any:
+        return serialization.load_from_file(abspath(file))
+
     def run(self, file: str, kubeconfig_path: str, kraken_config: str):
         """
         Run executes a series of steps
         """
-        data = serialization.load_from_file(abspath(file))
+        data = self.unserialize_scenario(abspath(file))
         if not isinstance(data, list):
             raise Exception(
                 "Invalid scenario configuration file: {} expected list, found {}".format(file, type(data).__name__)
@@ -241,7 +247,15 @@ PLUGINS = Plugins(
 )
 
 
-def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_post_scenarios: List[str], wait_duration: int, telemetry: KrknTelemetryKubernetes) -> (List[str], list[ScenarioTelemetry]):
+def run(scenarios: List[str],
+        kubeconfig_path: str,
+        kraken_config: str,
+        failed_post_scenarios: List[str],
+        wait_duration: int,
+        telemetry: KrknTelemetryKubernetes,
+        kubecli: KrknKubernetes
+        ) -> (List[str], list[ScenarioTelemetry]):
+
     scenario_telemetries: list[ScenarioTelemetry] = []
     for scenario in scenarios:
         scenario_telemetry = ScenarioTelemetry()
@@ -249,17 +263,48 @@ def run(scenarios: List[str], kubeconfig_path: str, kraken_config: str, failed_p
         scenario_telemetry.startTimeStamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, scenario)
         logging.info('scenario ' + str(scenario))
+        pool = PodsMonitorPool(kubecli)
+        kill_scenarios = [kill_scenario for kill_scenario in PLUGINS.unserialize_scenario(scenario) if kill_scenario["id"] == "kill-pods"]
+
         try:
+            start_monitoring(pool, kill_scenarios, wait_duration)
             PLUGINS.run(scenario, kubeconfig_path, kraken_config)
+            logging.info(f"waiting {wait_duration} seconds for pods to recover...")
+            result = pool.join()
+            if result.error:
+                raise Exception(f"unrecovered pods: {result.error}")
+            scenario_telemetry.affected_pods = result
+
         except Exception as e:
             scenario_telemetry.exitStatus = 1
+            pool.cancel()
             failed_post_scenarios.append(scenario)
             log_exception(scenario)
         else:
             scenario_telemetry.exitStatus = 0
-            logging.info("Waiting for the specified duration: %s" % (wait_duration))
-            time.sleep(wait_duration)
         scenario_telemetries.append(scenario_telemetry)
         scenario_telemetry.endTimeStamp = time.time()
 
     return failed_post_scenarios, scenario_telemetries
+
+
+def start_monitoring(pool: PodsMonitorPool, scenarios: list[Any], max_timeout: int):
+    for kill_scenario in scenarios:
+        if ("namespace_pattern" in kill_scenario["config"] and
+                "label_selector" in kill_scenario["config"]):
+            namespace_pattern = kill_scenario["config"]["namespace_pattern"]
+            label_selector = kill_scenario["config"]["label_selector"]
+            pool.select_and_monitor_by_namespace_pattern_and_label(
+                namespace_pattern=namespace_pattern,
+                label_selector=label_selector,
+                max_timeout=max_timeout)
+
+        elif ("namespace_pattern" in kill_scenario["config"] and
+              "name_pattern" in kill_scenario["config"]):
+            namespace_pattern = kill_scenario["config"]["namespace_pattern"]
+            name_pattern = kill_scenario["config"]["name_pattern"]
+            pool.select_and_monitor_by_name_pattern_and_namespace_pattern(pod_name_pattern=name_pattern,
+                                                                          namespace_pattern=namespace_pattern,
+                                                                          max_timeout=max_timeout)
+        else:
+            raise Exception(f"impossible to determine monitor parameters, check {kill_scenario} configuration")

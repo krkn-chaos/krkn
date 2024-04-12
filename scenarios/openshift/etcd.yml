@@ -3,8 +3,3 @@
   config:
     namespace_pattern: ^openshift-etcd$
     label_selector: k8s-app=etcd
-- id: wait-for-pods
-  config:
-    namespace_pattern: ^openshift-etcd$
-    label_selector: k8s-app=etcd
-    count: 3
