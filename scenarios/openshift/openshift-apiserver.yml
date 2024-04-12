@@ -3,8 +3,4 @@
   config:
     namespace_pattern: ^openshift-apiserver$
     label_selector: app=openshift-apiserver-a
-- id: wait-for-pods
-  config:
-    namespace_pattern: ^openshift-apiserver$
-    label_selector: app=openshift-apiserver-a
-    count: 3
+

@@ -3,8 +3,3 @@
   config:
     namespace_pattern: ^acme-air$
     name_pattern: .*
-- id: wait-for-pods
-  config:
-    namespace_pattern: ^acme-air$
-    name_pattern: .*
-    count: 8
