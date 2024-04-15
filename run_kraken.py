@@ -96,6 +96,9 @@ def main(cfg):
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
         )
+        pod_recovery_time = get_yaml_item_value(
+            config["kraken"], "pod_recovery_time", 30
+        )
         telemetry_api_url = config["telemetry"].get("api_url")
         elastic_config = get_yaml_item_value(config,"elastic",{})
         elastic_url = get_yaml_item_value(elastic_config,"elastic_url","")
@@ -263,6 +266,7 @@ def main(cfg):
                                 kubeconfig_path,
                                 kraken_config,
                                 failed_post_scenarios,
+                                pod_recovery_time,
                                 wait_duration,
                                 telemetry_k8s,
                                 kubecli

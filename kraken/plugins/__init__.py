@@ -251,6 +251,7 @@ def run(scenarios: List[str],
         kubeconfig_path: str,
         kraken_config: str,
         failed_post_scenarios: List[str],
+        pod_recovery_time: int,
         wait_duration: int,
         telemetry: KrknTelemetryKubernetes,
         kubecli: KrknKubernetes
@@ -267,21 +268,24 @@ def run(scenarios: List[str],
         kill_scenarios = [kill_scenario for kill_scenario in PLUGINS.unserialize_scenario(scenario) if kill_scenario["id"] == "kill-pods"]
 
         try:
-            start_monitoring(pool, kill_scenarios, wait_duration)
+            start_monitoring(pool, kill_scenarios, pod_recovery_time)
             PLUGINS.run(scenario, kubeconfig_path, kraken_config)
-            logging.info(f"waiting {wait_duration} seconds for pods to recover...")
+            logging.info(f"waiting {pod_recovery_time} seconds for pods to recover...")
             result = pool.join()
+            scenario_telemetry.affected_pods = result
             if result.error:
                 raise Exception(f"unrecovered pods: {result.error}")
-            scenario_telemetry.affected_pods = result
 
         except Exception as e:
+            logging.error(f"scenario exception: {str(e)}")
             scenario_telemetry.exitStatus = 1
             pool.cancel()
             failed_post_scenarios.append(scenario)
             log_exception(scenario)
         else:
             scenario_telemetry.exitStatus = 0
+            logging.info("Waiting for the specified duration: %s" % (wait_duration))
+            time.sleep(wait_duration)
         scenario_telemetries.append(scenario_telemetry)
         scenario_telemetry.endTimeStamp = time.time()
 
