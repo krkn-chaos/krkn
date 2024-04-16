@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os.path
+import re
 import sys
 import time
 import yaml
@@ -23,7 +24,7 @@ def parse_arguments(parser):
     # command line options
     parser.add_argument("-c", "--config-file", action="store", help="Config file path")
     parser.add_argument("-o", "--options", action="store_true", help="Evaluate command line options")
-    parser.add_argument("-n", "--namespace", action="store", default="", help="Kubernetes application namespace")
+    parser.add_argument("-n", "--namespaces", action="store", default="", nargs="+", help="Kubernetes application namespaces separated by space")
     parser.add_argument("-p", "--prometheus-endpoint", action="store", default="", help="Prometheus endpoint URI")
     parser.add_argument("-k", "--kubeconfig", action="store", default=kube_config.KUBE_CONFIG_DEFAULT_LOCATION, help="Kubeconfig path")
     parser.add_argument("-t", "--token", action="store", default="", help="Kubernetes authentication token")
@@ -57,7 +58,8 @@ def read_configuration(config_file_path):
         config = yaml.safe_load(config_file)
 
     log_level = config.get("log level", "INFO")
-    namespace = config.get("namespace")
+    namespaces = config.get("namespaces")
+    namespaces = re.split(r",+\s+|,+|\s+", namespaces)
     kubeconfig = get_yaml_item_value(config, "kubeconfig", kube_config.KUBE_CONFIG_DEFAULT_LOCATION)
 
     prometheus_endpoint = config.get("prometheus_endpoint")
@@ -72,9 +74,9 @@ def read_configuration(config_file_path):
     else:
         output_path = False
     chaos_tests = config.get("chaos_tests", {})
-    return (namespace, kubeconfig, prometheus_endpoint, auth_token, scrape_duration,
-            chaos_tests, log_level, threshold, heatmap_cpu_threshold,
-            heatmap_mem_threshold, output_path)
+    return (namespaces, kubeconfig, prometheus_endpoint, auth_token,
+            scrape_duration, chaos_tests, log_level, threshold,
+            heatmap_cpu_threshold, heatmap_mem_threshold, output_path)
 
 
 def prompt_input(prompt, default_value):
@@ -84,21 +86,18 @@ def prompt_input(prompt, default_value):
     return default_value
 
 
-def make_json_output(inputs, queries, analysis_data, output_path):
+def make_json_output(inputs, namespace_data, output_path):
     time_str = time.strftime("%Y-%m-%d_%H-%M-%S", time.localtime())
 
     data = {
         "inputs": inputs,
-        "queries": queries,
-        "profiling": analysis_data[0],
-        "heatmap_analysis": analysis_data[1],
-        "recommendations": analysis_data[2]
+        "analysis_outputs": namespace_data
     }
 
     logging.info(f"Summary\n{json.dumps(data, indent=4)}")
 
     if output_path is not False:
-        file = f"recommender_{inputs['namespace']}_{time_str}.json"
+        file = f"recommender_{time_str}.json"
         path = f"{os.path.expanduser(output_path)}/{file}"
 
         with open(path, "w") as json_output:
@@ -107,9 +106,11 @@ def make_json_output(inputs, queries, analysis_data, output_path):
             logging.info(f"Recommendation output saved in {file}.")
 
 
-def json_inputs(namespace, kubeconfig, prometheus_endpoint, scrape_duration, chaos_tests, threshold, heatmap_cpu_threshold, heatmap_mem_threshold):
+def json_inputs(namespaces, kubeconfig, prometheus_endpoint, scrape_duration,
+                chaos_tests, threshold, heatmap_cpu_threshold,
+                heatmap_mem_threshold):
     inputs = {
-        "namespace": namespace,
+        "namespaces": namespaces,
         "kubeconfig": kubeconfig,
         "prometheus_endpoint": prometheus_endpoint,
         "scrape_duration": scrape_duration,
@@ -119,6 +120,17 @@ def json_inputs(namespace, kubeconfig, prometheus_endpoint, scrape_duration, cha
         "heatmap_mem_threshold": heatmap_mem_threshold
     }
     return inputs
+
+
+def json_namespace(namespace, queries, analysis_data):
+    data = {
+        "namespace": namespace,
+        "queries": queries,
+        "profiling": analysis_data[0],
+        "heatmap_analysis": analysis_data[1],
+        "recommendations": analysis_data[2]
+    }
+    return data
 
 
 def main():
@@ -132,7 +144,7 @@ def main():
 
     if args.config_file is not None:
         (
-         namespace,
+         namespaces,
          kubeconfig,
          prometheus_endpoint,
          auth_token,
@@ -146,7 +158,7 @@ def main():
          ) = read_configuration(args.config_file)
 
     if args.options:
-        namespace = args.namespace
+        namespaces = args.namespaces
         kubeconfig = args.kubeconfig
         auth_token = args.token
         scrape_duration = args.scrape_duration
@@ -172,14 +184,26 @@ def main():
         if not os.path.exists(os.path.expanduser(output_path)):
             logging.error(f"Folder {output_path} for output not found.")
             sys.exit(1)
+
     logging.info("Loading inputs...")
-    inputs = json_inputs(namespace, kubeconfig, prometheus_endpoint, scrape_duration, chaos_tests, threshold, heatmap_cpu_threshold, heatmap_mem_threshold)
-    logging.info("Starting Analysis ...")
+    inputs = json_inputs(namespaces, kubeconfig, prometheus_endpoint,
+                         scrape_duration, chaos_tests, threshold,
+                         heatmap_cpu_threshold, heatmap_mem_threshold)
+    namespaces_data = []
 
-    file_path, queries = prometheus.fetch_utilization_from_prometheus(prometheus_endpoint, auth_token, namespace, scrape_duration)
-    analysis_data = analysis(file_path, chaos_tests, threshold, heatmap_cpu_threshold, heatmap_mem_threshold)
+    logging.info("Starting Analysis...")
 
-    make_json_output(inputs, queries, analysis_data, output_path)
+    file_path, queries = prometheus.fetch_utilization_from_prometheus(
+        prometheus_endpoint, auth_token, namespaces, scrape_duration)
+
+    analysis_data = analysis(file_path, namespaces, chaos_tests, threshold,
+                             heatmap_cpu_threshold, heatmap_mem_threshold)
+
+    for namespace in namespaces:
+        namespace_data = json_namespace(namespace, queries[namespace],
+                                        analysis_data[namespace])
+        namespaces_data.append(namespace_data)
+    make_json_output(inputs, namespaces_data, output_path)
 
 
 if __name__ == "__main__":
