@@ -14,11 +14,7 @@ For example, for adding a pod level scenario for a new application, refer to the
     namespace_pattern: ^<namespace>$
     label_selector: <pod label>
     kill: <number of pods to kill>
-- id: wait-for-pods
-  config:
-    namespace_pattern: ^<namespace>$
-    label_selector: <pod label>
-    count: <expected number of pods that match namespace and label>
+    krkn_pod_recovery_time: <expected time for the pod to become ready>
 ```
 
 #### Node Scenario Yaml Template

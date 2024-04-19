@@ -251,7 +251,6 @@ def run(scenarios: List[str],
         kubeconfig_path: str,
         kraken_config: str,
         failed_post_scenarios: List[str],
-        pod_recovery_time: int,
         wait_duration: int,
         telemetry: KrknTelemetryKubernetes,
         kubecli: KrknKubernetes
@@ -268,9 +267,8 @@ def run(scenarios: List[str],
         kill_scenarios = [kill_scenario for kill_scenario in PLUGINS.unserialize_scenario(scenario) if kill_scenario["id"] == "kill-pods"]
 
         try:
-            start_monitoring(pool, kill_scenarios, pod_recovery_time)
+            start_monitoring(pool, kill_scenarios)
             PLUGINS.run(scenario, kubeconfig_path, kraken_config)
-            logging.info(f"waiting {pod_recovery_time} seconds for pods to recover...")
             result = pool.join()
             scenario_telemetry.affected_pods = result
             if result.error:
@@ -292,8 +290,9 @@ def run(scenarios: List[str],
     return failed_post_scenarios, scenario_telemetries
 
 
-def start_monitoring(pool: PodsMonitorPool, scenarios: list[Any], max_timeout: int):
+def start_monitoring(pool: PodsMonitorPool, scenarios: list[Any]):
     for kill_scenario in scenarios:
+        recovery_time = kill_scenario["config"]["krkn_pod_recovery_time"]
         if ("namespace_pattern" in kill_scenario["config"] and
                 "label_selector" in kill_scenario["config"]):
             namespace_pattern = kill_scenario["config"]["namespace_pattern"]
@@ -301,7 +300,10 @@ def start_monitoring(pool: PodsMonitorPool, scenarios: list[Any], max_timeout: i
             pool.select_and_monitor_by_namespace_pattern_and_label(
                 namespace_pattern=namespace_pattern,
                 label_selector=label_selector,
-                max_timeout=max_timeout)
+                max_timeout=recovery_time)
+            logging.info(
+                f"waiting {recovery_time} seconds for pod recovery, "
+                f"pod label selector: {label_selector} namespace pattern: {namespace_pattern}")
 
         elif ("namespace_pattern" in kill_scenario["config"] and
               "name_pattern" in kill_scenario["config"]):
@@ -309,6 +311,8 @@ def start_monitoring(pool: PodsMonitorPool, scenarios: list[Any], max_timeout: i
             name_pattern = kill_scenario["config"]["name_pattern"]
             pool.select_and_monitor_by_name_pattern_and_namespace_pattern(pod_name_pattern=name_pattern,
                                                                           namespace_pattern=namespace_pattern,
-                                                                          max_timeout=max_timeout)
+                                                                          max_timeout=recovery_time)
+            logging.info(f"waiting {recovery_time} seconds for pod recovery, "
+                         f"pod name pattern: {name_pattern} namespace pattern: {namespace_pattern}")
         else:
             raise Exception(f"impossible to determine monitor parameters, check {kill_scenario} configuration")

@@ -6,7 +6,6 @@ kraken:
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address
     port: 8081                                             # Signal port
-    pod_recovery_time: 30                                  # pod recovery time after kill pod scenario.
     chaos_scenarios:
         # List of policies/chaos scenarios to load
         - arcaflow_scenarios:
