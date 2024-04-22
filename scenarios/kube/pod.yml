@@ -4,4 +4,4 @@
     name_pattern: ^nginx-.*$
     namespace_pattern: ^default$
     kill: 1
-    krkn_pod_recovery_time: 30
+    krkn_pod_recovery_time: 120

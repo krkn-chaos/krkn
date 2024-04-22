@@ -3,5 +3,5 @@
   config:
     namespace_pattern: ^openshift-apiserver$
     label_selector: app=openshift-apiserver-a
-    krkn_pod_recovery_time: 30
+    krkn_pod_recovery_time: 120
 

@@ -17,7 +17,7 @@ You can then create the scenario file with the following contents:
   config:
     namespace_pattern: ^kube-system$
     label_selector: k8s-app=kube-scheduler
-    krkn_pod_recovery_time: 30
+    krkn_pod_recovery_time: 120
     
 ```
 
