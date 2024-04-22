@@ -8,11 +8,11 @@ trap finish EXIT
 pod_file="CI/scenarios/hello_pod.yaml"
 
 function functional_test_container_crash {
-  yq -i '.scenarios[0].namespace="default"' scenarios/openshift/app_outage.yaml
-  yq -i '.scenarios[0].label_selector="scenario=container"' scenarios/openshift/app_outage.yaml
-  yq -i '.scenarios[0].container_name="fedtools"' scenarios/openshift/app_outage.yaml
+  yq -i '.scenarios[0].namespace="default"' scenarios/openshift/container_etcd.yml
+  yq -i '.scenarios[0].label_selector="scenario=container"' scenarios/openshift/container_etcd.yml
+  yq -i '.scenarios[0].container_name="fedtools"' scenarios/openshift/container_etcd.yml
   export scenario_type="container_scenarios"
-  export scenario_file="- scenarios/openshift/app_outage.yaml"
+  export scenario_file="- scenarios/openshift/container_etcd.yml"
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/container_config.yaml
 
