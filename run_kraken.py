@@ -264,7 +264,8 @@ def main(cfg):
                                 kraken_config,
                                 failed_post_scenarios,
                                 wait_duration,
-                                telemetry_k8s
+                                telemetry_k8s,
+                                kubecli
                             )
                             chaos_telemetry.scenarios.extend(scenario_telemetries)
                         # krkn_lib

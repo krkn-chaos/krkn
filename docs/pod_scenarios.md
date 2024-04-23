@@ -17,11 +17,8 @@ You can then create the scenario file with the following contents:
   config:
     namespace_pattern: ^kube-system$
     label_selector: k8s-app=kube-scheduler
-- id: wait-for-pods
-  config:
-    namespace_pattern: ^kube-system$
-    label_selector: k8s-app=kube-scheduler
-    count: 3
+    krkn_pod_recovery_time: 120
+    
 ```
 
 Please adjust the schema reference to point to the [schema file](../scenarios/plugin.schema.json). This file will give you code completion and documentation for the available options in your IDE.

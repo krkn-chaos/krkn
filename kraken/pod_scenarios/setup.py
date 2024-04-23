@@ -1,9 +1,13 @@
 import logging
 import time
+from typing import Any
+
 import yaml
 import sys
 import random
 import arcaflow_plugin_kill_pod
+from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
+
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 from krkn_lib.k8s import KrknKubernetes
@@ -79,6 +83,7 @@ def container_run(kubeconfig_path,
 
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []
+    pool = PodsMonitorPool(kubecli)
 
     for container_scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
@@ -91,23 +96,17 @@ def container_run(kubeconfig_path,
             pre_action_output = ""
         with open(container_scenario_config[0], "r") as f:
             cont_scenario_config = yaml.full_load(f)
+            start_monitoring(kill_scenarios=cont_scenario_config["scenarios"], pool=pool)
             for cont_scenario in cont_scenario_config["scenarios"]:
                 # capture start time
                 start_time = int(time.time())
                 try:
                     killed_containers = container_killing_in_pod(cont_scenario, kubecli)
-                    if len(container_scenario_config) > 1:
-                        failed_post_scenarios = post_actions.check_recovery(
-                            kubeconfig_path,
-                            container_scenario_config,
-                            failed_post_scenarios,
-                            pre_action_output
-                        )
-                    else:
-                        failed_post_scenarios = check_failed_containers(
-                            killed_containers, cont_scenario.get("retry_wait", 120), kubecli
-                        )
-
+                    logging.info(f"killed containers: {str(killed_containers)}")
+                    result = pool.join()
+                    if result.error:
+                        raise Exception(f"pods failed to recovery: {result.error}")
+                    scenario_telemetry.affected_pods = result
                     logging.info("Waiting for the specified duration: %s" % (wait_duration))
                     time.sleep(wait_duration)
 
@@ -117,6 +116,7 @@ def container_run(kubeconfig_path,
                     # publish cerberus status
                     cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
                 except (RuntimeError, Exception):
+                    pool.cancel()
                     failed_scenarios.append(container_scenario_config[0])
                     log_exception(container_scenario_config[0])
                     scenario_telemetry.exitStatus = 1
@@ -128,6 +128,16 @@ def container_run(kubeconfig_path,
                 scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries
+
+def start_monitoring(kill_scenarios: list[Any], pool: PodsMonitorPool):
+    for kill_scenario in kill_scenarios:
+        namespace_pattern = f"^{kill_scenario['namespace']}$"
+        label_selector = kill_scenario["label_selector"]
+        recovery_time = kill_scenario["expected_recovery_time"]
+        pool.select_and_monitor_by_namespace_pattern_and_label(
+            namespace_pattern=namespace_pattern,
+            label_selector=label_selector,
+            max_timeout=recovery_time)
 
 
 def container_killing_in_pod(cont_scenario, kubecli: KrknKubernetes):

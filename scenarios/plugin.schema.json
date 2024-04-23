@@ -60,7 +60,14 @@
 										"default": 1,
 										"title": "Backoff",
 										"description": "How many seconds to wait between checks for the target pod status."
+									},
+									"krkn_pod_recovery_time": {
+										"type": "integer",
+										"default": 30,
+										"title": "Recovery Time",
+										"description": "The Expected Recovery time fo the pod (used by Krkn to monitor the pod lifecycle)."
 									}
+
 								},
 								"required": [
 									"namespace_pattern"
@@ -112,6 +119,12 @@
 								"default": 1,
 								"title": "Backoff",
 								"description": "How many seconds to wait between checks for the target pod status."
+							},
+							"krkn_pod_recovery_time": {
+								"type": "integer",
+								"default": 30,
+								"title": "Recovery Time",
+								"description": "The Expected Recovery time fo the pod (used by Krkn to monitor the pod lifecycle)."
 							}
 						},
 						"required": [
