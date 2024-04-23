@@ -6,5 +6,5 @@ jupyter
 seaborn
 requests
 wheel
-Flask==2.1.0
+Flask==2.2.5
 flasgger==0.9.5
