@@ -7,8 +7,8 @@ This tool profiles an application and gathers telemetry data such as CPU, Memory
 ## Pre-requisites
 
 - Openshift Or Kubernetes Environment where the application is hosted
-- Access to the telemetry data via the exposed Prometheus endpoint
-- Python3
+- Access to the metrics via the exposed Prometheus endpoint
+- Python3.9
 
 ## Usage
 
@@ -22,14 +22,14 @@ This tool profiles an application and gathers telemetry data such as CPU, Memory
     $ pip3 install -r requirements.txt
     Edit configuration file:
     $ vi config/recommender_config.yaml 
-    $ python3.9 utils/chaos_recommender/chaos_recommender.py
+    $ python3.9 utils/chaos_recommender/chaos_recommender.py -c utils/chaos_recommender/recommender_config.yaml
     ```
 
 2. Follow the prompts to provide the required information.
 
 ## Configuration
 To run the recommender with a config file specify the config file path with the `-c` argument.
-You can customize the default values by editing the `krkn/config/recommender_config.yaml` file. The configuration file contains the following options:
+You can customize the default values by editing the `recommender_config.yaml` file. The configuration file contains the following options:
 
   - `application`: Specify the application name.
   - `namespaces`: Specify the namespaces names (separated by coma or space). If you want to profile
@@ -115,6 +115,6 @@ You can customize the thresholds and options used for data analysis and identify
 
 ## Additional Files
 
-- `config/recommender_config.yaml`: The configuration file containing default values for application, namespace, labels, and kubeconfig.
+- `recommender_config.yaml`: The configuration file containing default values for application, namespace, labels, and kubeconfig.
 
 Happy Chaos!
