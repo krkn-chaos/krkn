@@ -3,23 +3,24 @@ Enhancing Chaos Engineering with AI-assisted fault injection for better resilien
 
 ## Generate python package wheel file
 ```
-python3.9 generate_wheel_package.py sdist bdist_wheel
+$ python3.9 generate_wheel_package.py sdist bdist_wheel
+$ cp dist/aichaos-0.0.1-py3-none-any.whl docker/
 ```
 This creates a python package file aichaos-0.0.1-py3-none-any.whl in the dist folder. 
 
 ## Build Image
 ```
-cd docker
-podman build -t aichaos:1.0 .
+$ cd docker
+$ podman build -t aichaos:1.0 .
 OR
-docker build -t aichaos:1.0 .
+$ docker build -t aichaos:1.0 .
 ```
 
 ## Run Chaos AI
 ```
-podman run -v aichaos-config.json:/config/aichaos-config.json --privileged=true --name aichaos -p 5001:5001 aichaos:1.0
+$ podman run -v aichaos-config.json:/config/aichaos-config.json --privileged=true --name aichaos -p 5001:5001 aichaos:1.0
 OR
-docker run -v aichaos-config.json:/config/aichaos-config.json --privileged -v /var/run/docker.sock:/var/run/docker.sock --name aichaos -p 5001:5001 aichaos:1.0
+$ docker run -v aichaos-config.json:/config/aichaos-config.json --privileged -v /var/run/docker.sock:/var/run/docker.sock --name aichaos -p 5001:5001 aichaos:1.0
 ```
 
 The output should look like:
