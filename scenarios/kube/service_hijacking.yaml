@@ -1,0 +1,47 @@
+service_target_port: http-web-svc
+service_name: nginx-service
+service_namespace: default
+image: quay.io/redhat-chaos/krkn-service-hijacking:v0.1.0
+chaos_duration: 300
+plan:
+  - resource: "/list/index.php"
+    steps:
+      GET:
+        - duration: 5
+          status: 500
+          mime_type: "application/json"
+          payload: |
+            {
+              "status":"internal server error"
+            }
+        - duration: 5
+          status: 201
+          mime_type: "application/json"
+          payload: |
+            {
+              "status":"resource created"
+            }
+      POST:
+        - duration: 7
+          status: 401
+          mime_type: "application/json"
+          payload: |
+            {
+               "status": "unauthorized"
+            }
+        - duration: 1
+          status: 404
+          mime_type: "text/plain"
+          payload: "not found"
+
+  - resource: "/patch"
+    steps:
+      PATCH:
+        - duration: 3
+          status: 201
+          mime_type: "text/plain"
+          payload: "resource patched"
+        - duration: 2
+          status: 400
+          mime_type: "text/plain"
+          payload: "bad request"
