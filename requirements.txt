@@ -32,7 +32,7 @@ requests==2.31.0
 service_identity==24.1.0
 PyYAML==6.0
 setuptools==65.5.1
-werkzeug==3.0.1
+werkzeug==3.0.3
 wheel==0.42.0
 zope.interface==5.4.0
 
