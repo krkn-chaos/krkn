@@ -4,10 +4,17 @@ import time
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.models.telemetry import ScenarioTelemetry
+from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 
 
-def run(scenarios_list: list[str], krkn_lib: KrknKubernetes):
+def run(scenarios_list: list[str], krkn_lib: KrknKubernetes, telemetry: KrknTelemetryKubernetes):
+    senario_telemetries: list[ScenarioTelemetry]()
     for scenario in scenarios_list:
+        scenario_telemetry = ScenarioTelemetry()
+        scenario_telemetry.scenario = scenario
+        scenario_telemetry.start_timestamp = time.time()
+        telemetry.set_parameters_base64(scenario_telemetry, scenario)
         with open(scenario) as stream:
             scenario_config = yaml.safe_load(stream)
 

@@ -2,19 +2,19 @@ service_target_port: http-web-svc
 service_name: nginx-service
 service_namespace: default
 image: quay.io/redhat-chaos/krkn-service-hijacking:v0.1.0
-chaos_duration: 300
+chaos_duration: 30
 plan:
   - resource: "/list/index.php"
     steps:
       GET:
-        - duration: 5
+        - duration: 15
           status: 500
           mime_type: "application/json"
           payload: |
             {
               "status":"internal server error"
             }
-        - duration: 5
+        - duration: 15
           status: 201
           mime_type: "application/json"
           payload: |
