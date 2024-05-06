@@ -147,7 +147,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
 
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = config_path
-        scenario_telemetry.startTimeStamp = time.time()
+        scenario_telemetry.start_timestamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, config_path)
 
         with open(config_path, "r") as f:
@@ -175,11 +175,11 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
             except (RuntimeError, Exception):
                 log_exception(config_path)
                 failed_scenarios.append(config_path)
-                scenario_telemetry.exitStatus = 1
+                scenario_telemetry.exit_status = 1
             else:
-                scenario_telemetry.exitStatus = 0
+                scenario_telemetry.exit_status = 0
 
-            scenario_telemetry.endTimeStamp = time.time()
+            scenario_telemetry.end_timestamp = time.time()
             scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries
