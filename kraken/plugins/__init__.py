@@ -260,7 +260,7 @@ def run(scenarios: List[str],
     for scenario in scenarios:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = scenario
-        scenario_telemetry.startTimeStamp = time.time()
+        scenario_telemetry.start_timestamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, scenario)
         logging.info('scenario ' + str(scenario))
         pool = PodsMonitorPool(kubecli)
@@ -276,16 +276,16 @@ def run(scenarios: List[str],
 
         except Exception as e:
             logging.error(f"scenario exception: {str(e)}")
-            scenario_telemetry.exitStatus = 1
+            scenario_telemetry.exit_status = 1
             pool.cancel()
             failed_post_scenarios.append(scenario)
             log_exception(scenario)
         else:
-            scenario_telemetry.exitStatus = 0
+            scenario_telemetry.exit_status = 0
             logging.info("Waiting for the specified duration: %s" % (wait_duration))
             time.sleep(wait_duration)
         scenario_telemetries.append(scenario_telemetry)
-        scenario_telemetry.endTimeStamp = time.time()
+        scenario_telemetry.end_timestamp = time.time()
 
     return failed_post_scenarios, scenario_telemetries
 

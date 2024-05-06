@@ -165,7 +165,7 @@ def run(
     for scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = scenario_config[0]
-        scenario_telemetry.startTimeStamp = time.time()
+        scenario_telemetry.start_timestamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, scenario_config[0])
         try:
             if len(scenario_config) > 1:
@@ -249,12 +249,12 @@ def run(
                     end_time = int(time.time())
                     cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
         except (Exception, RuntimeError):
-            scenario_telemetry.exitStatus = 1
+            scenario_telemetry.exit_status = 1
             failed_scenarios.append(scenario_config[0])
             log_exception(scenario_config[0])
         else:
-            scenario_telemetry.exitStatus = 0
-        scenario_telemetry.endTimeStamp = time.time()
+            scenario_telemetry.exit_status = 0
+        scenario_telemetry.end_timestamp = time.time()
         scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 
