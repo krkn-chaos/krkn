@@ -1,16 +1,28 @@
-service_target_port: http-web-svc
-service_name: nginx-service
-service_namespace: default
-image: quay.io/redhat-chaos/krkn-service-hijacking:v0.1.0
-chaos_duration: 30
+# This scenario allows the user to simulate custom HTTP replies for a kubernetes Service.
+# the test plan will allow the user to define time-based scenarios on which the custom workload
+# will answer with user defined http statuses, response bodies and mime types.
+
+service_target_port: http-web-svc # service port that will be hijacked (can be a named port or a port number depending on workload and svc configuration)
+service_name: nginx-service # name of the service to be hijacked
+service_namespace: default # namespace of the service to be hijacked
+image: quay.io/redhat-chaos/krkn-service-hijacking:v0.1.0 # krkn workload image that will be deployed and will receive the traffic
+chaos_duration: 30 # duration of the chaos scenario in seconds
 plan:
-  - resource: "/list/index.php"
-    steps:
-      GET:
-        - duration: 15
-          status: 500
-          mime_type: "application/json"
-          payload: |
+  - resource: "/list/index.php" # resource that will respond to the scenario. Can be a resource or a path. in case of a path
+                                # path and query parameters will be captured but ignored. In case of a resource, only query
+                                # parameters will be captured.
+
+    steps:                      # for each resource can be defined a time-based plan made of steps
+      GET:                      # for each step can be defined one or more HTTP methods to which the workload will respond (Note: also
+                                # non standard methods are supported in case of fully custom webservices (example NONEXISTENT instead of POST)
+                                # will be accepted
+
+        - duration: 15          # the amount of seconds this step before passing to the next step
+                                # if defined (otherwise will always answer to this step until the end of the chaos).
+
+          status: 500           # status code that this step will answer
+          mime_type: "application/json" # MIME type that this step will answer
+          payload: |            # payload that this step will answer
             {
               "status":"internal server error"
             }
