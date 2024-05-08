@@ -5,7 +5,7 @@
 service_target_port: http-web-svc # service port that will be hijacked (can be a named port or a port number depending on workload and svc configuration)
 service_name: nginx-service # name of the service to be hijacked
 service_namespace: default # namespace of the service to be hijacked
-image: quay.io/redhat-chaos/krkn-service-hijacking:v0.1.0 # krkn workload image that will be deployed and will receive the traffic
+image: quay.io/krkn-chaos/krkn-service-hijacking:v0.1.2 # krkn workload image that will be deployed and will receive the traffic
 chaos_duration: 30 # duration of the chaos scenario in seconds
 plan:
   - resource: "/list/index.php" # resource that will respond to the scenario. Can be a resource or a path. in case of a path
@@ -34,14 +34,14 @@ plan:
               "status":"resource created"
             }
       POST:
-        - duration: 7
+        - duration: 15
           status: 401
           mime_type: "application/json"
           payload: |
             {
                "status": "unauthorized"
             }
-        - duration: 1
+        - duration: 15
           status: 404
           mime_type: "text/plain"
           payload: "not found"
@@ -49,11 +49,11 @@ plan:
   - resource: "/patch"
     steps:
       PATCH:
-        - duration: 3
+        - duration: 15
           status: 201
           mime_type: "text/plain"
           payload: "resource patched"
-        - duration: 2
+        - duration: 15
           status: 400
           mime_type: "text/plain"
           payload: "bad request"

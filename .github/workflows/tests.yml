@@ -61,6 +61,8 @@ jobs:
           kubectl create namespace namespace-scenario
           kubectl apply -f CI/templates/time_pod.yaml
           kubectl wait --for=condition=ready pod -l scenario=time-skew --timeout=300s
+          kubectl apply -f CI/templates/service_hijacking.yaml
+          kubectl wait --for=condition=ready pod -l "app.kubernetes.io/name=proxy" --timeout=300s
       - name: Get Kind nodes
         run: |
           kubectl get nodes --show-labels=true
@@ -75,7 +77,8 @@ jobs:
             yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
             yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
             yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
-            echo "test_app_outages" > ./CI/tests/functional_tests
+            echo "test_service_hijacking" > ./CI/tests/functional_tests
+            echo "test_app_outages" >> ./CI/tests/functional_tests
             echo "test_container"      >> ./CI/tests/functional_tests
             echo "test_namespace"      >> ./CI/tests/functional_tests
             echo "test_net_chaos"      >> ./CI/tests/functional_tests
@@ -83,6 +86,7 @@ jobs:
             echo "test_arca_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_arca_memory_hog" >> ./CI/tests/functional_tests
             echo "test_arca_io_hog" >> ./CI/tests/functional_tests
+
 
       # Push on main only steps
       - name: Configure AWS Credentials
