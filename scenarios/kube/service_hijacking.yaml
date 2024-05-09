@@ -1,28 +1,25 @@
-# This scenario allows the user to simulate custom HTTP replies for a kubernetes Service.
-# the test plan will allow the user to define time-based scenarios on which the custom workload
-# will answer with user defined http statuses, response bodies and mime types.
+# refer to the documentation for further infos https://github.com/krkn-chaos/krkn/blob/main/docs/service_hijacking.md
 
-service_target_port: http-web-svc # service port that will be hijacked (can be a named port or a port number depending on workload and svc configuration)
+service_target_port: http-web-svc # The port of the service to be hijacked (can be named or numeric, based on the workload and service configuration).
 service_name: nginx-service # name of the service to be hijacked
-service_namespace: default # namespace of the service to be hijacked
-image: quay.io/krkn-chaos/krkn-service-hijacking:v0.1.2 # krkn workload image that will be deployed and will receive the traffic
-chaos_duration: 30 # duration of the chaos scenario in seconds
+service_namespace: default # The namespace where the target service is located
+image: quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3 # Image of the krkn web service to be deployed to receive traffic.
+chaos_duration: 30 # Total duration of the chaos scenario in seconds.
 plan:
-  - resource: "/list/index.php" # resource that will respond to the scenario. Can be a resource or a path. in case of a path
-                                # path and query parameters will be captured but ignored. In case of a resource, only query
-                                # parameters will be captured.
+  - resource: "/list/index.php" # Specifies the resource or path to respond to in the scenario. For paths, both the path and query parameters are captured but ignored.
+                                # For resources, only query parameters are captured.
 
-    steps:                      # for each resource can be defined a time-based plan made of steps
-      GET:                      # for each step can be defined one or more HTTP methods to which the workload will respond (Note: also
-                                # non standard methods are supported in case of fully custom webservices (example NONEXISTENT instead of POST)
-                                # will be accepted
+    steps:                      # A time-based plan consisting of steps can be defined for each resource.
+      GET:                      # One or more HTTP methods can be specified for each step.
+                                # Note: Non-standard methods are supported
+                                # for fully custom web services (e.g., using NONEXISTENT instead of POST).
 
-        - duration: 15          # the amount of seconds this step before passing to the next step
-                                # if defined (otherwise will always answer to this step until the end of the chaos).
+        - duration: 15          # Duration in seconds for this step before moving to the next one, if defined. Otherwise,
+                                # this step will continue until the chaos scenario ends.
 
-          status: 500           # status code that this step will answer
-          mime_type: "application/json" # MIME type that this step will answer
-          payload: |            # payload that this step will answer
+          status: 500           # HTTP status code to be returned in this step.
+          mime_type: "application/json" # MIME type of the response for this step.
+          payload: |            # The response payload for this step.
             {
               "status":"internal server error"
             }
