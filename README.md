@@ -1,5 +1,7 @@
 # Krkn aka Kraken
 ![Workflow-Status](https://github.com/krkn-chaos/krkn/actions/workflows/docker-image.yml/badge.svg)
+![coverage](https://krkn-chaos.github.io/krkn-lib-docs/coverage_badge_krkn.svg)
+![action](https://github.com/krkn-chaos/krkn/actions/workflows/tests.yml/badge.svg)
 
 ![Krkn logo](media/logo.png)
 
