@@ -72,7 +72,8 @@ jobs:
         run: python -m coverage run -a -m unittest discover -s tests -v
 
       - name: Setup Pull Request Functional Tests
-        if: github.event_name == 'pull_request'
+        if: |
+          github.event_name == 'pull_request'
         run: |
             yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
             yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
@@ -88,7 +89,8 @@ jobs:
             echo "test_arca_io_hog" >> ./CI/tests/functional_tests
 
 
-      # Push on main only steps
+      # Push on main only steps + all other functional to collect coverage
+      # for the badge
       - name: Configure AWS Credentials
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: aws-actions/configure-aws-credentials@v4
@@ -105,6 +107,15 @@ jobs:
           yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
           yq -i '.telemetry.password="${{secrets.TELEMETRY_PASSWORD}}"' CI/config/common_test_config.yaml
           echo "test_telemetry" > ./CI/tests/functional_tests
+          echo "test_service_hijacking" >> ./CI/tests/functional_tests
+          echo "test_app_outages" >> ./CI/tests/functional_tests
+          echo "test_container"      >> ./CI/tests/functional_tests
+          echo "test_namespace"      >> ./CI/tests/functional_tests
+          echo "test_net_chaos"      >> ./CI/tests/functional_tests
+          echo "test_time"           >> ./CI/tests/functional_tests
+          echo "test_arca_cpu_hog" >> ./CI/tests/functional_tests
+          echo "test_arca_memory_hog" >> ./CI/tests/functional_tests
+          echo "test_arca_io_hog" >> ./CI/tests/functional_tests
 
       # Final common steps
       - name: Run Functional tests
