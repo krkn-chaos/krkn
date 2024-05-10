@@ -102,7 +102,7 @@ steps:
       kubeconfig: !expr $.input.kubeconfig
   stressng:
     plugin: 
-      src: quay.io/arcalot/arcaflow-plugin-stressng:0.5.0
+      src: quay.io/arcalot/arcaflow-plugin-stressng:0.6.0
       deployment_type: image
     step: workload
     input:
@@ -112,7 +112,7 @@ steps:
         workdir: !expr $.input.target_pod_folder
         stressors:
           - stressor: hdd
-            hdd: !expr $.input.io_workers
+            workers: !expr $.input.io_workers
             hdd_bytes: !expr $.input.io_write_bytes
             hdd_write_size: !expr $.input.io_block_size
 
