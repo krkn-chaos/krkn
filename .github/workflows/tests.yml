@@ -193,6 +193,6 @@ jobs:
             git add .
             git config user.name "krkn-chaos"
             git config user.email "<>"
-            git commit -m "[KRKN] Coverage Badge ${GITHUB_REF##*/}"
+            git commit -m "[KRKN] Coverage Badge ${GITHUB_REF##*/}" || echo "no changes to commit"
             git push
       
