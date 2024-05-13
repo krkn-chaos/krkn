@@ -15,7 +15,7 @@ import kraken.cerberus.setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 node_general = False
 
@@ -61,7 +61,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
     for node_scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = node_scenario_config
-        scenario_telemetry.startTimeStamp = time.time()
+        scenario_telemetry.start_timestamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, node_scenario_config)
         with open(node_scenario_config, "r") as f:
             node_scenario_config = yaml.full_load(f)
@@ -78,13 +78,13 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                             cerberus.get_status(config, start_time, end_time)
                             logging.info("")
                         except (RuntimeError, Exception) as e:
-                            scenario_telemetry.exitStatus = 1
+                            scenario_telemetry.exit_status = 1
                             failed_scenarios.append(node_scenario_config)
                             log_exception(node_scenario_config)
                         else:
-                            scenario_telemetry.exitStatus = 0
+                            scenario_telemetry.exit_status = 0
 
-                        scenario_telemetry.endTimeStamp = time.time()
+                        scenario_telemetry.end_timestamp = time.time()
                         scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

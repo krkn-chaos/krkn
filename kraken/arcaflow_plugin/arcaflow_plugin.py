@@ -16,12 +16,12 @@ def run(scenarios_list: List[str], kubeconfig_path: str, telemetry: KrknTelemetr
     for scenario in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = scenario
-        scenario_telemetry.startTimeStamp = time.time()
+        scenario_telemetry.start_timestamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry,scenario)
         engine_args = build_args(scenario)
         status_code = run_workflow(engine_args, kubeconfig_path)
-        scenario_telemetry.endTimeStamp = time.time()
-        scenario_telemetry.exitStatus = status_code
+        scenario_telemetry.end_timestamp = time.time()
+        scenario_telemetry.exit_status = status_code
         scenario_telemetries.append(scenario_telemetry)
         if status_code != 0:
             failed_post_scenarios.append(scenario)

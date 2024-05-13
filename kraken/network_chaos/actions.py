@@ -23,7 +23,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
     for net_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = net_config
-        scenario_telemetry.startTimeStamp = time.time()
+        scenario_telemetry.start_timestamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, net_config)
         try:
             with open(net_config, "r") as file:
@@ -114,11 +114,11 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                     logging.info("Deleting jobs")
                     delete_job(joblst[:], kubecli)
         except (RuntimeError, Exception):
-            scenario_telemetry.exitStatus = 1
+            scenario_telemetry.exit_status = 1
             failed_scenarios.append(net_config)
             log_exception(net_config)
         else:
-            scenario_telemetry.exitStatus = 0
+            scenario_telemetry.exit_status = 0
         scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 

@@ -61,6 +61,8 @@ jobs:
           kubectl create namespace namespace-scenario
           kubectl apply -f CI/templates/time_pod.yaml
           kubectl wait --for=condition=ready pod -l scenario=time-skew --timeout=300s
+          kubectl apply -f CI/templates/service_hijacking.yaml
+          kubectl wait --for=condition=ready pod -l "app.kubernetes.io/name=proxy" --timeout=300s
       - name: Get Kind nodes
         run: |
           kubectl get nodes --show-labels=true
@@ -70,12 +72,14 @@ jobs:
         run: python -m coverage run -a -m unittest discover -s tests -v
 
       - name: Setup Pull Request Functional Tests
-        if: github.event_name == 'pull_request'
+        if: |
+          github.event_name == 'pull_request'
         run: |
             yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
             yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
             yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
-            echo "test_app_outages" > ./CI/tests/functional_tests
+            echo "test_service_hijacking" > ./CI/tests/functional_tests
+            echo "test_app_outages" >> ./CI/tests/functional_tests
             echo "test_container"      >> ./CI/tests/functional_tests
             echo "test_namespace"      >> ./CI/tests/functional_tests
             echo "test_net_chaos"      >> ./CI/tests/functional_tests
@@ -84,7 +88,9 @@ jobs:
             echo "test_arca_memory_hog" >> ./CI/tests/functional_tests
             echo "test_arca_io_hog" >> ./CI/tests/functional_tests
 
-      # Push on main only steps
+
+      # Push on main only steps + all other functional to collect coverage
+      # for the badge
       - name: Configure AWS Credentials
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: aws-actions/configure-aws-credentials@v4
@@ -101,6 +107,15 @@ jobs:
           yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
           yq -i '.telemetry.password="${{secrets.TELEMETRY_PASSWORD}}"' CI/config/common_test_config.yaml
           echo "test_telemetry" > ./CI/tests/functional_tests
+          echo "test_service_hijacking" >> ./CI/tests/functional_tests
+          echo "test_app_outages" >> ./CI/tests/functional_tests
+          echo "test_container"      >> ./CI/tests/functional_tests
+          echo "test_namespace"      >> ./CI/tests/functional_tests
+          echo "test_net_chaos"      >> ./CI/tests/functional_tests
+          echo "test_time"           >> ./CI/tests/functional_tests
+          echo "test_arca_cpu_hog" >> ./CI/tests/functional_tests
+          echo "test_arca_memory_hog" >> ./CI/tests/functional_tests
+          echo "test_arca_io_hog" >> ./CI/tests/functional_tests
 
       # Final common steps
       - name: Run Functional tests
@@ -119,6 +134,7 @@ jobs:
       - name: Collect coverage report
         run: |
           python -m coverage html
+          python -m coverage json
       - name: Publish coverage report to job summary
         run: |
           pip install html2text
@@ -129,6 +145,54 @@ jobs:
           name: coverage
           path: htmlcov
           if-no-files-found: error
+      - name: Upload json coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage.json
+          path: coverage.json
+          if-no-files-found: error
       - name: Check CI results
         run: grep Fail CI/results.markdown && false || true
+  badge:
+    permissions:
+      contents: write
+    name: Generate Coverage Badge
+    runs-on: ubuntu-latest
+    needs:
+      - tests
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+        - name: Check out doc repo
+          uses: actions/checkout@master
+          with:
+            repository: krkn-chaos/krkn-lib-docs
+            path: krkn-lib-docs
+            ssh-key: ${{ secrets.KRKN_LIB_DOCS_PRIV_KEY }}
+        - name: Download json coverage
+          uses: actions/download-artifact@v3
+          with:
+            name: coverage.json
+        - name: Set up Python
+          uses: actions/setup-python@v4
+          with:
+            python-version: 3.9
+        - name: Copy badge on GitHub Page Repo
+          env:
+            COLOR: yellow
+          run: |
+            # generate coverage badge on previously calculated total coverage
+            # and copy in the docs page
+            export TOTAL=$(python -c "import json;print(json.load(open('coverage.json'))['totals']['percent_covered_display'])")
+            [[ $TOTAL > 40 ]] && COLOR=green
+            echo "TOTAL: $TOTAL"
+            echo "COLOR: $COLOR"
+            curl "https://img.shields.io/badge/coverage-$TOTAL%25-$COLOR" > ./krkn-lib-docs/coverage_badge_krkn.svg
+        - name: Push updated Coverage Badge
+          run: |
+            cd krkn-lib-docs
+            git add .
+            git config user.name "krkn-chaos"
+            git config user.email "<>"
+            git commit -m "[KRKN] Coverage Badge ${GITHUB_REF##*/}" || echo "no changes to commit"
+            git push
       

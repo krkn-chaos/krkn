@@ -88,7 +88,7 @@ def container_run(kubeconfig_path,
     for container_scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = container_scenario_config[0]
-        scenario_telemetry.startTimeStamp = time.time()
+        scenario_telemetry.start_timestamp = time.time()
         telemetry.set_parameters_base64(scenario_telemetry, container_scenario_config[0])
         if len(container_scenario_config) > 1:
             pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
@@ -119,12 +119,12 @@ def container_run(kubeconfig_path,
                     pool.cancel()
                     failed_scenarios.append(container_scenario_config[0])
                     log_exception(container_scenario_config[0])
-                    scenario_telemetry.exitStatus = 1
+                    scenario_telemetry.exit_status = 1
                     # removed_exit
                     # sys.exit(1)
                 else:
-                    scenario_telemetry.exitStatus = 0
-                scenario_telemetry.endTimeStamp = time.time()
+                    scenario_telemetry.exit_status = 0
+                scenario_telemetry.end_timestamp = time.time()
                 scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries
