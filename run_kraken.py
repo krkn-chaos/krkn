@@ -25,6 +25,7 @@ import kraken.pvc.pvc_scenario as pvc_scenario
 import kraken.network_chaos.actions as network_chaos
 import kraken.arcaflow_plugin as arcaflow_plugin
 import kraken.prometheus as prometheus_plugin
+import kraken.service_hijacking.service_hijacking as service_hijacking_plugin
 import server as server
 from kraken import plugins
 from krkn_lib.k8s import KrknKubernetes
@@ -348,6 +349,10 @@ def main(cfg):
                         elif scenario_type == "network_chaos":
                             logging.info("Running Network Chaos")
                             failed_post_scenarios, scenario_telemetries = network_chaos.run(scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
+                        elif scenario_type == "service_hijacking":
+                            logging.info("Running Service Hijacking Chaos")
+                            failed_post_scenarios, scenario_telemetries = service_hijacking_plugin.run(scenarios_list, kubecli, telemetry_k8s)
+                            chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Check for critical alerts when enabled
                         post_critical_alerts = 0

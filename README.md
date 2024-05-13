@@ -1,5 +1,7 @@
 # Krkn aka Kraken
 ![Workflow-Status](https://github.com/krkn-chaos/krkn/actions/workflows/docker-image.yml/badge.svg)
+![coverage](https://krkn-chaos.github.io/krkn-lib-docs/coverage_badge_krkn.svg)
+![action](https://github.com/krkn-chaos/krkn/actions/workflows/tests.yml/badge.svg)
 
 ![Krkn logo](media/logo.png)
 
@@ -73,6 +75,7 @@ Scenario type               | Kubernetes
 [PVC scenario](docs/pvc_scenario.md) | :heavy_check_mark: |
 [Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: |
 [ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: |
+[Service Hijacking Scenarios](docs/service_hijacking_scenarios.md) | :heavy_check_mark: |
 
 
 ### Kraken scenario pass/fail criteria and report
