@@ -5,8 +5,8 @@ Service Hijacking Scenarios aim to simulate fake HTTP responses from a workload 
 This scenario is executed by deploying a custom-made web service and modifying the target `Service`
 selector to direct traffic to this web service for a specified duration.
 
-The web service will utilize a time-based test plan loaded from the scenario configuration file, 
-which outlines the behavior of resources during the chaos scenario, defined as follows:
+The web service's source code is available [here](https://github.com/krkn-chaos/krkn-service-hijacking). 
+It employs a time-based test plan from the scenario configuration file, which specifies the behavior of resources during the chaos scenario as follows:
 
 ```yaml
 service_target_port: http-web-svc # The port of the service to be hijacked (can be named or numeric, based on the workload and service configuration).
