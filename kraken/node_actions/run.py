@@ -15,7 +15,7 @@ import kraken.cerberus.setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 node_general = False
 
