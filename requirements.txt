@@ -28,7 +28,7 @@ pyfiglet==1.0.2
 pytest==8.0.0
 python-ipmi==0.5.4
 python-openstackclient==6.5.0
-requests==2.31.0
+requests==2.32.0
 service_identity==24.1.0
 PyYAML==6.0
 setuptools==65.5.1
