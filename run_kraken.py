@@ -341,7 +341,7 @@ def main(cfg):
                         # krkn_lib
                         elif scenario_type == "pvc_scenarios":
                             logging.info("Running PVC scenario")
-                            failed_post_scenarios, scenario_telemetries = pvc_scenario.run(scenarios_list, config, kubecli, telemetry_k8s)
+                            failed_post_scenarios, scenario_telemetries = pvc_scenario.run(scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
                             chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Network scenarios
@@ -351,7 +351,7 @@ def main(cfg):
                             failed_post_scenarios, scenario_telemetries = network_chaos.run(scenarios_list, config, wait_duration, kubecli, telemetry_k8s)
                         elif scenario_type == "service_hijacking":
                             logging.info("Running Service Hijacking Chaos")
-                            failed_post_scenarios, scenario_telemetries = service_hijacking_plugin.run(scenarios_list, kubecli, telemetry_k8s)
+                            failed_post_scenarios, scenario_telemetries = service_hijacking_plugin.run(scenarios_list, wait_duration, kubecli, telemetry_k8s)
                             chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Check for critical alerts when enabled
