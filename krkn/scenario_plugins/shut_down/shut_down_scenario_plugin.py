@@ -13,6 +13,7 @@ from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
 from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
+from krkn.scenario_plugins.native.node_scenarios.ibmcloud_plugin import IbmCloud
 
 
 class ShutDownScenarioPlugin(AbstractScenarioPlugin):
@@ -86,6 +87,8 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
             cloud_object = OPENSTACKCLOUD()
         elif cloud_type.lower() in ["azure", "az"]:
             cloud_object = Azure()
+        elif cloud_type.lower() in ["ibm", "ibmcloud"]:
+            cloud_object = IbmCloud()
         else:
             logging.error(
                 "Cloud type %s is not currently supported for cluster shut down"
