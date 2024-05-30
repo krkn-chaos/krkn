@@ -11,7 +11,7 @@ from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 
 # krkn_lib
-def run(scenarios_list, config, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     """
     Reads the scenario config and creates a temp file to fill up the PVC
     """
@@ -305,7 +305,9 @@ def run(scenarios_list, config, kubecli: KrknKubernetes, telemetry: KrknTelemetr
                         file_size_kb,
                         kubecli
                     )
-
+                    logging.info("End of scenario. Waiting for the specified duration: %s" % (wait_duration))
+                    time.sleep(wait_duration)
+                    
                     end_time = int(time.time())
                     cerberus.publish_kraken_status(
                         config,

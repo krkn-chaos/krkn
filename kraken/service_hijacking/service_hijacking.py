@@ -7,7 +7,7 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 
 
-def run(scenarios_list: list[str], krkn_lib: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list: list[str],wait_duration: int,  krkn_lib: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries= list[ScenarioTelemetry]()
     failed_post_scenarios = []
     for scenario in scenarios_list:
@@ -67,6 +67,10 @@ def run(scenarios_list: list[str], krkn_lib: KrknKubernetes, telemetry: KrknTele
             logging.info("selectors successfully restored")
             logging.info("undeploying service-hijacking resources...")
             krkn_lib.undeploy_service_hijacking(webservice)
+
+            logging.info("End of scenario. Waiting for the specified duration: %s" % (wait_duration))
+            time.sleep(wait_duration)
+            
             scenario_telemetry.exit_status = 0
             scenario_telemetry.end_timestamp = time.time()
             scenario_telemetries.append(scenario_telemetry)
