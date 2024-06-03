@@ -36,9 +36,10 @@ def run_workflow(engine_args: arcaflow.EngineArgs, kubeconfig_path: str) -> int:
 
 def build_args(input_file: str) -> arcaflow.EngineArgs:
     """sets the kubeconfig parsed by setArcaKubeConfig as an input to the arcaflow workflow"""
-    context = Path(input_file).parent
-    workflow = "{}/workflow.yaml".format(context)
-    config = "{}/config.yaml".format(context)
+    current_path = Path().resolve()
+    context = f"{current_path}/{Path(input_file).parent}"
+    workflow = "workflow.yaml"
+    config = "config.yaml"
     if not os.path.exists(context):
         raise Exception(
             "context folder for arcaflow workflow not found: {}".format(
@@ -47,12 +48,12 @@ def build_args(input_file: str) -> arcaflow.EngineArgs:
     if not os.path.exists(input_file):
         raise Exception(
             "input file for arcaflow workflow not found: {}".format(input_file))
-    if not os.path.exists(workflow):
+    if not os.path.exists(f"{context}/{workflow}"):
         raise Exception(
             "workflow file for arcaflow workflow not found: {}".format(
                 workflow)
         )
-    if not os.path.exists(config):
+    if not os.path.exists(f"{context}/{config}"):
         raise Exception(
             "configuration file for arcaflow workflow not found: {}".format(
                 config)
@@ -61,7 +62,7 @@ def build_args(input_file: str) -> arcaflow.EngineArgs:
     engine_args = arcaflow.EngineArgs()
     engine_args.context = context
     engine_args.config = config
-    engine_args.input = input_file
+    engine_args.input = Path(input_file).name
     return engine_args
 
 
@@ -82,7 +83,7 @@ def set_arca_kubeconfig(engine_args: arcaflow.EngineArgs, kubeconfig_path: str):
 
     kubeconfig_str = set_kubeconfig_auth(kubeconfig, context_auth)
 
-    with open(engine_args.input, "r") as stream:
+    with open(f"{engine_args.context}/{engine_args.input}", "r") as stream:
         input_file = yaml.safe_load(stream)
         if "input_list" in input_file and isinstance(input_file["input_list"],list):
             for index, _ in enumerate(input_file["input_list"]):
@@ -91,15 +92,15 @@ def set_arca_kubeconfig(engine_args: arcaflow.EngineArgs, kubeconfig_path: str):
         else:
             input_file["kubeconfig"] = kubeconfig_str
         stream.close()
-    with open(engine_args.input, "w") as stream:
+    with open(f"{engine_args.context}/{engine_args.input}", "w") as stream:
         yaml.safe_dump(input_file, stream)
 
-    with open(engine_args.config, "r") as stream:
+    with open(f"{engine_args.context}/{engine_args.config}", "r") as stream:
         config_file = yaml.safe_load(stream)
     if config_file["deployers"]["image"]["deployer_name"] == "kubernetes":
         kube_connection = set_kubernetes_deployer_auth(config_file["deployers"]["image"]["connection"], context_auth)
         config_file["deployers"]["image"]["connection"]=kube_connection
-        with open(engine_args.config, "w") as stream:
+        with open(f"{engine_args.context}/{engine_args.config}", "w") as stream:
             yaml.safe_dump(config_file, stream,explicit_start=True, width=4096)
 
 
