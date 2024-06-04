@@ -1,6 +1,6 @@
 version: v0.2.0
 input:
-  root: RootObject
+  root: SubRootObject
   objects:
     hostPath:
       id: HostPathVolumeSource
@@ -18,8 +18,8 @@ input:
           type:
             id: hostPath
             type_id: ref
-    RootObject:
-      id: input_item
+    SubRootObject:
+      id: SubRootObject
       properties:
         kubeconfig:
           display:
@@ -51,7 +51,7 @@ input:
             description: stop  stress  test  after  T  seconds.  One  can  also specify the units of time in
               seconds, minutes, hours, days or years with the suffix s, m, h, d or  y
           type:
-            type_id: string
+            type_id: integer
           required: true
         io_workers:
           display:
@@ -107,14 +107,13 @@ steps:
     step: workload
     input:
       cleanup: "true"
-      StressNGParams:
-        timeout: !expr $.input.duration
-        workdir: !expr $.input.target_pod_folder
-        stressors:
-          - stressor: hdd
-            workers: !expr $.input.io_workers
-            hdd_bytes: !expr $.input.io_write_bytes
-            hdd_write_size: !expr $.input.io_block_size
+      timeout: !expr $.input.duration
+      workdir: !expr $.input.target_pod_folder
+      stressors:
+        - stressor: hdd
+          workers: !expr $.input.io_workers
+          hdd-bytes: !expr $.input.io_write_bytes
+          hdd-write-size: !expr $.input.io_block_size
 
     deploy:
       deployer_name: kubernetes

@@ -36,9 +36,10 @@ def run_workflow(engine_args: arcaflow.EngineArgs, kubeconfig_path: str) -> int:
 
 def build_args(input_file: str) -> arcaflow.EngineArgs:
     """sets the kubeconfig parsed by setArcaKubeConfig as an input to the arcaflow workflow"""
-    context = Path(input_file).parent
-    workflow = "{}/workflow.yaml".format(context)
-    config = "{}/config.yaml".format(context)
+    current_path = Path().resolve()
+    context = f"{current_path}/{Path(input_file).parent}"
+    workflow = f"{context}/workflow.yaml"
+    config = f"{context}/config.yaml"
     if not os.path.exists(context):
         raise Exception(
             "context folder for arcaflow workflow not found: {}".format(
@@ -61,7 +62,8 @@ def build_args(input_file: str) -> arcaflow.EngineArgs:
     engine_args = arcaflow.EngineArgs()
     engine_args.context = context
     engine_args.config = config
-    engine_args.input = input_file
+    engine_args.workflow = workflow
+    engine_args.input = f"{current_path}/{input_file}"
     return engine_args
 
 
