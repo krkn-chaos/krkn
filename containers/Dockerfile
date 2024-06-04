@@ -12,7 +12,7 @@ RUN make GO_REQUIRED_MIN_VERSION:= oc
 FROM registry.access.redhat.com/ubi9/ubi:latest
 
 # krkn version that will be built
-ENV KRKN_VERSION v1.5.14
+ENV KRKN_VERSION v1.6.0
 
 ENV KUBECONFIG /root/.kube/config
 
