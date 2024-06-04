@@ -1,5 +1,5 @@
 input_list:
-- duration: 30s
+- duration: 30
   vm_bytes: 10%
   vm_workers: 2
   # set the node selector as a key-value pair eg.

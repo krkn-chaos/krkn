@@ -1,9 +1,9 @@
 version: v0.2.0
 input:
-  root: RootObject
+  root: SubRootObject
   objects:
-    RootObject:
-      id: input_item
+    SubRootObject:
+      id: SubRootObject
       properties:
         kubeconfig:
           display:
@@ -34,7 +34,7 @@ input:
             name: duration the scenario expressed in seconds
             description: stop stress test after T seconds. One can also specify the units of time in seconds, minutes, hours, days or years with the suffix s, m, h, d or  y
           type:
-            type_id: string
+            type_id: integer
           required: true
         vm_workers:
           display:
@@ -65,12 +65,11 @@ steps:
     step: workload
     input:
       cleanup: "true"
-      StressNGParams:
-        timeout: !expr $.input.duration
-        stressors:
-          - stressor: vm
-            workers: !expr $.input.vm_workers
-            vm_bytes: !expr $.input.vm_bytes
+      timeout: !expr $.input.duration
+      stressors:
+        - stressor: vm
+          workers: !expr $.input.vm_workers
+          vm-bytes: !expr $.input.vm_bytes
     deploy:
       deployer_name: kubernetes
       connection: !expr $.steps.kubeconfig.outputs.success.connection
