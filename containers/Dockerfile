@@ -17,7 +17,7 @@ ENV KRKN_VERSION v1.6.0
 ENV KUBECONFIG /root/.kube/config
 
 # update yum and install dependencies
-RUN yum update -y glibc glibc-common glibc-minimal-langpack runc
+RUN yum update -y glibc glibc-common glibc-minimal-langpack runc libnghttp2
 RUN rpm -e --allmatches --nodeps --noscripts --notriggers python3-requests
 RUN yum install -y git python39 python3-pip jq gettext wget
 
