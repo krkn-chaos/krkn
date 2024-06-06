@@ -14,7 +14,7 @@ FROM registry.access.redhat.com/ubi9/ubi:latest
 # krkn version that will be built
 ENV KRKN_VERSION v1.6.0
 
-ENV KUBECONFIG /root/.kube/config
+ENV KUBECONFIG /tmp/.kube/config
 
 # update yum and install dependencies
 RUN yum update -y glibc glibc-common glibc-minimal-langpack runc libnghttp2
@@ -38,12 +38,12 @@ COPY --from=oc-build /tmp/oc/oc /usr/local/bin/oc
 
 # krkn build
 RUN python3.9 -m pip install -U pip
-RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /root/kraken && \
-    mkdir -p /root/.kube
-WORKDIR /root/kraken
+RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /tmp/kraken && \
+    mkdir -p /tmp/.kube
+WORKDIR /tmp/kraken
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install virtualenv
 
-WORKDIR /root/kraken
+WORKDIR /tmp/kraken
 ENTRYPOINT ["python3.9", "run_kraken.py"]
 CMD ["--config=config/config.yaml"]
