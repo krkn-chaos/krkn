@@ -1,3 +1,8 @@
+# create a non-root user
+RUN useradd -u 10001 -g 10001 --create-home --shell /bin/bash dev
+USER dev
+WORKDIR /home/dev
+
 # azure-client
 FROM mcr.microsoft.com/azure-cli:latest as azure-cli
 
@@ -13,7 +18,7 @@ FROM registry.access.redhat.com/ubi9/ubi:latest
 
 # krkn version that will be built
 ENV KRKN_VERSION v1.6.0
-
+ENV HOME /home/dev
 ENV KUBECONFIG /root/.kube/config
 
 # update yum and install dependencies
@@ -38,12 +43,11 @@ COPY --from=oc-build /tmp/oc/oc /usr/local/bin/oc
 
 # krkn build
 RUN python3.9 -m pip install -U pip
-RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /root/kraken && \
-    mkdir -p /root/.kube
-WORKDIR /root/kraken
+RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION $HOME/kraken && \
+    mkdir -p $HOME/.kube
+WORKDIR $HOME/kraken
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install virtualenv
 
-WORKDIR /root/kraken
 ENTRYPOINT ["python3.9", "run_kraken.py"]
 CMD ["--config=config/config.yaml"]
