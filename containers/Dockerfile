@@ -15,12 +15,13 @@ RUN go mod edit -go 1.22.3 &&\
 RUN make GO_REQUIRED_MIN_VERSION:= oc
 
 FROM fedora:40
+RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
 RUN dnf update -y
 
 # krkn version that will be built
 ENV KRKN_VERSION v1.6.0
 
-ENV KUBECONFIG /root/.kube/config
+ENV KUBECONFIG /home/krkn/.kube/config
 
 # install kubectl
 RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" &&\
@@ -28,8 +29,7 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     cp kubectl /usr/bin/kubectl && chmod +x /usr/bin/kubectl
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
-RUN dnf update && dnf install -y git python39 jq yq gettext wget #kubectl
-
+RUN dnf update && dnf install -y git python39 jq yq gettext wget
 # copy azure client binary from azure-cli image
 COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 
@@ -37,12 +37,13 @@ COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
 
 # krkn build
-RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /root/kraken && \
-    mkdir -p /root/.kube
-WORKDIR /root/kraken
+RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /home/krkn/kraken && \
+    mkdir -p /home/krkn/.kube
+WORKDIR /home/krkn/kraken
 RUN python3.9 -m ensurepip
 RUN pip3.9 install -r requirements.txt
 
-WORKDIR /root/kraken
+RUN chown -R krkn:krkn /home/krkn
+USER krkn
 ENTRYPOINT ["python3.9", "run_kraken.py"]
 CMD ["--config=config/config.yaml"]
