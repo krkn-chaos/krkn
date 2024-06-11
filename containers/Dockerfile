@@ -29,7 +29,7 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     cp kubectl /usr/bin/kubectl && chmod +x /usr/bin/kubectl
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
-RUN dnf update && dnf install -y git python39 jq yq gettext wget
+RUN dnf update && dnf install -y git python39 jq yq gettext wget which
 # copy azure client binary from azure-cli image
 COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 
@@ -42,6 +42,7 @@ RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /hom
 WORKDIR /home/krkn/kraken
 RUN python3.9 -m ensurepip
 RUN pip3.9 install -r requirements.txt
+RUN pip3.9 install jsonschema
 
 RUN chown -R krkn:krkn /home/krkn
 USER krkn
