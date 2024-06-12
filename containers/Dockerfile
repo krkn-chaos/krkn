@@ -19,7 +19,7 @@ RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
 RUN dnf update -y
 
 # krkn version that will be built
-ENV KRKN_VERSION v1.6.0
+ENV KRKN_VERSION v1.6.1
 
 ENV KUBECONFIG /home/krkn/.kube/config
 
