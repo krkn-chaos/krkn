@@ -44,7 +44,7 @@ RUN python3.9 -m ensurepip
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install jsonschema
 
-RUN chown -R krkn:krkn /home/krkn
+RUN chown -R krkn:krkn /home/krkn && chmod 755 /home/krkn
 USER krkn
 ENTRYPOINT ["python3.9", "run_kraken.py"]
 CMD ["--config=config/config.yaml"]
