@@ -1,0 +1,35 @@
+# etcd
+
+- expr: sum (rate (container_cpu_usage_seconds_total{namespace='kube-system'}[10m])) by (pod) *1000
+  description: etcd cpu usage increased
+  severity: warning
+  difference: 30
+
+- expr: sum (rate (container_cpu_usage_seconds_total{namespace='kube-system', pod='etcd-minikube'}[10m])) by (pod) *100
+  description: etcd cpu usage increased
+  severity: warning
+  difference: 30
+
+- expr: sum (rate (container_memory_working_set_bytes{namespace='kube-system', pod='etcd-minikube'}[10m])) by (pod)
+  description: etcd memory usage increased
+  severity: warning
+  difference: 30
+
+- expr: sum (rate(node_cpu_seconds_total{mode!='idle'}[10m])) by (cpu) *100
+  description: etcd memory usage increased
+  severity: warning
+  difference: 30
+
+- expr: sum (rate(node_cpu_seconds_total{namespace='kube-system', pod='etcd-minikube'}[10m])) by (pod) *100
+  description: etcd memory usage increased
+  severity: warning
+  difference: 30
+
+- expr: node_memory_Active_bytes/node_memory_MemTotal_bytes*100
+  description: memory usage increased
+  severity: warning
+  difference: 30
+
+
+
+
