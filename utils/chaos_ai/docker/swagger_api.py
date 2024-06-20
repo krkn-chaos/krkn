@@ -55,6 +55,8 @@ class AIChaosSwagger:
                 params['iterations'] = config_params['iterations']
                 params['maxfaults'] = config_params['maxfaults']
         # faults = [f + ':' + p for f in params['faults'].split(',') for p in params['podlabels'].split(',')]
+        if params['podlabels'] is None or params['podlabels'] == '':
+            params['podlabels'] = ','.join(utils.get_pods(kubeconfigfile))
         faults = []
         for f in params['faults'].split(','):
             if f in ['pod-delete']:

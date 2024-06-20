@@ -73,6 +73,21 @@ def get_pod_labels(namespace: str, kubeconfig_path: str = None):
     return pods
 
 
+def get_pods(kubeconfig_path: str = None):
+    pods = []
+    try:
+        # Load the kubeconfig file
+        if kubeconfig_path:
+            config.load_kube_config(config_file=kubeconfig_path)
+        else:
+            config.load_kube_config()  # Load default kubeconfig file
+        v1 = client.CoreV1Api()
+        pods = v1.list_pod_for_all_namespaces()
+
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+    return pods
+
 # Example usage
 namespace = 'default'
 kubeconfig_path = '/path/to/your/kubeconfig'  # Provide the path to your kubeconfig file, or set to None to use the default
