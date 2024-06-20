@@ -14,12 +14,12 @@ Generate chaos on an application deployed on a cluster.
         type: string
         default: robot-shop
         required: true
-        description: Namespace to test
+        description: Comma separated namespaces to test
       - name: podlabels
         in: formData
         type: string
         default: service=cart,service=payment
-        required: true
+        required: false
         description: Pod labels to test
       - name: nodelabels
         in: formData
