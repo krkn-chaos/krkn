@@ -12,6 +12,7 @@ import sys
 
 # sys.path.append("..")
 from src.aichaos_main import AIChaos
+import src.utils as utils
 
 app = Flask(__name__)
 Swagger(app)
@@ -119,6 +120,10 @@ class AIChaosSwagger:
         # print('HEADER:', f.headers)
         print('[GenerateChaos] reqs:', request.form.to_dict())
         # print('[GenerateChaos]', f.filename, datetime.now())
+        if utils.is_cluster_accessible(kubeconfigfile):
+            print("Cluster is accessible!")
+        else:
+            return 'Cluster not accessible !!!'
         thread = threading.Thread(target=sw.startchaos, args=(kubeconfigfile, str(i), request.form.to_dict()))
         thread.daemon = True
         print(thread.getName())
