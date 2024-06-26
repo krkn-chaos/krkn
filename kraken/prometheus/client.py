@@ -10,6 +10,31 @@ import yaml
 from krkn_lib.models.krkn import ChaosRunAlertSummary, ChaosRunAlert
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+
+def pre_chaos_alerts(prom_cli: KrknPrometheus, pre_chaos_alert_profile):
+    if os.path.exists(pre_chaos_alert_profile) is False:
+        logging.error(f"{pre_chaos_alert_profile} pre chaos alert profile does not exist")
+        sys.exit(1)
+
+    with open(pre_chaos_alert_profile) as profile:
+        profile_yaml = yaml.safe_load(profile)
+        if not isinstance(profile_yaml, list):
+            logging.error(f"{pre_chaos_alert_profile} wrong file format, "
+                          f"pre chaos alert profile must be a valid yaml file "
+                          f"containing a list of items with 4 properties: "
+                          f"expr, description, severity, difference")
+            sys.exit(1)
+
+        for alert in profile_yaml:
+            if list(alert.keys()).sort() != ["expr", "description", "severity", "difference"].sort():
+                logging.error(f"wrong alert {alert}, skipping")
+                continue
+
+            result = prom_cli.process_query(alert["expr"])
+            # print(result)
+
+
 def alerts(prom_cli: KrknPrometheus, start_time, end_time, alert_profile):
 
     if alert_profile is None or os.path.exists(alert_profile) is False:
@@ -59,7 +84,6 @@ def critical_alerts(prom_cli: KrknPrometheus,
             severity = alert["metric"]["severity"] if "severity" in alert["metric"] else "none"
             alert = ChaosRunAlert(alertname, alertstate, namespace, severity)
             summary.chaos_alerts.append(alert)
-
 
     post_critical_alerts = prom_cli.process_query(
         query

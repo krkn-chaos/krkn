@@ -94,6 +94,9 @@ def main(cfg):
             config["performance_monitoring"], "enable_alerts", False
         )
         alert_profile = config["performance_monitoring"].get("alert_profile")
+        pre_chaos_alerts = config["performance_monitoring"].get(
+            "pre_chaos_alert_profile"
+        )
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
         )
@@ -196,10 +199,11 @@ def main(cfg):
         if deploy_performance_dashboards:
             performance_dashboards.setup(dashboard_repo, distribution)
 
-
-
         # Initialize the start iteration to 0
         iteration = 0
+
+        if enable_alerts:
+            prometheus_plugin.pre_chaos_alerts(prometheus, pre_chaos_alerts)
 
         # Set the number of iterations to loop to infinity if daemon mode is
         # enabled or else set it to the provided iterations count in the config
