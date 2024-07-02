@@ -1,7 +1,7 @@
 aliyun-python-sdk-core==2.13.36
 aliyun-python-sdk-ecs==4.24.25
+arcaflow-plugin-sdk==0.14.0
 arcaflow==0.17.2
-arcaflow-plugin-sdk==0.10.0
 boto3==1.28.61
 azure-identity==1.16.1
 azure-keyvault==4.2.0
@@ -15,9 +15,9 @@ google-api-python-client==2.116.0
 ibm_cloud_sdk_core==3.18.0
 ibm_vpc==0.20.0
 jinja2==3.1.4
-krkn-lib==2.1.3
+krkn-lib==2.1.4
 lxml==5.1.0
-kubernetes==26.1.0
+kubernetes==28.1.0
 oauth2client==4.1.3
 pandas==2.2.0
 openshift-client==1.0.21
@@ -30,12 +30,12 @@ python-ipmi==0.5.4
 python-openstackclient==6.5.0
 requests==2.32.2
 service_identity==24.1.0
-PyYAML==6.0
+PyYAML==6.0.1
 setuptools==65.5.1
 werkzeug==3.0.3
 wheel==0.42.0
 zope.interface==5.4.0
 
-git+https://github.com/krkn-chaos/arcaflow-plugin-kill-pod.git
+git+https://github.com/krkn-chaos/arcaflow-plugin-kill-pod.git@v0.1.0
 git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
 cryptography>=42.0.4 # not directly required, pinned by Snyk to avoid a vulnerability

@@ -266,7 +266,8 @@ def main(cfg):
                                 failed_post_scenarios,
                                 wait_duration,
                                 telemetry_k8s,
-                                kubecli
+                                kubecli,
+                                run_uuid
                             )
                             chaos_telemetry.scenarios.extend(scenario_telemetries)
                         # krkn_lib
