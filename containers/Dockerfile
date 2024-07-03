@@ -1,6 +1,5 @@
 # azure-client
 FROM mcr.microsoft.com/azure-cli:latest as azure-cli
-
 # oc build
 FROM golang:1.22.4 AS oc-build
 RUN apt-get update && apt-get install -y libkrb5-dev
@@ -15,6 +14,7 @@ RUN go mod edit -go 1.22.3 &&\
 RUN make GO_REQUIRED_MIN_VERSION:= oc
 
 FROM fedora:40
+ARG PR_NUMBER
 RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
 RUN dnf update -y
 
@@ -37,9 +37,15 @@ COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
 
 # krkn build
-RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /home/krkn/kraken && \
+RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken && \
     mkdir -p /home/krkn/.kube
+
 WORKDIR /home/krkn/kraken
+# if is an event on main the variable $PR_NUMBER has no value so the latest tag is checked out else
+# if is a PR event the PR itself will be checked out
+RUN if [ -z "$PR_NUMBER" ]; then git checkout $KRKN_VERSION;\
+    else git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER}; fi
+
 RUN python3.9 -m ensurepip
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install jsonschema
