@@ -1,6 +1,6 @@
 # oc build
 FROM golang:1.22.4 AS oc-build
-RUN apt-get update && apt-get install -y libkrb5-dev
+RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
 WORKDIR /tmp
 RUN git clone --branch release-4.18 https://github.com/openshift/oc.git
 WORKDIR /tmp/oc
@@ -13,6 +13,7 @@ RUN make GO_REQUIRED_MIN_VERSION:= oc
 
 FROM fedora:40
 ARG PR_NUMBER
+ARG TAG
 RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
 RUN dnf update -y
 
@@ -27,7 +28,9 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     cp kubectl /usr/bin/kubectl && chmod +x /usr/bin/kubectl
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
-RUN dnf update && dnf install -y git python39 jq yq gettext wget which
+RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
+    git python39 jq yq gettext wget which &&\
+    dnf clean all
 
 # Install azure cli
 RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc && dnf install -y https://packages.microsoft.com/config/rhel/9.0/packages-microsoft-prod.rpm && dnf install -y azure-cli
@@ -40,10 +43,12 @@ RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken && \
     mkdir -p /home/krkn/.kube
 
 WORKDIR /home/krkn/kraken
-# if is an event on main the variable $PR_NUMBER has no value so the latest tag is checked out else
-# if is a PR event the PR itself will be checked out
-RUN if [ -z "$PR_NUMBER" ]; then git checkout $KRKN_VERSION;\
-    else git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER}; fi
+
+# default behaviour will be to build main
+# if it is a PR trigger the PR itself will be checked out
+RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER};fi
+# if it is a TAG trigger checkout the tag
+RUN if [ -n "$TAG" ]; then git checkout $TAG;fi
 
 RUN python3.9 -m ensurepip
 RUN pip3.9 install -r requirements.txt
