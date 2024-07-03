@@ -1,6 +1,8 @@
+import os
 import sys
 import time
 import logging
+import json
 import kraken.node_actions.common_node_functions as nodeaction
 from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
 from googleapiclient import discovery
@@ -10,11 +12,19 @@ from krkn_lib.k8s import KrknKubernetes
 
 class GCP:
     def __init__(self):
+        try: 
+            gapp_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            with open(gapp_creds, "r") as f:
+                f_str = f.read()
+                self.project = json.loads(f_str)['project_id']
+            #self.project = runcommand.invoke("gcloud config get-value project").split("/n")[0].strip()
+            logging.info("project " + str(self.project) + "!")
+            credentials = GoogleCredentials.get_application_default()
+            self.client = discovery.build("compute", "v1", credentials=credentials, cache_discovery=False)
 
-        self.project = runcommand.invoke("gcloud config get-value project").split("/n")[0].strip()
-        logging.info("project " + str(self.project) + "!")
-        credentials = GoogleCredentials.get_application_default()
-        self.client = discovery.build("compute", "v1", credentials=credentials, cache_discovery=False)
+        except Exception as e: 
+            logging.error("Error on setting up GCP connection: " + str(e))
+            sys.exit(1)
 
     # Get the instance ID of the node
     def get_instance_id(self, node):
