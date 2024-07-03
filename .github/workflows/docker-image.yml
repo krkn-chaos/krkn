@@ -12,9 +12,14 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
     - name: Build the Docker images
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run:  |
         docker build --no-cache -t quay.io/krkn-chaos/krkn containers/
         docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn
+    - name: Test Build the Docker images
+      if: ${{ github.event_name == 'pull_request' }}
+      run: |
+        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg PR_NUMBER=${{ github.event.pull_request.number }}
     - name: Login in quay
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
