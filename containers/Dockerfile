@@ -1,5 +1,3 @@
-# azure-client
-FROM mcr.microsoft.com/azure-cli:latest as azure-cli
 # oc build
 FROM golang:1.22.4 AS oc-build
 RUN apt-get update && apt-get install -y libkrb5-dev
@@ -30,8 +28,9 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
 RUN dnf update && dnf install -y git python39 jq yq gettext wget which
-# copy azure client binary from azure-cli image
-COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
+
+# Install azure cli
+RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc && dnf install -y https://packages.microsoft.com/config/rhel/9.0/packages-microsoft-prod.rpm && dnf install -y azure-cli
 
 # copy oc client binary from oc-build image
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
