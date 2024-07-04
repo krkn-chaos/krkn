@@ -48,7 +48,7 @@ WORKDIR /home/krkn/kraken
 # if it is a PR trigger the PR itself will be checked out
 RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER};fi
 # if it is a TAG trigger checkout the tag
-RUN if [ -n "$TAG" ]; then git checkout $TAG;fi
+RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 
 RUN python3.9 -m ensurepip
 RUN pip3.9 install -r requirements.txt
