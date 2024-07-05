@@ -32,9 +32,6 @@ RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
     git python39 jq yq gettext wget which &&\
     dnf clean all
 
-# Install azure cli
-RUN rpm --import https://packages.microsoft.com/keys/microsoft.asc && dnf install -y https://packages.microsoft.com/config/rhel/9.0/packages-microsoft-prod.rpm && dnf install -y azure-cli
-
 # copy oc client binary from oc-build image
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
 
