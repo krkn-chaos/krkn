@@ -15,6 +15,7 @@ jobs:
       run:  |
         docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg TAG=${GITHUB_REF#refs/tags/}
         docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn
+        docker tag quay.io/krkn-chaos/krkn quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/}
         docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/}
 
     - name: Test Build the Docker images
