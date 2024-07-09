@@ -1,0 +1,190 @@
+version: v0.2.0
+input:
+  root: KubeBurner
+  objects:
+    KubeBurner:
+      id: KubeBurner
+      properties:
+        kubeconfig_path:
+          display:
+            description: file path to Openshift cluster kubeconfig
+            name: kubeconfig_path
+          required: true
+          type:
+            type_id: string
+        alerting:
+          default: '"true"'
+          display:
+            description: Enable alerting(true/false)
+            name: alerting
+          required: false
+          type:
+            type_id: string
+        burst:
+          default: '20'
+          display:
+            description: Maximum burst for throttle
+            name: Burst
+          required: false
+          type:
+            type_id: integer
+        churn:
+          default: '"true"'
+          display:
+            description: Enable churning(true/false)
+            name: churn
+          required: false
+          type:
+            type_id: string
+        churn_delay:
+          default: '"2m0s"'
+          display:
+            description: Time to wait between each churn
+            name: churn-delay
+          required: false
+          type:
+            type_id: string
+        churn_duration:
+          default: '"1h0m0s"'
+          display:
+            description: Churn duration
+            name: churn-duration
+          required: false
+          type:
+            type_id: string
+        churn_percent:
+          default: '10'
+          display:
+            description: Percentage of job iterations that kube-burner will churn
+              each round
+            name: churn-percent
+          required: false
+          type:
+            type_id: integer
+        es_index:
+          display:
+            description: The ElasticSearch index used to index the metrics
+            name: es-index
+          required: false
+          type:
+            type_id: string
+        es_server:
+          display:
+            description: List of ES instances
+            name: es-server
+          required: false
+          type:
+            type_id: string
+        gc:
+          default: '"true"'
+          display:
+            description: Garbage collect created namespaces(true/false)
+            name: gc
+          required: false
+          type:
+            type_id: string
+        iterations:
+          default: '500'
+          display:
+            description: Cluster-density iterations
+            name: iterations
+          required: false
+          type:
+            type_id: integer
+        local_indexing:
+          default: '"false"'
+          display:
+            description: Enable local indexing
+            name: local-indexing
+          required: false
+          type:
+            type_id: string
+        log_level:
+          default: '"info"'
+          display:
+            description: 'Allowed values: debug, info, warn, error, fatal'
+            name: log-level
+          required: false
+          type:
+            type_id: string
+        network_policies:
+          default: '"true"'
+          display:
+            description: Enable network policies in the workload
+            name: network-policies
+          required: false
+          type:
+            type_id: string
+        pod_ready_threshold:
+          default: '"5s"'
+          display:
+            description: Pod ready timeout threshold for node-density workload
+            name: pod-ready-threshold
+          required: false
+          type:
+            type_id: string
+        pods_per_node:
+          default: '245'
+          display:
+            description: Pods per node for node-density* workloads
+            name: pods-per-node
+          required: false
+          type:
+            type_id: integer
+        probes_period:
+          default: '10'
+          display:
+            description: Perf app readiness/liveliness probes period in seconds
+            name: probes-period
+          required: false
+          type:
+            type_id: integer
+        qps:
+          default: '20'
+          display:
+            description: Max number of queries per second
+            name: QPS
+          required: false
+          type:
+            type_id: integer
+        timeout:
+          default: '"2h"'
+          display:
+            description: Benchmark timeout
+            name: timeout
+          required: false
+          type:
+            type_id: string
+        uuid:
+          display:
+            description: uuid to be used for the job
+            name: uuid
+          required: false
+          type:
+            type_id: string
+        workload:
+          display:
+            description: workload name
+            name: Name
+          required: true
+          type:
+            type_id: string
+
+steps:
+  kubeburner:
+    plugin:
+      deployment_type: image
+      src: quay.io/mleader/arcaflow-plugin-kube-burner:0.1.0
+    step: kube-burner
+    input:
+      kubeconfig: !expr 'readFile($.input.kubeconfig_path)'
+      workload: !expr $.input.workload
+      uuid: !expr $.input.uuid
+      iterations: !expr $.input.iterations
+      churn: !expr $.input.churn
+      churn_duration: !expr $.input.churn_duration
+      churn_delay: !expr $.input.churn_delay
+
+outputs:
+  success:
+    burner: !expr $.steps.kubeburner.outputs.success
