@@ -94,7 +94,7 @@ steps:
     step: kill-pods
     plugin:
       deployment_type: python
-      src: arcaflow-plugin-kill-pod@git+https://github.com/krkn-chaos/arcaflow-plugin-kill-pod.git@f7894a2308c274a758aba012bc765fdb1f5b7155
+      src: arcaflow-plugin-kill-pod@git+https://github.com/krkn-chaos/arcaflow-plugin-kill-pod.git@dd7c879465af54b3f5de361e4b154a6311db6fed
     input:
       namespace_pattern: !expr $.input.namespace_pattern
       label_selector: !expr $.input.label_selector
