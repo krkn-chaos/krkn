@@ -174,7 +174,7 @@ steps:
   kubeburner:
     plugin:
       deployment_type: image
-      src: quay.io/mleader/arcaflow-plugin-kube-burner:0.1.0
+      src: quay.io/redhat-performance/arcaflow-plugin-kube-burner:latest
     step: kube-burner
     input:
       kubeconfig: !expr 'readFile($.input.kubeconfig_path)'
