@@ -171,6 +171,12 @@ input:
             type_id: string
 
 steps:
+  uuidgen:
+    plugin:
+      deployment_type: image
+      src: quay.io/arcalot/arcaflow-plugin-utilities:0.5.1
+    step: uuid
+    input: {}
   kubeburner:
     plugin:
       deployment_type: image
@@ -178,8 +184,8 @@ steps:
     step: kube-burner
     input:
       kubeconfig: !expr 'readFile($.input.kubeconfig_path)'
+      uuid: !expr $.steps.uuidgen.outputs.success.uuid
       workload: !expr $.input.workload
-      uuid: !expr $.input.uuid
       iterations: !expr $.input.iterations
       churn: !expr $.input.churn
       churn_duration: !expr $.input.churn_duration

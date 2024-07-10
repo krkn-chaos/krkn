@@ -5,13 +5,13 @@ input:
     RootObject:
       id: RootObject
       properties:
-        kubeburner_list:
-          type:
-            type_id: list
-            items:
-              type_id: ref
-              id: KubeBurner
-              namespace: $.steps.kubeburner_wf.execute.inputs.items
+        # kubeburner_list:
+        #   type:
+        #     type_id: list
+        #     items:
+        #       type_id: ref
+        #       id: KubeBurner
+        #       namespace: $.steps.kubeburner_wf.execute.inputs.items
         pod_chaos_list:
           type:
             type_id: list
@@ -19,33 +19,33 @@ input:
               type_id: ref
               id: KillPodConfig
               namespace: $.steps.pod_chaos_wf.execute.inputs.items
-        hog_cpu_list:
-          type:
-            type_id: list
-            items:
-              type_id: ref
-              id: HogCpuInput
-              namespace: $.steps.hog_cpu_wf.execute.inputs.items
+        # hog_cpu_list:
+        #   type:
+        #     type_id: list
+        #     items:
+        #       type_id: ref
+        #       id: HogCpuInput
+        #       namespace: $.steps.hog_cpu_wf.execute.inputs.items
 
 steps:
-  kubeburner_wf:
-    kind: foreach
-    items: !expr $.input.kubeburner_list
-    workflow: subworkflows/kubeburner.yaml
-    parallelism: 1
+  # kubeburner_wf:
+  #   kind: foreach
+  #   items: !expr $.input.kubeburner_list
+  #   workflow: subworkflows/kubeburner.yaml
+  #   parallelism: 1
   pod_chaos_wf:
     kind: foreach
     items: !expr $.input.pod_chaos_list
     workflow: subworkflows/pod-chaos.yaml
     parallelism: 1
-  hog_cpu_wf:
-    kind: foreach
-    items: !expr $.input.hog_cpu_list
-    workflow: subworkflows/cpu-hog.yaml
-    parallelism: 1
+  # hog_cpu_wf:
+  #   kind: foreach
+  #   items: !expr $.input.hog_cpu_list
+  #   workflow: subworkflows/cpu-hog.yaml
+  #   parallelism: 1
 
 outputs:
   success:
-    kubeburner: !expr $.steps.kubeburner_wf.outputs.success.data
+    # kubeburner: !expr $.steps.kubeburner_wf.outputs.success.data
     pod_chaos: !expr $.steps.pod_chaos_wf.outputs.success.data
-    hog_cpu: !expr $.steps.hog_cpu_wf.outputs.success.data
+    # hog_cpu: !expr $.steps.hog_cpu_wf.outputs.success.data
