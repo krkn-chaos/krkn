@@ -41,18 +41,6 @@ After installation, refer back to the below sections for supported scenarios and
 #### Running Kraken with minimal configuration tweaks
 For cases where you want to run Kraken with minimal configuration changes, refer to [krkn-hub](https://github.com/krkn-chaos/krkn-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
 
-### Setting up infrastructure dependencies
-Kraken indexes the metrics specified in the profile into Elasticsearch in addition to leveraging Cerberus for understanding the health of the Kubernetes cluster under test. More information on the features is documented below. The infrastructure pieces can be easily installed and uninstalled by running:
-
-```
-$ cd kraken
-$ podman-compose up or $ docker-compose up      # Spins up the containers specified in the docker-compose.yml file present in the run directory.
-$ podman-compose down or $ docker-compose down  # Delete the containers installed.
-```
-This will manage the Cerberus and Elasticsearch containers on the host on which you are running Kraken.
-
-**NOTE**: Make sure you have enough resources (memory and disk) on the machine on top of which the containers are running as Elasticsearch is resource intensive. Cerberus monitors the system components by default, the [config](config/cerberus.yaml) can be tweaked to add applications namespaces, routes and other components to monitor as well. The command will keep running until killed since detached mode is not supported as of now.
-
 
 ### Config
 Instructions on how to setup the config and the options supported can be found at [Config](docs/config.md).
