@@ -26,7 +26,7 @@ hog_cpu_list:
     # set the node selector as a key-value pair eg.
     # node_selector:
     #  kubernetes.io/hostname: kind-worker2
-    # node_selector: {}
+    node_selector: {}
     stressng_params:
       timeout: 1
       stressors:
