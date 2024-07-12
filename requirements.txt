@@ -22,7 +22,6 @@ oauth2client==4.1.3
 pandas==2.2.0
 openshift-client==1.0.21
 paramiko==3.4.0
-podman-compose==1.0.6
 pyVmomi==8.0.2.0.1
 pyfiglet==1.0.2
 pytest==8.0.0
