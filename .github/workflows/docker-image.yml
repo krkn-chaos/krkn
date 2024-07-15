@@ -39,3 +39,4 @@ jobs:
       with:
         QUAY_USER: ${{ secrets.QUAY_USERNAME }}
         QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
+        AUTOPUSH: ${{ secrets.AUTOPUSH }}
