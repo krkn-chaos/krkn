@@ -27,14 +27,12 @@ After creating the service account you will need to enable the account using the
 
 ## Azure
 
-**NOTE**: For Azure node killing scenarios, make sure [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest) is installed.
-
-You will also need to create a service principal and give it the correct access, see [here](https://docs.openshift.com/container-platform/4.5/installing/installing_azure/installing-azure-account.html) for creating the service principal and setting the proper permissions.
+**NOTE**: You will need to create a service principal and give it the correct access, see [here](https://docs.openshift.com/container-platform/4.5/installing/installing_azure/installing-azure-account.html) for creating the service principal and setting the proper permissions.
 
 To properly run the service principal requires “Azure Active Directory Graph/Application.ReadWrite.OwnedBy” api permission granted and “User Access Administrator”.
 
 Before running you will need to set the following:
-1. Login using ```az login```
+1. ```export AZURE_SUBSCRIPTION_ID=<subscription_id>```
 
 2. ```export AZURE_TENANT_ID=<tenant_id>```
 

@@ -1,9 +1,6 @@
-# azure-client
-FROM mcr.microsoft.com/azure-cli:latest as azure-cli
-
 # oc build
 FROM golang:1.22.4 AS oc-build
-RUN apt-get update && apt-get install -y libkrb5-dev
+RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
 WORKDIR /tmp
 RUN git clone --branch release-4.18 https://github.com/openshift/oc.git
 WORKDIR /tmp/oc
@@ -15,11 +12,13 @@ RUN go mod edit -go 1.22.3 &&\
 RUN make GO_REQUIRED_MIN_VERSION:= oc
 
 FROM fedora:40
+ARG PR_NUMBER
+ARG TAG
 RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
 RUN dnf update -y
 
 # krkn version that will be built
-ENV KRKN_VERSION v1.6.1
+ENV KRKN_VERSION v1.6.2
 
 ENV KUBECONFIG /home/krkn/.kube/config
 
@@ -29,17 +28,25 @@ RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/s
     cp kubectl /usr/bin/kubectl && chmod +x /usr/bin/kubectl
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
-RUN dnf update && dnf install -y git python39 jq yq gettext wget which
-# copy azure client binary from azure-cli image
-COPY --from=azure-cli /usr/local/bin/az /usr/bin/az
+RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
+    git python39 jq yq gettext wget which &&\
+    dnf clean all
 
 # copy oc client binary from oc-build image
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
 
 # krkn build
-RUN git clone https://github.com/krkn-chaos/krkn.git --branch $KRKN_VERSION /home/krkn/kraken && \
+RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken && \
     mkdir -p /home/krkn/.kube
+
 WORKDIR /home/krkn/kraken
+
+# default behaviour will be to build main
+# if it is a PR trigger the PR itself will be checked out
+RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER};fi
+# if it is a TAG trigger checkout the tag
+RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
+
 RUN python3.9 -m ensurepip
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install jsonschema

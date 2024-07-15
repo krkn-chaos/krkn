@@ -39,7 +39,7 @@ class NetworkScenariosTest(unittest.TestCase):
 
     def test_network_chaos(self):
         output_id, output_data = ingress_shaping.network_chaos(
-            ingress_shaping.NetworkScenarioConfig(
+            params=ingress_shaping.NetworkScenarioConfig(
                 label_selector="node-role.kubernetes.io/control-plane",
                 instance_count=1,
                 network_params={
@@ -47,7 +47,8 @@ class NetworkScenariosTest(unittest.TestCase):
                     "loss": "0.02",
                     "bandwidth": "100mbit"
                 }
-            )
+            ),
+            run_id="network-shaping-test"
         )
         if output_id == "error":
             logging.error(output_data.error)

@@ -53,7 +53,7 @@ class Plugins:
     def unserialize_scenario(self, file: str) -> Any:
         return serialization.load_from_file(abspath(file))
 
-    def run(self, file: str, kubeconfig_path: str, kraken_config: str):
+    def run(self, file: str, kubeconfig_path: str, kraken_config: str, run_uuid:str):
         """
         Run executes a series of steps
         """
@@ -102,7 +102,8 @@ class Plugins:
                 unserialized_input.kubeconfig_path = kubeconfig_path
             if "kraken_config" in step.schema.input.properties:
                 unserialized_input.kraken_config = kraken_config
-            output_id, output_data = step.schema(unserialized_input)
+            output_id, output_data = step.schema(params=unserialized_input, run_id=run_uuid)
+
             logging.info(step.render_output(output_id, output_data) + "\n")
             if output_id in step.error_output_ids:
                 raise Exception(
@@ -253,7 +254,8 @@ def run(scenarios: List[str],
         failed_post_scenarios: List[str],
         wait_duration: int,
         telemetry: KrknTelemetryKubernetes,
-        kubecli: KrknKubernetes
+        kubecli: KrknKubernetes,
+        run_uuid: str
         ) -> (List[str], list[ScenarioTelemetry]):
 
     scenario_telemetries: list[ScenarioTelemetry] = []
@@ -268,7 +270,7 @@ def run(scenarios: List[str],
 
         try:
             start_monitoring(pool, kill_scenarios)
-            PLUGINS.run(scenario, kubeconfig_path, kraken_config)
+            PLUGINS.run(scenario, kubeconfig_path, kraken_config, run_uuid)
             result = pool.join()
             scenario_telemetry.affected_pods = result
             if result.error:

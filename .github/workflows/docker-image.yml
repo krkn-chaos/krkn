@@ -1,8 +1,7 @@
 name: Docker Image CI
 on:
   push:
-    branches:
-      - main
+    tags: ['v[0-9].[0-9]+.[0-9]+']
   pull_request:
 
 jobs:
@@ -12,29 +11,41 @@ jobs:
     - name: Check out code
       uses: actions/checkout@v3
     - name: Build the Docker images
+      if: startsWith(github.ref, 'refs/tags')
       run:  |
-        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/
+        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg TAG=${GITHUB_REF#refs/tags/}
         docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn
+        docker tag quay.io/krkn-chaos/krkn quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/}
+        docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/}
+
+    - name: Test Build the Docker images
+      if: ${{ github.event_name == 'pull_request' }}
+      run: |
+        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg PR_NUMBER=${{ github.event.pull_request.number }}
     - name: Login in quay
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: startsWith(github.ref, 'refs/tags')
       run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
       env:
         QUAY_USER: ${{ secrets.QUAY_USERNAME }}
         QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
     - name: Push the KrknChaos Docker images
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: docker push quay.io/krkn-chaos/krkn
+      if: startsWith(github.ref, 'refs/tags')
+      run: |
+        docker push quay.io/krkn-chaos/krkn
+        docker push quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/}
     - name: Login in to redhat-chaos quay
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: startsWith(github.ref, 'refs/tags/v')
       run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
       env:
         QUAY_USER: ${{ secrets.QUAY_USER_1 }}
         QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
     - name: Push the RedHat Chaos Docker images
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: docker push quay.io/redhat-chaos/krkn
+      if: startsWith(github.ref, 'refs/tags')
+      run: | 
+        docker push quay.io/redhat-chaos/krkn
+        docker push quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/}
     - name: Rebuild krkn-hub
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: startsWith(github.ref, 'refs/tags')
       uses: redhat-chaos/actions/krkn-hub@main
       with:
         QUAY_USER: ${{ secrets.QUAY_USERNAME }}
