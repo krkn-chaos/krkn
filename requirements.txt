@@ -15,7 +15,7 @@ google-api-python-client==2.116.0
 ibm_cloud_sdk_core==3.18.0
 ibm_vpc==0.20.0
 jinja2==3.1.4
-krkn-lib==2.1.4
+krkn-lib==2.1.6
 lxml==5.1.0
 kubernetes==28.1.0
 oauth2client==4.1.3
@@ -30,7 +30,7 @@ python-openstackclient==6.5.0
 requests==2.32.2
 service_identity==24.1.0
 PyYAML==6.0.1
-setuptools==65.5.1
+setuptools==70.0.0
 werkzeug==3.0.3
 wheel==0.42.0
 zope.interface==5.4.0
