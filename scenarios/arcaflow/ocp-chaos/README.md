@@ -13,9 +13,9 @@ Given a target OpenShift cluster, this workflow executes a [kube-burner plugin](
   the workflow
 - [`config.yaml`](config.yaml) -- Global config parameters that are passed to the Arcaflow
   engine
-- [`cpu-hog.yaml`](subworkflows/cpu-hog.yaml)
-- [`kubeburner.yaml`](subworkflows/kubeburner.yaml)
-- [`pod-chaos.yaml`](subworkflows/pod-chaos.yaml)
+- [`cpu-hog.yaml`](subworkflows/cpu-hog.yaml) -- The StressNG workload on the CPU.
+- [`kubeburner.yaml`](subworkflows/kubeburner.yaml) -- The KubeBurner workload for the Kubernetes Cluster API.
+- [`pod-chaos.yaml`](subworkflows/pod-chaos.yaml) -- The Kill Pod workflow for the Kubernetes infrastructure pods.
                      
 ## Running the Workflow
 

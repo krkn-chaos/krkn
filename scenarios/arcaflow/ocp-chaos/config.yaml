@@ -10,9 +10,9 @@ deployers:
     pythonPath: /usr/bin/python
     workdir: /tmp
 log:
-  level: error
+  level: debug
 logged_outputs:
   error:
-    level: error
+    level: debug
   success:
     level: debug

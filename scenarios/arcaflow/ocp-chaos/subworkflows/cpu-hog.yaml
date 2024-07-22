@@ -1,17 +1,27 @@
 version: v0.2.0
 input:
-  root: HogCpuInput
+  root: HogCpuInput__KubernetesTarget
   objects:
+    HogCpuInput__KubernetesTarget:
+      id: HogCpuInput__KubernetesTarget
+      properties:
+        constant:
+          type:
+            type_id: ref
+            id: KubernetesTarget
+        item:
+          type:
+            type_id: ref
+            id: HogCpuInput
+    KubernetesTarget:
+      id: KubernetesTarget
+      properties:
+        kubeconfig_path:
+          type:
+            type_id: string
     HogCpuInput:
       id: HogCpuInput
       properties:
-        kubeconfig_path:
-          display:
-            description: system path to Kubeconfig file
-            name: Kubeconfig file path
-          type:
-            type_id: string
-          required: true
         namespace:
           display:
             description: The namespace where the container will be deployed
@@ -41,23 +51,23 @@ steps:
       src: quay.io/arcalot/arcaflow-plugin-kubeconfig:0.3.1
       deployment_type: image
     input:
-      kubeconfig: !expr 'readFile($.input.kubeconfig_path)'
+      kubeconfig: !expr 'readFile($.input.constant.kubeconfig_path)'
   stressng:
     plugin:
       src: quay.io/arcalot/arcaflow-plugin-stressng:0.6.0
       deployment_type: image
     step: workload
-    input: !expr $.input.stressng_params
+    input: !expr $.input.item.stressng_params
     deploy:
       deployer_name: kubernetes
       connection: !expr $.steps.kubeconfig.outputs.success.connection
       pod:
         metadata:
-          namespace: !expr $.input.namespace
+          namespace: !expr $.input.item.namespace
           labels:
             arcaflow: stressng
         spec:
-          nodeSelector: !expr $.input.node_selector
+          nodeSelector: !expr $.input.item.node_selector
           pluginContainer:
             imagePullPolicy: Always
 

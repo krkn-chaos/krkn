@@ -2,9 +2,19 @@ version: v0.2.0
 input:
   root: RootObject
   objects:
+    KubernetesTarget:
+      id: KubernetesTarget
+      properties:
+        kubeconfig_path:
+          type:
+            type_id: string  
     RootObject:
       id: RootObject
       properties:
+        kubernetes_target:
+          type:
+            type_id: ref
+            id: KubernetesTarget
         kubeburner_list:
           type:
             type_id: list
@@ -30,17 +40,17 @@ input:
 steps:
   kubeburner_wf:
     kind: foreach
-    items: !expr $.input.kubeburner_list
+    items: !expr 'bindConstants($.input.kubeburner_list, $.input.kubernetes_target)'
     workflow: subworkflows/kubeburner.yaml
     parallelism: 1
   pod_chaos_wf:
     kind: foreach
-    items: !expr $.input.pod_chaos_list
+    items: !expr 'bindConstants($.input.pod_chaos_list, $.input.kubernetes_target)'
     workflow: subworkflows/pod-chaos.yaml
     parallelism: 1
   hog_cpu_wf:
     kind: foreach
-    items: !expr $.input.hog_cpu_list
+    items: !expr 'bindConstants($.input.hog_cpu_list, $.input.kubernetes_target)'
     workflow: subworkflows/cpu-hog.yaml
     parallelism: 1
 

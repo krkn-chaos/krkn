@@ -1,17 +1,27 @@
 version: v0.2.0
 input:
-  root: KubeBurner
+  root: KubeBurner__KubernetesTarget
   objects:
+    KubeBurner__KubernetesTarget:
+      id: KubeBurner__KubernetesTarget
+      properties:
+        constant:
+          type:
+            type_id: ref
+            id: KubernetesTarget
+        item:
+          type:
+            type_id: ref
+            id: KubeBurner
+    KubernetesTarget:
+      id: KubernetesTarget
+      properties:
+        kubeconfig_path:
+          type:
+            type_id: string    
     KubeBurner:
       id: KubeBurner
       properties:
-        kubeconfig_path:
-          display:
-            description: file path to Openshift cluster kubeconfig
-            name: kubeconfig_path
-          required: true
-          type:
-            type_id: string
         alerting:
           default: '"true"'
           display:
@@ -183,13 +193,13 @@ steps:
       src: quay.io/redhat-performance/arcaflow-plugin-kube-burner:latest
     step: kube-burner
     input:
-      kubeconfig: !expr 'readFile($.input.kubeconfig_path)'
+      kubeconfig: !expr 'readFile($.input.constant.kubeconfig_path)'
       uuid: !expr $.steps.uuidgen.outputs.success.uuid
-      workload: !expr $.input.workload
-      iterations: !expr $.input.iterations
-      churn: !expr $.input.churn
-      churn_duration: !expr $.input.churn_duration
-      churn_delay: !expr $.input.churn_delay
+      workload: !expr $.input.item.workload
+      iterations: !expr $.input.item.iterations
+      churn: !expr $.input.item.churn
+      churn_duration: !expr $.input.item.churn_duration
+      churn_delay: !expr $.input.item.churn_delay
 
 outputs:
   success:

@@ -1,17 +1,27 @@
 version: v0.2.0
 input:
-  root: KillPodConfig
+  root: KillPodConfig__KubernetesTarget
   objects:
+    KillPodConfig__KubernetesTarget:
+      id: KillPodConfig__KubernetesTarget
+      properties:
+        constant:
+          type:
+            type_id: ref
+            id: KubernetesTarget
+        item:
+          type:
+            type_id: ref
+            id: KillPodConfig
+    KubernetesTarget:
+      id: KubernetesTarget
+      properties:
+        kubeconfig_path:
+          type:
+            type_id: string  
     KillPodConfig:
       id: KillPodConfig
       properties:
-        kubeconfig_path:
-          display:
-            description: file path to Openshift cluster kubeconfig
-            name: kubeconfig_path
-          required: true
-          type:
-            type_id: string
         backoff:
           default: '1'
           display:
@@ -39,21 +49,10 @@ input:
           required: false
           type:
             type_id: integer
-        kubeconfig_path:
-          display:
-            description: 'Path to your Kubeconfig file. Defaults to ~/.kube/config.
-
-              See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
-              for details.'
-            name: Kubeconfig path
-          required: false
-          type:
-            type_id: string
         label_selector:
           display:
             description: 'Kubernetes label selector for the target pods. Required
               if name_pattern is not set.
-
               See https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
               for details.'
             name: Label selector
@@ -96,9 +95,9 @@ steps:
       deployment_type: python
       src: arcaflow-plugin-kill-pod@git+https://github.com/krkn-chaos/arcaflow-plugin-kill-pod.git@a9f87f88d8e7763d111613bd8b2c7862fc49624f
     input:
-      namespace_pattern: !expr $.input.namespace_pattern
-      label_selector: !expr $.input.label_selector
-      kubeconfig_path: !expr $.input.kubeconfig_path
+      namespace_pattern: !expr $.input.item.namespace_pattern
+      label_selector: !expr $.input.item.label_selector
+      kubeconfig_path: !expr $.input.constant.kubeconfig_path
     deploy:
       deployer_name: python
       modulePullPolicy: Always
@@ -107,5 +106,3 @@ steps:
 
 outputs:
   success: !expr $.steps.kill_pod.outputs.success
-
-
