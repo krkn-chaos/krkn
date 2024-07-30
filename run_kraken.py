@@ -211,7 +211,7 @@ def main(cfg):
         cv = ""
         if distribution == "openshift":
             cv = ocpcli.get_clusterversion_string()
-            if prometheus_url is None:
+            if not prometheus_url:
                 try:
                     connection_data = ocpcli.get_prometheus_api_connection_data()
                     if connection_data:
