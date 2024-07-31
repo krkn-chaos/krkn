@@ -99,3 +99,41 @@
 - expr: ALERTS{severity="critical", alertstate="firing"} > 0
   description: Critical prometheus alert. {{$labels.alertname}}
   severity: warning
+
+# etcd CPU and usage increase
+- expr: sum(rate(container_cpu_usage_seconds_total{image!='', namespace='openshift-etcd', container='etcd'}[1m])) * 100 / sum(machine_cpu_cores)  > 5
+  description: Etcd CPU usage increased significantly by {{$value}}%
+  severity: critical
+
+# etcd memory usage increase
+- expr: sum(deriv(container_memory_usage_bytes{image!='', namespace='openshift-etcd', container='etcd'}[5m])) * 100 / sum(node_memory_MemTotal_bytes) > 5
+  description: Etcd memory usage increased significantly by {{$value}}%
+  severity: critical
+
+# Openshift API server CPU and memory usage increase
+- expr: sum(rate(container_cpu_usage_seconds_total{image!='', namespace='openshift-apiserver', container='openshift-apiserver'}[1m])) * 100 / sum(machine_cpu_cores) > 5
+  description: openshift apiserver cpu usage increased significantly by {{$value}}%
+  severity: critical
+
+- expr: (sum(deriv(container_memory_usage_bytes{namespace='openshift-apiserver', container='openshift-apiserver'}[5m]))) * 100 / sum(node_memory_MemTotal_bytes) > 5
+  description: openshift apiserver memory usage increased significantly by {{$value}}%
+  severity: critical
+
+# Openshift kube API server CPU and memory usage increase
+- expr: sum(rate(container_cpu_usage_seconds_total{image!='', namespace='openshift-kube-apiserver', container='kube-apiserver'}[1m])) * 100 / sum(machine_cpu_cores) > 5
+  description: openshift apiserver cpu usage increased significantly by {{$value}}%
+  severity: critical
+
+- expr: (sum(deriv(container_memory_usage_bytes{namespace='openshift-kube-apiserver', container='kube-apiserver'}[5m]))) * 100 / sum(node_memory_MemTotal_bytes) > 5
+  description: openshift apiserver memory usage increased significantly by {{$value}}%
+  severity: critical
+
+# Master node CPU usage increase
+- expr: (sum((sum(deriv(pod:container_cpu_usage:sum{container="",pod!=""}[5m])) BY (namespace, pod) * on(pod, namespace) group_left(node) (node_namespace_pod:kube_pod_info:)  )  *  on(node) group_left(role) (max by (node) (kube_node_role{role="master"})))) * 100 / sum(machine_cpu_cores) > 5
+  description: master nodes cpu usage increased significantly by {{$value}}%
+  severity: critical
+
+# Master nodes memory usage increase
+- expr: (sum((sum(deriv(container_memory_usage_bytes{container="",pod!=""}[5m])) BY (namespace, pod) * on(pod, namespace) group_left(node) (node_namespace_pod:kube_pod_info:)  )  *  on(node) group_left(role) (max by (node) (kube_node_role{role="master"})))) * 100 / sum(node_memory_MemTotal_bytes) > 5
+  description: master nodes memory usage increased significantly by {{$value}}%
+  severity: critical
