@@ -1,0 +1,18 @@
+---
+deployers:
+  image:
+    deployer_name: podman
+    deployment:
+      imagePullPolicy: IfNotPresent
+  python:
+    deployer_name: python
+    modulePullPolicy: Always
+    pythonPath: /usr/bin/python
+    workdir: /tmp
+log:
+  level: debug
+logged_outputs:
+  error:
+    level: debug
+  success:
+    level: debug
