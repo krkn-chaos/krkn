@@ -44,6 +44,8 @@ kraken:
             - scenarios/openshift/network_chaos.yaml
         - service_hijacking:
               - scenarios/kube/service_hijacking.yaml
+        - syn_flood:
+              - scenarios/kube/syn_flood.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed

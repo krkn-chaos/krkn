@@ -64,6 +64,7 @@ Scenario type               | Kubernetes
 [Network_Chaos](docs/network_chaos.md) | :heavy_check_mark: |
 [ManagedCluster Scenarios](docs/managedcluster_scenarios.md) | :heavy_check_mark: |
 [Service Hijacking Scenarios](docs/service_hijacking_scenarios.md) | :heavy_check_mark: |
+[SYN Flood Scenarios](docs/syn_flood_scenarios.md) | :heavy_check_mark: |
 
 
 ### Kraken scenario pass/fail criteria and report
