@@ -14,11 +14,14 @@ from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import log_exception
 
-def multiprocess_nodes(cloud_object_function, nodes):
+def multiprocess_nodes(cloud_object_function, nodes, processes=0):
     try:
         # pool object with number of element
 
-        pool = ThreadPool(processes=len(nodes))
+        if processes == 0: 
+            pool = ThreadPool(processes=len(nodes))
+        else: 
+            pool = ThreadPool(processes=processes)
         logging.info("nodes type " + str(type(nodes[0])))
         if type(nodes[0]) is tuple:
             node_id = []
@@ -45,10 +48,12 @@ def cluster_shut_down(shut_down_config, kubecli: KrknKubernetes):
     shut_down_duration = shut_down_config["shut_down_duration"]
     cloud_type = shut_down_config["cloud_type"]
     timeout = shut_down_config["timeout"]
+    processes = 0
     if cloud_type.lower() == "aws":
         cloud_object = AWS()
     elif cloud_type.lower() == "gcp":
         cloud_object = GCP()
+        processes = 1
     elif cloud_type.lower() == "openstack":
         cloud_object = OPENSTACKCLOUD()
     elif cloud_type.lower() in ["azure", "az"]:
@@ -71,7 +76,7 @@ def cluster_shut_down(shut_down_config, kubecli: KrknKubernetes):
     for _ in range(runs):
         logging.info("Starting cluster_shut_down scenario injection")
         stopping_nodes = set(node_id)
-        multiprocess_nodes(cloud_object.stop_instances, node_id)
+        multiprocess_nodes(cloud_object.stop_instances, node_id, processes)
         stopped_nodes = stopping_nodes.copy()
         while len(stopping_nodes) > 0:
             for node in stopping_nodes:
@@ -101,7 +106,7 @@ def cluster_shut_down(shut_down_config, kubecli: KrknKubernetes):
         time.sleep(shut_down_duration)
         logging.info("Restarting the nodes")
         restarted_nodes = set(node_id)
-        multiprocess_nodes(cloud_object.start_instances, node_id)
+        multiprocess_nodes(cloud_object.start_instances, node_id, processes)
         logging.info("Wait for each node to be running again")
         not_running_nodes = restarted_nodes.copy()
         while len(not_running_nodes) > 0:
