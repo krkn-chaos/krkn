@@ -246,7 +246,7 @@ def main(cfg) -> int:
                                             elastic_password
                                             )
         summary = ChaosRunAlertSummary()
-        if enable_alerts or check_critical_alerts:
+        if enable_metrics or enable_alerts or check_critical_alerts:
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
 
         logging.info("Server URL: %s" % kubecli.get_host())
