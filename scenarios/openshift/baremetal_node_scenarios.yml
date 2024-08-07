@@ -1,0 +1,18 @@
+node_scenarios:
+  - actions:                                                        # Node chaos scenarios to be injected.
+    - node_stop_start_scenario
+    node_name:                                                      # Node on which scenario has to be injected.
+    label_selector: node-role.kubernetes.io/worker                  # When node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection.
+    instance_count: 1                                               # Number of nodes to perform action/select that match the label selector.
+    runs: 1                                                         # Number of times to inject each scenario under actions (will perform on same node each time).
+    timeout: 120                                                    # Duration to wait for completion of node scenario injection.
+    cloud_type: bm                                                 # Cloud type on which Kubernetes/OpenShift runs.
+    bmc_user: defaultuser                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines.
+    bmc_password: defaultpass                                       # For baremetal (bm) cloud type. The default IPMI password. Optional if specified for all machines.
+    bmc_info:                                                       # This section is here to specify baremetal per-machine info, so it is optional if there is no per-machine info.
+      node-1:                                                       # The node name for the baremetal machine
+        bmc_addr: mgmt-machine1.example.com                         # Optional. For baremetal nodes with the IPMI BMC address missing from 'oc get bmh'.
+      node-2:
+        bmc_addr: mgmt-machine2.example.com
+        bmc_user: user                                              # The baremetal IPMI user. Overrides the default IPMI user specified above. Optional if the default is set.
+        bmc_password: pass                                          # The baremetal IPMI password. Overrides the default IPMI user specified above. Optional if the default is set
