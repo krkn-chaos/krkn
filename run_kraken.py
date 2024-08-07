@@ -35,13 +35,14 @@ from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.utils import SafeLogger
-from krkn_lib.utils.functions import get_yaml_item_value
+from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
+from kraken.utils import TeeLogHandler
 
 report_file = ""
 
 # Main function
-def main(cfg):
+def main(cfg) -> int:
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
@@ -108,7 +109,8 @@ def main(cfg):
             logging.error(
                 "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
             )
-            sys.exit(1)
+            #sys.exit(1)
+            return 1
         logging.info("Initializing client to talk to the Kubernetes cluster")
 
         # Generate uuid for the run
@@ -142,10 +144,12 @@ def main(cfg):
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
             logging.error("%s isn't a valid port number, please check" % (port))
-            sys.exit(1)
+            #sys.exit(1)
+            return 1
         if not signal_address:
             logging.error("Please set the signal address in the config")
-            sys.exit(1)
+            #sys.exit(1)
+            return 1
         address = (signal_address, port)
 
         # If publish_running_status is False this should keep us going
@@ -176,7 +180,7 @@ def main(cfg):
                 except Exception:
                     logging.error("invalid distribution selected, running openshift scenarios against kubernetes cluster."
                                   "Please set 'kubernetes' in config.yaml krkn.platform and try again")
-                    sys.exit(1)
+                    return 1
         if cv != "":
             logging.info(cv)
         else:
@@ -251,7 +255,7 @@ def main(cfg):
                                 "plugin_scenarios with the "
                                 "kill-pods configuration instead."
                             )
-                            sys.exit(1)
+                            return 1
                         elif scenario_type == "arcaflow_scenarios":
                             failed_post_scenarios, scenario_telemetries = arcaflow_plugin.run(
                                 scenarios_list, kubeconfig_path, telemetry_k8s
@@ -453,17 +457,20 @@ def main(cfg):
                 )
             else:
                 logging.error("Alert profile is not defined")
-                sys.exit(1)
+                #sys.exit(1)
+                return 1
 
         if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
-            sys.exit(2)
+            #sys.exit(2)
+            return 2
 
         if failed_post_scenarios:
             logging.error(
                 "Post scenarios are still failing at the end of all iterations"
             )
-            sys.exit(2)
+            #sys.exit(2)
+            return 2
 
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
@@ -471,7 +478,11 @@ def main(cfg):
         )
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
-        sys.exit(1)
+        #sys.exit(1)
+        return 2
+
+    return 0
+
 
 
 if __name__ == "__main__":
@@ -491,19 +502,102 @@ if __name__ == "__main__":
         help="output report location",
         default="kraken.report",
     )
-    
+
+
+
+    parser.add_option(
+        "--junit-testcase",
+        dest="junit_testcase",
+        help="junit test case description",
+        default=None,
+    )
+
+    parser.add_option(
+        "--junit-testcase-path",
+        dest="junit_testcase_path",
+        help="junit test case path",
+        default=None,
+    )
+
+    parser.add_option(
+        "--junit-testcase-version",
+        dest="junit_testcase_version",
+        help="junit test case version",
+        default=None,
+    )
+
     (options, args) = parser.parse_args()
     report_file = options.output
+    tee_handler = TeeLogHandler()
+    handlers = [logging.FileHandler(report_file, mode="w"), logging.StreamHandler(), tee_handler]
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler(report_file, mode="w"),
-            logging.StreamHandler(),
-        ],
+        handlers=handlers,
     )
+    option_error = False
+
+    # used to check if there is any missing or wrong parameter that prevents
+    # the creation of the junit file
+    junit_error = False
+    junit_normalized_path = None
+    retval = 0
+    junit_start_time = time.time()
+    # checks if both mandatory options for junit are set
+    if options.junit_testcase_path and not options.junit_testcase:
+        logging.error("please set junit test case description with --junit-testcase [description] option")
+        option_error = True
+        junit_error = True
+
+    if options.junit_testcase and not options.junit_testcase_path:
+        logging.error("please set junit test case path with --junit-testcase-path [path] option")
+        option_error = True
+        junit_error = True
+
+    # normalized path
+    if options.junit_testcase:
+        junit_normalized_path = os.path.normpath(options.junit_testcase_path)
+
+        if not os.path.exists(junit_normalized_path):
+            logging.error(f"{junit_normalized_path} do not exists, please select a valid path")
+            option_error = True
+            junit_error = True
+
+        if not os.path.isdir(junit_normalized_path):
+            logging.error(f"{junit_normalized_path} is a file, please select a valid folder path")
+            option_error = True
+            junit_error = True
+
+        if not os.access(junit_normalized_path, os.W_OK):
+            logging.error(f"{junit_normalized_path} is not writable, please select a valid path")
+            option_error = True
+            junit_error = True
+
     if options.cfg is None:
         logging.error("Please check if you have passed the config")
-        sys.exit(1)
+        option_error = True
+
+    if option_error:
+        retval = 1
     else:
-        main(options.cfg)
+        retval = main(options.cfg)
+
+    junit_endtime = time.time()
+
+    # checks the minimum required parameters to write the junit file
+    if junit_normalized_path and not junit_error:
+        junit_testcase_xml = get_junit_test_case(
+            success=True if retval == 0 else False,
+            time=int(junit_endtime - junit_start_time),
+            test_suite_name="krkn-test-suite",
+            test_case_description=options.junit_testcase,
+            test_stdout=tee_handler.get_output(),
+            test_version=options.junit_testcase_version
+        )
+        junit_testcase_file_path = f"{junit_normalized_path}/junit_krkn_{int(time.time())}.xml"
+        logging.info(f"writing junit XML testcase in {junit_testcase_file_path}")
+        with open(junit_testcase_file_path, "w") as stream:
+            stream.write(junit_testcase_xml)
+
+    sys.exit(retval)
