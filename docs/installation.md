@@ -43,12 +43,3 @@ $ python3.9 run_kraken.py --config <config_file_location>
 [Krkn-hub](https://github.com/krkn-chaos/krkn-hub) is a wrapper that allows running Krkn chaos scenarios via podman or docker runtime with scenario parameters/configuration defined as environment variables.
 
 Refer [instructions](https://github.com/krkn-chaos/krkn-hub#supported-chaos-scenarios) to get started.
-
-
-### Run Kraken as a Kubernetes deployment ( unsupported option - standalone or containerized deployers are recommended )
-Refer [Instructions](https://github.com/krkn-chaos/krkn/blob/main/containers/README.md) on how to deploy and run Kraken as a Kubernetes/OpenShift deployment.
-
-
-Refer to the [chaos-kraken chart manpage](https://artifacthub.io/packages/helm/startx/chaos-kraken)
-and especially the [kraken configuration values](https://artifacthub.io/packages/helm/startx/chaos-kraken#chaos-kraken-values-dictionary) 
-for details on how to configure this chart.
