@@ -1,5 +1,6 @@
 import sys
 import logging
+import time
 import kraken.invoke.command as runcommand
 import kraken.node_actions.common_node_functions as nodeaction
 from krkn_lib.k8s import KrknKubernetes
@@ -18,9 +19,11 @@ class abstract_node_scenarios:
         pass
 
     # Node scenario to stop and then start the node
-    def node_stop_start_scenario(self, instance_kill_count, node, timeout):
+    def node_stop_start_scenario(self, instance_kill_count, node, timeout, duration):
         logging.info("Starting node_stop_start_scenario injection")
         self.node_stop_scenario(instance_kill_count, node, timeout)
+        logging.info("Waiting for %s seconds before starting the node" % (duration))
+        time.sleep(duration)
         self.node_start_scenario(instance_kill_count, node, timeout)
         logging.info("node_stop_start_scenario has been successfully injected!")
 
