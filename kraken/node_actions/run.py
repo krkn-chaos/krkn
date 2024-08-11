@@ -100,6 +100,8 @@ def inject_node_scenario(action, node_scenario, node_scenario_object, kubecli: K
     )
     node_name = get_yaml_item_value(node_scenario, "node_name", "")
     label_selector = get_yaml_item_value(node_scenario, "label_selector", "")
+    if action == "node_stop_start_scenario":
+        duration = get_yaml_item_value(node_scenario, "duration", 120)
     timeout = get_yaml_item_value(node_scenario, "timeout", 120)
     service = get_yaml_item_value(node_scenario, "service", "")
     ssh_private_key = get_yaml_item_value(
@@ -121,7 +123,7 @@ def inject_node_scenario(action, node_scenario, node_scenario_object, kubecli: K
                 elif action == "node_stop_scenario":
                     node_scenario_object.node_stop_scenario(run_kill_count, single_node, timeout)
                 elif action == "node_stop_start_scenario":
-                    node_scenario_object.node_stop_start_scenario(run_kill_count, single_node, timeout)
+                    node_scenario_object.node_stop_start_scenario(run_kill_count, single_node, timeout, duration)
                 elif action == "node_termination_scenario":
                     node_scenario_object.node_termination_scenario(run_kill_count, single_node, timeout)
                 elif action == "node_reboot_scenario":

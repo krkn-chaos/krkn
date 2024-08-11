@@ -6,3 +6,11 @@ node_scenarios:
     instance_count: 1
     timeout: 120
     cloud_type: gcp
+  - actions:
+    - node_stop_start_scenario
+    node_name:
+    label_selector: node-role.kubernetes.io/worker
+    instance_count: 1
+    timeout: 360
+    duration: 120
+    cloud_type: gcp
