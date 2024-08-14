@@ -18,6 +18,7 @@ jinja2==3.1.4
 krkn-lib@git+https://github.com/krkn-chaos/krkn-lib.git@elastic
 lxml==5.1.0
 kubernetes==28.1.0
+numpy==1.26.4
 oauth2client==4.1.3
 pandas==2.2.0
 openshift-client==1.0.21
