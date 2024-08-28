@@ -16,3 +16,10 @@ node_scenarios:
     instance_count: 1
     timeout: 120
     cloud_type: aws
+  - actions:
+      - node_disk_detach_attach_scenario
+    node_name:
+    label_selector:
+    instance_count: 1
+    timeout: 120
+    cloud_type: aws

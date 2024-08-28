@@ -163,7 +163,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         logging.info("action" + str(action))
         # Get the scenario specifics for running action nodes
         run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
-        if action == "node_stop_start_scenario":
+        if action in ("node_stop_start_scenario", "node_disk_detach_attach_scenario"):
             duration = get_yaml_item_value(node_scenario, "duration", 120)
 
         timeout = get_yaml_item_value(node_scenario, "timeout", 120)
@@ -200,6 +200,9 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_scenario_object.node_reboot_scenario(
                     run_kill_count, single_node, timeout
                 )
+            elif action == "node_disk_detach_attach_scenario":
+                node_scenario_object.node_disk_detach_attach_scenario(
+                    run_kill_count, single_node, timeout, duration)
             elif action == "stop_start_kubelet_scenario":
                 node_scenario_object.stop_start_kubelet_scenario(
                     run_kill_count, single_node, timeout
