@@ -30,6 +30,7 @@ import kraken.network_chaos.actions as network_chaos
 import kraken.arcaflow_plugin as arcaflow_plugin
 import kraken.prometheus as prometheus_plugin
 import kraken.service_hijacking.service_hijacking as service_hijacking_plugin
+import kraken.aws.detach_ebs_volumes as detach_ebs_volumes
 import server as server
 from kraken import plugins, syn_flood
 from krkn_lib.k8s import KrknKubernetes
@@ -43,6 +44,7 @@ from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 from kraken.utils import TeeLogHandler
 
 report_file = ""
+
 
 # Main function
 def main(cfg) -> int:
@@ -464,6 +466,10 @@ def main(cfg) -> int:
                                                                                         telemetry_request_id
                                                                                         )
                             chaos_telemetry.scenarios.extend(scenario_telemetries)
+                        elif scenario_type == "aws":
+                            logging.info("Running AWS Chaos")
+                            failed_post_scenarios, scenario_telemetries = detach_ebs_volumes.run(scenarios_list, wait_duration, kubecli, telemetry_k8s)
+                            # chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         # Check for critical alerts when enabled
                         post_critical_alerts = 0
@@ -480,7 +486,6 @@ def main(cfg) -> int:
                             if post_critical_alerts > 0:
                                 logging.error("Post chaos critical alerts firing please check, exiting")
                                 break
-
 
             iteration += 1
             logging.info("")

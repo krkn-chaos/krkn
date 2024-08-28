@@ -1,0 +1,9 @@
+aws_access_key_id:
+aws_secret_access_key:
+chaos_duration: 30
+
+region:
+ebs_volume_id:
+ebs_volume_tag:
+node_name:
+
