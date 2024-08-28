@@ -42,7 +42,14 @@ function functional_test_service_hijacking {
   python3 -m coverage run -a run_kraken.py -c CI/config/service_hijacking.yaml  > /dev/null 2>&1 &
   PID=$!
   #Waiting the hijacking to have effect
-  while [ `curl -X GET -s -o /dev/null -I -w "%{http_code}" $SERVICE_URL/list/index.php` == 404 ]; do echo "waiting scenario to kick in."; sleep 1; done;
+  COUNTER=0
+  while [ `curl -X GET -s -o /dev/null -I -w "%{http_code}" $SERVICE_URL/list/index.php` == 404 ]
+   do
+    echo "waiting scenario to kick in."
+    sleep 1
+    COUNTER=$((COUNTER+1))
+    [ $COUNTER -eq "100" ] && echo "maximum number of retry reached, test failed" && exit 1
+  done
 
   #Checking Step 1 GET on /list/index.php
   OUT_GET="`curl -X GET -s $SERVICE_URL/list/index.php`"

@@ -50,3 +50,15 @@ telemetry:
     oc_cli_path: /usr/bin/oc                                # optional, if not specified will be search in $PATH
     events_backup: True                                     # enables/disables cluster events collection
     telemetry_group: "funtests"
+elastic:
+    enable_elastic: True
+    collect_metrics: False
+    collect_alerts: False
+    verify_certs: False
+    elastic_url: "https://192.168.39.196"                                         # To track results in elasticsearch, give url to server here; will post telemetry details when url and index not blank
+    elastic_port: 32766
+    username: "elastic"
+    password: "test"
+    metrics_index: "krkn-metrics"
+    alerts_index: "krkn-alerts"
+    telemetry_index: "krkn-telemetry"

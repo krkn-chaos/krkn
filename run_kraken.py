@@ -10,6 +10,8 @@ import pyfiglet
 import uuid
 import time
 
+from krkn_lib.elastic.krkn_elastic import KrknElastic
+from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import kraken.time_actions.common_time_functions as time_actions
@@ -30,7 +32,6 @@ import server as server
 from kraken import plugins, syn_flood
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
-from krkn_lib.telemetry.elastic import KrknElastic
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ChaosRunTelemetry
@@ -94,14 +95,61 @@ def main(cfg) -> int:
         enable_alerts = get_yaml_item_value(
             config["performance_monitoring"], "enable_alerts", False
         )
+        enable_metrics = get_yaml_item_value(
+            config["performance_monitoring"], "enable_metrics", False
+        )
+        # elastic search
+        enable_elastic = get_yaml_item_value(
+            config["elastic"], "enable_elastic", False
+        )
+        elastic_collect_metrics = get_yaml_item_value(
+            config["elastic"], "collect_metrics", False
+        )
+
+        elastic_colllect_alerts = get_yaml_item_value(
+            config["elastic"], "collect_alerts", False
+        )
+
+        elastic_url = get_yaml_item_value(
+            config["elastic"], "elastic_url", ""
+        )
+
+        elastic_verify_certs = get_yaml_item_value(
+            config["elastic"], "verify_certs", False
+        )
+
+        elastic_port = get_yaml_item_value(
+            config["elastic"], "elastic_port", 32766
+        )
+
+        elastic_username = get_yaml_item_value(
+            config["elastic"], "username", ""
+        )
+        elastic_password = get_yaml_item_value(
+            config["elastic"], "password", ""
+        )
+
+        elastic_metrics_index = get_yaml_item_value(
+            config["elastic"], "metrics_index", "krkn-metrics"
+        )
+
+        elastic_alerts_index = get_yaml_item_value(
+            config["elastic"], "alerts_index", "krkn-alerts"
+        )
+
+        elastic_telemetry_index = get_yaml_item_value(
+            config["elastic"], "telemetry_index", "krkn-telemetry"
+        )
+
+
+
         alert_profile = config["performance_monitoring"].get("alert_profile")
+        metrics_profile = config["performance_monitoring"].get("metrics_profile")
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
         )
         telemetry_api_url = config["telemetry"].get("api_url")
-        elastic_config = get_yaml_item_value(config,"elastic",{})
-        elastic_url = get_yaml_item_value(elastic_config,"elastic_url","")
-        elastic_index = get_yaml_item_value(elastic_config,"elastic_index","")
+
         
         # Initialize clients
         if (not os.path.isfile(kubeconfig_path) and
@@ -167,7 +215,7 @@ def main(cfg) -> int:
         cv = ""
         if distribution == "openshift":
             cv = ocpcli.get_clusterversion_string()
-            if prometheus_url is None:
+            if not prometheus_url:
                 try:
                     connection_data = ocpcli.get_prometheus_api_connection_data()
                     if connection_data:
@@ -189,9 +237,16 @@ def main(cfg) -> int:
         # KrknTelemetry init
         telemetry_k8s = KrknTelemetryKubernetes(safe_logger, kubecli)
         telemetry_ocp = KrknTelemetryOpenshift(safe_logger, ocpcli)
-        telemetry_elastic = KrknElastic(safe_logger,elastic_url)
+        if enable_elastic:
+            elastic_search = KrknElastic(safe_logger,
+                                            elastic_url,
+                                            elastic_port,
+                                            elastic_verify_certs,
+                                            elastic_username,
+                                            elastic_password
+                                            )
         summary = ChaosRunAlertSummary()
-        if enable_alerts or check_critical_alerts:
+        if enable_metrics or enable_alerts or check_critical_alerts:
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
 
         logging.info("Server URL: %s" % kubecli.get_host())
@@ -400,7 +455,12 @@ def main(cfg) -> int:
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(chaos_telemetry.to_json()))
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
-        telemetry_elastic.upload_data_to_elasticsearch(decoded_chaos_run_telemetry.to_json(), elastic_index)
+        if enable_elastic:
+            elastic_telemetry = ElasticChaosRunTelemetry(chaos_run_telemetry=decoded_chaos_run_telemetry)
+            result = elastic_search.push_telemetry(elastic_telemetry, elastic_telemetry_index)
+            if result == -1:
+                safe_logger.error(f"failed to save telemetry on elastic search: {chaos_output.to_json()}")
+
         if config["telemetry"]["enabled"]:
             logging.info(f'telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/files/'
                          f'{(config["telemetry"]["telemetry_group"] if config["telemetry"]["telemetry_group"] else "default")}/'
@@ -451,14 +511,28 @@ def main(cfg) -> int:
             if alert_profile:
                 prometheus_plugin.alerts(
                     prometheus,
+                    elastic_search,
+                    run_uuid,
                     start_time,
                     end_time,
                     alert_profile,
+                    elastic_colllect_alerts,
+                    elastic_alerts_index
                 )
+
             else:
                 logging.error("Alert profile is not defined")
-                #sys.exit(1)
                 return 1
+                #sys.exit(1)
+        if enable_metrics:
+            prometheus_plugin.metrics(prometheus,
+                                      elastic_search,
+                                      start_time,
+                                      run_uuid,
+                                      end_time,
+                                      metrics_profile,
+                                      elastic_collect_metrics,
+                                      elastic_metrics_index)
 
         if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
