@@ -12,7 +12,8 @@ from krkn_lib.k8s import KrknKubernetes
 class AWS:
     def __init__(self):
         self.boto_client = boto3.client("ec2")
-        self.boto_instance = boto3.resource("ec2").Instance("id")
+        self.boto_resource = boto3.resource("ec2")
+        self.boto_instance = self.boto_resource.Instance("id")
 
     # Get the instance ID of the node
     def get_instance_id(self, node):
@@ -179,6 +180,72 @@ class AWS:
 
             raise RuntimeError()
 
+    # Detach volume
+    def detach_volumes(self, volumes_ids: list):
+        for volume in volumes_ids:
+            try:
+                self.boto_client.detach_volume(VolumeId=volume, Force=True)
+            except Exception as e:
+                logging.error(
+                    "Detaching volume %s failed with exception: %s"
+                    % (volume, e)
+                )
+
+    # Attach volume
+    def attach_volume(self, attachment: dict):
+        try:
+            if self.get_volume_state(attachment["VolumeId"]) == "in-use":
+                logging.info(
+                    "Volume %s is already in use." % attachment["VolumeId"]
+                )
+                return
+            logging.info(
+                "Attaching the %s volumes to instance %s."
+                % (attachment["VolumeId"], attachment["InstanceId"])
+            )
+            self.boto_client.attach_volume(
+                InstanceId=attachment["InstanceId"],
+                Device=attachment["Device"],
+                VolumeId=attachment["VolumeId"]
+            )
+        except Exception as e:
+            logging.error(
+                "Failed attaching disk %s to the %s instance. "
+                "Encountered following exception: %s"
+                % (attachment['VolumeId'], attachment['InstanceId'], e)
+            )
+            raise RuntimeError()
+
+    # Get IDs of node volumes
+    def get_volumes_ids(self, instance_id: list):
+        response = self.boto_client.describe_instances(InstanceIds=instance_id)
+        instance_attachment_details = response["Reservations"][0]["Instances"][0]["BlockDeviceMappings"]
+        root_volume_device_name = self.get_root_volume_id(instance_id)
+        volume_ids = []
+        for device in instance_attachment_details:
+            if device["DeviceName"] != root_volume_device_name:
+                volume_id = device["Ebs"]["VolumeId"]
+                volume_ids.append(volume_id)
+        return volume_ids
+
+    # Get volumes attachment details
+    def get_volume_attachment_details(self, volume_ids: list):
+        response = self.boto_client.describe_volumes(VolumeIds=volume_ids)
+        volumes_details = response["Volumes"]
+        return volumes_details
+
+    # Get root volume
+    def get_root_volume_id(self, instance_id):
+        instance_id = instance_id[0]
+        instance = self.boto_resource.Instance(instance_id)
+        root_volume_id = instance.root_device_name
+        return root_volume_id
+
+    # Get volume state
+    def get_volume_state(self, volume_id: str):
+        volume = self.boto_resource.Volume(volume_id)
+        state = volume.state
+        return state
 
 # krkn_lib
 class aws_node_scenarios(abstract_node_scenarios):
@@ -290,3 +357,49 @@ class aws_node_scenarios(abstract_node_scenarios):
                 logging.error("node_reboot_scenario injection failed!")
 
                 raise RuntimeError()
+
+    # Get volume attachment info
+    def get_disk_attachment_info(self, instance_kill_count, node):
+        for _ in range(instance_kill_count):
+            try:
+                logging.info("Obtaining disk attachment information")
+                instance_id = (self.aws.get_instance_id(node)).split()
+                volumes_ids = self.aws.get_volumes_ids(instance_id)
+                if volumes_ids:
+                    vol_attachment_details = self.aws.get_volume_attachment_details(
+                        volumes_ids
+                    )
+                    return vol_attachment_details
+                return
+            except Exception as e:
+                logging.error(
+                    "Failed to obtain disk attachment information of %s node. "
+                    "Encounteres following exception: %s." % (node, e)
+                )
+                raise RuntimeError()
+
+    # Node scenario to detach the volume
+    def disk_detach_scenario(self, instance_kill_count, node, timeout):
+        for _ in range(instance_kill_count):
+            try:
+                logging.info("Starting disk_detach_scenario injection")
+                instance_id = (self.aws.get_instance_id(node)).split()
+                volumes_ids = self.aws.get_volumes_ids(instance_id)
+                logging.info(
+                    "Detaching the %s volumes from instance %s "
+                    % (volumes_ids, node)
+                )
+                self.aws.detach_volumes(volumes_ids)
+            except Exception as e:
+                logging.error(
+                    "Failed to detach disk from %s node. Encountered following"
+                    "exception: %s." % (node, e)
+                )
+                logging.debug("")
+                raise RuntimeError()
+
+    # Node scenario to attach the volume
+    def disk_attach_scenario(self, instance_kill_count, attachment_details, timeout):
+        for _ in range(instance_kill_count):
+            for attachment in attachment_details:
+                self.aws.attach_volume(attachment["Attachments"][0])
