@@ -169,7 +169,7 @@ jobs:
             path: krkn-lib-docs
             ssh-key: ${{ secrets.KRKN_LIB_DOCS_PRIV_KEY }}
         - name: Download json coverage
-          uses: actions/download-artifact@v3
+          uses: actions/download-artifact@v4.1.7
           with:
             name: coverage.json
         - name: Set up Python
