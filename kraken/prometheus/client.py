@@ -22,7 +22,7 @@ def alerts(prom_cli: KrknPrometheus,
                     start_time,
                     end_time,
                     alert_profile,
-                    elastic_colllect_alerts,
+                    elastic_collect_alerts,
                     elastic_alerts_index
            ):
 
@@ -45,12 +45,12 @@ def alerts(prom_cli: KrknPrometheus,
             processed_alert = prom_cli.process_alert(alert,
                                    datetime.datetime.fromtimestamp(start_time),
                                    datetime.datetime.fromtimestamp(end_time))
-            if processed_alert[0] and processed_alert[1] and elastic_colllect_alerts:
+            if processed_alert[0] and processed_alert[1] and elastic and elastic_collect_alerts:
                 elastic_alert = ElasticAlert(run_uuid=run_uuid,
-                                             severity=alert["severity"],
-                                             alert=processed_alert[1],
-                                             created_at=datetime.datetime.fromtimestamp(processed_alert[0])
-                                             )
+                                            severity=alert["severity"],
+                                            alert=processed_alert[1],
+                                            created_at=datetime.datetime.fromtimestamp(processed_alert[0])
+                                            )
                 result = elastic.push_alert(elastic_alert, elastic_alerts_index)
                 if result == -1:
                     logging.error("failed to save alert on ElasticSearch")
@@ -119,7 +119,7 @@ def metrics(prom_cli: KrknPrometheus,
             start_time,
             end_time,
             metrics_profile,
-            elastic_colllect_metrics,
+            elastic_collect_metrics,
             elastic_metrics_index
             ) -> list[dict[str, list[(int, float)] | str]]:
     metrics_list: list[dict[str, list[(int, float)] | str]] = []
@@ -154,7 +154,7 @@ def metrics(prom_cli: KrknPrometheus,
                             pass
             metrics_list.append(metric)
 
-        if elastic_colllect_metrics:
+        if elastic_collect_metrics and elastic:
             result = elastic.upload_metrics_to_elasticsearch(run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list)
             if result == -1:
                 logging.error("failed to save metrics on ElasticSearch")
