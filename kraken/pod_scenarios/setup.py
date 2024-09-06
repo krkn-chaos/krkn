@@ -16,6 +16,8 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from arcaflow_plugin_sdk import serialization
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
+from kraken import utils
+
 
 # Run pod based scenarios
 def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_duration):
@@ -89,7 +91,7 @@ def container_run(kubeconfig_path,
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = container_scenario_config[0]
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, container_scenario_config[0])
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, container_scenario_config[0])
         if len(container_scenario_config) > 1:
             pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
         else:
@@ -125,6 +127,11 @@ def container_run(kubeconfig_path,
                 else:
                     scenario_telemetry.exit_status = 0
                 scenario_telemetry.end_timestamp = time.time()
+                utils.populate_cluster_events(scenario_telemetry,
+                                              parsed_scenario_config,
+                                              telemetry.kubecli,
+                                              int(scenario_telemetry.start_timestamp),
+                                              int(scenario_telemetry.end_timestamp))
                 scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

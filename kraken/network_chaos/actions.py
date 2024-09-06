@@ -11,6 +11,8 @@ from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
+from kraken import utils
+
 
 # krkn_lib
 # Reads the scenario config and introduces traffic variations in Node's host network interface.
@@ -24,7 +26,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = net_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, net_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, net_config)
         try:
             with open(net_config, "r") as file:
                 param_lst = ["latency", "loss", "bandwidth"]
@@ -119,6 +121,12 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
             log_exception(net_config)
         else:
             scenario_telemetry.exit_status = 0
+        scenario_telemetry.end_timestamp = time.time()
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 

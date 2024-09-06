@@ -12,6 +12,7 @@ from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
 
 import kraken.plugins.node_scenarios.vmware_plugin as vmware_plugin
 import kraken.plugins.node_scenarios.ibmcloud_plugin as ibmcloud_plugin
+from kraken import utils
 from kraken.plugins.run_python_plugin import run_python_file
 from kraken.plugins.network.ingress_shaping import network_chaos
 from kraken.plugins.pod_network_outage.pod_network_outage_plugin import pod_outage
@@ -263,7 +264,7 @@ def run(scenarios: List[str],
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = scenario
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, scenario)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, scenario)
         logging.info('scenario ' + str(scenario))
         pool = PodsMonitorPool(kubecli)
         kill_scenarios = [kill_scenario for kill_scenario in PLUGINS.unserialize_scenario(scenario) if kill_scenario["id"] == "kill-pods"]
@@ -286,8 +287,13 @@ def run(scenarios: List[str],
             scenario_telemetry.exit_status = 0
             logging.info("Waiting for the specified duration: %s" % (wait_duration))
             time.sleep(wait_duration)
-        scenario_telemetries.append(scenario_telemetry)
         scenario_telemetry.end_timestamp = time.time()
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
+        scenario_telemetries.append(scenario_telemetry)
 
     return failed_post_scenarios, scenario_telemetries
 

@@ -6,9 +6,9 @@ import re
 import yaml
 import random
 
-from krkn_lib import utils
 from kubernetes.client import ApiException
 
+from .. import utils
 from ..cerberus import setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -355,7 +355,7 @@ def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = time_scenario_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, time_scenario_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, time_scenario_config)
         try:
             with open(time_scenario_config, "r") as f:
                 scenario_config = yaml.full_load(f)
@@ -383,6 +383,11 @@ def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

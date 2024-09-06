@@ -3,6 +3,8 @@ import yaml
 import logging
 import time
 from multiprocessing.pool import ThreadPool
+
+from .. import utils
 from ..cerberus import setup as cerberus
 from ..post_actions import actions as post_actions
 from ..node_actions.aws_node_scenarios import AWS
@@ -153,7 +155,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = config_path
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, config_path)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, config_path)
 
         with open(config_path, "r") as f:
             shut_down_config_yaml = yaml.full_load(f)
@@ -185,6 +187,11 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                 scenario_telemetry.exit_status = 0
 
             scenario_telemetry.end_timestamp = time.time()
+            utils.populate_cluster_events(scenario_telemetry,
+                                          parsed_scenario_config,
+                                          telemetry.kubecli,
+                                          int(scenario_telemetry.start_timestamp),
+                                          int(scenario_telemetry.end_timestamp))
             scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

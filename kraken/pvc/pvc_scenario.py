@@ -3,6 +3,8 @@ import random
 import re
 import time
 import yaml
+
+from .. import utils
 from ..cerberus import setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -22,7 +24,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = app_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, app_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, app_config)
         try:
             if len(app_config) > 1:
                 with open(app_config, "r") as f:
@@ -321,6 +323,13 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
             log_exception(app_config)
         else:
             scenario_telemetry.exit_status = 0
+
+        scenario_telemetry.end_timestamp = time.time()
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

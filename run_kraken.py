@@ -14,6 +14,8 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
+from tzlocal.unix import get_localzone
+
 import kraken.time_actions.common_time_functions as time_actions
 import kraken.performance_dashboards.setup as performance_dashboards
 import kraken.pod_scenarios.setup as pod_scenarios
@@ -454,7 +456,8 @@ def main(cfg) -> int:
         else:
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
 
-        decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(chaos_telemetry.to_json()))
+        telemetry_json = chaos_telemetry.to_json()
+        decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
@@ -470,7 +473,8 @@ def main(cfg) -> int:
             logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
             try:
                 telemetry_k8s.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
-                telemetry_k8s.put_cluster_events(telemetry_request_id, config["telemetry"], start_time, end_time)
+
+                telemetry_k8s.put_cluster_events(telemetry_request_id, config["telemetry"], events_file)
                 telemetry_k8s.put_critical_alerts(telemetry_request_id, config["telemetry"], summary)
                 # prometheus data collection is available only on Openshift
                 if config["telemetry"]["prometheus_backup"]:

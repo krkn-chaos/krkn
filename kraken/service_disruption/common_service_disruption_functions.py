@@ -9,6 +9,8 @@ from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
+from kraken import utils
+
 
 def delete_objects(kubecli, namespace):
 
@@ -166,7 +168,7 @@ def run(
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = scenario_config[0]
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, scenario_config[0])
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, scenario_config[0])
         try:
             if len(scenario_config) > 1:
                 pre_action_output = post_actions.run(kubeconfig_path, scenario_config[1])
@@ -255,6 +257,11 @@ def run(
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 

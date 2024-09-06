@@ -1,6 +1,8 @@
 import yaml
 import logging
 import time
+
+from .. import utils
 from ..node_actions.aws_node_scenarios import AWS
 from ..cerberus import setup as cerberus
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -20,7 +22,7 @@ def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetryKubernete
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = zone_outage_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, zone_outage_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, zone_outage_config)
         try:
             if len(zone_outage_config) > 1:
                 with open(zone_outage_config, "r") as f:
@@ -116,6 +118,11 @@ def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetryKubernete
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 

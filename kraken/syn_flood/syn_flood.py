@@ -9,6 +9,8 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 
+from kraken import utils
+
 
 def run(scenarios_list: list[str], krkn_kubernetes: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
@@ -17,7 +19,7 @@ def run(scenarios_list: list[str], krkn_kubernetes: KrknKubernetes, telemetry: K
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = scenario
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, scenario)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, scenario)
 
         try:
             pod_names = []
@@ -62,6 +64,11 @@ def run(scenarios_list: list[str], krkn_kubernetes: KrknKubernetes, telemetry: K
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
     return failed_post_scenarios, scenario_telemetries
 
