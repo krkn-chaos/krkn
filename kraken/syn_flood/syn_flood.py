@@ -8,11 +8,15 @@ import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from kraken import utils
 
 
-def run(scenarios_list: list[str], krkn_kubernetes: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list: list[str],
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str
+        ) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_post_scenarios = []
     for scenario in scenarios_list:
@@ -25,16 +29,16 @@ def run(scenarios_list: list[str], krkn_kubernetes: KrknKubernetes, telemetry: K
             pod_names = []
             config = parse_config(scenario)
             if config["target-service-label"]:
-                target_services = krkn_kubernetes.select_service_by_label(config["namespace"], config["target-service-label"])
+                target_services = telemetry.kubecli.select_service_by_label(config["namespace"], config["target-service-label"])
             else:
                 target_services = [config["target-service"]]
 
             for target in target_services:
-                if not krkn_kubernetes.service_exists(target, config["namespace"]):
+                if not telemetry.kubecli.service_exists(target, config["namespace"]):
                     raise Exception(f"{target} service not found")
                 for i in range(config["number-of-pods"]):
                     pod_name = "syn-flood-" + krkn_lib.utils.get_random_string(10)
-                    krkn_kubernetes.deploy_syn_flood(pod_name,
+                    telemetry.kubecli.deploy_syn_flood(pod_name,
                                                      config["namespace"],
                                                      config["image"],
                                                      target,
@@ -51,7 +55,7 @@ def run(scenarios_list: list[str], krkn_kubernetes: KrknKubernetes, telemetry: K
             finished_pods = []
             while not did_finish:
                 for pod_name in pod_names:
-                    if not krkn_kubernetes.is_pod_running(pod_name, config["namespace"]):
+                    if not telemetry.kubecli.is_pod_running(pod_name, config["namespace"]):
                         finished_pods.append(pod_name)
                     if set(pod_names) == set(finished_pods):
                         did_finish = True
@@ -64,6 +68,11 @@ def run(scenarios_list: list[str], krkn_kubernetes: KrknKubernetes, telemetry: K
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.collect_and_put_ocp_logs(telemetry,
+                                       parsed_scenario_config,
+                                       telemetry_request_id,
+                                       int(scenario_telemetry.start_timestamp),
+                                       int(scenario_telemetry.end_timestamp))
         utils.populate_cluster_events(scenario_telemetry,
                                       parsed_scenario_config,
                                       telemetry.kubecli,

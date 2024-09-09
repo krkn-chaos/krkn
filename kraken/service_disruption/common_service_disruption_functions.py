@@ -1,11 +1,13 @@
 import time
 import random
 import logging
+
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 import yaml
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
@@ -158,9 +160,8 @@ def run(
         config,
         wait_duration,
         failed_post_scenarios,
-        kubeconfig_path,
-        kubecli: KrknKubernetes,
-        telemetry: KrknTelemetryKubernetes
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str
 ) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_scenarios = []
@@ -171,7 +172,7 @@ def run(
         parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, scenario_config[0])
         try:
             if len(scenario_config) > 1:
-                pre_action_output = post_actions.run(kubeconfig_path, scenario_config[1])
+                pre_action_output = post_actions.run(telemetry.kubecli.get_kubeconfig_path(), scenario_config[1])
             else:
                 pre_action_output = ""
             with open(scenario_config[0], "r") as f:
@@ -208,7 +209,7 @@ def run(
                     start_time = int(time.time())
                     for i in range(run_count):
                         killed_namespaces = {}
-                        namespaces = kubecli.check_namespaces([scenario_namespace], scenario_label)
+                        namespaces = telemetry.kubecli.check_namespaces([scenario_namespace], scenario_label)
                         for j in range(delete_count):
                             if len(namespaces) == 0:
                                 logging.error(
@@ -222,7 +223,7 @@ def run(
                             logging.info('Delete objects in selected namespace: ' + selected_namespace )
                             try:
                                 # delete all pods in namespace
-                                objects = delete_objects(kubecli,selected_namespace)
+                                objects = delete_objects(telemetry.kubecli,selected_namespace)
                                 killed_namespaces[selected_namespace] = objects
                                 logging.info("Deleted all objects in namespace %s was successful" % str(selected_namespace))
                             except Exception as e:
@@ -238,7 +239,7 @@ def run(
                         if len(scenario_config) > 1:
                             try:
                                 failed_post_scenarios = post_actions.check_recovery(
-                                    kubeconfig_path, scenario_config, failed_post_scenarios, pre_action_output
+                                    telemetry.kubecli.get_kubeconfig_path(), scenario_config, failed_post_scenarios, pre_action_output
                                 )
                             except Exception as e:
                                 logging.error("Failed to run post action checks: %s" % e)
@@ -246,7 +247,7 @@ def run(
                                 # sys.exit(1)
                                 raise RuntimeError()
                         else:
-                            failed_post_scenarios = check_all_running_deployment(killed_namespaces, wait_time, kubecli)
+                            failed_post_scenarios = check_all_running_deployment(killed_namespaces, wait_time, telemetry.kubecli)
 
                     end_time = int(time.time())
                     cerberus.publish_kraken_status(config, failed_post_scenarios, start_time, end_time)
@@ -257,6 +258,11 @@ def run(
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.collect_and_put_ocp_logs(telemetry,
+                                       parsed_scenario_config,
+                                       telemetry_request_id,
+                                       int(scenario_telemetry.start_timestamp),
+                                       int(scenario_telemetry.end_timestamp))
         utils.populate_cluster_events(scenario_telemetry,
                                       parsed_scenario_config,
                                       telemetry.kubecli,

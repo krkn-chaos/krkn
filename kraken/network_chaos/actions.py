@@ -3,11 +3,13 @@ import logging
 import time
 import os
 import random
+
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
 import kraken.cerberus.setup as cerberus
 import kraken.node_actions.common_node_functions as common_node_functions
 from jinja2 import Environment, FileSystemLoader
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
@@ -16,8 +18,11 @@ from kraken import utils
 
 # krkn_lib
 # Reads the scenario config and introduces traffic variations in Node's host network interface.
-def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
-    failed_post_scenarios = ""
+def run(scenarios_list,
+        config,
+        wait_duration,
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str) -> (list[str], list[ScenarioTelemetry]):
     logging.info("Runing the Network Chaos tests")
     failed_post_scenarios = ""
     scenario_telemetries: list[ScenarioTelemetry] = []
@@ -58,11 +63,11 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                     node_name_list = [test_node]
                 nodelst = []
                 for single_node_name in node_name_list:
-                    nodelst.extend(common_node_functions.get_node(single_node_name, test_node_label, test_instance_count, kubecli))
+                    nodelst.extend(common_node_functions.get_node(single_node_name, test_node_label, test_instance_count, telemetry.kubecli))
                 file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
                 env = Environment(loader=file_loader, autoescape=True)
                 pod_template = env.get_template("pod.j2")
-                test_interface = verify_interface(test_interface, nodelst, pod_template, kubecli)
+                test_interface = verify_interface(test_interface, nodelst, pod_template, telemetry.kubecli)
                 joblst = []
                 egress_lst = [i for i in param_lst if i in test_egress]
                 chaos_config = {
@@ -88,13 +93,13 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                                 job_template.render(jobname=i + str(hash(node))[:5], nodename=node, cmd=exec_cmd)
                             )
                             joblst.append(job_body["metadata"]["name"])
-                            api_response = kubecli.create_job(job_body)
+                            api_response = telemetry.kubecli.create_job(job_body)
                             if api_response is None:
                                 raise Exception("Error creating job")
                         if test_execution == "serial":
                             logging.info("Waiting for serial job to finish")
                             start_time = int(time.time())
-                            wait_for_job(joblst[:], kubecli, test_duration + 300)
+                            wait_for_job(joblst[:], telemetry.kubecli, test_duration + 300)
                             logging.info("Waiting for wait_duration %s" % wait_duration)
                             time.sleep(wait_duration)
                             end_time = int(time.time())
@@ -104,7 +109,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                     if test_execution == "parallel":
                         logging.info("Waiting for parallel job to finish")
                         start_time = int(time.time())
-                        wait_for_job(joblst[:], kubecli, test_duration + 300)
+                        wait_for_job(joblst[:], telemetry.kubecli, test_duration + 300)
                         logging.info("Waiting for wait_duration %s" % wait_duration)
                         time.sleep(wait_duration)
                         end_time = int(time.time())
@@ -114,7 +119,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                     raise RuntimeError()
                 finally:
                     logging.info("Deleting jobs")
-                    delete_job(joblst[:], kubecli)
+                    delete_job(joblst[:], telemetry.kubecli)
         except (RuntimeError, Exception):
             scenario_telemetry.exit_status = 1
             failed_scenarios.append(net_config)
@@ -122,6 +127,11 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.collect_and_put_ocp_logs(telemetry,
+                                       parsed_scenario_config,
+                                       telemetry_request_id,
+                                       int(scenario_telemetry.start_timestamp),
+                                       int(scenario_telemetry.end_timestamp))
         utils.populate_cluster_events(scenario_telemetry,
                                       parsed_scenario_config,
                                       telemetry.kubecli,

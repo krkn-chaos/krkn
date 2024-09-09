@@ -3,17 +3,21 @@ import random
 import re
 import time
 import yaml
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from .. import utils
 from ..cerberus import setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
 
 
 # krkn_lib
-def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list,
+        config,
+        wait_duration,
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str) -> (list[str], list[ScenarioTelemetry]):
     """
     Reads the scenario config and creates a temp file to fill up the PVC
     """
@@ -87,7 +91,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                                 "pod_name '%s' will be overridden with one of "
                                 "the pods mounted in the PVC" % (str(pod_name))
                             )
-                        pvc = kubecli.get_pvc_info(pvc_name, namespace)
+                        pvc = telemetry.kubecli.get_pvc_info(pvc_name, namespace)
                         try:
                             # random generator not used for
                             # security/cryptographic purposes.
@@ -102,7 +106,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                             raise RuntimeError()
 
                     # Get volume name
-                    pod = kubecli.get_pod_info(name=pod_name, namespace=namespace)
+                    pod = telemetry.kubecli.get_pod_info(name=pod_name, namespace=namespace)
 
                     if pod is None:
                         logging.error(
@@ -119,7 +123,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                         if volume.pvcName is not None:
                             volume_name = volume.name
                             pvc_name = volume.pvcName
-                            pvc = kubecli.get_pvc_info(pvc_name, namespace)
+                            pvc = telemetry.kubecli.get_pvc_info(pvc_name, namespace)
                             break
                     if 'pvc' not in locals():
                         logging.error(
@@ -146,7 +150,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                     # Get PVC capacity and used bytes
                     command = "df %s -B 1024 | sed 1d" % (str(mount_path))
                     command_output = (
-                        kubecli.exec_cmd_in_pod(
+                        telemetry.kubecli.exec_cmd_in_pod(
                             command,
                             pod_name,
                             namespace,
@@ -208,7 +212,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                     logging.debug(
                         "Create temp file in the PVC command:\n %s" % command
                     )
-                    kubecli.exec_cmd_in_pod(
+                    telemetry.kubecli.exec_cmd_in_pod(
                         command,
                         pod_name,
                         namespace,
@@ -218,7 +222,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                     # Check if file is created
                     command = "ls -lh %s" % (str(mount_path))
                     logging.debug("Check file is created command:\n %s" % command)
-                    response = kubecli.exec_cmd_in_pod(
+                    response = telemetry.kubecli.exec_cmd_in_pod(
                         command, pod_name, namespace, container_name
                     )
                     logging.info("\n" + str(response))
@@ -240,7 +244,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                             container_name,
                             mount_path,
                             file_size_kb,
-                            kubecli
+                            telemetry.kubecli
                         )
                         # sys.exit(1)
                         raise RuntimeError()
@@ -277,14 +281,14 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                 logging.debug(
                     "Create temp file in the PVC command:\n %s" % command
                 )
-                kubecli.exec_cmd_in_pod(
+                telemetry.kubecli.exec_cmd_in_pod(
                     command, pod_name, namespace, container_name
                 )
 
                 # Check if file is created
                 command = "ls -lh %s" % (str(mount_path))
                 logging.debug("Check file is created command:\n %s" % command)
-                response = kubecli.exec_cmd_in_pod(
+                response = telemetry.kubecli.exec_cmd_in_pod(
                     command, pod_name, namespace, container_name
                 )
                 logging.info("\n" + str(response))
@@ -305,7 +309,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                         container_name,
                         mount_path,
                         file_size_kb,
-                        kubecli
+                        telemetry.kubecli
                     )
                     logging.info("End of scenario. Waiting for the specified duration: %s" % (wait_duration))
                     time.sleep(wait_duration)
@@ -325,6 +329,11 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
             scenario_telemetry.exit_status = 0
 
         scenario_telemetry.end_timestamp = time.time()
+        utils.collect_and_put_ocp_logs(telemetry,
+                                       parsed_scenario_config,
+                                       telemetry_request_id,
+                                       int(scenario_telemetry.start_timestamp),
+                                       int(scenario_telemetry.end_timestamp))
         utils.populate_cluster_events(scenario_telemetry,
                                       parsed_scenario_config,
                                       telemetry.kubecli,
