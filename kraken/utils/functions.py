@@ -32,6 +32,7 @@ def collect_and_put_ocp_logs(telemetry_ocp: KrknTelemetryOpenshift,
                              ):
     if (
             telemetry_ocp.krkn_telemetry_config and
+            telemetry_ocp.krkn_telemetry_config["enabled"] and
             telemetry_ocp.krkn_telemetry_config["logs_backup"] and
             not telemetry_ocp.kubecli.is_kubernetes()
     ):
