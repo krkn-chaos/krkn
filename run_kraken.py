@@ -245,6 +245,8 @@ def main(cfg) -> int:
                                             elastic_username,
                                             elastic_password
                                             )
+        else: 
+            elastic_search = None
         summary = ChaosRunAlertSummary()
         if enable_metrics or enable_alerts or check_critical_alerts:
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
