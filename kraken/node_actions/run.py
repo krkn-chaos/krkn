@@ -130,6 +130,8 @@ def inject_node_scenario(action, node_scenario, node_scenario_object, kubecli: K
                     node_scenario_object.node_reboot_scenario(run_kill_count, single_node, timeout)
                 elif action == "stop_start_kubelet_scenario":
                     node_scenario_object.stop_start_kubelet_scenario(run_kill_count, single_node, timeout)
+                elif action == "restart_kubelet_scenario":
+                    node_scenario_object.restart_kubelet_scenario(run_kill_count, single_node, timeout)
                 elif action == "stop_kubelet_scenario":
                     node_scenario_object.stop_kubelet_scenario(run_kill_count, single_node, timeout)
                 elif action == "node_crash_scenario":

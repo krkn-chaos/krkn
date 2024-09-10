@@ -9,8 +9,9 @@ The following node chaos scenarios are supported:
 5. **node_reboot_scenario**: Scenario to reboot the node instance.
 6. **stop_kubelet_scenario**: Scenario to stop the kubelet of the node instance.
 7. **stop_start_kubelet_scenario**: Scenario to stop and start the kubelet of the node instance.
-8. **node_crash_scenario**: Scenario to crash the node instance.
-9. **stop_start_helper_node_scenario**: Scenario to stop and start the helper node and check service status.
+8. **restart_kubelet_scenario**: Scenario to restart the kubelet of the node instance.
+9. **node_crash_scenario**: Scenario to crash the node instance.
+10. **stop_start_helper_node_scenario**: Scenario to stop and start the helper node and check service status.
 
 
 **NOTE**: If the node does not recover from the node_crash_scenario injection, reboot the node to get it back to Ready state.
