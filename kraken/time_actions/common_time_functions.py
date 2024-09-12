@@ -6,12 +6,12 @@ import re
 import yaml
 import random
 
-from krkn_lib import utils
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from kubernetes.client import ApiException
 
+from .. import utils
 from ..cerberus import setup as cerberus
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception, get_random_string
 
@@ -348,21 +348,25 @@ def check_date_time(object_type, names, kubecli:KrknKubernetes):
 
 
 # krkn_lib
-def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list,
+        config,
+        wait_duration,
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str) -> (list[str], list[ScenarioTelemetry]):
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []
     for time_scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = time_scenario_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, time_scenario_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, time_scenario_config)
         try:
             with open(time_scenario_config, "r") as f:
                 scenario_config = yaml.full_load(f)
                 for time_scenario in scenario_config["time_scenarios"]:
                     start_time = int(time.time())
-                    object_type, object_names = skew_time(time_scenario, kubecli)
-                    not_reset = check_date_time(object_type, object_names, kubecli)
+                    object_type, object_names = skew_time(time_scenario, telemetry.kubecli)
+                    not_reset = check_date_time(object_type, object_names, telemetry.kubecli)
                     if len(not_reset) > 0:
                         logging.info("Object times were not reset")
                     logging.info(
@@ -383,6 +387,16 @@ def run(scenarios_list, config, wait_duration, kubecli:KrknKubernetes, telemetry
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.collect_and_put_ocp_logs(telemetry,
+                                       parsed_scenario_config,
+                                       telemetry_request_id,
+                                       int(scenario_telemetry.start_timestamp),
+                                       int(scenario_telemetry.end_timestamp))
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

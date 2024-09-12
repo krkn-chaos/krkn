@@ -2,6 +2,10 @@ import yaml
 import logging
 import sys
 import time
+
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
+from kraken import utils
 from kraken.node_actions.aws_node_scenarios import aws_node_scenarios
 from kraken.node_actions.general_cloud_node_scenarios import general_node_scenarios
 from kraken.node_actions.az_node_scenarios import azure_node_scenarios
@@ -55,23 +59,27 @@ def get_node_scenario_object(node_scenario, kubecli: KrknKubernetes):
 
 # Run defined scenarios
 # krkn_lib
-def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list,
+        config,
+        wait_duration,
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_scenarios = []
     for node_scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = node_scenario_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, node_scenario_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, node_scenario_config)
         with open(node_scenario_config, "r") as f:
             node_scenario_config = yaml.full_load(f)
             for node_scenario in node_scenario_config["node_scenarios"]:
-                node_scenario_object = get_node_scenario_object(node_scenario, kubecli)
+                node_scenario_object = get_node_scenario_object(node_scenario, telemetry.kubecli)
                 if node_scenario["actions"]:
                     for action in node_scenario["actions"]:
                         start_time = int(time.time())
                         try:
-                            inject_node_scenario(action, node_scenario, node_scenario_object, kubecli)
+                            inject_node_scenario(action, node_scenario, node_scenario_object, telemetry.kubecli)
                             logging.info("Waiting for the specified duration: %s" % (wait_duration))
                             time.sleep(wait_duration)
                             end_time = int(time.time())
@@ -85,6 +93,16 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                             scenario_telemetry.exit_status = 0
 
                         scenario_telemetry.end_timestamp = time.time()
+                        utils.collect_and_put_ocp_logs(telemetry,
+                                                       parsed_scenario_config,
+                                                       telemetry_request_id,
+                                                       int(scenario_telemetry.start_timestamp),
+                                                       int(scenario_telemetry.end_timestamp))
+                        utils.populate_cluster_events(scenario_telemetry,
+                                                      parsed_scenario_config,
+                                                      telemetry.kubecli,
+                                                      int(scenario_telemetry.start_timestamp),
+                                                      int(scenario_telemetry.end_timestamp))
                         scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

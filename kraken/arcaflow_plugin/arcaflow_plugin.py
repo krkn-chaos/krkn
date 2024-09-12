@@ -5,23 +5,47 @@ import yaml
 import logging
 from pathlib import Path
 from typing import List
+
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
 from .context_auth import ContextAuth
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 
+from .. import utils
 
-def run(scenarios_list: List[str], kubeconfig_path: str, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+
+def run(scenarios_list: List[str],
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str
+        ) -> (list[str], list[ScenarioTelemetry]):
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_post_scenarios = []
     for scenario in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = scenario
-        scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry,scenario)
+        start_time = time.time()
+        scenario_telemetry.start_timestamp = start_time
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, scenario)
         engine_args = build_args(scenario)
-        status_code = run_workflow(engine_args, kubeconfig_path)
-        scenario_telemetry.end_timestamp = time.time()
+        status_code = run_workflow(engine_args, telemetry.kubecli.get_kubeconfig_path())
+        end_time = time.time()
+        scenario_telemetry.end_timestamp = end_time
         scenario_telemetry.exit_status = status_code
+
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(start_time),
+                                      int(end_time))
+
+        # this is the design proposal for the namespaced logs collection
+        # check the krkn-lib latest commit to follow also the changes made here
+        utils.collect_and_put_ocp_logs(telemetry,
+                                       parsed_scenario_config,
+                                       telemetry_request_id,
+                                       int(start_time),
+                                       int(end_time))
+
         scenario_telemetries.append(scenario_telemetry)
         if status_code != 0:
             failed_post_scenarios.append(scenario)
