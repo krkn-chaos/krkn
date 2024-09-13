@@ -14,7 +14,7 @@ class AWS:
     # Get the instance ID of the node
     def get_instance_id(self, node):
         instance = self.boto_client.describe_instances(Filters=[{"Name": "private-dns-name", "Values": [node]}])
-        if instance:
+        if len(instance['Reservations']) == 0:
             node = node[3:].replace('-','.')
             instance = self.boto_client.describe_instances(Filters=[{"Name": "private-ip-address", "Values": [node]}])
         return instance[
