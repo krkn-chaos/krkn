@@ -1,18 +1,24 @@
 import yaml
 import logging
 import time
+
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
 import kraken.cerberus.setup as cerberus
 from jinja2 import Template
-import kraken.invoke.command as runcommand
-from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
+
+from kraken import utils
 
 
 # Reads the scenario config, applies and deletes a network policy to
 # block the traffic for the specified duration
-def run(scenarios_list, config, wait_duration,kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list,
+        config,
+        wait_duration,
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = ""
     scenario_telemetries: list[ScenarioTelemetry] = []
     failed_scenarios = []
@@ -20,7 +26,7 @@ def run(scenarios_list, config, wait_duration,kubecli: KrknKubernetes, telemetry
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = app_outage_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, app_outage_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, app_outage_config)
         if len(app_outage_config) > 1:
             try:
                 with open(app_outage_config, "r") as f:
@@ -57,7 +63,7 @@ spec:
                     # Block the traffic by creating network policy
                     logging.info("Creating the network policy")
 
-                    kubecli.create_net_policy(yaml_spec, namespace)
+                    telemetry.kubecli.create_net_policy(yaml_spec, namespace)
                    
                     # wait for the specified duration
                     logging.info("Waiting for the specified duration in the config: %s" % (duration))
@@ -65,7 +71,7 @@ spec:
 
                     # unblock the traffic by deleting the network policy
                     logging.info("Deleting the network policy")
-                    kubecli.delete_net_policy("kraken-deny", namespace)
+                    telemetry.kubecli.delete_net_policy("kraken-deny", namespace)
 
                     logging.info("End of scenario. Waiting for the specified duration: %s" % (wait_duration))
                     time.sleep(wait_duration)
@@ -79,6 +85,16 @@ spec:
             else:
                 scenario_telemetry.exit_status = 0
             scenario_telemetry.end_timestamp = time.time()
+            utils.collect_and_put_ocp_logs(telemetry,
+                                           parsed_scenario_config,
+                                           telemetry_request_id,
+                                           int(scenario_telemetry.start_timestamp),
+                                           int(scenario_telemetry.end_timestamp))
+            utils.populate_cluster_events(scenario_telemetry,
+                                          parsed_scenario_config,
+                                          telemetry.kubecli,
+                                          int(scenario_telemetry.start_timestamp),
+                                          int(scenario_telemetry.end_timestamp))
             scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 

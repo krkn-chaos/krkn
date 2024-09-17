@@ -65,6 +65,26 @@ class abstract_node_scenarios:
         self.node_reboot_scenario(instance_kill_count, node, timeout)
         logging.info("stop_start_kubelet_scenario has been successfully injected!")
 
+
+    # Node scenario to restart the kubelet
+    def restart_kubelet_scenario(self, instance_kill_count, node, timeout):
+        for _ in range(instance_kill_count):
+            try:
+                logging.info("Starting restart_kubelet_scenario injection")
+                logging.info("Restarting the kubelet of the node %s" % (node))
+                runcommand.run("oc debug node/" + node + " -- chroot /host systemctl restart kubelet &")
+                nodeaction.wait_for_not_ready_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
+                logging.info("The kubelet of the node %s has been restarted" % (node))
+                logging.info("restart_kubelet_scenario has been successfuly injected!")
+            except Exception as e:
+                logging.error(
+                    "Failed to restart the kubelet of the node. Encountered following " "exception: %s. Test Failed" % (e)
+                )
+                logging.error("restart_kubelet_scenario injection failed!")
+                sys.exit(1)
+
+
     # Node scenario to crash the node
     def node_crash_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):

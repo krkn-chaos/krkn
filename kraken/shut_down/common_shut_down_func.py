@@ -3,6 +3,10 @@ import yaml
 import logging
 import time
 from multiprocessing.pool import ThreadPool
+
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
+from .. import utils
 from ..cerberus import setup as cerberus
 from ..post_actions import actions as post_actions
 from ..node_actions.aws_node_scenarios import AWS
@@ -10,7 +14,6 @@ from ..node_actions.openstack_node_scenarios import OPENSTACKCLOUD
 from ..node_actions.az_node_scenarios import Azure
 from ..node_actions.gcp_node_scenarios import GCP
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import log_exception
 
@@ -134,7 +137,11 @@ def cluster_shut_down(shut_down_config, kubecli: KrknKubernetes):
 
 # krkn_lib
 
-def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+def run(scenarios_list,
+        config,
+        wait_duration,
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str) -> (list[str], list[ScenarioTelemetry]):
     failed_post_scenarios = []
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []
@@ -153,7 +160,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = config_path
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, config_path)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, config_path)
 
         with open(config_path, "r") as f:
             shut_down_config_yaml = yaml.full_load(f)
@@ -161,7 +168,7 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                 shut_down_config_yaml["cluster_shut_down_scenario"]
             start_time = int(time.time())
             try:
-                cluster_shut_down(shut_down_config_scenario, kubecli)
+                cluster_shut_down(shut_down_config_scenario, telemetry.kubecli)
                 logging.info(
                     "Waiting for the specified duration: %s" % (wait_duration)
                 )
@@ -185,6 +192,16 @@ def run(scenarios_list, config, wait_duration, kubecli: KrknKubernetes, telemetr
                 scenario_telemetry.exit_status = 0
 
             scenario_telemetry.end_timestamp = time.time()
+            utils.collect_and_put_ocp_logs(telemetry,
+                                           parsed_scenario_config,
+                                           telemetry_request_id,
+                                           int(scenario_telemetry.start_timestamp),
+                                           int(scenario_telemetry.end_timestamp))
+            utils.populate_cluster_events(scenario_telemetry,
+                                          parsed_scenario_config,
+                                          telemetry.kubecli,
+                                          int(scenario_telemetry.start_timestamp),
+                                          int(scenario_telemetry.end_timestamp))
             scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

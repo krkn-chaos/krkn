@@ -7,14 +7,16 @@ import sys
 import random
 import arcaflow_plugin_kill_pod
 from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 import kraken.cerberus.setup as cerberus
 import kraken.post_actions.actions as post_actions
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from arcaflow_plugin_sdk import serialization
 from krkn_lib.utils.functions import get_yaml_item_value, log_exception
+
+from kraken import utils
 
 
 # Run pod based scenarios
@@ -73,25 +75,26 @@ def run(kubeconfig_path, scenarios_list, config, failed_post_scenarios, wait_dur
 
 
 # krkn_lib
-def container_run(kubeconfig_path,
+def container_run(
                   scenarios_list,
                   config,
                   failed_post_scenarios,
                   wait_duration,
-                  kubecli: KrknKubernetes,
-                  telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]):
+                  telemetry: KrknTelemetryOpenshift,
+                  telemetry_request_id: str
+                  ) -> (list[str], list[ScenarioTelemetry]):
 
     failed_scenarios = []
     scenario_telemetries: list[ScenarioTelemetry] = []
-    pool = PodsMonitorPool(kubecli)
+    pool = PodsMonitorPool(telemetry.kubecli)
 
     for container_scenario_config in scenarios_list:
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = container_scenario_config[0]
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, container_scenario_config[0])
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, container_scenario_config[0])
         if len(container_scenario_config) > 1:
-            pre_action_output = post_actions.run(kubeconfig_path, container_scenario_config[1])
+            pre_action_output = post_actions.run(telemetry.kubecli.get_kubeconfig_path(), container_scenario_config[1])
         else:
             pre_action_output = ""
         with open(container_scenario_config[0], "r") as f:
@@ -101,7 +104,7 @@ def container_run(kubeconfig_path,
                 # capture start time
                 start_time = int(time.time())
                 try:
-                    killed_containers = container_killing_in_pod(cont_scenario, kubecli)
+                    killed_containers = container_killing_in_pod(cont_scenario, telemetry.kubecli)
                     logging.info(f"killed containers: {str(killed_containers)}")
                     result = pool.join()
                     if result.error:
@@ -125,6 +128,16 @@ def container_run(kubeconfig_path,
                 else:
                     scenario_telemetry.exit_status = 0
                 scenario_telemetry.end_timestamp = time.time()
+                utils.populate_cluster_events(scenario_telemetry,
+                                              parsed_scenario_config,
+                                              telemetry.kubecli,
+                                              int(scenario_telemetry.start_timestamp),
+                                              int(scenario_telemetry.end_timestamp))
+                utils.collect_and_put_ocp_logs(telemetry,
+                                               parsed_scenario_config,
+                                               telemetry_request_id,
+                                               int(scenario_telemetry.start_timestamp),
+                                               int(scenario_telemetry.end_timestamp))
                 scenario_telemetries.append(scenario_telemetry)
 
     return failed_scenarios, scenario_telemetries

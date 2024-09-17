@@ -1,13 +1,20 @@
 import yaml
 import logging
 import time
+
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
+from .. import utils
 from ..node_actions.aws_node_scenarios import AWS
 from ..cerberus import setup as cerberus
-from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils.functions import log_exception
 
-def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetryKubernetes) -> (list[str], list[ScenarioTelemetry]) :
+def run(scenarios_list,
+        config,
+        wait_duration,
+        telemetry: KrknTelemetryOpenshift,
+        telemetry_request_id: str) -> (list[str], list[ScenarioTelemetry]) :
     """
     filters the subnet of interest and applies the network acl
     to create zone outage
@@ -20,7 +27,7 @@ def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetryKubernete
         scenario_telemetry = ScenarioTelemetry()
         scenario_telemetry.scenario = zone_outage_config
         scenario_telemetry.start_timestamp = time.time()
-        telemetry.set_parameters_base64(scenario_telemetry, zone_outage_config)
+        parsed_scenario_config = telemetry.set_parameters_base64(scenario_telemetry, zone_outage_config)
         try:
             if len(zone_outage_config) > 1:
                 with open(zone_outage_config, "r") as f:
@@ -116,6 +123,16 @@ def run(scenarios_list, config, wait_duration, telemetry: KrknTelemetryKubernete
         else:
             scenario_telemetry.exit_status = 0
         scenario_telemetry.end_timestamp = time.time()
+        utils.collect_and_put_ocp_logs(telemetry,
+                                       parsed_scenario_config,
+                                       telemetry_request_id,
+                                       int(scenario_telemetry.start_timestamp),
+                                       int(scenario_telemetry.end_timestamp))
+        utils.populate_cluster_events(scenario_telemetry,
+                                      parsed_scenario_config,
+                                      telemetry.kubecli,
+                                      int(scenario_telemetry.start_timestamp),
+                                      int(scenario_telemetry.end_timestamp))
         scenario_telemetries.append(scenario_telemetry)
     return failed_scenarios, scenario_telemetries
 
