@@ -1,13 +1,14 @@
 # oc build
-FROM golang:1.22.4 AS oc-build
+FROM golang:1.22.5 AS oc-build
 RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
 WORKDIR /tmp
 RUN git clone --branch release-4.18 https://github.com/openshift/oc.git
 WORKDIR /tmp/oc
-RUN go mod edit -go 1.22.3 &&\
+RUN go mod edit -go 1.22.5 &&\
     go get github.com/moby/buildkit@v0.12.5 &&\
     go get github.com/containerd/containerd@v1.7.11&&\
-    go get github.com/docker/docker@v25.0.5&&\
+    go get github.com/docker/docker@v25.0.6&&\
+    go get github.com/opencontainers/runc@v1.1.14&&\
     go mod tidy && go mod vendor
 RUN make GO_REQUIRED_MIN_VERSION:= oc
 
