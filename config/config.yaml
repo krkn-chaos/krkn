@@ -1,6 +1,6 @@
 kraken:
-    distribution: kubernetes                                # Distribution can be kubernetes or openshift
-    kubeconfig_path: ~/.kube/config                        # Path to kubeconfig
+    distribution: openshift                                # Distribution can be kubernetes or openshift
+    kubeconfig_path: /home/tsebasti/Scrap/ocp/auth/kubeconfig                     # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
     publish_kraken_status: True                            # Can be accessed at http://0.0.0.0:8081
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
@@ -12,10 +12,11 @@ kraken:
             - scenarios/arcaflow/cpu-hog/input.yaml
             - scenarios/arcaflow/memory-hog/input.yaml
             - scenarios/arcaflow/io-hog/input.yaml
+            - scenarios/arcaflow/io-hog/input.yaml
         - application_outages:
             - scenarios/openshift/app_outage.yaml
         - container_scenarios:                             # List of chaos pod scenarios to load
-            - - scenarios/openshift/container_etcd.yml
+            - scenarios/openshift/container_etcd.yml
         - plugin_scenarios:
             - scenarios/openshift/etcd.yml
             - scenarios/openshift/regex_openshift_pod_kill.yml
@@ -30,12 +31,10 @@ kraken:
         - time_scenarios:                                  # List of chaos time scenarios to load
             - scenarios/openshift/time_scenarios_example.yml
         - cluster_shut_down_scenarios:
-            - - scenarios/openshift/cluster_shut_down_scenario.yml
-              - scenarios/openshift/post_action_shut_down.py
+            - scenarios/openshift/cluster_shut_down_scenario.yml
         - service_disruption_scenarios:
-             - - scenarios/openshift/regex_namespace.yaml
-             - - scenarios/openshift/ingress_namespace.yaml
-               - scenarios/openshift/post_action_namespace.py
+             - scenarios/openshift/regex_namespace.yaml
+             - scenarios/openshift/ingress_namespace.yaml
         - zone_outages:
             - scenarios/openshift/zone_outage.yaml
         - pvc_scenarios:
