@@ -1,13 +1,13 @@
 def get_entries_by_category(filename, category):
     # Read the file
-    with open(filename, 'r') as file:
+    with open(filename, "r") as file:
         content = file.read()
 
     # Split the content into sections based on the square brackets
-    sections = content.split('\n\n')
+    sections = content.split("\n\n")
 
     # Define the categories
-    valid_categories = ['CPU', 'NETWORK', 'MEM', 'GENERIC']
+    valid_categories = ["CPU", "NETWORK", "MEM", "GENERIC"]
 
     # Validate the provided category
     if category not in valid_categories:
@@ -25,6 +25,10 @@ def get_entries_by_category(filename, category):
         return []
 
     # Extract the entries from the category section
-    entries = [entry.strip() for entry in target_section.split('\n') if entry and not entry.startswith('[')]
+    entries = [
+        entry.strip()
+        for entry in target_section.split("\n")
+        if entry and not entry.startswith("[")
+    ]
 
     return entries

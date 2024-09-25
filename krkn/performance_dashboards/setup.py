@@ -14,7 +14,9 @@ def setup(repo, distribution):
         logging.error("Provided distribution: %s is not supported" % (distribution))
         sys.exit(1)
     delete_repo = "rm -rf performance-dashboards || exit 0"
-    logging.info("Cloning, installing mutable grafana on the cluster and loading the dashboards")
+    logging.info(
+        "Cloning, installing mutable grafana on the cluster and loading the dashboards"
+    )
     try:
         # delete repo to clone the latest copy if exists
         subprocess.run(delete_repo, shell=True, universal_newlines=True, timeout=45)
