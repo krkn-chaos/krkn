@@ -1,4 +1,3 @@
-import yaml
 import os
 import base64
 
@@ -20,22 +19,24 @@ class ContextAuth:
     @property
     def clusterCertificateDataBase64(self):
         if self.clusterCertificateData is not None:
-            return base64.b64encode(bytes(self.clusterCertificateData,'utf8')).decode("ascii")
+            return base64.b64encode(bytes(self.clusterCertificateData, "utf8")).decode(
+                "ascii"
+            )
         return
 
     @property
     def clientCertificateDataBase64(self):
         if self.clientCertificateData is not None:
-            return base64.b64encode(bytes(self.clientCertificateData,'utf8')).decode("ascii")
+            return base64.b64encode(bytes(self.clientCertificateData, "utf8")).decode(
+                "ascii"
+            )
         return
 
     @property
     def clientKeyDataBase64(self):
         if self.clientKeyData is not None:
-            return base64.b64encode(bytes(self.clientKeyData,"utf-8")).decode("ascii")
+            return base64.b64encode(bytes(self.clientKeyData, "utf-8")).decode("ascii")
         return
-
-
 
     def fetch_auth_data(self, kubeconfig: any):
         context_username = None
@@ -56,8 +57,10 @@ class ContextAuth:
         for index, user in enumerate(kubeconfig["users"]):
             if user["name"] == context_username:
                 user_id = index
-        if user_id is None :
-            raise Exception("user {0} not found in kubeconfig users".format(context_username))
+        if user_id is None:
+            raise Exception(
+                "user {0} not found in kubeconfig users".format(context_username)
+            )
 
         for index, cluster in enumerate(kubeconfig["clusters"]):
             if cluster["name"] == self.clusterName:
@@ -83,7 +86,9 @@ class ContextAuth:
 
         if "client-key-data" in user:
             try:
-                self.clientKeyData = base64.b64decode(user["client-key-data"]).decode('utf-8')
+                self.clientKeyData = base64.b64decode(user["client-key-data"]).decode(
+                    "utf-8"
+                )
             except Exception as e:
                 raise Exception("impossible to decode client-key-data")
 
@@ -96,7 +101,9 @@ class ContextAuth:
 
         if "client-certificate-data" in user:
             try:
-                self.clientCertificateData = base64.b64decode(user["client-certificate-data"]).decode('utf-8')
+                self.clientCertificateData = base64.b64decode(
+                    user["client-certificate-data"]
+                ).decode("utf-8")
             except Exception as e:
                 raise Exception("impossible to decode client-certificate-data")
 
@@ -105,13 +112,17 @@ class ContextAuth:
         if "certificate-authority" in cluster:
             try:
                 self.clusterCertificate = cluster["certificate-authority"]
-                self.clusterCertificateData = self.read_file(cluster["certificate-authority"])
+                self.clusterCertificateData = self.read_file(
+                    cluster["certificate-authority"]
+                )
             except Exception as e:
                 raise e
 
         if "certificate-authority-data" in cluster:
             try:
-                self.clusterCertificateData = base64.b64decode(cluster["certificate-authority-data"]).decode('utf-8')
+                self.clusterCertificateData = base64.b64decode(
+                    cluster["certificate-authority-data"]
+                ).decode("utf-8")
             except Exception as e:
                 raise Exception("impossible to decode certificate-authority-data")
 
@@ -124,19 +135,8 @@ class ContextAuth:
         if "token" in user:
             self.bearerToken = user["token"]
 
-    def read_file(self, filename:str) -> str:
+    def read_file(self, filename: str) -> str:
         if not os.path.exists(filename):
             raise Exception("file not found {0} ".format(filename))
         with open(filename, "rb") as file_stream:
-            return file_stream.read().decode('utf-8')
-
-
-
-
-
-
-
-
-
-
-
+            return file_stream.read().decode("utf-8")

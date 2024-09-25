@@ -1,7 +1,9 @@
 import os
 import unittest
 
-from context_auth import ContextAuth
+import yaml
+
+from .context_auth import ContextAuth
 
 
 class TestCurrentContext(unittest.TestCase):
@@ -9,7 +11,7 @@ class TestCurrentContext(unittest.TestCase):
     def get_kubeconfig_with_data(self) -> str:
         """
         This function returns a test kubeconfig file as a string.
-    
+
         :return: a test kubeconfig file in string format (for unit testing purposes)
         """  # NOQA
         return """apiVersion: v1
@@ -71,7 +73,8 @@ users:
     def test_current_context(self):
         cwd = os.getcwd()
         current_context_data = ContextAuth()
-        current_context_data.fetch_auth_data(self.get_kubeconfig_with_data())
+        data = yaml.safe_load(self.get_kubeconfig_with_data())
+        current_context_data.fetch_auth_data(data)
         self.assertIsNotNone(current_context_data.clusterCertificateData)
         self.assertIsNotNone(current_context_data.clientCertificateData)
         self.assertIsNotNone(current_context_data.clientKeyData)
@@ -81,7 +84,8 @@ users:
         self.assertIsNotNone(current_context_data.clusterHost)
 
         current_context_no_data = ContextAuth()
-        current_context_no_data.fetch_auth_data(self.get_kubeconfig_with_paths())
+        data = yaml.safe_load(self.get_kubeconfig_with_paths())
+        current_context_no_data.fetch_auth_data(data)
         self.assertIsNotNone(current_context_no_data.clusterCertificate)
         self.assertIsNotNone(current_context_no_data.clusterCertificateData)
         self.assertIsNotNone(current_context_no_data.clientCertificate)
@@ -92,9 +96,3 @@ users:
         self.assertIsNotNone(current_context_no_data.password)
         self.assertIsNotNone(current_context_no_data.bearerToken)
         self.assertIsNotNone(current_context_data.clusterHost)
-
-
-
-
-
-
