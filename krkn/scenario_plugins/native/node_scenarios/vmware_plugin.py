@@ -9,14 +9,18 @@ from os import environ
 from traceback import format_exc
 import requests
 from arcaflow_plugin_sdk import plugin, validation
-from com.vmware.vapi.std.errors_client import (AlreadyInDesiredState,
-                                               NotAllowedInCurrentState)
+from com.vmware.vapi.std.errors_client import (
+    AlreadyInDesiredState,
+    NotAllowedInCurrentState,
+)
 from com.vmware.vcenter.vm_client import Power
 from com.vmware.vcenter_client import VM, ResourcePool
 from kubernetes import client, watch
 from vmware.vapi.vsphere.client import create_vsphere_client
 
-from kraken.plugins.node_scenarios import kubernetes_functions as kube_helper
+from krkn.scenario_plugins.native.node_scenarios import (
+    kubernetes_functions as kube_helper,
+)
 
 
 class vSphere:
@@ -104,9 +108,7 @@ class vSphere:
             return True
         except NotAllowedInCurrentState:
             logging.info(
-                "VM '{}'-'({})' is not Powered On. Cannot reset it",
-                instance_id,
-                vm
+                "VM '{}'-'({})' is not Powered On. Cannot reset it", instance_id, vm
             )
             return False
 
@@ -122,9 +124,7 @@ class vSphere:
             logging.info(f"Stopped VM -- '{instance_id}-({vm})'")
             return True
         except AlreadyInDesiredState:
-            logging.info(
-                f"VM '{instance_id}'-'({vm})' is already Powered Off"
-            )
+            logging.info(f"VM '{instance_id}'-'({vm})' is already Powered Off")
             return False
 
     def start_instances(self, instance_id):
@@ -139,9 +139,7 @@ class vSphere:
             logging.info(f"Started VM -- '{instance_id}-({vm})'")
             return True
         except AlreadyInDesiredState:
-            logging.info(
-                f"VM '{instance_id}'-'({vm})' is already Powered On"
-            )
+            logging.info(f"VM '{instance_id}'-'({vm})' is already Powered On")
             return False
 
     def list_instances(self, datacenter):
@@ -152,18 +150,14 @@ class vSphere:
         datacenter_filter = self.client.vcenter.Datacenter.FilterSpec(
             names=set([datacenter])
         )
-        datacenter_summaries = self.client.vcenter.Datacenter.list(
-            datacenter_filter
-        )
+        datacenter_summaries = self.client.vcenter.Datacenter.list(datacenter_filter)
         try:
             datacenter_id = datacenter_summaries[0].datacenter
         except IndexError:
             logging.error("Datacenter '{}' doesn't exist", datacenter)
             sys.exit(1)
 
-        vm_filter = self.client.vcenter.VM.FilterSpec(
-            datacenters={datacenter_id}
-        )
+        vm_filter = self.client.vcenter.VM.FilterSpec(datacenters={datacenter_id})
         vm_summaries = self.client.vcenter.VM.list(vm_filter)
         vm_names = []
         for vm in vm_summaries:
@@ -177,10 +171,7 @@ class vSphere:
 
         datacenter_summaries = self.client.vcenter.Datacenter.list()
         datacenter_names = [
-            {
-                "datacenter_id": datacenter.datacenter,
-                "datacenter_name": datacenter.name
-            }
+            {"datacenter_id": datacenter.datacenter, "datacenter_name": datacenter.name}
             for datacenter in datacenter_summaries
         ]
         return datacenter_names
@@ -194,16 +185,11 @@ class vSphere:
         datastore_filter = self.client.vcenter.Datastore.FilterSpec(
             datacenters={datacenter}
         )
-        datastore_summaries = self.client.vcenter.Datastore.list(
-            datastore_filter
-        )
+        datastore_summaries = self.client.vcenter.Datastore.list(datastore_filter)
         datastore_names = []
         for datastore in datastore_summaries:
             datastore_names.append(
-                {
-                    "datastore_name": datastore.name,
-                    "datastore_id": datastore.datastore
-                }
+                {"datastore_name": datastore.name, "datastore_id": datastore.datastore}
             )
         return datastore_names
 
@@ -213,9 +199,7 @@ class vSphere:
                   IDs belonging to a specific datacenter
         """
 
-        folder_filter = self.client.vcenter.Folder.FilterSpec(
-            datacenters={datacenter}
-        )
+        folder_filter = self.client.vcenter.Folder.FilterSpec(datacenters={datacenter})
         folder_summaries = self.client.vcenter.Folder.list(folder_filter)
         folder_names = []
         for folder in folder_summaries:
@@ -234,17 +218,12 @@ class vSphere:
         filter_spec = ResourcePool.FilterSpec(
             datacenters=set([datacenter]), names=names
         )
-        resource_pool_summaries = self.client.vcenter.ResourcePool.list(
-            filter_spec
-        )
+        resource_pool_summaries = self.client.vcenter.ResourcePool.list(filter_spec)
         if len(resource_pool_summaries) > 0:
             resource_pool = resource_pool_summaries[0].resource_pool
             return resource_pool
         else:
-            logging.error(
-                "ResourcePool not found in Datacenter '{}'",
-                datacenter
-            )
+            logging.error("ResourcePool not found in Datacenter '{}'", datacenter)
             return None
 
     def create_default_vm(self, guest_os="RHEL_7_64", max_attempts=10):
@@ -277,9 +256,7 @@ class vSphere:
                 # random  generator not used for
                 # security/cryptographic purposes in this loop
                 datacenter = random.choice(datacenter_list)  # nosec
-                resource_pool = self.get_resource_pool(
-                    datacenter["datacenter_id"]
-                )
+                resource_pool = self.get_resource_pool(datacenter["datacenter_id"])
                 folder = random.choice(  # nosec
                     self.get_folder_list(datacenter["datacenter_id"])
                 )["folder_id"]
@@ -288,25 +265,18 @@ class vSphere:
                 )["datastore_id"]
                 vm_name = "Test-" + str(time.time_ns())
                 return (
-                    create_vm(
-                        vm_name,
-                        resource_pool,
-                        folder,
-                        datastore,
-                        guest_os
-                    ),
+                    create_vm(vm_name, resource_pool, folder, datastore, guest_os),
                     vm_name,
                 )
             except Exception as e:
                 logging.error(
-                    "Default VM could not be created, retrying. "
-                    "Error was: %s",
-                    str(e)
+                    "Default VM could not be created, retrying. " "Error was: %s",
+                    str(e),
                 )
         logging.error(
             "Default VM could not be created in %s attempts. "
             "Check your VMware resources",
-            max_attempts
+            max_attempts,
         )
         return None, None
 
@@ -338,15 +308,12 @@ class vSphere:
         while vm is not None:
             vm = self.get_vm(instance_id)
             logging.info(
-                f"VM {instance_id} is still being deleted, "
-                f"sleeping for 5 seconds"
+                f"VM {instance_id} is still being deleted, " f"sleeping for 5 seconds"
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info(
-                    f"VM {instance_id} is still not deleted in allotted time"
-                )
+                logging.info(f"VM {instance_id} is still not deleted in allotted time")
                 return False
         return True
 
@@ -361,16 +328,12 @@ class vSphere:
         while status != Power.State.POWERED_ON:
             status = self.get_vm_status(instance_id)
             logging.info(
-                "VM %s is still not running, "
-                "sleeping for 5 seconds",
-                instance_id
+                "VM %s is still not running, " "sleeping for 5 seconds", instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info(
-                    f"VM {instance_id} is still not ready in allotted time"
-                )
+                logging.info(f"VM {instance_id} is still not ready in allotted time")
                 return False
         return True
 
@@ -385,15 +348,12 @@ class vSphere:
         while status != Power.State.POWERED_OFF:
             status = self.get_vm_status(instance_id)
             logging.info(
-                f"VM {instance_id} is still not running, "
-                f"sleeping for 5 seconds"
+                f"VM {instance_id} is still not running, " f"sleeping for 5 seconds"
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info(
-                    f"VM {instance_id} is still not ready in allotted time"
-                )
+                logging.info(f"VM {instance_id} is still not ready in allotted time")
                 return False
         return True
 
@@ -410,16 +370,16 @@ class NodeScenarioSuccessOutput:
         metadata={
             "name": "Nodes started/stopped/terminated/rebooted",
             "description": "Map between timestamps and the pods "
-                           "started/stopped/terminated/rebooted. "
-                           "The timestamp is provided in nanoseconds",
+            "started/stopped/terminated/rebooted. "
+            "The timestamp is provided in nanoseconds",
         }
     )
     action: kube_helper.Actions = field(
         metadata={
             "name": "The action performed on the node",
             "description": "The action performed or attempted to be "
-                           "performed on the node. Possible values"
-                           "are : Start, Stop, Terminate, Reboot",
+            "performed on the node. Possible values"
+            "are : Start, Stop, Terminate, Reboot",
         }
     )
 
@@ -449,7 +409,7 @@ class NodeScenarioConfig:
         metadata={
             "name": "Name",
             "description": "Name(s) for target nodes. "
-                           "Required if label_selector is not set.",
+            "Required if label_selector is not set.",
         },
     )
 
@@ -458,20 +418,18 @@ class NodeScenarioConfig:
         metadata={
             "name": "Number of runs per node",
             "description": "Number of times to inject each scenario under "
-                           "actions (will perform on same node each time)",
+            "actions (will perform on same node each time)",
         },
     )
 
     label_selector: typing.Annotated[
-        typing.Optional[str],
-        validation.min(1),
-        validation.required_if_not("name")
+        typing.Optional[str], validation.min(1), validation.required_if_not("name")
     ] = field(
         default=None,
         metadata={
             "name": "Label selector",
             "description": "Kubernetes label selector for the target nodes. "
-                           "Required if name is not set.\n"
+            "Required if name is not set.\n"
             "See https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ "  # noqa
             "for details.",
         },
@@ -482,19 +440,16 @@ class NodeScenarioConfig:
         metadata={
             "name": "Timeout",
             "description": "Timeout to wait for the target pod(s) "
-                           "to be removed in seconds.",
+            "to be removed in seconds.",
         },
     )
 
-    instance_count: typing.Annotated[
-        typing.Optional[int],
-        validation.min(1)
-    ] = field(
+    instance_count: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
         default=1,
         metadata={
             "name": "Instance Count",
             "description": "Number of nodes to perform action/select "
-                           "that match the label selector.",
+            "that match the label selector.",
         },
     )
 
@@ -511,7 +466,7 @@ class NodeScenarioConfig:
         metadata={
             "name": "Verify API Session",
             "description": "Verifies the vSphere client session. "
-                           "It is enabled by default",
+            "It is enabled by default",
         },
     )
 
@@ -520,7 +475,7 @@ class NodeScenarioConfig:
         metadata={
             "name": "Kubeconfig path",
             "description": "Path to your Kubeconfig file. "
-                           "Defaults to ~/.kube/config.\n"
+            "Defaults to ~/.kube/config.\n"
             "See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ "  # noqa
             "for details.",
         },
@@ -531,11 +486,8 @@ class NodeScenarioConfig:
     id="vmware-node-start",
     name="Start the node",
     description="Start the node(s) by starting the VMware VM "
-                "on which the node is configured",
-    outputs={
-        "success": NodeScenarioSuccessOutput,
-        "error": NodeScenarioErrorOutput
-    },
+    "on which the node is configured",
+    outputs={"success": NodeScenarioSuccessOutput, "error": NodeScenarioErrorOutput},
 )
 def node_start(
     cfg: NodeScenarioConfig,
@@ -546,11 +498,7 @@ def node_start(
         vsphere = vSphere(verify=cfg.verify_session)
         core_v1 = client.CoreV1Api(cli)
         watch_resource = watch.Watch()
-        node_list = kube_helper.get_node_list(
-            cfg,
-            kube_helper.Actions.START,
-            core_v1
-        )
+        node_list = kube_helper.get_node_list(cfg, kube_helper.Actions.START, core_v1)
         nodes_started = {}
         for name in node_list:
             try:
@@ -565,17 +513,12 @@ def node_start(
                                 name, cfg.timeout, watch_resource, core_v1
                             )
                         nodes_started[int(time.time_ns())] = Node(name=name)
-                    logging.info(
-                        f"Node with instance ID: {name} is in running state"
-                    )
-                    logging.info(
-                        "node_start_scenario has been successfully injected!"
-                    )
+                    logging.info(f"Node with instance ID: {name} is in running state")
+                    logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error("Failed to start node instance. Test Failed")
                 logging.error(
-                    f"node_start_scenario injection failed! "
-                    f"Error was: {str(e)}"
+                    f"node_start_scenario injection failed! " f"Error was: {str(e)}"
                 )
                 return "error", NodeScenarioErrorOutput(
                     format_exc(), kube_helper.Actions.START
@@ -590,11 +533,8 @@ def node_start(
     id="vmware-node-stop",
     name="Stop the node",
     description="Stop the node(s) by starting the VMware VM "
-                "on which the node is configured",
-    outputs={
-        "success": NodeScenarioSuccessOutput,
-        "error": NodeScenarioErrorOutput
-    },
+    "on which the node is configured",
+    outputs={"success": NodeScenarioSuccessOutput, "error": NodeScenarioErrorOutput},
 )
 def node_stop(
     cfg: NodeScenarioConfig,
@@ -605,11 +545,7 @@ def node_stop(
         vsphere = vSphere(verify=cfg.verify_session)
         core_v1 = client.CoreV1Api(cli)
         watch_resource = watch.Watch()
-        node_list = kube_helper.get_node_list(
-            cfg,
-            kube_helper.Actions.STOP,
-            core_v1
-        )
+        node_list = kube_helper.get_node_list(cfg, kube_helper.Actions.STOP, core_v1)
         nodes_stopped = {}
         for name in node_list:
             try:
@@ -624,17 +560,12 @@ def node_stop(
                                 name, cfg.timeout, watch_resource, core_v1
                             )
                         nodes_stopped[int(time.time_ns())] = Node(name=name)
-                    logging.info(
-                        f"Node with instance ID: {name} is in stopped state"
-                    )
-                    logging.info(
-                        "node_stop_scenario has been successfully injected!"
-                    )
+                    logging.info(f"Node with instance ID: {name} is in stopped state")
+                    logging.info("node_stop_scenario has been successfully injected!")
             except Exception as e:
                 logging.error("Failed to stop node instance. Test Failed")
                 logging.error(
-                    f"node_stop_scenario injection failed! "
-                    f"Error was: {str(e)}"
+                    f"node_stop_scenario injection failed! " f"Error was: {str(e)}"
                 )
                 return "error", NodeScenarioErrorOutput(
                     format_exc(), kube_helper.Actions.STOP
@@ -649,11 +580,8 @@ def node_stop(
     id="vmware-node-reboot",
     name="Reboot VMware VM",
     description="Reboot the node(s) by starting the VMware VM "
-                "on which the node is configured",
-    outputs={
-        "success": NodeScenarioSuccessOutput,
-        "error": NodeScenarioErrorOutput
-    },
+    "on which the node is configured",
+    outputs={"success": NodeScenarioSuccessOutput, "error": NodeScenarioErrorOutput},
 )
 def node_reboot(
     cfg: NodeScenarioConfig,
@@ -664,11 +592,7 @@ def node_reboot(
         vsphere = vSphere(verify=cfg.verify_session)
         core_v1 = client.CoreV1Api(cli)
         watch_resource = watch.Watch()
-        node_list = kube_helper.get_node_list(
-            cfg,
-            kube_helper.Actions.REBOOT,
-            core_v1
-        )
+        node_list = kube_helper.get_node_list(cfg, kube_helper.Actions.REBOOT, core_v1)
         nodes_rebooted = {}
         for name in node_list:
             try:
@@ -685,17 +609,13 @@ def node_reboot(
                         )
                     nodes_rebooted[int(time.time_ns())] = Node(name=name)
                     logging.info(
-                        f"Node with instance ID: {name} has rebooted "
-                        "successfully"
+                        f"Node with instance ID: {name} has rebooted " "successfully"
                     )
-                    logging.info(
-                        "node_reboot_scenario has been successfully injected!"
-                    )
+                    logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error("Failed to reboot node instance. Test Failed")
                 logging.error(
-                    f"node_reboot_scenario injection failed! "
-                    f"Error was: {str(e)}"
+                    f"node_reboot_scenario injection failed! " f"Error was: {str(e)}"
                 )
                 return "error", NodeScenarioErrorOutput(
                     format_exc(), kube_helper.Actions.REBOOT
@@ -733,24 +653,18 @@ def node_terminate(
                     )
                     vsphere.stop_instances(name)
                     vsphere.wait_until_stopped(name, cfg.timeout)
-                    logging.info(
-                        f"Releasing the node with instance ID: {name} "
-                    )
+                    logging.info(f"Releasing the node with instance ID: {name} ")
                     vsphere.release_instances(name)
                     vsphere.wait_until_released(name, cfg.timeout)
                     nodes_terminated[int(time.time_ns())] = Node(name=name)
+                    logging.info(f"Node with instance ID: {name} has been released")
                     logging.info(
-                        f"Node with instance ID: {name} has been released"
-                    )
-                    logging.info(
-                        "node_terminate_scenario has been "
-                        "successfully injected!"
+                        "node_terminate_scenario has been " "successfully injected!"
                     )
             except Exception as e:
                 logging.error("Failed to terminate node instance. Test Failed")
                 logging.error(
-                    f"node_terminate_scenario injection failed! "
-                    f"Error was: {str(e)}"
+                    f"node_terminate_scenario injection failed! " f"Error was: {str(e)}"
                 )
                 return "error", NodeScenarioErrorOutput(
                     format_exc(), kube_helper.Actions.TERMINATE

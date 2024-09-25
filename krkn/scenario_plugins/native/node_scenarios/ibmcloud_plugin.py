@@ -1,19 +1,17 @@
 #!/usr/bin/env python
-import sys
 import time
 import typing
 from os import environ
 from dataclasses import dataclass, field
-import random
 from traceback import format_exc
 import logging
-from kraken.plugins.node_scenarios import kubernetes_functions as kube_helper
+from krkn.scenario_plugins.native.node_scenarios import (
+    kubernetes_functions as kube_helper,
+)
 from arcaflow_plugin_sdk import validation, plugin
 from kubernetes import client, watch
 from ibm_vpc import VpcV1
 from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
-from ibm_cloud_sdk_core import ApiException
-import requests
 import sys
 
 
@@ -26,19 +24,15 @@ class IbmCloud:
         apiKey = environ.get("IBMC_APIKEY")
         service_url = environ.get("IBMC_URL")
         if not apiKey:
-            raise Exception(
-                "Environmental variable 'IBMC_APIKEY' is not set"
-            )
+            raise Exception("Environmental variable 'IBMC_APIKEY' is not set")
         if not service_url:
-            raise Exception(
-                "Environmental variable 'IBMC_URL' is not set"
-            )
-        try: 
+            raise Exception("Environmental variable 'IBMC_URL' is not set")
+        try:
             authenticator = IAMAuthenticator(apiKey)
             self.service = VpcV1(authenticator=authenticator)
 
             self.service.set_service_url(service_url)
-        except Exception as e: 
+        except Exception as e:
             logging.error("error authenticating" + str(e))
             sys.exit(1)
 
@@ -46,15 +40,11 @@ class IbmCloud:
         """
         Deletes the Instance whose name is given by 'instance_id'
         """
-        try: 
+        try:
             self.service.delete_instance(instance_id)
             logging.info("Deleted Instance -- '{}'".format(instance_id))
         except Exception as e:
-            logging.info(
-                "Instance '{}' could not be deleted. ".format(
-                    instance_id
-                )
-            )
+            logging.info("Instance '{}' could not be deleted. ".format(instance_id))
             return False
 
     def reboot_instances(self, instance_id):
@@ -65,17 +55,13 @@ class IbmCloud:
 
         try:
             self.service.create_instance_action(
-                    instance_id,
-                    type='reboot',
-                )
+                instance_id,
+                type="reboot",
+            )
             logging.info("Reset Instance -- '{}'".format(instance_id))
             return True
         except Exception as e:
-            logging.info(
-                "Instance '{}' could not be rebooted".format(
-                    instance_id
-                )
-            )
+            logging.info("Instance '{}' could not be rebooted".format(instance_id))
             return False
 
     def stop_instances(self, instance_id):
@@ -86,15 +72,13 @@ class IbmCloud:
 
         try:
             self.service.create_instance_action(
-                    instance_id,
-                    type='stop',
-                )
+                instance_id,
+                type="stop",
+            )
             logging.info("Stopped Instance -- '{}'".format(instance_id))
             return True
         except Exception as e:
-            logging.info(
-                "Instance '{}' could not be stopped".format(instance_id)
-            )
+            logging.info("Instance '{}' could not be stopped".format(instance_id))
             logging.info("error" + str(e))
             return False
 
@@ -106,9 +90,9 @@ class IbmCloud:
 
         try:
             self.service.create_instance_action(
-                    instance_id,
-                    type='start',
-                )
+                instance_id,
+                type="start",
+            )
             logging.info("Started Instance -- '{}'".format(instance_id))
             return True
         except Exception as e:
@@ -120,27 +104,29 @@ class IbmCloud:
         Returns a list of Instances present in the datacenter
         """
         instance_names = []
-        try: 
+        try:
             instances_result = self.service.list_instances().get_result()
-            instances_list = instances_result['instances']
+            instances_list = instances_result["instances"]
             for vpc in instances_list:
-                instance_names.append({"vpc_name": vpc['name'], "vpc_id": vpc['id']})
-            starting_count = instances_result['total_count']
-            while instances_result['total_count'] == instances_result['limit']: 
-                instances_result = self.service.list_instances(start=starting_count).get_result()
-                instances_list = instances_result['instances']
-                starting_count += instances_result['total_count']
+                instance_names.append({"vpc_name": vpc["name"], "vpc_id": vpc["id"]})
+            starting_count = instances_result["total_count"]
+            while instances_result["total_count"] == instances_result["limit"]:
+                instances_result = self.service.list_instances(
+                    start=starting_count
+                ).get_result()
+                instances_list = instances_result["instances"]
+                starting_count += instances_result["total_count"]
                 for vpc in instances_list:
                     instance_names.append({"vpc_name": vpc.name, "vpc_id": vpc.id})
-        except Exception as e: 
+        except Exception as e:
             logging.error("Error listing out instances: " + str(e))
             sys.exit(1)
         return instance_names
-    
-    def find_id_in_list(self, name, vpc_list): 
+
+    def find_id_in_list(self, name, vpc_list):
         for vpc in vpc_list:
-            if vpc['vpc_name'] == name: 
-                return vpc['vpc_id']
+            if vpc["vpc_name"] == name:
+                return vpc["vpc_id"]
 
     def get_instance_status(self, instance_id):
         """
@@ -149,7 +135,7 @@ class IbmCloud:
 
         try:
             instance = self.service.get_instance(instance_id).get_result()
-            state = instance['status']
+            state = instance["status"]
             return state
         except Exception as e:
             logging.error(
@@ -169,7 +155,8 @@ class IbmCloud:
         while vpc is not None:
             vpc = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still being deleted, sleeping for 5 seconds" % instance_id
+                "Instance %s is still being deleted, sleeping for 5 seconds"
+                % instance_id
             )
             time.sleep(5)
             time_counter += 5
@@ -196,7 +183,9 @@ class IbmCloud:
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info("Instance %s is still not ready in allotted time" % instance_id)
+                logging.info(
+                    "Instance %s is still not ready in allotted time" % instance_id
+                )
                 return False
         return True
 
@@ -216,7 +205,9 @@ class IbmCloud:
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info("Instance %s is still not stopped in allotted time" % instance_id)
+                logging.info(
+                    "Instance %s is still not stopped in allotted time" % instance_id
+                )
                 return False
         return True
 
@@ -236,7 +227,9 @@ class IbmCloud:
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info("Instance %s is still restarting after allotted time" % instance_id)
+                logging.info(
+                    "Instance %s is still restarting after allotted time" % instance_id
+                )
                 return False
         self.wait_until_running(instance_id, timeout)
         return True
@@ -303,9 +296,7 @@ class NodeScenarioConfig:
     )
 
     label_selector: typing.Annotated[
-        typing.Optional[str], 
-        validation.min(1),
-        validation.required_if_not("name")
+        typing.Optional[str], validation.min(1), validation.required_if_not("name")
     ] = field(
         default=None,
         metadata={
@@ -374,7 +365,7 @@ def node_start(
                     logging.info("Starting node_start_scenario injection")
                     logging.info("Starting the node %s " % (name))
                     instance_id = ibmcloud.find_id_in_list(name, node_name_id_list)
-                    if instance_id: 
+                    if instance_id:
                         vm_started = ibmcloud.start_instances(instance_id)
                         if vm_started:
                             ibmcloud.wait_until_running(instance_id, cfg.timeout)
@@ -383,12 +374,19 @@ def node_start(
                                     name, cfg.timeout, watch_resource, core_v1
                                 )
                             nodes_started[int(time.time_ns())] = Node(name=name)
-                        logging.info("Node with instance ID: %s is in running state" % name)
-                        logging.info("node_start_scenario has been successfully injected!")
-                    else: 
-                        logging.error("Failed to find node that matched instances on ibm cloud in region")
+                        logging.info(
+                            "Node with instance ID: %s is in running state" % name
+                        )
+                        logging.info(
+                            "node_start_scenario has been successfully injected!"
+                        )
+                    else:
+                        logging.error(
+                            "Failed to find node that matched instances on ibm cloud in region"
+                        )
                         return "error", NodeScenarioErrorOutput(
-                            "No matching vpc with node name " + name, kube_helper.Actions.START
+                            "No matching vpc with node name " + name,
+                            kube_helper.Actions.START,
                         )
             except Exception as e:
                 logging.error("Failed to start node instance. Test Failed")
@@ -417,11 +415,11 @@ def node_stop(
         ibmcloud = IbmCloud()
         core_v1 = client.CoreV1Api(cli)
         watch_resource = watch.Watch()
-        logging.info('set up done')
+        logging.info("set up done")
         node_list = kube_helper.get_node_list(cfg, kube_helper.Actions.STOP, core_v1)
         logging.info("set node list" + str(node_list))
         node_name_id_list = ibmcloud.list_instances()
-        logging.info('node names' + str(node_name_id_list))
+        logging.info("node names" + str(node_name_id_list))
         nodes_stopped = {}
         for name in node_list:
             try:
@@ -438,12 +436,19 @@ def node_stop(
                                     name, cfg.timeout, watch_resource, core_v1
                                 )
                             nodes_stopped[int(time.time_ns())] = Node(name=name)
-                        logging.info("Node with instance ID: %s is in stopped state" % name)
-                        logging.info("node_stop_scenario has been successfully injected!")
-                    else: 
-                        logging.error("Failed to find node that matched instances on ibm cloud in region")
+                        logging.info(
+                            "Node with instance ID: %s is in stopped state" % name
+                        )
+                        logging.info(
+                            "node_stop_scenario has been successfully injected!"
+                        )
+                    else:
+                        logging.error(
+                            "Failed to find node that matched instances on ibm cloud in region"
+                        )
                         return "error", NodeScenarioErrorOutput(
-                            "No matching vpc with node name " + name, kube_helper.Actions.STOP
+                            "No matching vpc with node name " + name,
+                            kube_helper.Actions.STOP,
                         )
             except Exception as e:
                 logging.error("Failed to stop node instance. Test Failed")
@@ -495,11 +500,16 @@ def node_reboot(
                         logging.info(
                             "Node with instance ID: %s has rebooted successfully" % name
                         )
-                        logging.info("node_reboot_scenario has been successfully injected!")
-                    else: 
-                        logging.error("Failed to find node that matched instances on ibm cloud in region")
+                        logging.info(
+                            "node_reboot_scenario has been successfully injected!"
+                        )
+                    else:
+                        logging.error(
+                            "Failed to find node that matched instances on ibm cloud in region"
+                        )
                         return "error", NodeScenarioErrorOutput(
-                            "No matching vpc with node name " + name, kube_helper.Actions.REBOOT
+                            "No matching vpc with node name " + name,
+                            kube_helper.Actions.REBOOT,
                         )
             except Exception as e:
                 logging.error("Failed to reboot node instance. Test Failed")
@@ -540,16 +550,23 @@ def node_terminate(
                     )
                     instance_id = ibmcloud.find_id_in_list(name, node_name_id_list)
                     logging.info("Deleting the node with instance ID: %s " % (name))
-                    if instance_id: 
+                    if instance_id:
                         ibmcloud.delete_instance(instance_id)
                         ibmcloud.wait_until_released(name, cfg.timeout)
                         nodes_terminated[int(time.time_ns())] = Node(name=name)
-                        logging.info("Node with instance ID: %s has been released" % name)
-                        logging.info("node_terminate_scenario has been successfully injected!")
-                    else: 
-                        logging.error("Failed to find instances that matched the node specifications on ibm cloud in the set region")
+                        logging.info(
+                            "Node with instance ID: %s has been released" % name
+                        )
+                        logging.info(
+                            "node_terminate_scenario has been successfully injected!"
+                        )
+                    else:
+                        logging.error(
+                            "Failed to find instances that matched the node specifications on ibm cloud in the set region"
+                        )
                         return "error", NodeScenarioErrorOutput(
-                            "No matching vpc with node name " + name, kube_helper.Actions.TERMINATE
+                            "No matching vpc with node name " + name,
+                            kube_helper.Actions.TERMINATE,
                         )
             except Exception as e:
                 logging.error("Failed to terminate node instance. Test Failed")
