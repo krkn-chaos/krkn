@@ -3,28 +3,32 @@ import sys
 import time
 import logging
 import json
-import kraken.node_actions.common_node_functions as nodeaction
-from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
+import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
+from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
+    abstract_node_scenarios,
+)
 from googleapiclient import discovery
 from oauth2client.client import GoogleCredentials
-import kraken.invoke.command as runcommand
 from krkn_lib.k8s import KrknKubernetes
+
 
 class GCP:
     def __init__(self):
-        try: 
+        try:
             gapp_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
             with open(gapp_creds, "r") as f:
                 f_str = f.read()
-                self.project = json.loads(f_str)['project_id']
-            #self.project = runcommand.invoke("gcloud config get-value project").split("/n")[0].strip()
+                self.project = json.loads(f_str)["project_id"]
+            # self.project = runcommand.invoke("gcloud config get-value project").split("/n")[0].strip()
             logging.info("project " + str(self.project) + "!")
             credentials = GoogleCredentials.get_application_default()
-            self.client = discovery.build("compute", "v1", credentials=credentials, cache_discovery=False)
+            self.client = discovery.build(
+                "compute", "v1", credentials=credentials, cache_discovery=False
+            )
 
-        except Exception as e: 
+        except Exception as e:
             logging.error("Error on setting up GCP connection: " + str(e))
-            sys.exit(1)
+            raise e
 
     # Get the instance ID of the node
     def get_instance_id(self, node):
@@ -32,7 +36,9 @@ class GCP:
         while zone_request is not None:
             zone_response = zone_request.execute()
             for zone in zone_response["items"]:
-                instances_request = self.client.instances().list(project=self.project, zone=zone["name"])
+                instances_request = self.client.instances().list(
+                    project=self.project, zone=zone["name"]
+                )
                 while instances_request is not None:
                     instance_response = instances_request.execute()
                     if "items" in instance_response.keys():
@@ -40,72 +46,87 @@ class GCP:
                             if instance["name"] in node:
                                 return instance["name"], zone["name"]
                     instances_request = self.client.zones().list_next(
-                        previous_request=instances_request, previous_response=instance_response
+                        previous_request=instances_request,
+                        previous_response=instance_response,
                     )
-            zone_request = self.client.zones().list_next(previous_request=zone_request, previous_response=zone_response)
+            zone_request = self.client.zones().list_next(
+                previous_request=zone_request, previous_response=zone_response
+            )
         logging.info("no instances ")
 
     # Start the node instance
     def start_instances(self, zone, instance_id):
         try:
-            self.client.instances().start(project=self.project, zone=zone, instance=instance_id).execute()
+            self.client.instances().start(
+                project=self.project, zone=zone, instance=instance_id
+            ).execute()
             logging.info("vm name " + str(instance_id) + " started")
         except Exception as e:
             logging.error(
-                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to start node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
 
     # Stop the node instance
     def stop_instances(self, zone, instance_id):
         try:
-            self.client.instances().stop(project=self.project, zone=zone, instance=instance_id).execute()
+            self.client.instances().stop(
+                project=self.project, zone=zone, instance=instance_id
+            ).execute()
             logging.info("vm name " + str(instance_id) + " stopped")
         except Exception as e:
-            logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (instance_id, e))
-            # removed_exit
-            # sys.exit(1)
+            logging.error(
+                "Failed to stop node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
+            )
+
             raise RuntimeError()
 
     # Start the node instance
     def suspend_instances(self, zone, instance_id):
         try:
-            self.client.instances().suspend(project=self.project, zone=zone, instance=instance_id).execute()
+            self.client.instances().suspend(
+                project=self.project, zone=zone, instance=instance_id
+            ).execute()
             logging.info("vm name " + str(instance_id) + " suspended")
         except Exception as e:
             logging.error(
-                "Failed to suspend node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to suspend node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
 
     # Terminate the node instance
     def terminate_instances(self, zone, instance_id):
         try:
-            self.client.instances().delete(project=self.project, zone=zone, instance=instance_id).execute()
+            self.client.instances().delete(
+                project=self.project, zone=zone, instance=instance_id
+            ).execute()
             logging.info("vm name " + str(instance_id) + " terminated")
         except Exception as e:
             logging.error(
-                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to start node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
 
     # Reboot the node instance
     def reboot_instances(self, zone, instance_id):
         try:
-            self.client.instances().reset(project=self.project, zone=zone, instance=instance_id).execute()
+            self.client.instances().reset(
+                project=self.project, zone=zone, instance=instance_id
+            ).execute()
             logging.info("vm name " + str(instance_id) + " rebooted")
         except Exception as e:
             logging.error(
-                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to start node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
 
     # Get instance status
@@ -115,13 +136,20 @@ class GCP:
         i = 0
         sleeper = 5
         while i <= timeout:
-            instStatus = self.client.instances().get(project=self.project, zone=zone, instance=instance_id).execute()
+            instStatus = (
+                self.client.instances()
+                .get(project=self.project, zone=zone, instance=instance_id)
+                .execute()
+            )
             logging.info("Status of vm " + str(instStatus["status"]))
             if instStatus["status"] == expected_status:
                 return True
             time.sleep(sleeper)
             i += sleeper
-        logging.error("Status of %s was not %s in %s seconds" % (instance_id, expected_status, timeout))
+        logging.error(
+            "Status of %s was not %s in %s seconds"
+            % (instance_id, expected_status, timeout)
+        )
         return False
 
     # Wait until the node instance is suspended
@@ -143,7 +171,9 @@ class GCP:
             sleeper = 5
             while i <= timeout:
                 instStatus = (
-                    self.client.instances().get(project=self.project, zone=zone, instance=instance_id).execute()
+                    self.client.instances()
+                    .get(project=self.project, zone=zone, instance=instance_id)
+                    .execute()
                 )
                 logging.info("Status of vm " + str(instStatus["status"]))
                 time.sleep(sleeper)
@@ -164,19 +194,23 @@ class gcp_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 instance_id, zone = self.gcp.get_instance_id(node)
-                logging.info("Starting the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Starting the node %s with instance ID: %s " % (node, instance_id)
+                )
                 self.gcp.start_instances(zone, instance_id)
                 self.gcp.wait_until_running(zone, instance_id, timeout)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
-                logging.info("Node with instance ID: %s is in running state" % instance_id)
+                logging.info(
+                    "Node with instance ID: %s is in running state" % instance_id
+                )
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
+                    "Failed to start node instance. Encountered following "
+                    "exception: %s. Test Failed" % (e)
                 )
                 logging.error("node_start_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
+
                 raise RuntimeError()
 
     # Node scenario to stop the node
@@ -186,16 +220,22 @@ class gcp_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 instance_id, zone = self.gcp.get_instance_id(node)
-                logging.info("Stopping the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Stopping the node %s with instance ID: %s " % (node, instance_id)
+                )
                 self.gcp.stop_instances(zone, instance_id)
                 self.gcp.wait_until_stopped(zone, instance_id, timeout)
-                logging.info("Node with instance ID: %s is in stopped state" % instance_id)
+                logging.info(
+                    "Node with instance ID: %s is in stopped state" % instance_id
+                )
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
             except Exception as e:
-                logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
+                logging.error(
+                    "Failed to stop node instance. Encountered following exception: %s. "
+                    "Test Failed" % (e)
+                )
                 logging.error("node_stop_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
+
                 raise RuntimeError()
 
     # Node scenario to terminate the node
@@ -204,7 +244,10 @@ class gcp_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_termination_scenario injection")
                 instance_id, zone = self.gcp.get_instance_id(node)
-                logging.info("Terminating the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Terminating the node %s with instance ID: %s "
+                    % (node, instance_id)
+                )
                 self.gcp.terminate_instances(zone, instance_id)
                 self.gcp.wait_until_terminated(zone, instance_id, timeout)
                 for _ in range(timeout):
@@ -212,17 +255,20 @@ class gcp_node_scenarios(abstract_node_scenarios):
                         break
                     time.sleep(1)
                 if node in self.kubecli.list_nodes():
-                    raise Exception("Node could not be terminated")
-                logging.info("Node with instance ID: %s has been terminated" % instance_id)
+                    raise RuntimeError("Node could not be terminated")
+                logging.info(
+                    "Node with instance ID: %s has been terminated" % instance_id
+                )
                 logging.info("node_termination_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to terminate node instance. Encountered following exception:" " %s. Test Failed" % e
+                    "Failed to terminate node instance. Encountered following exception:"
+                    " %s. Test Failed" % e
                 )
                 logging.error("node_termination_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
-                raise RuntimeError()
+
+
+                raise e
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
@@ -230,16 +276,20 @@ class gcp_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 instance_id, zone = self.gcp.get_instance_id(node)
-                logging.info("Rebooting the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Rebooting the node %s with instance ID: %s " % (node, instance_id)
+                )
                 self.gcp.reboot_instances(zone, instance_id)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
-                logging.info("Node with instance ID: %s has been rebooted" % instance_id)
+                logging.info(
+                    "Node with instance ID: %s has been rebooted" % instance_id
+                )
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
+                    "Failed to reboot node instance. Encountered following exception:"
+                    " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
+
                 raise RuntimeError()

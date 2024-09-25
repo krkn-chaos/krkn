@@ -1,13 +1,22 @@
 import sys
 import time
 import logging
-import kraken.node_actions.common_node_functions as nodeaction
+import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 import os
 import json
 from aliyunsdkcore.client import AcsClient
-from aliyunsdkecs.request.v20140526 import DescribeInstancesRequest, DeleteInstanceRequest
-from aliyunsdkecs.request.v20140526 import StopInstanceRequest, StartInstanceRequest, RebootInstanceRequest
-from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
+from aliyunsdkecs.request.v20140526 import (
+    DescribeInstancesRequest,
+    DeleteInstanceRequest,
+)
+from aliyunsdkecs.request.v20140526 import (
+    StopInstanceRequest,
+    StartInstanceRequest,
+    RebootInstanceRequest,
+)
+from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
+    abstract_node_scenarios,
+)
 from krkn_lib.k8s import KrknKubernetes
 
 
@@ -46,12 +55,12 @@ class Alibaba:
                         "variables/credentials are correct"
                     )
                     logging.error(response)
-                    sys.exit(1)
+                    raise RuntimeError(response)
                 return instance_list
             return []
         except Exception as e:
             logging.error("ERROR while trying to get list of instances " + str(e))
-            sys.exit(1)
+            raise e
 
     # Get the instance ID of the node
     def get_instance_id(self, node_name):
@@ -59,8 +68,16 @@ class Alibaba:
         for vm in vm_list:
             if node_name == vm["InstanceName"]:
                 return vm["InstanceId"]
-        logging.error("Couldn't find vm with name " + str(node_name) + ", you could try another region")
-        sys.exit(1)
+        logging.error(
+            "Couldn't find vm with name "
+            + str(node_name)
+            + ", you could try another region"
+        )
+        raise RuntimeError(
+            "Couldn't find vm with name "
+            + str(node_name)
+            + ", you could try another region"
+        )
 
     # Start the node instance
     def start_instances(self, instance_id):
@@ -72,9 +89,10 @@ class Alibaba:
             logging.info("ECS instance with id " + str(instance_id) + " started")
         except Exception as e:
             logging.error(
-                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to start node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            raise e
 
     # https://partners-intl.aliyun.com/help/en/doc-detail/93110.html
     # Stop the node instance
@@ -86,8 +104,11 @@ class Alibaba:
             self._send_request(request)
             logging.info("Stop %s command submit successfully.", instance_id)
         except Exception as e:
-            logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (instance_id, e))
-            sys.exit(1)
+            logging.error(
+                "Failed to stop node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
+            )
+            raise e
 
     # Terminate the node instance
     def release_instance(self, instance_id, force_release=True):
@@ -99,9 +120,10 @@ class Alibaba:
             logging.info("ECS Instance " + str(instance_id) + " released")
         except Exception as e:
             logging.error(
-                "Failed to terminate node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to terminate node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            raise e
 
     # Reboot the node instance
     def reboot_instances(self, instance_id, force_reboot=True):
@@ -113,9 +135,10 @@ class Alibaba:
             logging.info("ECS Instance " + str(instance_id) + " rebooted")
         except Exception as e:
             logging.error(
-                "Failed to reboot node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to reboot node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            sys.exit(1)
+            raise e
 
     def get_vm_status(self, instance_id):
 
@@ -132,7 +155,8 @@ class Alibaba:
             return "Unknown"
         except Exception as e:
             logging.error(
-                "Failed to get node instance status %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to get node instance status %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
             return None
 
@@ -142,7 +166,9 @@ class Alibaba:
         status = self.get_vm_status(instance_id)
         while status != "Running":
             status = self.get_vm_status(instance_id)
-            logging.info("ECS %s is still not running, sleeping for 5 seconds" % instance_id)
+            logging.info(
+                "ECS %s is still not running, sleeping for 5 seconds" % instance_id
+            )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
@@ -156,11 +182,15 @@ class Alibaba:
         status = self.get_vm_status(instance_id)
         while status != "Stopped":
             status = self.get_vm_status(instance_id)
-            logging.info("Vm %s is still stopping, sleeping for 5 seconds" % instance_id)
+            logging.info(
+                "Vm %s is still stopping, sleeping for 5 seconds" % instance_id
+            )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info("Vm %s is still not stopped in allotted time" % instance_id)
+                logging.info(
+                    "Vm %s is still not stopped in allotted time" % instance_id
+                )
                 return False
         return True
 
@@ -170,7 +200,9 @@ class Alibaba:
         time_counter = 0
         while statuses and statuses != "Released":
             statuses = self.get_vm_status(instance_id)
-            logging.info("ECS %s is still being released, waiting 10 seconds" % instance_id)
+            logging.info(
+                "ECS %s is still being released, waiting 10 seconds" % instance_id
+            )
             time.sleep(10)
             time_counter += 10
             if time_counter >= timeout:
@@ -180,9 +212,10 @@ class Alibaba:
         logging.info("ECS %s is released" % instance_id)
         return True
 
+
 # krkn_lib
 class alibaba_node_scenarios(abstract_node_scenarios):
-    def __init__(self,kubecli: KrknKubernetes):
+    def __init__(self, kubecli: KrknKubernetes):
         self.alibaba = Alibaba()
 
     # Node scenario to start the node
@@ -191,7 +224,9 @@ class alibaba_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 vm_id = self.alibaba.get_instance_id(node)
-                logging.info("Starting the node %s with instance ID: %s " % (node, vm_id))
+                logging.info(
+                    "Starting the node %s with instance ID: %s " % (node, vm_id)
+                )
                 self.alibaba.start_instances(vm_id)
                 self.alibaba.wait_until_running(vm_id, timeout)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
@@ -199,10 +234,11 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
+                    "Failed to start node instance. Encountered following "
+                    "exception: %s. Test Failed" % (e)
                 )
                 logging.error("node_start_scenario injection failed!")
-                sys.exit(1)
+                raise e
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
@@ -210,36 +246,48 @@ class alibaba_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 vm_id = self.alibaba.get_instance_id(node)
-                logging.info("Stopping the node %s with instance ID: %s " % (node, vm_id))
+                logging.info(
+                    "Stopping the node %s with instance ID: %s " % (node, vm_id)
+                )
                 self.alibaba.stop_instances(vm_id)
                 self.alibaba.wait_until_stopped(vm_id, timeout)
                 logging.info("Node with instance ID: %s is in stopped state" % vm_id)
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
             except Exception as e:
-                logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % e)
+                logging.error(
+                    "Failed to stop node instance. Encountered following exception: %s. "
+                    "Test Failed" % e
+                )
                 logging.error("node_stop_scenario injection failed!")
-                sys.exit(1)
+                raise e
 
     # Might need to stop and then release the instance
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
             try:
-                logging.info("Starting node_termination_scenario injection by first stopping instance")
+                logging.info(
+                    "Starting node_termination_scenario injection by first stopping instance"
+                )
                 vm_id = self.alibaba.get_instance_id(node)
                 self.alibaba.stop_instances(vm_id)
                 self.alibaba.wait_until_stopped(vm_id, timeout)
-                logging.info("Releasing the node %s with instance ID: %s " % (node, vm_id))
+                logging.info(
+                    "Releasing the node %s with instance ID: %s " % (node, vm_id)
+                )
                 self.alibaba.release_instance(vm_id)
                 self.alibaba.wait_until_released(vm_id, timeout)
                 logging.info("Node with instance ID: %s has been released" % node)
-                logging.info("node_termination_scenario has been successfully injected!")
+                logging.info(
+                    "node_termination_scenario has been successfully injected!"
+                )
             except Exception as e:
                 logging.error(
-                    "Failed to release node instance. Encountered following exception:" " %s. Test Failed" % (e)
+                    "Failed to release node instance. Encountered following exception:"
+                    " %s. Test Failed" % (e)
                 )
                 logging.error("node_termination_scenario injection failed!")
-                sys.exit(1)
+                raise e
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
@@ -251,11 +299,14 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 self.alibaba.reboot_instances(instance_id)
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
-                logging.info("Node with instance ID: %s has been rebooted" % (instance_id))
+                logging.info(
+                    "Node with instance ID: %s has been rebooted" % (instance_id)
+                )
                 logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
+                    "Failed to reboot node instance. Encountered following exception:"
+                    " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
-                sys.exit(1)
+                raise e

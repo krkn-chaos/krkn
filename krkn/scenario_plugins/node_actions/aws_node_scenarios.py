@@ -2,9 +2,12 @@ import sys
 import time
 import boto3
 import logging
-import kraken.node_actions.common_node_functions as nodeaction
-from kraken.node_actions.abstract_node_scenarios import abstract_node_scenarios
+import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
+from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
+    abstract_node_scenarios,
+)
 from krkn_lib.k8s import KrknKubernetes
+
 
 class AWS:
     def __init__(self):
@@ -28,10 +31,9 @@ class AWS:
             logging.info("EC2 instance: " + str(instance_id) + " started")
         except Exception as e:
             logging.error(
-                "Failed to start node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to start node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
             raise RuntimeError()
 
     # Stop the node instance
@@ -40,9 +42,10 @@ class AWS:
             self.boto_client.stop_instances(InstanceIds=[instance_id])
             logging.info("EC2 instance: " + str(instance_id) + " stopped")
         except Exception as e:
-            logging.error("Failed to stop node instance %s. Encountered following " "exception: %s." % (instance_id, e))
-            # removed_exit
-            # sys.exit(1)
+            logging.error(
+                "Failed to stop node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
+            )
             raise RuntimeError()
 
     # Terminate the node instance
@@ -52,10 +55,9 @@ class AWS:
             logging.info("EC2 instance: " + str(instance_id) + " terminated")
         except Exception as e:
             logging.error(
-                "Failed to terminate node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to terminate node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
             raise RuntimeError()
 
     # Reboot the node instance
@@ -65,10 +67,9 @@ class AWS:
             logging.info("EC2 instance " + str(instance_id) + " rebooted")
         except Exception as e:
             logging.error(
-                "Failed to reboot node instance %s. Encountered following " "exception: %s." % (instance_id, e)
+                "Failed to reboot node instance %s. Encountered following "
+                "exception: %s." % (instance_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
             raise RuntimeError()
 
     # Below functions poll EC2.Client.describe_instances() every 15 seconds
@@ -80,7 +81,10 @@ class AWS:
             self.boto_instance.wait_until_running(InstanceIds=[instance_id])
             return True
         except Exception as e:
-            logging.error("Failed to get status waiting for %s to be running %s" % (instance_id, e))
+            logging.error(
+                "Failed to get status waiting for %s to be running %s"
+                % (instance_id, e)
+            )
             return False
 
     # Wait until the node instance is stopped
@@ -89,7 +93,10 @@ class AWS:
             self.boto_instance.wait_until_stopped(InstanceIds=[instance_id])
             return True
         except Exception as e:
-            logging.error("Failed to get status waiting for %s to be stopped %s" % (instance_id, e))
+            logging.error(
+                "Failed to get status waiting for %s to be stopped %s"
+                % (instance_id, e)
+            )
             return False
 
     # Wait until the node instance is terminated
@@ -98,7 +105,10 @@ class AWS:
             self.boto_instance.wait_until_terminated(InstanceIds=[instance_id])
             return True
         except Exception as e:
-            logging.error("Failed to get status waiting for %s to be terminated %s" % (instance_id, e))
+            logging.error(
+                "Failed to get status waiting for %s to be terminated %s"
+                % (instance_id, e)
+            )
             return False
 
     # Creates a deny network acl and returns the id
@@ -111,10 +121,10 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to create the default network_acl: %s"
-                "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
+                "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
+                % (e)
             )
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
         return acl_id
 
@@ -122,13 +132,14 @@ class AWS:
     def replace_network_acl_association(self, association_id, acl_id):
         try:
             logging.info("Replacing the network acl associated with the subnet")
-            status = self.boto_client.replace_network_acl_association(AssociationId=association_id, NetworkAclId=acl_id)
+            status = self.boto_client.replace_network_acl_association(
+                AssociationId=association_id, NetworkAclId=acl_id
+            )
             logging.info(status)
             new_association_id = status["NewAssociationId"]
         except Exception as e:
             logging.error("Failed to replace network acl association: %s" % (e))
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
         return new_association_id
 
@@ -144,10 +155,10 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to describe network acl: %s."
-                "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet" % (e)
+                "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
+                % (e)
             )
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
         associations = response["NetworkAcls"][0]["Associations"]
         # grab the current network_acl in use
@@ -165,9 +176,9 @@ class AWS:
                 "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
                 % (acl_id, e)
             )
-            # removed_exit
-            # sys.exit(1)
+
             raise RuntimeError()
+
 
 # krkn_lib
 class aws_node_scenarios(abstract_node_scenarios):
@@ -181,19 +192,23 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 instance_id = self.aws.get_instance_id(node)
-                logging.info("Starting the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Starting the node %s with instance ID: %s " % (node, instance_id)
+                )
                 self.aws.start_instances(instance_id)
                 self.aws.wait_until_running(instance_id)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
-                logging.info("Node with instance ID: %s is in running state" % (instance_id))
+                logging.info(
+                    "Node with instance ID: %s is in running state" % (instance_id)
+                )
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to start node instance. Encountered following " "exception: %s. Test Failed" % (e)
+                    "Failed to start node instance. Encountered following "
+                    "exception: %s. Test Failed" % (e)
                 )
                 logging.error("node_start_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
+
                 raise RuntimeError()
 
     # Node scenario to stop the node
@@ -202,16 +217,22 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 instance_id = self.aws.get_instance_id(node)
-                logging.info("Stopping the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Stopping the node %s with instance ID: %s " % (node, instance_id)
+                )
                 self.aws.stop_instances(instance_id)
                 self.aws.wait_until_stopped(instance_id)
-                logging.info("Node with instance ID: %s is in stopped state" % (instance_id))
+                logging.info(
+                    "Node with instance ID: %s is in stopped state" % (instance_id)
+                )
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
             except Exception as e:
-                logging.error("Failed to stop node instance. Encountered following exception: %s. " "Test Failed" % (e))
+                logging.error(
+                    "Failed to stop node instance. Encountered following exception: %s. "
+                    "Test Failed" % (e)
+                )
                 logging.error("node_stop_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
+
                 raise RuntimeError()
 
     # Node scenario to terminate the node
@@ -220,7 +241,10 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_termination_scenario injection")
                 instance_id = self.aws.get_instance_id(node)
-                logging.info("Terminating the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Terminating the node %s with instance ID: %s "
+                    % (node, instance_id)
+                )
                 self.aws.terminate_instances(instance_id)
                 self.aws.wait_until_terminated(instance_id)
                 for _ in range(timeout):
@@ -229,15 +253,17 @@ class aws_node_scenarios(abstract_node_scenarios):
                     time.sleep(1)
                 if node in self.kubecli.list_nodes():
                     raise Exception("Node could not be terminated")
-                logging.info("Node with instance ID: %s has been terminated" % (instance_id))
+                logging.info(
+                    "Node with instance ID: %s has been terminated" % (instance_id)
+                )
                 logging.info("node_termination_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to terminate node instance. Encountered following exception:" " %s. Test Failed" % (e)
+                    "Failed to terminate node instance. Encountered following exception:"
+                    " %s. Test Failed" % (e)
                 )
                 logging.error("node_termination_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
+
                 raise RuntimeError()
 
     # Node scenario to reboot the node
@@ -246,17 +272,21 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection" + str(node))
                 instance_id = self.aws.get_instance_id(node)
-                logging.info("Rebooting the node %s with instance ID: %s " % (node, instance_id))
+                logging.info(
+                    "Rebooting the node %s with instance ID: %s " % (node, instance_id)
+                )
                 self.aws.reboot_instances(instance_id)
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
-                logging.info("Node with instance ID: %s has been rebooted" % (instance_id))
+                logging.info(
+                    "Node with instance ID: %s has been rebooted" % (instance_id)
+                )
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
-                    "Failed to reboot node instance. Encountered following exception:" " %s. Test Failed" % (e)
+                    "Failed to reboot node instance. Encountered following exception:"
+                    " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
-                # removed_exit
-                # sys.exit(1)
+
                 raise RuntimeError()
