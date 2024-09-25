@@ -14,24 +14,9 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
-from tzlocal.unix import get_localzone
-
-import kraken.time_actions.common_time_functions as time_actions
-import kraken.performance_dashboards.setup as performance_dashboards
-import kraken.pod_scenarios.setup as pod_scenarios
-import kraken.service_disruption.common_service_disruption_functions as service_disruption
-import kraken.shut_down.common_shut_down_func as shut_down
-import kraken.node_actions.run as nodeaction
-import kraken.managedcluster_scenarios.run as managedcluster_scenarios
-import kraken.zone_outage.actions as zone_outages
-import kraken.application_outage.actions as application_outage
-import kraken.pvc.pvc_scenario as pvc_scenario
-import kraken.network_chaos.actions as network_chaos
-import kraken.arcaflow_plugin as arcaflow_plugin
-import kraken.prometheus as prometheus_plugin
-import kraken.service_hijacking.service_hijacking as service_hijacking_plugin
+import krkn.performance_dashboards.setup as performance_dashboards
+import krkn.prometheus as prometheus_plugin
 import server as server
-from kraken import plugins, syn_flood
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -40,9 +25,14 @@ from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
-from kraken.utils import TeeLogHandler
+from krkn.utils import TeeLogHandler
+from krkn.scenario_plugins.scenario_plugin_factory import (
+    ScenarioPluginFactory,
+    ScenarioPluginNotFound,
+)
 
 report_file = ""
+
 
 # Main function
 def main(cfg) -> int:
@@ -62,31 +52,25 @@ def main(cfg) -> int:
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
         kraken_config = cfg
-        chaos_scenarios = get_yaml_item_value(
-            config["kraken"], "chaos_scenarios", []
-        )
+        chaos_scenarios = get_yaml_item_value(config["kraken"], "chaos_scenarios", [])
         publish_running_status = get_yaml_item_value(
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
         signal_address = get_yaml_item_value(
-            config["kraken"], "signal_address", "0.0.0.0")
-        run_signal = get_yaml_item_value(
-            config["kraken"], "signal_state", "RUN"
+            config["kraken"], "signal_address", "0.0.0.0"
         )
-        wait_duration = get_yaml_item_value(
-            config["tunings"], "wait_duration", 60
-        )
+        run_signal = get_yaml_item_value(config["kraken"], "signal_state", "RUN")
+        wait_duration = get_yaml_item_value(config["tunings"], "wait_duration", 60)
         iterations = get_yaml_item_value(config["tunings"], "iterations", 1)
-        daemon_mode = get_yaml_item_value(
-            config["tunings"], "daemon_mode", False
-        )
+        daemon_mode = get_yaml_item_value(config["tunings"], "daemon_mode", False)
         deploy_performance_dashboards = get_yaml_item_value(
             config["performance_monitoring"], "deploy_dashboards", False
         )
         dashboard_repo = get_yaml_item_value(
-            config["performance_monitoring"], "repo",
-            "https://github.com/cloud-bulldozer/performance-dashboards.git"
+            config["performance_monitoring"],
+            "repo",
+            "https://github.com/cloud-bulldozer/performance-dashboards.git",
         )
 
         prometheus_url = config["performance_monitoring"].get("prometheus_url")
@@ -101,9 +85,7 @@ def main(cfg) -> int:
             config["performance_monitoring"], "enable_metrics", False
         )
         # elastic search
-        enable_elastic = get_yaml_item_value(
-            config["elastic"], "enable_elastic", False
-        )
+        enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
         elastic_collect_metrics = get_yaml_item_value(
             config["elastic"], "collect_metrics", False
         )
@@ -112,24 +94,16 @@ def main(cfg) -> int:
             config["elastic"], "collect_alerts", False
         )
 
-        elastic_url = get_yaml_item_value(
-            config["elastic"], "elastic_url", ""
-        )
+        elastic_url = get_yaml_item_value(config["elastic"], "elastic_url", "")
 
         elastic_verify_certs = get_yaml_item_value(
             config["elastic"], "verify_certs", False
         )
 
-        elastic_port = get_yaml_item_value(
-            config["elastic"], "elastic_port", 32766
-        )
+        elastic_port = get_yaml_item_value(config["elastic"], "elastic_port", 32766)
 
-        elastic_username = get_yaml_item_value(
-            config["elastic"], "username", ""
-        )
-        elastic_password = get_yaml_item_value(
-            config["elastic"], "password", ""
-        )
+        elastic_username = get_yaml_item_value(config["elastic"], "username", "")
+        elastic_password = get_yaml_item_value(config["elastic"], "password", "")
 
         elastic_metrics_index = get_yaml_item_value(
             config["elastic"], "metrics_index", "krkn-metrics"
@@ -143,8 +117,6 @@ def main(cfg) -> int:
             config["elastic"], "telemetry_index", "krkn-telemetry"
         )
 
-
-
         alert_profile = config["performance_monitoring"].get("alert_profile")
         metrics_profile = config["performance_monitoring"].get("metrics_profile")
         check_critical_alerts = get_yaml_item_value(
@@ -152,14 +124,13 @@ def main(cfg) -> int:
         )
         telemetry_api_url = config["telemetry"].get("api_url")
 
-        
         # Initialize clients
-        if (not os.path.isfile(kubeconfig_path) and
-            not os.path.isfile("/var/run/secrets/kubernetes.io/serviceaccount/token")):
+        if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
+            "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        ):
             logging.error(
                 "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
             )
-            #sys.exit(1)
             return 1
         logging.info("Initializing client to talk to the Kubernetes cluster")
 
@@ -175,8 +146,12 @@ def main(cfg) -> int:
         # request_id for telemetry is generated once here and used everywhere
         telemetry_request_id = f"{int(time.time())}-{run_uuid}"
         if config["telemetry"].get("run_tag"):
-            telemetry_request_id = f"{telemetry_request_id}-{config['telemetry']['run_tag']}"
-        telemetry_log_file = f'{config["telemetry"]["archive_path"]}/{telemetry_request_id}.log'
+            telemetry_request_id = (
+                f"{telemetry_request_id}-{config['telemetry']['run_tag']}"
+            )
+        telemetry_log_file = (
+            f'{config["telemetry"]["archive_path"]}/{telemetry_request_id}.log'
+        )
         safe_logger = SafeLogger(filename=telemetry_log_file)
 
         try:
@@ -194,11 +169,9 @@ def main(cfg) -> int:
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
             logging.error("%s isn't a valid port number, please check" % (port))
-            #sys.exit(1)
             return 1
         if not signal_address:
             logging.error("Please set the signal address in the config")
-            #sys.exit(1)
             return 1
         address = (signal_address, port)
 
@@ -223,13 +196,15 @@ def main(cfg) -> int:
                     if connection_data:
                         prometheus_url = connection_data.endpoint
                         prometheus_bearer_token = connection_data.token
-                    else: 
+                    else:
                         # If can't make a connection, set alerts to false
                         enable_alerts = False
                         critical_alerts = False
                 except Exception:
-                    logging.error("invalid distribution selected, running openshift scenarios against kubernetes cluster."
-                                  "Please set 'kubernetes' in config.yaml krkn.platform and try again")
+                    logging.error(
+                        "invalid distribution selected, running openshift scenarios against kubernetes cluster."
+                        "Please set 'kubernetes' in config.yaml krkn.platform and try again"
+                    )
                     return 1
         if cv != "":
             logging.info(cv)
@@ -237,17 +212,22 @@ def main(cfg) -> int:
             logging.info("Cluster version CRD not detected, skipping")
 
         # KrknTelemetry init
-        telemetry_k8s = KrknTelemetryKubernetes(safe_logger, kubecli, config["telemetry"])
-        telemetry_ocp = KrknTelemetryOpenshift(safe_logger, ocpcli, config["telemetry"])
+        telemetry_k8s = KrknTelemetryKubernetes(
+            safe_logger, kubecli, config["telemetry"]
+        )
+        telemetry_ocp = KrknTelemetryOpenshift(
+            safe_logger, ocpcli, telemetry_request_id, config["telemetry"]
+        )
         if enable_elastic:
-            elastic_search = KrknElastic(safe_logger,
-                                            elastic_url,
-                                            elastic_port,
-                                            elastic_verify_certs,
-                                            elastic_username,
-                                            elastic_password
-                                            )
-        else: 
+            elastic_search = KrknElastic(
+                safe_logger,
+                elastic_url,
+                elastic_port,
+                elastic_verify_certs,
+                elastic_username,
+                elastic_password,
+            )
+        else:
             elastic_search = None
         summary = ChaosRunAlertSummary()
         if enable_metrics or enable_alerts or check_critical_alerts:
@@ -258,8 +238,6 @@ def main(cfg) -> int:
         # Deploy performance dashboards
         if deploy_performance_dashboards:
             performance_dashboards.setup(dashboard_repo, distribution)
-
-
 
         # Initialize the start iteration to 0
         iteration = 0
@@ -285,11 +263,25 @@ def main(cfg) -> int:
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
+        scenario_plugin_factory = ScenarioPluginFactory()
+        logging.info("Loaded Scenario Plugins:\n")
+        for loaded in scenario_plugin_factory.loaded_plugins.keys():
+            logging.info(
+                f"  ✅ Class: {scenario_plugin_factory.loaded_plugins[loaded].__name__} ScenarioType: {loaded}"
+            )
+        logging.info("\n")
+        if len(scenario_plugin_factory.failed_plugins) > 0:
+            logging.info("Failed to load Scenario Plugins:\n")
+            for failed in scenario_plugin_factory.failed_plugins:
+                module_name, class_name, error = failed
+                logging.error(f"⛔ Class: {class_name} Module: {module_name}")
+                logging.error(f"⚠️ {error}\n")
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
             logging.info("Executing scenarios for iteration " + str(iteration))
             if chaos_scenarios:
+
                 for scenario in chaos_scenarios:
                     if publish_running_status:
                         run_signal = server.get_status(address)
@@ -307,183 +299,43 @@ def main(cfg) -> int:
                     scenario_type = list(scenario.keys())[0]
                     scenarios_list = scenario[scenario_type]
                     if scenarios_list:
-                        # Inject pod chaos scenarios specified in the config
-                        if scenario_type == "pod_scenarios":
+                        try:
+                            scenario_plugin = scenario_plugin_factory.create_plugin(
+                                scenario_type
+                            )
+                        except ScenarioPluginNotFound:
                             logging.error(
-                                "Pod scenarios have been removed, please use "
-                                "plugin_scenarios with the "
-                                "kill-pods configuration instead."
+                                f"impossible to find scenario {scenario_type}, plugin not found. Exiting"
                             )
-                            return 1
-                        elif scenario_type == "arcaflow_scenarios":
-                            failed_post_scenarios, scenario_telemetries = arcaflow_plugin.run(
-                                scenarios_list,
-                                telemetry_ocp,
-                                telemetry_request_id
+                            sys.exit(1)
+
+                        failed_post_scenarios, scenario_telemetries = (
+                            scenario_plugin.run_scenarios(
+                                run_uuid, scenarios_list, config, telemetry_ocp
                             )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
+                        )
+                        chaos_telemetry.scenarios.extend(scenario_telemetries)
 
-                        elif scenario_type == "plugin_scenarios":
-                            failed_post_scenarios, scenario_telemetries = plugins.run(
-                                scenarios_list,
-                                kraken_config,
-                                failed_post_scenarios,
-                                wait_duration,
-                                telemetry_ocp,
-                                run_uuid,
-                                telemetry_request_id
-                            )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-                        # krkn_lib
-                        elif scenario_type == "container_scenarios":
-                            logging.info("Running container scenarios")
-                            failed_post_scenarios, scenario_telemetries = pod_scenarios.container_run(
-                                scenarios_list,
-                                config,
-                                failed_post_scenarios,
-                                wait_duration,
-                                telemetry_ocp,
-                                telemetry_request_id
-                            )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-
-                        # Inject node chaos scenarios specified in the config
-                        # krkn_lib
-                        elif scenario_type == "node_scenarios":
-                            logging.info("Running node scenarios")
-                            failed_post_scenarios, scenario_telemetries = nodeaction.run(scenarios_list,
-                                                                                         config,
-                                                                                         wait_duration,
-                                                                                         telemetry_ocp,
-                                                                                         telemetry_request_id)
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-                        # Inject managedcluster chaos scenarios specified in the config
-                        # krkn_lib
-                        elif scenario_type == "managedcluster_scenarios":
-                            logging.info("Running managedcluster scenarios")
-                            managedcluster_scenarios.run(
-                                scenarios_list,
-                                config,
-                                wait_duration,
-                                kubecli
-                            )
-
-                        # Inject time skew chaos scenarios specified
-                        # in the config
-                        # krkn_lib
-                        elif scenario_type == "time_scenarios":
-                                logging.info("Running time skew scenarios")
-                                failed_post_scenarios, scenario_telemetries = time_actions.run(scenarios_list,
-                                                                                               config,
-                                                                                               wait_duration,
-                                                                                               telemetry_ocp,
-                                                                                               telemetry_request_id
-                                                                                               )
-                                chaos_telemetry.scenarios.extend(scenario_telemetries)
-                        # Inject cluster shutdown scenarios
-                        # krkn_lib
-                        elif scenario_type == "cluster_shut_down_scenarios":
-                            failed_post_scenarios, scenario_telemetries = shut_down.run(scenarios_list,
-                                                                                        config,
-                                                                                        wait_duration,
-                                                                                        telemetry_ocp,
-                                                                                        telemetry_request_id
-                                                                                        )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-
-                        # Inject namespace chaos scenarios
-                        # krkn_lib
-                        elif scenario_type == "service_disruption_scenarios":
-                            logging.info("Running service disruption scenarios")
-                            failed_post_scenarios, scenario_telemetries = service_disruption.run(
-                                scenarios_list,
-                                config,
-                                wait_duration,
-                                failed_post_scenarios,
-                                telemetry_ocp,
-                                telemetry_request_id
-                            )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-
-                        # Inject zone failures
-                        elif scenario_type == "zone_outages":
-                            logging.info("Inject zone outages")
-                            failed_post_scenarios, scenario_telemetries = zone_outages.run(scenarios_list,
-                                                                                           config,
-                                                                                           wait_duration,
-                                                                                           telemetry_ocp,
-                                                                                           telemetry_request_id
-                                                                                           )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-                        # Application outages
-                        elif scenario_type == "application_outages":
-                            logging.info("Injecting application outage")
-                            failed_post_scenarios, scenario_telemetries = application_outage.run(
-                                scenarios_list,
-                                config,
-                                wait_duration,
-                                telemetry_ocp,
-                                telemetry_request_id
-                            )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-
-                        # PVC scenarios
-                        # krkn_lib
-                        elif scenario_type == "pvc_scenarios":
-                            logging.info("Running PVC scenario")
-                            failed_post_scenarios, scenario_telemetries = pvc_scenario.run(scenarios_list,
-                                                                                           config,
-                                                                                           wait_duration,
-                                                                                           telemetry_ocp,
-                                                                                           telemetry_request_id
-                                                                                           )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-
-                        # Network scenarios
-                        # krkn_lib
-                        elif scenario_type == "network_chaos":
-                            logging.info("Running Network Chaos")
-                            failed_post_scenarios, scenario_telemetries = network_chaos.run(scenarios_list,
-                                                                                            config,
-                                                                                            wait_duration,
-                                                                                            telemetry_ocp,
-                                                                                            telemetry_request_id
-                                                                                            )
-                        elif scenario_type == "service_hijacking":
-                            logging.info("Running Service Hijacking Chaos")
-                            failed_post_scenarios, scenario_telemetries = service_hijacking_plugin.run(scenarios_list,
-                                                                                                       wait_duration,
-                                                                                                       telemetry_ocp,
-                                                                                                       telemetry_request_id
-                                                                                                       )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-                        elif scenario_type == "syn_flood":
-                            logging.info("Running Syn Flood Chaos")
-                            failed_post_scenarios, scenario_telemetries = syn_flood.run(scenarios_list,
-                                                                                        telemetry_ocp,
-                                                                                        telemetry_request_id
-                                                                                        )
-                            chaos_telemetry.scenarios.extend(scenario_telemetries)
-
-                        # Check for critical alerts when enabled
                         post_critical_alerts = 0
                         if check_critical_alerts:
-                            prometheus_plugin.critical_alerts(prometheus,
-                                                              summary,
-                                                              run_uuid,
-                                                              scenario_type,
-                                                              start_time,
-                                                              datetime.datetime.now())
+                            prometheus_plugin.critical_alerts(
+                                prometheus,
+                                summary,
+                                run_uuid,
+                                scenario_type,
+                                start_time,
+                                datetime.datetime.now(),
+                            )
 
                             chaos_output.critical_alerts = summary
                             post_critical_alerts = len(summary.post_chaos_alerts)
                             if post_critical_alerts > 0:
-                                logging.error("Post chaos critical alerts firing please check, exiting")
+                                logging.error(
+                                    "Post chaos critical alerts firing please check, exiting"
+                                )
                                 break
 
-
             iteration += 1
-            logging.info("")
 
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
@@ -495,8 +347,12 @@ def main(cfg) -> int:
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
         if distribution == "openshift":
+            logging.info(
+                "collecting OCP cluster metadata, this may take few minutes...."
+            )
             telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
         else:
+            logging.info("collecting Kubernetes cluster metadata....")
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
 
         telemetry_json = chaos_telemetry.to_json()
@@ -504,52 +360,81 @@ def main(cfg) -> int:
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
-            elastic_telemetry = ElasticChaosRunTelemetry(chaos_run_telemetry=decoded_chaos_run_telemetry)
-            result = elastic_search.push_telemetry(elastic_telemetry, elastic_telemetry_index)
+            elastic_telemetry = ElasticChaosRunTelemetry(
+                chaos_run_telemetry=decoded_chaos_run_telemetry
+            )
+            result = elastic_search.push_telemetry(
+                elastic_telemetry, elastic_telemetry_index
+            )
             if result == -1:
-                safe_logger.error(f"failed to save telemetry on elastic search: {chaos_output.to_json()}")
+                safe_logger.error(
+                    f"failed to save telemetry on elastic search: {chaos_output.to_json()}"
+                )
 
         if config["telemetry"]["enabled"]:
-            logging.info(f'telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/files/'
-                         f'{(config["telemetry"]["telemetry_group"] if config["telemetry"]["telemetry_group"] else "default")}/'
-                         f'{telemetry_request_id}')
+            logging.info(
+                f"telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/files/"
+                f'{(config["telemetry"]["telemetry_group"] if config["telemetry"]["telemetry_group"] else "default")}/'
+                f"{telemetry_request_id}"
+            )
             logging.info(f"telemetry upload log: {safe_logger.log_file_name}")
             try:
-                telemetry_k8s.send_telemetry(config["telemetry"], telemetry_request_id, chaos_telemetry)
-                telemetry_k8s.put_critical_alerts(telemetry_request_id, config["telemetry"], summary)
+                telemetry_k8s.send_telemetry(
+                    config["telemetry"], telemetry_request_id, chaos_telemetry
+                )
+                telemetry_k8s.put_critical_alerts(
+                    telemetry_request_id, config["telemetry"], summary
+                )
                 # prometheus data collection is available only on Openshift
                 if config["telemetry"]["prometheus_backup"]:
-                    prometheus_archive_files = ''
-                    if distribution == "openshift" :
-                        prometheus_archive_files = telemetry_ocp.get_ocp_prometheus_data(config["telemetry"], telemetry_request_id)
+                    prometheus_archive_files = ""
+                    if distribution == "openshift":
+                        prometheus_archive_files = (
+                            telemetry_ocp.get_ocp_prometheus_data(
+                                config["telemetry"], telemetry_request_id
+                            )
+                        )
                     else:
-                        if (config["telemetry"]["prometheus_namespace"] and
-                                config["telemetry"]["prometheus_pod_name"] and
-                                config["telemetry"]["prometheus_container_name"]):
+                        if (
+                            config["telemetry"]["prometheus_namespace"]
+                            and config["telemetry"]["prometheus_pod_name"]
+                            and config["telemetry"]["prometheus_container_name"]
+                        ):
                             try:
-                                prometheus_archive_files = telemetry_k8s.get_prometheus_pod_data(
-                                    config["telemetry"],
-                                    telemetry_request_id,
-                                    config["telemetry"]["prometheus_pod_name"],
-                                    config["telemetry"]["prometheus_container_name"],
-                                    config["telemetry"]["prometheus_namespace"]
+                                prometheus_archive_files = (
+                                    telemetry_k8s.get_prometheus_pod_data(
+                                        config["telemetry"],
+                                        telemetry_request_id,
+                                        config["telemetry"]["prometheus_pod_name"],
+                                        config["telemetry"][
+                                            "prometheus_container_name"
+                                        ],
+                                        config["telemetry"]["prometheus_namespace"],
+                                    )
                                 )
                             except Exception as e:
-                                logging.error(f"failed to get prometheus backup with exception {str(e)}")
+                                logging.error(
+                                    f"failed to get prometheus backup with exception {str(e)}"
+                                )
                         else:
-                            logging.warning("impossible to backup prometheus,"
-                                            "check if config contains telemetry.prometheus_namespace, "
-                                            "telemetry.prometheus_pod_name and "
-                                            "telemetry.prometheus_container_name")
+                            logging.warning(
+                                "impossible to backup prometheus,"
+                                "check if config contains telemetry.prometheus_namespace, "
+                                "telemetry.prometheus_pod_name and "
+                                "telemetry.prometheus_container_name"
+                            )
                     if prometheus_archive_files:
                         safe_logger.info("starting prometheus archive upload:")
-                        telemetry_k8s.put_prometheus_data(config["telemetry"], prometheus_archive_files, telemetry_request_id)
-                        
+                        telemetry_k8s.put_prometheus_data(
+                            config["telemetry"],
+                            prometheus_archive_files,
+                            telemetry_request_id,
+                        )
+
             except Exception as e:
                 logging.error(f"failed to send telemetry data: {str(e)}")
         else:
             logging.info("telemetry collection disabled, skipping.")
-
 
         # Check for the alerts specified
         if enable_alerts:
@@ -563,33 +448,35 @@ def main(cfg) -> int:
                     end_time,
                     alert_profile,
                     elastic_colllect_alerts,
-                    elastic_alerts_index
+                    elastic_alerts_index,
                 )
 
             else:
                 logging.error("Alert profile is not defined")
                 return 1
-                #sys.exit(1)
+                # sys.exit(1)
         if enable_metrics:
-            prometheus_plugin.metrics(prometheus,
-                                      elastic_search,
-                                      start_time,
-                                      run_uuid,
-                                      end_time,
-                                      metrics_profile,
-                                      elastic_collect_metrics,
-                                      elastic_metrics_index)
+            prometheus_plugin.metrics(
+                prometheus,
+                elastic_search,
+                start_time,
+                run_uuid,
+                end_time,
+                metrics_profile,
+                elastic_collect_metrics,
+                elastic_metrics_index,
+            )
 
         if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
-            #sys.exit(2)
+            # sys.exit(2)
             return 2
 
         if failed_post_scenarios:
             logging.error(
                 "Post scenarios are still failing at the end of all iterations"
             )
-            #sys.exit(2)
+            # sys.exit(2)
             return 2
 
         logging.info(
@@ -598,11 +485,10 @@ def main(cfg) -> int:
         )
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
-        #sys.exit(1)
+        # sys.exit(1)
         return 2
 
     return 0
-
 
 
 if __name__ == "__main__":
@@ -622,8 +508,6 @@ if __name__ == "__main__":
         help="output report location",
         default="kraken.report",
     )
-
-
 
     parser.add_option(
         "--junit-testcase",
@@ -649,7 +533,11 @@ if __name__ == "__main__":
     (options, args) = parser.parse_args()
     report_file = options.output
     tee_handler = TeeLogHandler()
-    handlers = [logging.FileHandler(report_file, mode="w"), logging.StreamHandler(), tee_handler]
+    handlers = [
+        logging.FileHandler(report_file, mode="w"),
+        logging.StreamHandler(),
+        tee_handler,
+    ]
 
     logging.basicConfig(
         level=logging.INFO,
@@ -666,12 +554,16 @@ if __name__ == "__main__":
     junit_start_time = time.time()
     # checks if both mandatory options for junit are set
     if options.junit_testcase_path and not options.junit_testcase:
-        logging.error("please set junit test case description with --junit-testcase [description] option")
+        logging.error(
+            "please set junit test case description with --junit-testcase [description] option"
+        )
         option_error = True
         junit_error = True
 
     if options.junit_testcase and not options.junit_testcase_path:
-        logging.error("please set junit test case path with --junit-testcase-path [path] option")
+        logging.error(
+            "please set junit test case path with --junit-testcase-path [path] option"
+        )
         option_error = True
         junit_error = True
 
@@ -680,17 +572,23 @@ if __name__ == "__main__":
         junit_normalized_path = os.path.normpath(options.junit_testcase_path)
 
         if not os.path.exists(junit_normalized_path):
-            logging.error(f"{junit_normalized_path} do not exists, please select a valid path")
+            logging.error(
+                f"{junit_normalized_path} do not exists, please select a valid path"
+            )
             option_error = True
             junit_error = True
 
         if not os.path.isdir(junit_normalized_path):
-            logging.error(f"{junit_normalized_path} is a file, please select a valid folder path")
+            logging.error(
+                f"{junit_normalized_path} is a file, please select a valid folder path"
+            )
             option_error = True
             junit_error = True
 
         if not os.access(junit_normalized_path, os.W_OK):
-            logging.error(f"{junit_normalized_path} is not writable, please select a valid path")
+            logging.error(
+                f"{junit_normalized_path} is not writable, please select a valid path"
+            )
             option_error = True
             junit_error = True
 
@@ -713,9 +611,11 @@ if __name__ == "__main__":
             test_suite_name="krkn-test-suite",
             test_case_description=options.junit_testcase,
             test_stdout=tee_handler.get_output(),
-            test_version=options.junit_testcase_version
+            test_version=options.junit_testcase_version,
         )
-        junit_testcase_file_path = f"{junit_normalized_path}/junit_krkn_{int(time.time())}.xml"
+        junit_testcase_file_path = (
+            f"{junit_normalized_path}/junit_krkn_{int(time.time())}.xml"
+        )
         logging.info(f"writing junit XML testcase in {junit_testcase_file_path}")
         with open(junit_testcase_file_path, "w") as stream:
             stream.write(junit_testcase_xml)
