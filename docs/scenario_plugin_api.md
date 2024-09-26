@@ -56,6 +56,16 @@ Returns 0 if the scenario succeeds and 1 if it fails.
 > [!WARNING]
 > All the exception must be handled __inside__ the run method and not propagated.
 
+### `get_scenario_type()`:
+
+```python    def get_scenario_type(self) -> str:```
+
+Indicates the scenario type specified in the `config.yaml`. For the plugin to be properly
+loaded, recognized and executed, it must be implemented and must return the matching `scenario_type` string.
+
+> [!Note]  
+> The `scenario_type` must be unique across all plugins; otherwise, an exception will be thrown.
+
 ## Naming conventions:
 A key requirement for developing a plugin that will be properly loaded 
 by the plugin loader is following the established naming conventions. 

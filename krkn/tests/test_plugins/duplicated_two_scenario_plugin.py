@@ -5,13 +5,15 @@ from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugi
 
 
 class DuplicatedTwoScenarioPlugin(AbstractScenarioPlugin):
+
     def run(
         self,
         run_uuid: str,
-        scenarios_list: list[str],
+        scenario: str,
         krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
-    ) -> tuple[list[str], list[ScenarioTelemetry]]:
+        scenario_telemetry: ScenarioTelemetry,
+    ) -> int:
         pass
 
     def get_scenario_type(self) -> str:
