@@ -1,5 +1,5 @@
 kubernetes_target:
-  kubeconfig_path: "/home/mleader/.kube/config"
+  kubeconfig_path: 
 cpu_hog_enabled: true
 pod_chaos_enabled: true
 kubeburner_enabled: true
