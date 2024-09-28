@@ -2,7 +2,12 @@
 
 ## Workflow Description
 
-Given a target OpenShift cluster, this workflow executes a [kube-burner plugin](https://github.com/redhat-performance/arcaflow-plugin-kube-burner) workflow to place a load on the cluster, repeatedly removes a targeted pod at a given time frequency with the [kill-pod plugin](https://github.com/krkn-chaos/arcaflow-plugin-kill-pod), and runs a [stress-ng](https://github.com/ColinIanKing/stress-ng) CPU workload on the cluster.
+Given a target OpenShift cluster, this workflow executes a 
+[kube-burner plugin](https://github.com/redhat-performance/arcaflow-plugin-kube-burner) 
+workflow to place a load on the cluster, repeatedly removes a targeted pod at a given time frequency with the [kill-pod plugin](https://github.com/krkn-chaos/arcaflow-plugin-kill-pod),
+and runs a [stress-ng](https://github.com/ColinIanKing/stress-ng) CPU workload on the cluster. 
+Target your OpenShift cluster with the appropriate `kubeconfig` file, and add its file path as 
+the value for `kubernetes_target.kubeconfig_path`, in the input file. Any combination of subworkflows can be disabled in the input file by setting either `cpu_hog_enabled`, `pod_chaos_enabled`, or `kubeburner_enabled` to `false`. 
 
 
 ## Files
