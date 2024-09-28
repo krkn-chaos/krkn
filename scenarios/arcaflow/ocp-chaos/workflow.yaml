@@ -38,13 +38,13 @@ input:
               type_id: ref
               id: KillPodConfig
               namespace: $.steps.pod_chaos_wf.execute.inputs.items
-        hog_cpu_list:
+        cpu_hog_list:
           type:
             type_id: list
             items:
               type_id: ref
-              id: HogCpuInput
-              namespace: $.steps.hog_cpu_wf.execute.inputs.items
+              id: CpuHog
+              namespace: $.steps.cpu_hog_wf.execute.inputs.items
 
 steps:
   kubeburner_wf:
@@ -59,9 +59,9 @@ steps:
     workflow: subworkflows/pod-chaos.yaml
     parallelism: 1
     enabled: !expr $.input.pod_chaos_enabled
-  hog_cpu_wf:
+  cpu_hog_wf:
     kind: foreach
-    items: !expr 'bindConstants($.input.hog_cpu_list, $.input.kubernetes_target)'
+    items: !expr 'bindConstants($.input.cpu_hog_list, $.input.kubernetes_target)'
     workflow: subworkflows/cpu-hog.yaml
     parallelism: 1
     enabled: !expr $.input.cpu_hog_enabled
@@ -70,4 +70,4 @@ outputs:
   workflow_success:
     kubeburner: !ordisabled $.steps.kubeburner_wf.outputs.success
     pod_chaos: !ordisabled $.steps.pod_chaos_wf.outputs.success
-    cpu_hog: !ordisabled $.steps.hog_cpu_wf.outputs.success
+    cpu_hog: !ordisabled $.steps.cpu_hog_wf.outputs.success

@@ -1,9 +1,9 @@
 version: v0.2.0
 input:
-  root: HogCpuInput__KubernetesTarget
+  root: CpuHog__KubernetesTarget
   objects:
-    HogCpuInput__KubernetesTarget:
-      id: HogCpuInput__KubernetesTarget
+    CpuHog__KubernetesTarget:
+      id: CpuHog__KubernetesTarget
       properties:
         constant:
           type:
@@ -12,15 +12,15 @@ input:
         item:
           type:
             type_id: ref
-            id: HogCpuInput
+            id: CpuHog
     KubernetesTarget:
       id: KubernetesTarget
       properties:
         kubeconfig_path:
           type:
             type_id: string
-    HogCpuInput:
-      id: HogCpuInput
+    CpuHog:
+      id: CpuHog
       properties:
         namespace:
           display:
