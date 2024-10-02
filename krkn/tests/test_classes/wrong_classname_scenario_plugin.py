@@ -6,7 +6,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
-class CorrectScenarioPlugin(AbstractScenarioPlugin):
+class WrongClassNamePlugin(AbstractScenarioPlugin):
 
     def run(
         self,
@@ -18,5 +18,5 @@ class CorrectScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         pass
 
-    def get_scenario_type(self) -> str:
-        return "correct_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        pass

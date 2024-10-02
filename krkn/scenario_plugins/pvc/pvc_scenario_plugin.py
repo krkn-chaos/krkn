@@ -320,5 +320,5 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         res = int(value[:-2]) * (base**exp)
         return res
 
-    def get_scenario_type(self) -> str:
-        return "pvc_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["pvc_scenarios"]

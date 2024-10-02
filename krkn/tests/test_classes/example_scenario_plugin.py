@@ -52,5 +52,5 @@ class ExampleScenarioPlugin(AbstractScenarioPlugin):
     # Reflects the scenario type defined in the config.yaml
     # in the chaos_scenarios section and to which each class
     # responds.
-    def get_scenario_type(self) -> str:
-        return "example_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["example_scenarios"]

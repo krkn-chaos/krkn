@@ -29,8 +29,8 @@ class ArcaflowScenarioPlugin(AbstractScenarioPlugin):
             logging.error("ArcaflowScenarioPlugin exiting due to Exception %s" % e)
             return 1
 
-    def get_scenario_type(self) -> str:
-        return "arcaflow_scenarios"
+    def get_scenario_types(self) -> [str]:
+        return ["hog_scenarios", "arcaflow_scenario"]
 
     def run_workflow(
         self, engine_args: arcaflow.EngineArgs, kubeconfig_path: str

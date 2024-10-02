@@ -215,5 +215,5 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                             % action
                         )
 
-    def get_scenario_type(self) -> str:
-        return "node_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["node_scenarios"]

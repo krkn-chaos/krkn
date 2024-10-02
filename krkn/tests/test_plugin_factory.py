@@ -2,7 +2,7 @@ import unittest
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.scenario_plugin_factory import ScenarioPluginFactory
-from krkn.tests.test_plugins.correct_scenario_plugin import (
+from krkn.tests.test_classes.correct_scenario_plugin import (
     CorrectScenarioPlugin,
 )
 
@@ -10,8 +10,8 @@ from krkn.tests.test_plugins.correct_scenario_plugin import (
 class TestPluginFactory(unittest.TestCase):
 
     def test_plugin_factory(self):
-        factory = ScenarioPluginFactory("krkn.tests.test_plugins")
-        self.assertEqual(len(factory.loaded_plugins), 3)
+        factory = ScenarioPluginFactory("krkn.tests.test_classes")
+        self.assertEqual(len(factory.loaded_plugins), 5)
         self.assertEqual(len(factory.failed_plugins), 4)
         self.assertIs(
             factory.loaded_plugins["correct_scenarios"].__base__,
@@ -30,15 +30,15 @@ class TestPluginFactory(unittest.TestCase):
         )
 
         self.assertTrue(
-            "krkn.tests.test_plugins.snake_case_mismatch_scenario_plugin"
+            "krkn.tests.test_classes.snake_case_mismatch_scenario_plugin"
             in [p[0] for p in factory.failed_plugins]
         )
         self.assertTrue(
-            "krkn.tests.test_plugins.wrong_classname_scenario_plugin"
+            "krkn.tests.test_classes.wrong_classname_scenario_plugin"
             in [p[0] for p in factory.failed_plugins]
         )
         self.assertTrue(
-            "krkn.tests.test_plugins.wrong_module"
+            "krkn.tests.test_classes.wrong_module"
             in [p[0] for p in factory.failed_plugins]
         )
 

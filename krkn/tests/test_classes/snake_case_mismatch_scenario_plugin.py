@@ -1,10 +1,12 @@
+from typing import List, Tuple
+
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
-class DuplicatedTwoScenarioPlugin(AbstractScenarioPlugin):
+class SnakeMismatchScenarioPlugin(AbstractScenarioPlugin):
 
     def run(
         self,
@@ -16,5 +18,5 @@ class DuplicatedTwoScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         pass
 
-    def get_scenario_type(self) -> str:
-        return "duplicated_scenario"
+    def get_scenario_types(self) -> list[str]:
+        pass

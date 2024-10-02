@@ -7,17 +7,16 @@ from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugi
 
 
 class WrongModuleScenarioPlugin(AbstractScenarioPlugin):
-    def get_scenario_type(self) -> str:
-        pass
 
     def run(
         self,
-        scenarios_list: List[str],
-        config: str,
-        failed_post_scenarios: List[str],
-        wait_duration: int,
-        lib_telemetry: KrknTelemetryOpenshift,
         run_uuid: str,
-        telemetry_request_id: str,
-    ) -> Tuple[List[str], ScenarioTelemetry]:
+        scenario: str,
+        krkn_config: dict[str, any],
+        lib_telemetry: KrknTelemetryOpenshift,
+        scenario_telemetry: ScenarioTelemetry,
+    ) -> int:
+        pass
+
+    def get_scenario_types(self) -> list[str]:
         pass

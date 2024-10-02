@@ -104,5 +104,5 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             )
             return 1
 
-    def get_scenario_type(self) -> str:
-        return "service_hijacking"
+    def get_scenario_types(self) -> list[str]:
+        return ["service_hijacking_scenarios"]

@@ -84,5 +84,5 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
         else:
             return 0
 
-    def get_scenario_type(self) -> str:
-        return "application_outages"
+    def get_scenario_types(self) -> list[str]:
+        return ["application_outages_scenarios"]

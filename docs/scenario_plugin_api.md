@@ -56,15 +56,19 @@ Returns 0 if the scenario succeeds and 1 if it fails.
 > [!WARNING]
 > All the exception must be handled __inside__ the run method and not propagated.
 
-### `get_scenario_type()`:
+### `get_scenario_types()`:
 
-```python    def get_scenario_type(self) -> str:```
+```python    def get_scenario_types(self) -> list[str]:```
 
-Indicates the scenario type specified in the `config.yaml`. For the plugin to be properly
-loaded, recognized and executed, it must be implemented and must return the matching `scenario_type` string.
+Indicates the scenario types specified in the `config.yaml`. For the plugin to be properly
+loaded, recognized and executed, it must be implemented and must return one or more
+strings matching `scenario_type` strings set in the config.
+> [!WARNING]
+> Multiple strings can map to a *single*  `ScenarioPlugin` but the same string cannot map
+> to different plugins, an exception will be thrown for scenario_type redefinition.
 
 > [!Note]  
-> The `scenario_type` must be unique across all plugins; otherwise, an exception will be thrown.
+> The `scenario_type` strings must be unique across all plugins; otherwise, an exception will be thrown.
 
 ## Naming conventions:
 A key requirement for developing a plugin that will be properly loaded 
@@ -117,7 +121,7 @@ providing details about the issue:
 ```
 
 ## ExampleScenarioPlugin
-The [ExampleScenarioPlugin](../krkn/tests/test_plugins/example_scenario_plugin.py) class included in the tests folder can be used as a scaffolding for new plugins and it is considered
+The [ExampleScenarioPlugin](../krkn/tests/test_classes/example_scenario_plugin.py) class included in the tests folder can be used as a scaffolding for new plugins and it is considered
 part of the documentation.
 
 For any questions or further guidance, feel free to reach out to us on the 

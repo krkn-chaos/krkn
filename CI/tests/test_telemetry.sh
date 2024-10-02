@@ -18,8 +18,8 @@ function functional_test_telemetry {
   yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
   yq -i '.telemetry.run_tag=env(RUN_TAG)' CI/config/common_test_config.yaml
 
-  export scenario_type="arcaflow_scenarios"
-  export scenario_file="scenarios/arcaflow/cpu-hog/input.yaml"
+  export scenario_type="hog_scenarios"
+  export scenario_file="scenarios/kube/cpu-hog/input.yaml"
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/telemetry.yaml
   retval=$(python3 -m coverage run -a run_kraken.py -c CI/config/telemetry.yaml)

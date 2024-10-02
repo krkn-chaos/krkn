@@ -33,13 +33,15 @@ class AbstractScenarioPlugin(ABC):
         pass
 
     @abstractmethod
-    def get_scenario_type(self) -> str:
+    def get_scenario_types(self) -> list[str]:
         """
-        Indicates the scenario type specified in the `config.yaml`. For the plugin to be properly
-        loaded, recognized and executed, it must be implemented and must return the matching `scenario_type` string.
-        The `scenario_type` must be unique across all plugins; otherwise, an exception will be thrown.
+        Indicates the scenario types specified in the `config.yaml`. For the plugin to be properly
+        loaded, recognized and executed, it must be implemented and must return the matching `scenario_type` strings.
+        One plugin can be mapped one or many different strings unique across the other plugins otherwise an exception
+        will be thrown.
 
-        :return: the corresponding scenario_type as a string
+
+        :return: the corresponding scenario_type as a list of strings
         """
         pass
 
@@ -72,7 +74,7 @@ class AbstractScenarioPlugin(ABC):
 
             try:
                 logging.info(
-                    f"Running {self.__class__.__name__}: {self.get_scenario_type()} -> {scenario_config}"
+                    f"Running {self.__class__.__name__}: {self.get_scenario_types()} -> {scenario_config}"
                 )
                 return_value = self.run(
                     run_uuid,

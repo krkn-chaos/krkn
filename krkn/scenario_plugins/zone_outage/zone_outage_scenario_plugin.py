@@ -98,5 +98,5 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
         else:
             return 0
 
-    def get_scenario_type(self) -> str:
-        return "zone_outages"
+    def get_scenario_types(self) -> list[str]:
+        return ["zone_outages_scenarios"]

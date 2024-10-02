@@ -135,5 +135,5 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                 return False
         return True
 
-    def get_scenario_type(self) -> str:
-        return "syn_flood"
+    def get_scenario_types(self) -> list[str]:
+        return ["syn_flood_scenarios"]

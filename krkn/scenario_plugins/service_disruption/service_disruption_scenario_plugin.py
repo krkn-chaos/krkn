@@ -341,5 +341,5 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         logging.error("Non active namespaces " + str(killed_namespaces))
         return killed_namespaces
 
-    def get_scenario_type(self) -> str:
-        return "service_disruption_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["service_disruption_scenarios"]

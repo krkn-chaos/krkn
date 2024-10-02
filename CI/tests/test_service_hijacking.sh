@@ -35,7 +35,7 @@ TEXT_MIME="text/plain; charset=utf-8"
 
 function functional_test_service_hijacking {
 
-  export scenario_type="service_hijacking"
+  export scenario_type="service_hijacking_scenarios"
   export scenario_file="scenarios/kube/service_hijacking.yaml"
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/service_hijacking.yaml

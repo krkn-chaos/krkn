@@ -348,5 +348,5 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     logging.info("Date in pod " + str(pod_name[0]) + " reset properly")
         return not_reset
 
-    def get_scenario_type(self) -> str:
-        return "time_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["time_scenarios"]

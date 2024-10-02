@@ -147,5 +147,5 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
 
             logging.info("Successfully injected cluster_shut_down scenario!")
 
-    def get_scenario_type(self) -> str:
-        return "cluster_shut_down_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["cluster_shut_down_scenarios"]

@@ -62,19 +62,25 @@ class ScenarioPluginFactory:
 
                         cls = getattr(module, name)
                         instance = cls()
-                        get_scenario_type = getattr(instance, "get_scenario_type")
-                        scenario_type = get_scenario_type()
-                        if scenario_type in self.loaded_plugins.keys():
-                            self.failed_plugins.append(
-                                (
-                                    module_name,
-                                    name,
-                                    f"scenario type {scenario_type} defined by {self.loaded_plugins[scenario_type].__name__} "
-                                    f"and {name} and this is not allowed.",
+                        get_scenario_type = getattr(instance, "get_scenario_types")
+                        scenario_types = get_scenario_type()
+                        has_duplicates = False
+                        for scenario_type in scenario_types:
+                            if scenario_type in self.loaded_plugins.keys():
+                                self.failed_plugins.append(
+                                    (
+                                        module_name,
+                                        name,
+                                        f"scenario type {scenario_type} defined by {self.loaded_plugins[scenario_type].__name__} "
+                                        f"and {name} and this is not allowed.",
+                                    )
                                 )
-                            )
+                                has_duplicates = True
+                                break
+                        if has_duplicates:
                             continue
-                        self.loaded_plugins[scenario_type] = cls
+                        for scenario_type in scenario_types:
+                            self.loaded_plugins[scenario_type] = cls
 
     def is_naming_convention_correct(
         self, module_name: str, class_name: str

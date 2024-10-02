@@ -264,11 +264,30 @@ def main(cfg) -> int:
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
         scenario_plugin_factory = ScenarioPluginFactory()
-        logging.info("Loaded Scenario Plugins:\n")
+        classes_and_types: dict[str, list[str]] = {}
         for loaded in scenario_plugin_factory.loaded_plugins.keys():
-            logging.info(
-                f"  ✅ Class: {scenario_plugin_factory.loaded_plugins[loaded].__name__} ScenarioType: {loaded}"
-            )
+            if (
+                scenario_plugin_factory.loaded_plugins[loaded].__name__
+                not in classes_and_types.keys()
+            ):
+                classes_and_types[
+                    scenario_plugin_factory.loaded_plugins[loaded].__name__
+                ] = []
+            classes_and_types[
+                scenario_plugin_factory.loaded_plugins[loaded].__name__
+            ].append(loaded)
+        logging.info(
+            "📣 `ScenarioPluginFactory`: types from config.yaml mapped to respective classes for execution:"
+        )
+        for class_loaded in classes_and_types.keys():
+            if len(classes_and_types[class_loaded]) <= 1:
+                logging.info(
+                    f"  ✅ type: {classes_and_types[class_loaded][0]} ➡️ `{class_loaded}` "
+                )
+            else:
+                logging.info(
+                    f"  ✅ types: [{', '.join(classes_and_types[class_loaded])}] ➡️ `{class_loaded}` "
+                )
         logging.info("\n")
         if len(scenario_plugin_factory.failed_plugins) > 0:
             logging.info("Failed to load Scenario Plugins:\n")

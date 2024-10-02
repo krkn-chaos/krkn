@@ -251,5 +251,5 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
         )
         return exec_cmd
 
-    def get_scenario_type(self) -> str:
-        return "network_chaos"
+    def get_scenario_types(self) -> list[str]:
+        return ["network_chaos_scenarios"]

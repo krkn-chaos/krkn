@@ -123,5 +123,5 @@ class ManagedClusterScenarioPlugin(AbstractScenarioPlugin):
     def get_managedcluster_scenario_object(self, kubecli: KrknKubernetes):
         return Scenarios(kubecli)
 
-    def get_scenario_type(self) -> str:
-        return "managedcluster_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["managedcluster_scenarios"]

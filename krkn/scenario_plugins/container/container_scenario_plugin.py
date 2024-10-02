@@ -58,8 +58,8 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         else:
             return 0
 
-    def get_scenario_type(self) -> str:
-        return "container_scenarios"
+    def get_scenario_types(self) -> list[str]:
+        return ["container_scenarios"]
 
     def start_monitoring(self, kill_scenarios: list[any], pool: PodsMonitorPool):
         for kill_scenario in kill_scenarios:
