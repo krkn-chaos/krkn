@@ -97,28 +97,34 @@ If your new scenario does not adhere to the naming conventions, an error log wil
 providing details about the issue:
 
 ```commandline
-2024-09-18 14:48:41,734 [INFO] Loaded Scenario Plugins:
-
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: ApplicationOutageScenarioPlugin ScenarioType: application_outages
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: ArcaflowScenarioPlugin ScenarioType: arcaflow_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: ManagedClusterScenarioPlugin ScenarioType: managedcluster_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: NativeScenarioPlugin ScenarioType: plugin_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: NetworkChaosScenarioPlugin ScenarioType: network_chaos
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: NodeActionsScenarioPlugin ScenarioType: node_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: PvcScenarioPlugin ScenarioType: pvc_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: ServiceDisruptionScenarioPlugin ScenarioType: service_disruption_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: ServiceHijackingScenarioPlugin ScenarioType: service_hijacking
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: ShutDownScenarioPlugin ScenarioType: cluster_shut_down_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: SynFloodScenarioPlugin ScenarioType: syn_flood
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: TimeActionsScenarioPlugin ScenarioType: time_scenarios
-2024-09-18 14:48:41,735 [INFO]   ✅ Class: ZoneOutageScenarioPlugin ScenarioType: zone_outages
-2024-09-18 14:48:41,735 [INFO] 
+2024-10-03 18:06:31,136 [INFO] 📣 `ScenarioPluginFactory`: types from config.yaml mapped to respective classes for execution:
+2024-10-03 18:06:31,136 [INFO]   ✅ type: application_outages_scenarios ➡️ `ApplicationOutageScenarioPlugin` 
+2024-10-03 18:06:31,136 [INFO]   ✅ types: [hog_scenarios, arcaflow_scenario] ➡️ `ArcaflowScenarioPlugin` 
+2024-10-03 18:06:31,136 [INFO]   ✅ type: container_scenarios ➡️ `ContainerScenarioPlugin` 
+2024-10-03 18:06:31,136 [INFO]   ✅ type: managedcluster_scenarios ➡️ `ManagedClusterScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ types: [pod_disruption_scenarios, pod_network_scenario, vmware_node_scenarios, ibmcloud_node_scenarios] ➡️ `NativeScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: network_chaos_scenarios ➡️ `NetworkChaosScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: node_scenarios ➡️ `NodeActionsScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: pvc_scenarios ➡️ `PvcScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: service_disruption_scenarios ➡️ `ServiceDisruptionScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: service_hijacking_scenarios ➡️ `ServiceHijackingScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: cluster_shut_down_scenarios ➡️ `ShutDownScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: syn_flood_scenarios ➡️ `SynFloodScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: time_scenarios ➡️ `TimeActionsScenarioPlugin` 
+2024-10-03 18:06:31,137 [INFO]   ✅ type: zone_outages_scenarios ➡️ `ZoneOutageScenarioPlugin`
 
 2024-09-18 14:48:41,735 [INFO] Failed to load Scenario Plugins:
 
 2024-09-18 14:48:41,735 [ERROR] ⛔ Class: ExamplePluginScenario Module: krkn.scenario_plugins.example.example_scenario_plugin
 2024-09-18 14:48:41,735 [ERROR] ⚠️ scenario plugin class name must start with a capital letter, end with `ScenarioPlugin`, and cannot be just `ScenarioPlugin`.
 ```
+
+>[!NOTE]
+>If you're trying to understand how the scenario types in the config.yaml are mapped to 
+> their corresponding plugins, this log will guide you! 
+> Each scenario plugin class mentioned can be found in the `krkn/scenario_plugin` folder
+> simply convert the camel case notation and remove the ScenarioPlugin suffix from the class name
+> e.g `ShutDownScenarioPlugin` class can be found in the `krkn/scenario_plugin/shut_down` folder.
 
 ## ExampleScenarioPlugin
 The [ExampleScenarioPlugin](../krkn/tests/test_classes/example_scenario_plugin.py) class included in the tests folder can be used as a scaffolding for new plugins and it is considered
