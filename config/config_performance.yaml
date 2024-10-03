@@ -12,15 +12,14 @@ kraken:
             - scenarios/openshift/regex_openshift_pod_kill.yml
             - scenarios/openshift/prom_kill.yml
         -   node_scenarios:                                # List of chaos node scenarios to load
-            -   scenarios/openshift/node_scenarios_example.yml
+            -  scenarios/openshift/node_scenarios_example.yml
         -   plugin_scenarios:
             - scenarios/openshift/openshift-apiserver.yml
             - scenarios/openshift/openshift-kube-apiserver.yml
         -   time_scenarios:                                # List of chaos time scenarios to load
             - scenarios/openshift/time_scenarios_example.yml
         -   cluster_shut_down_scenarios:
-            - - scenarios/openshift/cluster_shut_down_scenario.yml
-              - scenarios/openshift/post_action_shut_down.py
+            - scenarios/openshift/cluster_shut_down_scenario.yml
         -   service_disruption_scenarios:
             - scenarios/openshift/regex_namespace.yaml
             - scenarios/openshift/ingress_namespace.yaml

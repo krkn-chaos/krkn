@@ -1,6 +1,6 @@
 kraken:
     distribution: kubernetes                                # Distribution can be kubernetes or openshift
-    kubeconfig_path: ~/.kube/config                        # Path to kubeconfig
+    kubeconfig_path: ~/.kube/config                     # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
     publish_kraken_status: True                            # Can be accessed at http://0.0.0.0:8081
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
@@ -8,43 +8,46 @@ kraken:
     port: 8081                                             # Signal port
     chaos_scenarios:
         # List of policies/chaos scenarios to load
-        - arcaflow_scenarios:
-            - scenarios/arcaflow/cpu-hog/input.yaml
-            - scenarios/arcaflow/memory-hog/input.yaml
-            - scenarios/arcaflow/io-hog/input.yaml
-        - application_outages:
+        - hog_scenarios:
+            - scenarios/kube/cpu-hog/input.yaml
+            - scenarios/kube/memory-hog/input.yaml
+            - scenarios/kube/io-hog/input.yaml
+            - scenarios/kube/io-hog/input.yaml
+        - application_outages_scenarios:
             - scenarios/openshift/app_outage.yaml
         - container_scenarios:                             # List of chaos pod scenarios to load
-            - - scenarios/openshift/container_etcd.yml
-        - plugin_scenarios:
+            - scenarios/openshift/container_etcd.yml
+        - pod_network_scenarios:
+              - scenarios/openshift/network_chaos_ingress.yml
+              - scenarios/openshift/pod_network_outage.yml
+        - pod_disruption_scenarios:
             - scenarios/openshift/etcd.yml
             - scenarios/openshift/regex_openshift_pod_kill.yml
-            - scenarios/openshift/vmware_node_scenarios.yml
-            - scenarios/openshift/network_chaos_ingress.yml
             - scenarios/openshift/prom_kill.yml
-        - node_scenarios:                                  # List of chaos node scenarios to load
-            - scenarios/openshift/aws_node_scenarios.yml
-        - plugin_scenarios:
             - scenarios/openshift/openshift-apiserver.yml
             - scenarios/openshift/openshift-kube-apiserver.yml
+        - vmware_node_scenarios:
+            - scenarios/openshift/vmware_node_scenarios.yml
+        - ibmcloud_node_scenarios:
+            - scenarios/openshift/ibmcloud_node_scenarios.yml
+        - node_scenarios:                                  # List of chaos node scenarios to load
+            - scenarios/openshift/aws_node_scenarios.yml
         - time_scenarios:                                  # List of chaos time scenarios to load
             - scenarios/openshift/time_scenarios_example.yml
         - cluster_shut_down_scenarios:
-            - - scenarios/openshift/cluster_shut_down_scenario.yml
-              - scenarios/openshift/post_action_shut_down.py
+            - scenarios/openshift/cluster_shut_down_scenario.yml
         - service_disruption_scenarios:
-             - - scenarios/openshift/regex_namespace.yaml
-             - - scenarios/openshift/ingress_namespace.yaml
-               - scenarios/openshift/post_action_namespace.py
-        - zone_outages:
+             - scenarios/openshift/regex_namespace.yaml
+             - scenarios/openshift/ingress_namespace.yaml
+        - zone_outages_scenarios:
             - scenarios/openshift/zone_outage.yaml
         - pvc_scenarios:
             - scenarios/openshift/pvc_scenario.yaml
-        - network_chaos:
+        - network_chaos_scenarios:
             - scenarios/openshift/network_chaos.yaml
-        - service_hijacking:
+        - service_hijacking_scenarios:
               - scenarios/kube/service_hijacking.yaml
-        - syn_flood:
+        - syn_flood_scenarios:
               - scenarios/kube/syn_flood.yaml
 
 cerberus:

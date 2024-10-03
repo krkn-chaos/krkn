@@ -15,7 +15,7 @@ function functional_test_network_chaos {
   yq -i 'del(.network_chaos.egress.latency)' scenarios/openshift/network_chaos.yaml
   yq -i 'del(.network_chaos.egress.loss)' scenarios/openshift/network_chaos.yaml
 
-  export scenario_type="network_chaos"
+  export scenario_type="network_chaos_scenarios"
   export scenario_file="scenarios/openshift/network_chaos.yaml"
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/network_chaos.yaml
