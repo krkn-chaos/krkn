@@ -7,7 +7,7 @@ kraken:
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
         -   container_scenarios:                                 # List of chaos pod scenarios to load
-            - -    scenarios/kube/container_dns.yml
+            - scenarios/kube/container_dns.yml
         -   plugin_scenarios:
             - scenarios/kube/scheduler.yml
 

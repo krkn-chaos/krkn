@@ -119,6 +119,12 @@ If adding a new scenario or tweaking the main config, be sure to add in updates 
 Please read [this file]((CI/README.md#adding-a-test-case)) for more information on updates.
 
 
+### Scenario Plugin Development
+
+If you're gearing up to develop new scenarios, take a moment to review our 
+[Scenario Plugin API Documentation](docs/scenario_plugin_api.md). 
+It’s the perfect starting point to tap into your chaotic creativity!
+
 ### Community
 Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, tsebasti/Tullio Sebastiani, yogi/Yogananth Subramanian, sahil/Sahil Shah, pradeep/Pradeep Surisetty and ravielluri/Naga Ravi Chaitanya Elluri.
 * [**#krkn on Kubernetes Slack**](https://kubernetes.slack.com/messages/C05SFMHRWK1)

@@ -1,7 +1,8 @@
 import unittest
 import logging
 from arcaflow_plugin_sdk import plugin
-from kraken.plugins.network import ingress_shaping
+
+from krkn.scenario_plugins.native.network import ingress_shaping
 
 
 class NetworkScenariosTest(unittest.TestCase):
@@ -9,25 +10,26 @@ class NetworkScenariosTest(unittest.TestCase):
     def test_serialization(self):
         plugin.test_object_serialization(
             ingress_shaping.NetworkScenarioConfig(
-                node_interface_name={"foo": ['bar']},
+                node_interface_name={"foo": ["bar"]},
                 network_params={
                     "latency": "50ms",
                     "loss": "0.02",
-                    "bandwidth": "100mbit"
-                }
+                    "bandwidth": "100mbit",
+                },
             ),
             self.fail,
         )
         plugin.test_object_serialization(
             ingress_shaping.NetworkScenarioSuccessOutput(
                 filter_direction="ingress",
-                test_interfaces={"foo": ['bar']},
+                test_interfaces={"foo": ["bar"]},
                 network_parameters={
                     "latency": "50ms",
                     "loss": "0.02",
-                    "bandwidth": "100mbit"
+                    "bandwidth": "100mbit",
                 },
-                execution_type="parallel"),
+                execution_type="parallel",
+            ),
             self.fail,
         )
         plugin.test_object_serialization(
@@ -45,10 +47,10 @@ class NetworkScenariosTest(unittest.TestCase):
                 network_params={
                     "latency": "50ms",
                     "loss": "0.02",
-                    "bandwidth": "100mbit"
-                }
+                    "bandwidth": "100mbit",
+                },
             ),
-            run_id="network-shaping-test"
+            run_id="network-shaping-test",
         )
         if output_id == "error":
             logging.error(output_data.error)

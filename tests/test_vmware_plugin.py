@@ -2,33 +2,25 @@ import unittest
 import os
 import logging
 from arcaflow_plugin_sdk import plugin
-from kraken.plugins.node_scenarios.kubernetes_functions import Actions
-from kraken.plugins.node_scenarios import vmware_plugin
+
+from krkn.scenario_plugins.native.node_scenarios import vmware_plugin
+from krkn.scenario_plugins.native.node_scenarios.kubernetes_functions import Actions
 
 
 class NodeScenariosTest(unittest.TestCase):
     def setUp(self):
-        vsphere_env_vars = [
-            "VSPHERE_IP",
-            "VSPHERE_USERNAME",
-            "VSPHERE_PASSWORD"
-        ]
+        vsphere_env_vars = ["VSPHERE_IP", "VSPHERE_USERNAME", "VSPHERE_PASSWORD"]
         self.credentials_present = all(
             env_var in os.environ for env_var in vsphere_env_vars
         )
 
     def test_serialization(self):
         plugin.test_object_serialization(
-            vmware_plugin.NodeScenarioConfig(
-                name="test",
-                skip_openshift_checks=True
-            ),
+            vmware_plugin.NodeScenarioConfig(name="test", skip_openshift_checks=True),
             self.fail,
         )
         plugin.test_object_serialization(
-            vmware_plugin.NodeScenarioSuccessOutput(
-                nodes={}, action=Actions.START
-            ),
+            vmware_plugin.NodeScenarioSuccessOutput(nodes={}, action=Actions.START),
             self.fail,
         )
         plugin.test_object_serialization(

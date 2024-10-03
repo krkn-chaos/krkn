@@ -6,8 +6,8 @@ trap error ERR
 trap finish EXIT
 
 function funtional_test_namespace_deletion {
-  export scenario_type="namespace_scenarios"
-  export scenario_file="-  scenarios/openshift/ingress_namespace.yaml"
+  export scenario_type="service_disruption_scenarios"
+  export scenario_file="scenarios/openshift/ingress_namespace.yaml"
   export post_config=""
   yq '.scenarios[0].namespace="^namespace-scenario$"' -i scenarios/openshift/ingress_namespace.yaml
   yq '.scenarios[0].wait_time=30' -i scenarios/openshift/ingress_namespace.yaml
