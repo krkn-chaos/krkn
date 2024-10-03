@@ -1,0 +1,9 @@
+aws_access_key_id:                            # only if system-wide credentials are not
+aws_secret_access_key:                        # configured or using different credentials
+chaos_duration:
+
+regions:
+  - region:
+    ebs_volume_ids:
+    node_ids:
+
