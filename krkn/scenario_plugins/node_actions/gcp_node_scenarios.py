@@ -14,13 +14,15 @@ from krkn_lib.k8s import KrknKubernetes
 
 class GCP:
     def __init__(self):
-        try:
+        if "GOOGLE_APPLICATION_CREDENTIALS" in os.environ:
             gapp_creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
             with open(gapp_creds, "r") as f:
                 f_str = f.read()
                 self.project = json.loads(f_str)["project_id"]
             # self.project = runcommand.invoke("gcloud config get-value project").split("/n")[0].strip()
             logging.info("project " + str(self.project) + "!")
+
+        try:
             credentials = GoogleCredentials.get_application_default()
             self.client = discovery.build(
                 "compute", "v1", credentials=credentials, cache_discovery=False
