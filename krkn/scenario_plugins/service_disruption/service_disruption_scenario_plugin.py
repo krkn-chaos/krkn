@@ -6,9 +6,8 @@ import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-from krkn_lib.utils import get_yaml_item_value, log_exception
+from krkn_lib.utils import get_yaml_item_value
 
-from krkn import cerberus, utils
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -17,7 +16,6 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -59,8 +57,6 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         + str(run_sleep)
                         + str(wait_time)
                     )
-                    logging.info("done")
-                    start_time = int(time.time())
                     for i in range(run_count):
                         killed_namespaces = {}
                         namespaces = (
@@ -114,10 +110,6 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                             )
                             time.sleep(run_sleep)
 
-                    end_time = int(time.time())
-                    cerberus.publish_kraken_status(
-                        krkn_config, [], start_time, end_time
-                    )
         except (Exception, RuntimeError) as e:
             logging.error(
                 "ServiceDisruptionScenarioPlugin exiting due to Exception %s" % e
