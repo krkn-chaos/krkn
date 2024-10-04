@@ -99,6 +99,8 @@ jobs:
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
             echo "test_pod_server" >> ./CI/tests/functional_tests
             echo "test_time" >> ./CI/tests/functional_tests
+            echo "test_cerberus" >> ./CI/tests/functional_tests
+            echo "test_cerberus_unhealthy" >> ./CI/tests/functional_tests
             # echo "test_pvc" >> ./CI/tests/functional_tests
 
       # Push on main only steps + all other functional to collect coverage

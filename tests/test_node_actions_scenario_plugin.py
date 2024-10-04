@@ -671,13 +671,12 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             result = self.plugin.run(
                 "test-uuid",
                 "/path/to/scenario.yaml",
-                {},
                 self.mock_lib_telemetry,
                 self.mock_scenario_telemetry
             )
 
         self.assertEqual(result, 0)
-        mock_cerberus.get_status.assert_called_once_with({}, 1000, 1100)
+        mock_cerberus.get_status.assert_called_once_with(1000, 1100)
 
     @patch('logging.error')
     @patch('builtins.open', new_callable=mock_open)
@@ -697,7 +696,6 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             result = self.plugin.run(
                 "test-uuid",
                 "/path/to/scenario.yaml",
-                {},
                 self.mock_lib_telemetry,
                 self.mock_scenario_telemetry
             )
