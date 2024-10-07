@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn import utils
+from krkn import utils, cerberus
 
 
 class AbstractScenarioPlugin(ABC):
@@ -78,10 +78,10 @@ class AbstractScenarioPlugin(ABC):
                 logging.info(
                     f"Running {self.__class__.__name__}: {self.get_scenario_types()} -> {scenario_config}"
                 )
+                start_time = int(time.time())
                 return_value = self.run(
                     run_uuid,
                     scenario_config,
-                    krkn_config,
                     telemetry,
                     scenario_telemetry,
                 )
@@ -114,6 +114,10 @@ class AbstractScenarioPlugin(ABC):
             if scenario_telemetry.exit_status != 0:
                 failed_scenarios.append(scenario_config)
             scenario_telemetries.append(scenario_telemetry)
+            end_time = int(time.time())
+            cerberus.publish_kraken_status(start_time, end_time)
             logging.info(f"wating {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
+
+            
         return failed_scenarios, scenario_telemetries
