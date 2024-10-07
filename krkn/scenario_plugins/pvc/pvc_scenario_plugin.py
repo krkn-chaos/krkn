@@ -7,9 +7,8 @@ import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-from krkn_lib.utils import get_yaml_item_value, log_exception
+from krkn_lib.utils import get_yaml_item_value
 
-from krkn import cerberus, utils
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -18,7 +17,6 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -176,7 +174,6 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     )
                 )
 
-                start_time = int(time.time())
                 # Create temp file in the PVC
                 full_path = "%s/%s" % (str(mount_path), str(file_name))
 
@@ -246,6 +243,44 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     )
                     return 1
 
+            # Calculate file size
+            file_size_kb = int(
+                (float(target_fill_percentage / 100) * float(pvc_capacity_kb))
+                - float(pvc_used_kb)
+            )
+            logging.debug("File size: %s KB" % file_size_kb)
+
+            file_name = "kraken.tmp"
+            logging.info(
+                "Creating %s file, %s KB size, in pod %s at %s (ns %s)"
+                % (
+                    str(file_name),
+                    str(file_size_kb),
+                    str(pod_name),
+                    str(mount_path),
+                    str(namespace),
+                )
+            )
+
+            # Create temp file in the PVC
+            full_path = "%s/%s" % (str(mount_path), str(file_name))
+            command = "fallocate -l $((%s*1024)) %s" % (
+                str(file_size_kb),
+                str(full_path),
+            )
+            logging.debug("Create temp file in the PVC command:\n %s" % command)
+            lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
+                [command], pod_name, namespace, container_name
+            )
+
+            # Check if file is created
+            command = "ls -lh %s" % (str(mount_path))
+            logging.debug("Check file is created command:\n %s" % command)
+            response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
+                [command], pod_name, namespace, container_name
+            )
+            logging.info("\n" + str(response))
+            if str(file_name).lower() in str(response).lower():
                 logging.info(
                     "Waiting for the specified duration in the config: %ss" % duration
                 )
@@ -262,8 +297,6 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     file_size_kb,
                     lib_telemetry.get_lib_kubernetes(),
                 )
-                end_time = int(time.time())
-                cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
         except (RuntimeError, Exception) as e:
             logging.error("PvcScenarioPlugin exiting due to Exception %s" % e)
             return 1

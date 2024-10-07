@@ -8,7 +8,6 @@ import re
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
 from . import kubernetes_functions as kube_helper
-from . import cerberus
 import typing
 from arcaflow_plugin_sdk import validation, plugin
 from kubernetes.client.api.core_v1_api import CoreV1Api as CoreV1Api
@@ -97,6 +96,7 @@ class NetworkScenarioConfig:
         },
     )
 
+<<<<<<< HEAD
     kraken_config: typing.Optional[str] = field(
         default="",
         metadata={
@@ -107,6 +107,8 @@ class NetworkScenarioConfig:
     )
 
 
+=======
+>>>>>>> 5e32dd1 (cerbuerus chagnes)
 @dataclass
 class NetworkScenarioSuccessOutput:
     filter_direction: str = field(
@@ -721,6 +723,7 @@ def network_chaos(
     except Exception:
         return "error", NetworkScenarioErrorOutput(format_exc())
     job_list = []
+<<<<<<< HEAD
     publish = False
     if cfg.kraken_config:
         failed_post_scenarios = ""
@@ -731,6 +734,8 @@ def network_chaos(
             logging.error("Error reading Kraken config from %s" % cfg.kraken_config)
             return "error", NetworkScenarioErrorOutput(format_exc())
         publish = True
+=======
+>>>>>>> 5e32dd1 (cerbuerus chagnes)
 
     try:
         if cfg.execution_type == "parallel":
@@ -750,10 +755,13 @@ def network_chaos(
             start_time = int(time.time())
             wait_for_job(batch_cli, job_list[:], cfg.test_duration + 100)
             end_time = int(time.time())
+<<<<<<< HEAD
             if publish:
                 cerberus.publish_kraken_status(
                     config, failed_post_scenarios, start_time, end_time
                 )
+=======
+>>>>>>> 5e32dd1 (cerbuerus chagnes)
 
         elif cfg.execution_type == "serial":
             create_interfaces = True
@@ -778,6 +786,7 @@ def network_chaos(
                 logging.info("Deleting jobs")
                 delete_jobs(cli, batch_cli, job_list[:])
                 job_list = []
+<<<<<<< HEAD
                 logging.info("Waiting for wait_duration : %ss" % cfg.wait_duration)
                 time.sleep(cfg.wait_duration)
                 end_time = int(time.time())
@@ -785,6 +794,9 @@ def network_chaos(
                     cerberus.publish_kraken_status(
                         config, failed_post_scenarios, start_time, end_time
                     )
+=======
+               
+>>>>>>> 5e32dd1 (cerbuerus chagnes)
                 create_interfaces = False
         else:
 

@@ -18,7 +18,6 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -44,7 +43,6 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                     return 1
                 scenario_telemetry.affected_pods = result
 
-                # publish cerberus status
         except (RuntimeError, Exception):
             logging.error("ContainerScenarioPlugin exiting due to Exception %s")
             return 1
