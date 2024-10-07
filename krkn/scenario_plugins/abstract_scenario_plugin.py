@@ -117,6 +117,5 @@ class AbstractScenarioPlugin(ABC):
             cerberus.publish_kraken_status(start_time, end_time)
             logging.info(f"wating {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
-
             
         return failed_scenarios, scenario_telemetries
