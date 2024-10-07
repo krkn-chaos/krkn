@@ -855,7 +855,170 @@ def check_bridge_interface(
     return True
 
 
-def pod_outage():
+@dataclass
+class InputParams:
+    """
+    This is the data structure for the input parameters of the step defined below.
+    """
+
+    namespace: typing.Annotated[str, validation.min(1)] = field(
+        metadata={
+            "name": "Namespace",
+            "description": "Namespace of the pod to which filter need to be applied"
+            "for details.",
+        }
+    )
+
+    direction: typing.List[str] = field(
+        default_factory=lambda: ["ingress", "egress"],
+        metadata={
+            "name": "Direction",
+            "description": "List of directions to apply filters"
+            "Default both egress and ingress.",
+        },
+    )
+
+    ingress_ports: typing.List[int] = field(
+        default_factory=list,
+        metadata={
+            "name": "Ingress ports",
+            "description": "List of ports to block traffic on"
+            "Default [], i.e. all ports",
+        },
+    )
+
+    egress_ports: typing.List[int] = field(
+        default_factory=list,
+        metadata={
+            "name": "Egress ports",
+            "description": "List of ports to block traffic on"
+            "Default [], i.e. all ports",
+        },
+    )
+    kubeconfig_path: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Kubeconfig path",
+            "description": "Kubeconfig file as string\n"
+            "See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for "
+            "details.",
+        },
+    )
+    pod_name: typing.Annotated[
+        typing.Optional[str],
+        validation.required_if_not("label_selector"),
+    ] = field(
+        default=None,
+        metadata={
+            "name": "Pod name",
+            "description": "When label_selector is not specified, pod matching the name will be"
+            "selected for the chaos scenario",
+        },
+    )
+
+    label_selector: typing.Annotated[
+        typing.Optional[str], validation.required_if_not("pod_name")
+    ] = field(
+        default=None,
+        metadata={
+            "name": "Label selector",
+            "description": "Kubernetes label selector for the target pod. "
+            "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
+        },
+    )
+
+    kraken_config: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Kraken Config",
+            "description": "Path to the config file of Kraken. "
+            "Set this field if you wish to publish status onto Cerberus",
+        },
+    )
+
+    test_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=120,
+        metadata={
+            "name": "Test duration",
+            "description": "Duration for which each step of the ingress chaos testing "
+            "is to be performed.",
+        },
+    )
+
+    wait_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=300,
+        metadata={
+            "name": "Wait Duration",
+            "description": "Wait duration for finishing a test and its cleanup."
+            "Ensure that it is significantly greater than wait_duration",
+        },
+    )
+
+    instance_count: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=1,
+        metadata={
+            "name": "Instance Count",
+            "description": "Number of pods to perform action/select that match "
+            "the label selector.",
+        },
+    )
+
+
+@dataclass
+class PodOutageSuccessOutput:
+    """
+    This is the output data structure for the success case.
+    """
+
+    test_pods: typing.List[str] = field(
+        metadata={
+            "name": "Test pods",
+            "description": "List of test pods where the selected for chaos scenario",
+        }
+    )
+
+    direction: typing.List[str] = field(
+        metadata={
+            "name": "Direction",
+            "description": "List of directions to which the filters were applied.",
+        }
+    )
+
+    ingress_ports: typing.List[int] = field(
+        metadata={
+            "name": "Ingress ports",
+            "description": "List of ports to block traffic on",
+        }
+    )
+
+    egress_ports: typing.List[int] = field(
+        metadata={
+            "name": "Egress ports",
+            "description": "List of ports to block traffic on",
+        }
+    )
+
+
+@dataclass
+class PodOutageErrorOutput:
+    error: str = field(
+        metadata={
+            "name": "Error",
+            "description": "Error message when there is a run-time error during "
+            "the execution of the scenario",
+        }
+    )
+
+
+@plugin.step(
+    id="pod_network_outage",
+    name="Pod Outage",
+    description="Blocks ingress and egress network traffic at pod level",
+    outputs={"success": PodOutageSuccessOutput, "error": PodOutageErrorOutput},
+)
+def pod_outage(
+    params: InputParams,
+) -> typing.Tuple[str, typing.Union[PodOutageSuccessOutput, PodOutageErrorOutput]]:
     """
     Function that performs pod outage chaos scenario based
     on the provided confiapply_net_policyguration
@@ -887,6 +1050,7 @@ def pod_outage():
         except Exception:
             logging.error("Error reading Kraken config from %s" %
                           params.kraken_config)
+            return "error", PodOutageErrorOutput(format_exc())
         publish = True
 
     for i in params.direction:
@@ -945,14 +1109,176 @@ def pod_outage():
                 config, failed_post_scenarios, start_time, end_time
             )
 
+        return "success", PodOutageSuccessOutput(
+            test_pods=pods_list,
+            direction=params.direction,
+            ingress_ports=params.ingress_ports,
+            egress_ports=params.egress_ports,
+        )
     except Exception as e:
         logging.error(
             "Pod network outage scenario exiting due to Exception - %s" % e)
+        return "error", PodOutageErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
 
-def pod_egress_shaping(params):
+
+@dataclass
+class EgressParams:
+    """
+    This is the data structure for the input parameters of the step defined below.
+    """
+
+    namespace: typing.Annotated[str, validation.min(1)] = field(
+        metadata={
+            "name": "Namespace",
+            "description": "Namespace of the pod to which filter need to be applied"
+            "for details.",
+        }
+    )
+
+    network_params: typing.Dict[str, str] = field(
+        metadata={
+            "name": "Network Parameters",
+            "description": "The network filters that are applied on the interface. "
+            "The currently supported filters are latency, "
+            "loss and bandwidth",
+        },
+    )
+
+    kubeconfig_path: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Kubeconfig path",
+            "description": "Kubeconfig file as string\n"
+            "See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for "
+            "details.",
+        },
+    )
+    pod_name: typing.Annotated[
+        typing.Optional[str],
+        validation.required_if_not("label_selector"),
+    ] = field(
+        default=None,
+        metadata={
+            "name": "Pod name",
+            "description": "When label_selector is not specified, pod matching the name will be"
+            "selected for the chaos scenario",
+        },
+    )
+
+    label_selector: typing.Annotated[
+        typing.Optional[str], validation.required_if_not("pod_name")
+    ] = field(
+        default=None,
+        metadata={
+            "name": "Label selector",
+            "description": "Kubernetes label selector for the target pod. "
+            "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
+        },
+    )
+
+    kraken_config: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Kraken Config",
+            "description": "Path to the config file of Kraken. "
+            "Set this field if you wish to publish status onto Cerberus",
+        },
+    )
+
+    test_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=90,
+        metadata={
+            "name": "Test duration",
+            "description": "Duration for which each step of the ingress chaos testing "
+            "is to be performed.",
+        },
+    )
+
+    wait_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=300,
+        metadata={
+            "name": "Wait Duration",
+            "description": "Wait duration for finishing a test and its cleanup."
+            "Ensure that it is significantly greater than wait_duration",
+        },
+    )
+
+    instance_count: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=1,
+        metadata={
+            "name": "Instance Count",
+            "description": "Number of pods to perform action/select that match "
+            "the label selector.",
+        },
+    )
+
+    execution_type: typing.Optional[str] = field(
+        default="parallel",
+        metadata={
+            "name": "Execution Type",
+            "description": "The order in which the ingress filters are applied. "
+            "Execution type can be 'serial' or 'parallel'",
+        },
+    )
+
+
+@dataclass
+class PodEgressNetShapingSuccessOutput:
+    """
+    This is the output data structure for the success case.
+    """
+
+    test_pods: typing.List[str] = field(
+        metadata={
+            "name": "Test pods",
+            "description": "List of test pods where the selected for chaos scenario",
+        }
+    )
+
+    network_parameters: typing.Dict[str, str] = field(
+        metadata={
+            "name": "Network Parameters",
+            "description": "The network filters that are applied on the interfaces",
+        }
+    )
+
+    execution_type: str = field(
+        metadata={
+            "name": "Execution Type",
+            "description": "The order in which the filters are applied",
+        }
+    )
+
+
+@dataclass
+class PodEgressNetShapingErrorOutput:
+    error: str = field(
+        metadata={
+            "name": "Error",
+            "description": "Error message when there is a run-time error during "
+            "the execution of the scenario",
+        }
+    )
+
+
+@plugin.step(
+    id="pod_egress_shaping",
+    name="Pod egress network Shaping",
+    description="Does egress network traffic shaping at pod level",
+    outputs={
+        "success": PodEgressNetShapingSuccessOutput,
+        "error": PodEgressNetShapingErrorOutput,
+    },
+)
+def pod_egress_shaping(
+    params: EgressParams,
+) -> typing.Tuple[
+    str, typing.Union[PodEgressNetShapingSuccessOutput,
+                      PodEgressNetShapingErrorOutput]
+]:
     """
     Function that performs egress pod traffic shaping based
     on the provided configuration
@@ -983,6 +1309,7 @@ def pod_egress_shaping(params):
         except Exception:
             logging.error("Error reading Kraken config from %s" %
                           params.kraken_config)
+            return "error", PodEgressNetShapingErrorOutput(format_exc())
         publish = True
 
     try:
@@ -1056,18 +1383,175 @@ def pod_egress_shaping(params):
                     config, failed_post_scenarios, start_time, end_time
                 )
 
+        return "success", PodEgressNetShapingSuccessOutput(
+            test_pods=pods_list,
+            network_parameters=params.network_params,
+            execution_type=params.execution_type,
+        )
     except Exception as e:
         logging.error(
             "Pod network Shaping scenario exiting due to Exception - %s" % e)
-
+        return "error", PodEgressNetShapingErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
 
 
+@dataclass
+class IngressParams:
+    """
+    This is the data structure for the input parameters of the step defined below.
+    """
+
+    namespace: typing.Annotated[str, validation.min(1)] = field(
+        metadata={
+            "name": "Namespace",
+            "description": "Namespace of the pod to which filter need to be applied"
+            "for details.",
+        }
+    )
+
+    network_params: typing.Dict[str, str] = field(
+        metadata={
+            "name": "Network Parameters",
+            "description": "The network filters that are applied on the interface. "
+            "The currently supported filters are latency, "
+            "loss and bandwidth",
+        },
+    )
+
+    kubeconfig_path: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Kubeconfig path",
+            "description": "Kubeconfig file as string\n"
+            "See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for "
+            "details.",
+        },
+    )
+    pod_name: typing.Annotated[
+        typing.Optional[str],
+        validation.required_if_not("label_selector"),
+    ] = field(
+        default=None,
+        metadata={
+            "name": "Pod name",
+            "description": "When label_selector is not specified, pod matching the name will be"
+            "selected for the chaos scenario",
+        },
+    )
+
+    label_selector: typing.Annotated[
+        typing.Optional[str], validation.required_if_not("pod_name")
+    ] = field(
+        default=None,
+        metadata={
+            "name": "Label selector",
+            "description": "Kubernetes label selector for the target pod. "
+            "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
+        },
+    )
+
+    kraken_config: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Kraken Config",
+            "description": "Path to the config file of Kraken. "
+            "Set this field if you wish to publish status onto Cerberus",
+        },
+    )
+
+    test_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=90,
+        metadata={
+            "name": "Test duration",
+            "description": "Duration for which each step of the ingress chaos testing "
+            "is to be performed.",
+        },
+    )
+
+    wait_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=300,
+        metadata={
+            "name": "Wait Duration",
+            "description": "Wait duration for finishing a test and its cleanup."
+            "Ensure that it is significantly greater than wait_duration",
+        },
+    )
+
+    instance_count: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=1,
+        metadata={
+            "name": "Instance Count",
+            "description": "Number of pods to perform action/select that match "
+            "the label selector.",
+        },
+    )
+
+    execution_type: typing.Optional[str] = field(
+        default="parallel",
+        metadata={
+            "name": "Execution Type",
+            "description": "The order in which the ingress filters are applied. "
+            "Execution type can be 'serial' or 'parallel'",
+        },
+    )
+
+
+@dataclass
+class PodIngressNetShapingSuccessOutput:
+    """
+    This is the output data structure for the success case.
+    """
+
+    test_pods: typing.List[str] = field(
+        metadata={
+            "name": "Test pods",
+            "description": "List of test pods where the selected for chaos scenario",
+        }
+    )
+
+    network_parameters: typing.Dict[str, str] = field(
+        metadata={
+            "name": "Network Parameters",
+            "description": "The network filters that are applied on the interfaces",
+        }
+    )
+
+    execution_type: str = field(
+        metadata={
+            "name": "Execution Type",
+            "description": "The order in which the filters are applied",
+        }
+    )
+
+
+@dataclass
+class PodIngressNetShapingErrorOutput:
+    error: str = field(
+        metadata={
+            "name": "Error",
+            "description": "Error message when there is a run-time error during "
+            "the execution of the scenario",
+        }
+    )
+
+
+@plugin.step(
+    id="pod_ingress_shaping",
+    name="Pod ingress network Shaping",
+    description="Does ingress network traffic shaping at pod level",
+    outputs={
+        "success": PodIngressNetShapingSuccessOutput,
+        "error": PodIngressNetShapingErrorOutput,
+    },
+)
 def pod_ingress_shaping(
-    params
-):
+    params: IngressParams,
+) -> typing.Tuple[
+    str, typing.Union[PodIngressNetShapingSuccessOutput,
+                      PodIngressNetShapingErrorOutput]
+]:
     """
     Function that performs ingress pod traffic shaping based
     on the provided configuration
@@ -1098,7 +1582,7 @@ def pod_ingress_shaping(
         except Exception:
             logging.error("Error reading Kraken config from %s" %
                           params.kraken_config)
-
+            return "error", PodIngressNetShapingErrorOutput(format_exc())
         publish = True
 
     try:
@@ -1172,9 +1656,15 @@ def pod_ingress_shaping(
                     config, failed_post_scenarios, start_time, end_time
                 )
 
+        return "success", PodIngressNetShapingSuccessOutput(
+            test_pods=pods_list,
+            network_parameters=params.network_params,
+            execution_type=params.execution_type,
+        )
     except Exception as e:
         logging.error(
             "Pod network Shaping scenario exiting due to Exception - %s" % e)
+        return "error", PodIngressNetShapingErrorOutput(format_exc())
     finally:
         delete_virtual_interfaces(
             kubecli,
