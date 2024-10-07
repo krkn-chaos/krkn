@@ -51,7 +51,7 @@ telemetry:
     events_backup: True                                     # enables/disables cluster events collection
     telemetry_group: "funtests"
 elastic:
-    enable_elastic: True
+    enable_elastic: False
     collect_metrics: False
     collect_alerts: False
     verify_certs: False
