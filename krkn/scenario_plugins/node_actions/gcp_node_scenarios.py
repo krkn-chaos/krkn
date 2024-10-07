@@ -19,7 +19,6 @@ class GCP:
             with open(gapp_creds, "r") as f:
                 f_str = f.read()
                 self.project = json.loads(f_str)["project_id"]
-            # self.project = runcommand.invoke("gcloud config get-value project").split("/n")[0].strip()
             logging.info("project " + str(self.project) + "!")
 
         try:
