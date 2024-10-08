@@ -28,14 +28,15 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         try:
             with open(scenario, "r") as f:
                 cont_scenario_config = yaml.full_load(f)
-                self.start_monitoring(
-                    kill_scenarios=cont_scenario_config["scenarios"], pool=pool
-                )
-                killed_containers = self.container_killing_in_pod(
-                    cont_scenario_config, lib_telemetry.get_lib_kubernetes()
-                )
-                logging.info(f"killed containers: {str(killed_containers)}")
-                result = pool.join()
+                
+                for kill_scenario in cont_scenario_config["scenarios"]:
+                    self.start_monitoring(
+                        kill_scenario, pool
+                    )
+                    killed_containers = self.container_killing_in_pod(
+                        kill_scenario, lib_telemetry.get_lib_kubernetes()
+                    )
+                    result = pool.join()
                 if result.error:
                     logging.error(
                         logging.error(
@@ -61,16 +62,16 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["container_scenarios"]
 
-    def start_monitoring(self, kill_scenarios: list[any], pool: PodsMonitorPool):
-        for kill_scenario in kill_scenarios:
-            namespace_pattern = f"^{kill_scenario['namespace']}$"
-            label_selector = kill_scenario["label_selector"]
-            recovery_time = kill_scenario["expected_recovery_time"]
-            pool.select_and_monitor_by_namespace_pattern_and_label(
-                namespace_pattern=namespace_pattern,
-                label_selector=label_selector,
-                max_timeout=recovery_time,
-            )
+    def start_monitoring(self, kill_scenario: dict, pool: PodsMonitorPool):
+        
+        namespace_pattern = f"^{kill_scenario['namespace']}$"
+        label_selector = kill_scenario["label_selector"]
+        recovery_time = kill_scenario["expected_recovery_time"]
+        pool.select_and_monitor_by_namespace_pattern_and_label(
+            namespace_pattern=namespace_pattern,
+            label_selector=label_selector,
+            max_timeout=recovery_time,
+        )
 
     def container_killing_in_pod(self, cont_scenario, kubecli: KrknKubernetes):
         scenario_name = get_yaml_item_value(cont_scenario, "name", "")
@@ -128,7 +129,6 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                     container.name for container in pod_output.containers
                 ]
                 container_pod_list.append([pod, namespace, container_names])
-
         killed_count = 0
         killed_container_list = []
         while killed_count < kill_count:
