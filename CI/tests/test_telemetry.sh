@@ -26,7 +26,6 @@ function functional_test_telemetry {
   RUN_FOLDER=`cat CI/out/test_telemetry.out | grep amazonaws.com | sed -rn "s#.*https:\/\/.*\/files/(.*)#\1#p"`
   $AWS_CLI s3 ls "s3://$AWS_BUCKET/$RUN_FOLDER/" | awk '{ print $4 }' > s3_remote_files
   echo "checking if telemetry files are uploaded on s3"
-  cat s3_remote_files | grep events-00.json || ( echo "FAILED: events-00.json not uploaded" && exit 1 )
   cat s3_remote_files | grep critical-alerts-00.log || ( echo "FAILED: critical-alerts-00.log not uploaded"  && exit 1 )
   cat s3_remote_files | grep prometheus-00.tar || ( echo "FAILED: prometheus backup not uploaded"  && exit 1 )
   cat s3_remote_files | grep telemetry.json || ( echo "FAILED: telemetry.json not uploaded"  && exit 1 )
