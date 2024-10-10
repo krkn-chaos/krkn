@@ -993,13 +993,6 @@ def pod_outage(
     publish = False
 
     if params.kraken_config:
-        failed_post_scenarios = ""
-        try:
-            with open(params.kraken_config, "r") as f:
-                config = yaml.full_load(f)
-        except Exception:
-            logging.error("Error reading Kraken config from %s" % params.kraken_config)
-            return "error", PodOutageErrorOutput(format_exc())
         publish = True
 
     for i in params.direction:
@@ -1055,7 +1048,7 @@ def pod_outage(
         end_time = int(time.time())
         if publish:
             cerberus.publish_kraken_status(
-                config, failed_post_scenarios, start_time, end_time
+                params.kraken_config, "", start_time, end_time
             )
 
         return "success", PodOutageSuccessOutput(
@@ -1249,13 +1242,6 @@ def pod_egress_shaping(
     publish = False
 
     if params.kraken_config:
-        failed_post_scenarios = ""
-        try:
-            with open(params.kraken_config, "r") as f:
-                config = yaml.full_load(f)
-        except Exception:
-            logging.error("Error reading Kraken config from %s" % params.kraken_config)
-            return "error", PodEgressNetShapingErrorOutput(format_exc())
         publish = True
 
     try:
@@ -1313,7 +1299,7 @@ def pod_egress_shaping(
                 end_time = int(time.time())
                 if publish:
                     cerberus.publish_kraken_status(
-                        config, failed_post_scenarios, start_time, end_time
+                        params.kraken_config, "", start_time, end_time
                     )
             if params.execution_type == "parallel":
                 break
@@ -1326,7 +1312,7 @@ def pod_egress_shaping(
             end_time = int(time.time())
             if publish:
                 cerberus.publish_kraken_status(
-                    config, failed_post_scenarios, start_time, end_time
+                    params.kraken_config, "", start_time, end_time
                 )
 
         return "success", PodEgressNetShapingSuccessOutput(
@@ -1520,13 +1506,6 @@ def pod_ingress_shaping(
     publish = False
 
     if params.kraken_config:
-        failed_post_scenarios = ""
-        try:
-            with open(params.kraken_config, "r") as f:
-                config = yaml.full_load(f)
-        except Exception:
-            logging.error("Error reading Kraken config from %s" % params.kraken_config)
-            return "error", PodIngressNetShapingErrorOutput(format_exc())
         publish = True
 
     try:
@@ -1584,7 +1563,7 @@ def pod_ingress_shaping(
                 end_time = int(time.time())
                 if publish:
                     cerberus.publish_kraken_status(
-                        config, failed_post_scenarios, start_time, end_time
+                        params.kraken_config, "", start_time, end_time
                     )
             if params.execution_type == "parallel":
                 break
@@ -1597,7 +1576,7 @@ def pod_ingress_shaping(
             end_time = int(time.time())
             if publish:
                 cerberus.publish_kraken_status(
-                    config, failed_post_scenarios, start_time, end_time
+                    params.kraken_config, "", start_time, end_time
                 )
 
         return "success", PodIngressNetShapingSuccessOutput(
