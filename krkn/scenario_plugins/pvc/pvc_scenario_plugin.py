@@ -176,10 +176,37 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 start_time = int(time.time())
                 # Create temp file in the PVC
                 full_path = "%s/%s" % (str(mount_path), str(file_name))
-                command = "fallocate -l $((%s*1024)) %s" % (
-                    str(file_size_kb),
-                    str(full_path),
+
+                fallocate = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
+                    ["command -v fallocate"],
+                    pod_name,
+                    namespace,
+                    container_name,
                 )
+
+                dd = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
+                    ["command -v dd"],
+                    pod_name,
+                    namespace,
+                    container_name,
+                )
+
+                if fallocate:
+                    command = "fallocate -l $((%s*1024)) %s" % (
+                        str(file_size_kb),
+                        str(full_path),
+                    )
+                elif dd is not None:
+                    logging.warning(
+                        "fallocate not found, using dd, it may take longer based on the amount of data, please wait..."
+                    )
+                    command = f"dd if=/dev/urandom of={str(full_path)} bs=1024 count={str(file_size_kb)} oflag=direct"
+                else:
+                    logging.error(
+                        "failed to locate required binaries fallocate or dd to execute the scenario"
+                    )
+                    return 1
+
                 logging.debug("Create temp file in the PVC command:\n %s" % command)
                 lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                     [command],
