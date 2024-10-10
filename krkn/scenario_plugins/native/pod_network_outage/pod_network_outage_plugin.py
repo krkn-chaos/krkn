@@ -877,11 +877,11 @@ class InputParams:
         },
     )
 
-    kraken_config: typing.Optional[str] = field(
+    kraken_config: typing.Dict[str, typing.Any] = field(
         default=None,
         metadata={
             "name": "Kraken Config",
-            "description": "Path to the config file of Kraken. "
+            "description": "Kraken config file dictionary "
             "Set this field if you wish to publish status onto Cerberus",
         },
     )
@@ -1127,11 +1127,11 @@ class EgressParams:
         },
     )
 
-    kraken_config: typing.Optional[str] = field(
+    kraken_config: typing.Dict[str, typing.Any] = field(
         default=None,
         metadata={
             "name": "Kraken Config",
-            "description": "Path to the config file of Kraken. "
+            "description": "Krkn config file dictionary "
             "Set this field if you wish to publish status onto Cerberus",
         },
     )
@@ -1397,7 +1397,7 @@ class IngressParams:
         },
     )
 
-    kraken_config: typing.Optional[str] = field(
+    kraken_config: typing.Dict[str, typing.Any] = field(
         default=None,
         metadata={
             "name": "Kraken Config",
