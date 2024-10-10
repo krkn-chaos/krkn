@@ -126,7 +126,7 @@ jobs:
           cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Upload CI logs
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ci-logs
           path: CI/out
@@ -140,13 +140,13 @@ jobs:
           pip install html2text
           html2text --ignore-images --ignore-links -b 0 htmlcov/index.html >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage data
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: htmlcov
           if-no-files-found: error
       - name: Upload json coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: coverage.json
           path: coverage.json
@@ -169,7 +169,7 @@ jobs:
             path: krkn-lib-docs
             ssh-key: ${{ secrets.KRKN_LIB_DOCS_PRIV_KEY }}
         - name: Download json coverage
-          uses: actions/download-artifact@v4.1.7
+          uses: actions/download-artifact@v4
           with:
             name: coverage.json
         - name: Set up Python
