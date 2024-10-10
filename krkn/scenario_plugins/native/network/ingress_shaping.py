@@ -18,17 +18,14 @@ from kubernetes.client.api.batch_v1_api import BatchV1Api as BatchV1Api
 @dataclass
 class NetworkScenarioConfig:
 
-    node_interface_name: typing.Dict[
-        str, typing.List[str]
-    ] = field(
+    node_interface_name: typing.Dict[str, typing.List[str]] = field(
         default=None,
         metadata={
             "name": "Node Interface Name",
-            "description":
-                "Dictionary with node names as key and values as a list of "
-                "their test interfaces. "
-                "Required if label_selector is not set.",
-        }
+            "description": "Dictionary with node names as key and values as a list of "
+            "their test interfaces. "
+            "Required if label_selector is not set.",
+        },
     )
 
     label_selector: typing.Annotated[
@@ -37,93 +34,76 @@ class NetworkScenarioConfig:
         default=None,
         metadata={
             "name": "Label selector",
-            "description":
-                "Kubernetes label selector for the target nodes. "
-                "Required if node_interface_name is not set.\n"
-                "See https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ "  # noqa
-                "for details.",
-        }
-    )
-
-    test_duration: typing.Annotated[
-        typing.Optional[int],
-        validation.min(1)
-    ] = field(
-        default=120,
-        metadata={
-            "name": "Test duration",
-            "description":
-                "Duration for which each step of the ingress chaos testing "
-                "is to be performed.",
+            "description": "Kubernetes label selector for the target nodes. "
+            "Required if node_interface_name is not set.\n"
+            "See https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ "  # noqa
+            "for details.",
         },
     )
 
-    wait_duration: typing.Annotated[
-        typing.Optional[int],
-        validation.min(1)
-    ] = field(
+    test_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
+        default=120,
+        metadata={
+            "name": "Test duration",
+            "description": "Duration for which each step of the ingress chaos testing "
+            "is to be performed.",
+        },
+    )
+
+    wait_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
         default=30,
         metadata={
             "name": "Wait Duration",
-            "description":
-                "Wait duration for finishing a test and its cleanup."
-                "Ensure that it is significantly greater than wait_duration"
-        }
+            "description": "Wait duration for finishing a test and its cleanup."
+            "Ensure that it is significantly greater than wait_duration",
+        },
     )
 
-    instance_count: typing.Annotated[
-        typing.Optional[int],
-        validation.min(1)
-    ] = field(
+    instance_count: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
         default=1,
         metadata={
             "name": "Instance Count",
-            "description":
-                "Number of nodes to perform action/select that match "
-                "the label selector.",
-        }
+            "description": "Number of nodes to perform action/select that match "
+            "the label selector.",
+        },
     )
 
     kubeconfig_path: typing.Optional[str] = field(
         default=None,
         metadata={
             "name": "Kubeconfig path",
-            "description":
-                "Path to your Kubeconfig file. Defaults to ~/.kube/config.\n"
-                "See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ "  # noqa
-                "for details.",
-        }
+            "description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\n"
+            "See https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ "  # noqa
+            "for details.",
+        },
     )
 
     execution_type: typing.Optional[str] = field(
-        default='parallel',
+        default="parallel",
         metadata={
             "name": "Execution Type",
-            "description":
-                "The order in which the ingress filters are applied. "
-                "Execution type can be 'serial' or 'parallel'"
-        }
+            "description": "The order in which the ingress filters are applied. "
+            "Execution type can be 'serial' or 'parallel'",
+        },
     )
 
     network_params: typing.Dict[str, str] = field(
         default=None,
         metadata={
             "name": "Network Parameters",
-            "description":
-                "The network filters that are applied on the interface. "
-                "The currently supported filters are latency, "
-                "loss and bandwidth"
-        }
+            "description": "The network filters that are applied on the interface. "
+            "The currently supported filters are latency, "
+            "loss and bandwidth",
+        },
     )
 
     kraken_config: typing.Optional[str] = field(
-        default='',
+        default="",
         metadata={
             "name": "Kraken Config",
-            "description":
-                "Path to the config file of Kraken. "
-                "Set this field if you wish to publish status onto Cerberus"
-        }
+            "description": "Path to the config file of Kraken. "
+            "Set this field if you wish to publish status onto Cerberus",
+        },
     )
 
 
@@ -132,33 +112,30 @@ class NetworkScenarioSuccessOutput:
     filter_direction: str = field(
         metadata={
             "name": "Filter Direction",
-            "description":
-                "Direction in which the traffic control filters are applied "
-                "on the test interfaces"
+            "description": "Direction in which the traffic control filters are applied "
+            "on the test interfaces",
         }
     )
 
     test_interfaces: typing.Dict[str, typing.List[str]] = field(
         metadata={
             "name": "Test Interfaces",
-            "description":
-                "Dictionary of nodes and their interfaces on which "
-                "the chaos experiment was performed"
+            "description": "Dictionary of nodes and their interfaces on which "
+            "the chaos experiment was performed",
         }
     )
 
     network_parameters: typing.Dict[str, str] = field(
         metadata={
             "name": "Network Parameters",
-            "description":
-                "The network filters that are applied on the interfaces"
+            "description": "The network filters that are applied on the interfaces",
         }
     )
 
     execution_type: str = field(
         metadata={
             "name": "Execution Type",
-            "description": "The order in which the filters are applied"
+            "description": "The order in which the filters are applied",
         }
     )
 
@@ -168,18 +145,13 @@ class NetworkScenarioErrorOutput:
     error: str = field(
         metadata={
             "name": "Error",
-            "description":
-                "Error message when there is a run-time error during "
-                "the execution of the scenario"
+            "description": "Error message when there is a run-time error during "
+            "the execution of the scenario",
         }
     )
 
 
-def get_default_interface(
-    node: str,
-    pod_template,
-    cli: CoreV1Api
-) -> str:
+def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
     """
     Function that returns a random interface from a node
 
@@ -210,9 +182,9 @@ def get_default_interface(
             logging.error("Exception occurred while executing command in pod")
             sys.exit(1)
 
-        routes = output.split('\n')
+        routes = output.split("\n")
         for route in routes:
-            if 'default' in route:
+            if "default" in route:
                 default_route = route
                 break
 
@@ -226,10 +198,7 @@ def get_default_interface(
 
 
 def verify_interface(
-    input_interface_list: typing.List[str],
-    node: str,
-    pod_template,
-    cli: CoreV1Api
+    input_interface_list: typing.List[str], node: str, pod_template, cli: CoreV1Api
 ) -> typing.List[str]:
     """
     Function that verifies whether a list of interfaces is present in the node.
@@ -258,22 +227,15 @@ def verify_interface(
     try:
         if input_interface_list == []:
             cmd = ["ip", "r"]
-            output = kube_helper.exec_cmd_in_pod(
-                cli,
-                cmd,
-                "fedtools",
-                "default"
-            )
+            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
 
             if not output:
-                logging.error(
-                    "Exception occurred while executing command in pod"
-                )
+                logging.error("Exception occurred while executing command in pod")
                 sys.exit(1)
 
-            routes = output.split('\n')
+            routes = output.split("\n")
             for route in routes:
-                if 'default' in route:
+                if "default" in route:
                     default_route = route
                     break
 
@@ -281,20 +243,13 @@ def verify_interface(
 
         else:
             cmd = ["ip", "-br", "addr", "show"]
-            output = kube_helper.exec_cmd_in_pod(
-                cli,
-                cmd,
-                "fedtools",
-                "default"
-            )
+            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
 
             if not output:
-                logging.error(
-                    "Exception occurred while executing command in pod"
-                )
+                logging.error("Exception occurred while executing command in pod")
                 sys.exit(1)
 
-            interface_ip = output.split('\n')
+            interface_ip = output.split("\n")
             node_interface_list = [
                 interface.split()[0] for interface in interface_ip[:-1]
             ]
@@ -302,12 +257,12 @@ def verify_interface(
             for interface in input_interface_list:
                 if interface not in node_interface_list:
                     logging.error(
-                        "Interface %s not found in node %s interface list %s" %
-                        (interface, node, node_interface_list)
+                        "Interface %s not found in node %s interface list %s"
+                        % (interface, node, node_interface_list)
                     )
                     raise Exception(
-                        "Interface %s not found in node %s interface list %s" %
-                        (interface, node, node_interface_list)
+                        "Interface %s not found in node %s interface list %s"
+                        % (interface, node, node_interface_list)
                     )
     finally:
         logging.info("Deleteing pod to query interface on node")
@@ -321,9 +276,8 @@ def get_node_interfaces(
     label_selector: str,
     instance_count: int,
     pod_template,
-    cli: CoreV1Api
+    cli: CoreV1Api,
 ) -> typing.Dict[str, typing.List[str]]:
-
     """
     Function that is used to process the input dictionary with the nodes and
     its test interfaces.
@@ -364,11 +318,7 @@ def get_node_interfaces(
         nodes = kube_helper.get_node(None, label_selector, instance_count, cli)
         node_interface_dict = {}
         for node in nodes:
-            node_interface_dict[node] = get_default_interface(
-                node,
-                pod_template,
-                cli
-            )
+            node_interface_dict[node] = get_default_interface(node, pod_template, cli)
     else:
         node_name_list = node_interface_dict.keys()
         filtered_node_list = []
@@ -395,9 +345,8 @@ def apply_ingress_filter(
     batch_cli: BatchV1Api,
     cli: CoreV1Api,
     create_interfaces: bool = True,
-    param_selector: str = 'all'
+    param_selector: str = "all",
 ) -> str:
-
     """
     Function that applies the filters to shape incoming traffic to
     the provided node's interfaces.
@@ -438,22 +387,18 @@ def apply_ingress_filter(
     """
 
     network_params = cfg.network_params
-    if param_selector != 'all':
+    if param_selector != "all":
         network_params = {param_selector: cfg.network_params[param_selector]}
 
     if create_interfaces:
         create_virtual_interfaces(cli, interface_list, node, pod_template)
 
     exec_cmd = get_ingress_cmd(
-                interface_list, network_params, duration=cfg.test_duration
-                )
+        interface_list, network_params, duration=cfg.test_duration
+    )
     logging.info("Executing %s on node %s" % (exec_cmd, node))
     job_body = yaml.safe_load(
-        job_template.render(
-            jobname=str(hash(node))[:5],
-            nodename=node,
-            cmd=exec_cmd
-        )
+        job_template.render(jobname=str(hash(node))[:5], nodename=node, cmd=exec_cmd)
     )
     api_response = kube_helper.create_job(batch_cli, job_body)
 
@@ -464,10 +409,7 @@ def apply_ingress_filter(
 
 
 def create_virtual_interfaces(
-    cli: CoreV1Api,
-    interface_list: typing.List[str],
-    node: str,
-    pod_template
+    cli: CoreV1Api, interface_list: typing.List[str], node: str, pod_template
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
@@ -488,25 +430,20 @@ def create_virtual_interfaces(
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
     """
-    pod_body = yaml.safe_load(
-                    pod_template.render(nodename=node)
-                )
+    pod_body = yaml.safe_load(pod_template.render(nodename=node))
     kube_helper.create_pod(cli, pod_body, "default", 300)
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(
-            len(interface_list),
-            node
+            len(interface_list), node
         )
     )
-    create_ifb(cli, len(interface_list), 'modtools')
+    create_ifb(cli, len(interface_list), "modtools")
     logging.info("Deleting pod used to create virtual interfaces")
     kube_helper.delete_pod(cli, "modtools", "default")
 
 
 def delete_virtual_interfaces(
-    cli: CoreV1Api,
-    node_list: typing.List[str],
-    pod_template
+    cli: CoreV1Api, node_list: typing.List[str], pod_template
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -529,14 +466,10 @@ def delete_virtual_interfaces(
     """
 
     for node in node_list:
-        pod_body = yaml.safe_load(
-                    pod_template.render(nodename=node)
-                )
+        pod_body = yaml.safe_load(pod_template.render(nodename=node))
         kube_helper.create_pod(cli, pod_body, "default", 300)
-        logging.info(
-            "Deleting all virtual interfaces on node {0}".format(node)
-        )
-        delete_ifb(cli, 'modtools')
+        logging.info("Deleting all virtual interfaces on node {0}".format(node))
+        delete_ifb(cli, "modtools")
         kube_helper.delete_pod(cli, "modtools", "default")
 
 
@@ -546,21 +479,13 @@ def create_ifb(cli: CoreV1Api, number: int, pod_name: str):
     Makes use of modprobe commands
     """
 
-    exec_command = [
-        'chroot', '/host',
-        'modprobe', 'ifb', 'numifbs=' + str(number)
-    ]
-    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
+    exec_command = ["chroot", "/host", "modprobe", "ifb", "numifbs=" + str(number)]
+    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
 
     for i in range(0, number):
-        exec_command = ['chroot', '/host', 'ip', 'link', 'set', 'dev']
-        exec_command += ['ifb' + str(i), 'up']
-        kube_helper.exec_cmd_in_pod(
-            cli,
-            exec_command,
-            pod_name,
-            'default'
-        )
+        exec_command = ["chroot", "/host", "ip", "link", "set", "dev"]
+        exec_command += ["ifb" + str(i), "up"]
+        kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
 
 
 def delete_ifb(cli: CoreV1Api, pod_name: str):
@@ -569,8 +494,8 @@ def delete_ifb(cli: CoreV1Api, pod_name: str):
     Makes use of modprobe command
     """
 
-    exec_command = ['chroot', '/host', 'modprobe', '-r', 'ifb']
-    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, 'default')
+    exec_command = ["chroot", "/host", "modprobe", "-r", "ifb"]
+    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
 
 
 def get_job_pods(cli: CoreV1Api, api_response):
@@ -591,18 +516,14 @@ def get_job_pods(cli: CoreV1Api, api_response):
     controllerUid = api_response.metadata.labels["controller-uid"]
     pod_label_selector = "controller-uid=" + controllerUid
     pods_list = kube_helper.list_pods(
-        cli,
-        label_selector=pod_label_selector,
-        namespace="default"
+        cli, label_selector=pod_label_selector, namespace="default"
     )
 
     return pods_list[0]
 
 
 def wait_for_job(
-    batch_cli: BatchV1Api,
-    job_list: typing.List[str],
-    timeout: int = 300
+    batch_cli: BatchV1Api, job_list: typing.List[str], timeout: int = 300
 ) -> None:
     """
     Function that waits for a list of jobs to finish within a time period
@@ -625,13 +546,11 @@ def wait_for_job(
         for job_name in job_list:
             try:
                 api_response = kube_helper.get_job_status(
-                    batch_cli,
-                    job_name,
-                    namespace="default"
+                    batch_cli, job_name, namespace="default"
                 )
                 if (
-                    api_response.status.succeeded is not None or
-                    api_response.status.failed is not None
+                    api_response.status.succeeded is not None
+                    or api_response.status.failed is not None
                 ):
                     count += 1
                     job_list.remove(job_name)
@@ -645,11 +564,7 @@ def wait_for_job(
             time.sleep(5)
 
 
-def delete_jobs(
-    cli: CoreV1Api,
-    batch_cli: BatchV1Api,
-    job_list: typing.List[str]
-):
+def delete_jobs(cli: CoreV1Api, batch_cli: BatchV1Api, job_list: typing.List[str]):
     """
     Function that deletes jobs
 
@@ -667,38 +582,28 @@ def delete_jobs(
     for job_name in job_list:
         try:
             api_response = kube_helper.get_job_status(
-                batch_cli,
-                job_name,
-                namespace="default"
+                batch_cli, job_name, namespace="default"
             )
             if api_response.status.failed is not None:
                 pod_name = get_job_pods(cli, api_response)
-                pod_stat = kube_helper.read_pod(
-                    cli,
-                    name=pod_name,
-                    namespace="default"
-                )
+                pod_stat = kube_helper.read_pod(cli, name=pod_name, namespace="default")
                 logging.error(pod_stat.status.container_statuses)
                 pod_log_response = kube_helper.get_pod_log(
-                    cli,
-                    name=pod_name,
-                    namespace="default"
+                    cli, name=pod_name, namespace="default"
                 )
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception as e:
             logging.warn("Exception in getting job status: %s" % str(e))
         api_response = kube_helper.delete_job(
-            batch_cli,
-            name=job_name,
-            namespace="default"
+            batch_cli, name=job_name, namespace="default"
         )
 
 
 def get_ingress_cmd(
     interface_list: typing.List[str],
     network_parameters: typing.Dict[str, str],
-    duration: int = 300
+    duration: int = 300,
 ):
     """
     Function that returns the commands to the ingress traffic shaping on
@@ -736,9 +641,7 @@ def get_ingress_cmd(
 
     for i, interface in enumerate(interface_list):
         if not interface_pattern.match(interface):
-            logging.error(
-                "Interface name can only consist of alphanumeric characters"
-            )
+            logging.error("Interface name can only consist of alphanumeric characters")
             raise Exception(
                 "Interface '{0}' does not match the required regex pattern :"
                 r" ^[a-z0-9\-\@\_]+$".format(interface)
@@ -752,33 +655,23 @@ def get_ingress_cmd(
                 "follow the regex pattern ^ifb[0-9]+$".format(ifb_name)
             )
 
-        tc_set += "tc qdisc add dev {0} handle ffff: ingress;".format(
-            interface
-        )
+        tc_set += "tc qdisc add dev {0} handle ffff: ingress;".format(interface)
         tc_set += "tc filter add dev {0} parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev {1};".format(  # noqa
-            interface,
-            ifb_name
+            interface, ifb_name
         )
         tc_set = "{0} tc qdisc add dev {1} root netem".format(tc_set, ifb_name)
         tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, ifb_name)
-        tc_unset += "tc qdisc del dev {0} handle ffff: ingress;".format(
-            interface
-        )
+        tc_unset += "tc qdisc del dev {0} handle ffff: ingress;".format(interface)
         tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, ifb_name)
 
         for parameter in network_parameters.keys():
             tc_set += " {0} {1} ".format(
-                param_map[parameter],
-                network_parameters[parameter]
+                param_map[parameter], network_parameters[parameter]
             )
         tc_set += ";"
 
     exec_cmd = "{0} {1} sleep {2};{3} sleep 20;{4}".format(
-        tc_set,
-        tc_ls,
-        duration,
-        tc_unset,
-        tc_ls
+        tc_set, tc_ls, duration, tc_unset, tc_ls
     )
 
     return exec_cmd
@@ -790,17 +683,14 @@ def get_ingress_cmd(
     description="Applies filters to ihe ingress side of node(s) interfaces",
     outputs={
         "success": NetworkScenarioSuccessOutput,
-        "error": NetworkScenarioErrorOutput
+        "error": NetworkScenarioErrorOutput,
     },
 )
-def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
-    str,
-    typing.Union[
-        NetworkScenarioSuccessOutput,
-        NetworkScenarioErrorOutput
-    ]
+def network_chaos(
+    cfg: NetworkScenarioConfig,
+) -> typing.Tuple[
+    str, typing.Union[NetworkScenarioSuccessOutput, NetworkScenarioErrorOutput]
 ]:
-
     """
     Function that performs the ingress network chaos scenario based
     on the provided configuration
@@ -826,12 +716,10 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
             cfg.label_selector,
             cfg.instance_count,
             pod_interface_template,
-            cli
+            cli,
         )
     except Exception:
-        return "error", NetworkScenarioErrorOutput(
-                    format_exc()
-                )
+        return "error", NetworkScenarioErrorOutput(format_exc())
     job_list = []
     publish = False
     if cfg.kraken_config:
@@ -840,16 +728,12 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
             with open(cfg.kraken_config, "r") as f:
                 config = yaml.full_load(f)
         except Exception:
-            logging.error(
-                "Error reading Kraken config from %s" % cfg.kraken_config
-            )
-            return "error", NetworkScenarioErrorOutput(
-                    format_exc()
-                )
+            logging.error("Error reading Kraken config from %s" % cfg.kraken_config)
+            return "error", NetworkScenarioErrorOutput(format_exc())
         publish = True
 
     try:
-        if cfg.execution_type == 'parallel':
+        if cfg.execution_type == "parallel":
             for node in node_interface_dict:
                 job_list.append(
                     apply_ingress_filter(
@@ -859,22 +743,19 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
                         pod_module_template,
                         job_template,
                         batch_cli,
-                        cli
+                        cli,
                     )
                 )
             logging.info("Waiting for parallel job to finish")
             start_time = int(time.time())
-            wait_for_job(batch_cli, job_list[:], cfg.test_duration+100)
+            wait_for_job(batch_cli, job_list[:], cfg.test_duration + 100)
             end_time = int(time.time())
             if publish:
                 cerberus.publish_kraken_status(
-                    config,
-                    failed_post_scenarios,
-                    start_time,
-                    end_time
+                    config, failed_post_scenarios, start_time, end_time
                 )
 
-        elif cfg.execution_type == 'serial':
+        elif cfg.execution_type == "serial":
             create_interfaces = True
             for param in cfg.network_params:
                 for node in node_interface_dict:
@@ -888,50 +769,39 @@ def network_chaos(cfg: NetworkScenarioConfig) -> typing.Tuple[
                             batch_cli,
                             cli,
                             create_interfaces=create_interfaces,
-                            param_selector=param
+                            param_selector=param,
                         )
                     )
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
-                wait_for_job(batch_cli, job_list[:], cfg.test_duration+100)
+                wait_for_job(batch_cli, job_list[:], cfg.test_duration + 100)
                 logging.info("Deleting jobs")
                 delete_jobs(cli, batch_cli, job_list[:])
                 job_list = []
-                logging.info(
-                    "Waiting for wait_duration : %ss" % cfg.wait_duration
-                )
+                logging.info("Waiting for wait_duration : %ss" % cfg.wait_duration)
                 time.sleep(cfg.wait_duration)
                 end_time = int(time.time())
                 if publish:
                     cerberus.publish_kraken_status(
-                        config,
-                        failed_post_scenarios,
-                        start_time,
-                        end_time
+                        config, failed_post_scenarios, start_time, end_time
                     )
                 create_interfaces = False
         else:
 
             return "error", NetworkScenarioErrorOutput(
-                    "Invalid execution type - serial and parallel are "
-                    "the only accepted types"
-                )
+                "Invalid execution type - serial and parallel are "
+                "the only accepted types"
+            )
         return "success", NetworkScenarioSuccessOutput(
             filter_direction="ingress",
             test_interfaces=node_interface_dict,
             network_parameters=cfg.network_params,
-            execution_type=cfg.execution_type
+            execution_type=cfg.execution_type,
         )
     except Exception as e:
         logging.error("Network Chaos exiting due to Exception - %s" % e)
-        return "error", NetworkScenarioErrorOutput(
-                    format_exc()
-                )
+        return "error", NetworkScenarioErrorOutput(format_exc())
     finally:
-        delete_virtual_interfaces(
-            cli,
-            node_interface_dict.keys(),
-            pod_module_template
-        )
+        delete_virtual_interfaces(cli, node_interface_dict.keys(), pod_module_template)
         logging.info("Deleting jobs(if any)")
         delete_jobs(cli, batch_cli, job_list[:])
