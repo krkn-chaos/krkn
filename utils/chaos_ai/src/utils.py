@@ -1,4 +1,6 @@
 import re
+
+import urllib3
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -27,7 +29,7 @@ def is_cluster_accessible(kubeconfig_path: str) -> bool:
         return False
 
 def get_namespace_pods(namespaces: str, kubeconfig_path: str):
-    ns_list = namespaces.splt(",")
+    ns_list = namespaces.split(",")
     ns_pods = {}
     for ns in ns_list:
         pods = get_pod_labels(ns, kubeconfig_path)

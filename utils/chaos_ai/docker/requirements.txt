@@ -1,7 +1,8 @@
-numpy
-pandas
-requests
+numpy==2.0.0
+pandas==2.2.2
+requests==2.32.3
 Flask==2.2.5
 Werkzeug==3.0.3
 flasgger==0.9.5
-kubernetes
+kubernetes==30.1.0
+urllib3==2.2.3
