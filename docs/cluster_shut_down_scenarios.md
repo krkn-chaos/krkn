@@ -8,6 +8,7 @@ Current accepted cloud types:
 * [GCP](cloud_setup.md#gcp)
 * [AWS](cloud_setup.md#aws)
 * [Openstack](cloud_setup.md#openstack)
+* [IBMCloud](cloud_setup.md#ibmcloud)
 
 
 ```
