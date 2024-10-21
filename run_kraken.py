@@ -627,7 +627,7 @@ if __name__ == "__main__":
         junit_testcase_xml = get_junit_test_case(
             success=True if retval == 0 else False,
             time=int(junit_endtime - junit_start_time),
-            test_suite_name="krkn-test-suite",
+            test_suite_name="chaos-krkn",
             test_case_description=options.junit_testcase,
             test_stdout=tee_handler.get_output(),
             test_version=options.junit_testcase_version,
