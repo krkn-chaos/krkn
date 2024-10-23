@@ -13,13 +13,26 @@ Supported Cloud Providers:
 **NOTE**: For clusters with AWS make sure [AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html) is installed and properly [configured](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-quickstart.html) using an AWS account
 
 ## GCP
-**NOTE**: For clusters with GCP make sure [GCP CLI](https://cloud.google.com/sdk/docs/install#linux) is installed.
 
-A google service account is required to give proper authentication to GCP for node actions. See [here](https://cloud.google.com/docs/authentication/getting-started) for how to create a service account.
+In order to set up Application Default Credentials (ADC) for use by Cloud Client Libraries, you can provide either service account credentials or the credentials associated with your user acccount:
 
-**NOTE**: A user with 'resourcemanager.projects.setIamPolicy' permission is required to grant project-level permissions to the service account.
+- Using service account credentials:
 
-After creating the service account you will need to enable the account using the following: ```export GOOGLE_APPLICATION_CREDENTIALS="<serviceaccount.json>"```
+  A google service account is required to give proper authentication to GCP for node actions. See [here](https://cloud.google.com/docs/authentication/getting-started) for how to create a service account.
+
+  **NOTE**: A user with 'resourcemanager.projects.setIamPolicy' permission is required to grant project-level permissions to the service account.
+
+  After creating the service account you will need to enable the account using the following: ```export GOOGLE_APPLICATION_CREDENTIALS="<serviceaccount.json>"```
+
+- Using the credentials associated with your user acccount:
+
+  1. Make sure that the [GCP CLI](https://cloud.google.com/sdk/docs/install#linux) is installed and [initialized](https://cloud.google.com/sdk/docs/initializing) by running:
+
+     ```gcloud init```
+
+  2. Create local authentication credentials for your user account:
+
+     ```gcloud auth application-default login```
 
 ## Openstack
 
@@ -32,6 +45,7 @@ After creating the service account you will need to enable the account using the
 To properly run the service principal requires “Azure Active Directory Graph/Application.ReadWrite.OwnedBy” api permission granted and “User Access Administrator”.
 
 Before running you will need to set the following:
+
 1. ```export AZURE_SUBSCRIPTION_ID=<subscription_id>```
 
 2. ```export AZURE_TENANT_ID=<tenant_id>```
@@ -66,9 +80,10 @@ Set the following environment variables
 
 These are the credentials that you would normally use to access the vSphere client.
 
-
 ## IBMCloud
-If no api key is set up with proper VPC resource permissions, use the following to create: 
+
+If no API key is set up with proper VPC resource permissions, use the following to create it:
+
 * Access group
 * Service id with the following access
   * With policy **VPC Infrastructure Services**
