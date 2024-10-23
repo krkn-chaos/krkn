@@ -11,7 +11,7 @@
 * [Scenarios](#scenarios)
 * [Test Environment Recommendations - how and where to run chaos tests](#test-environment-recommendations---how-and-where-to-run-chaos-tests)
 * [Chaos testing in Practice](#chaos-testing-in-practice)
-  * [OpenShift oraganization](#openshift-organization)
+  * [OpenShift organization](#openshift-organization)
   * [startx-lab](#startx-lab)
 
 
