@@ -11,7 +11,8 @@ coverage==7.4.1
 datetime==5.4
 docker==7.0.0
 gitpython==3.1.41
-google-api-python-client==2.116.0
+google-auth==2.37.0
+google-cloud-compute==1.22.0
 ibm_cloud_sdk_core==3.18.0
 ibm_vpc==0.20.0
 jinja2==3.1.4
@@ -19,7 +20,6 @@ krkn-lib==4.0.4
 lxml==5.1.0
 kubernetes==28.1.0
 numpy==1.26.4
-oauth2client==4.1.3
 pandas==2.2.0
 openshift-client==1.0.21
 paramiko==3.4.0
