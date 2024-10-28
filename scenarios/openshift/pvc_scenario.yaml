@@ -4,3 +4,4 @@ pvc_scenario:
   namespace: <namespace_name>   # Namespace where the PVC is
   fill_percentage: 50           # Target percentage to fill up the cluster, value must be higher than current percentage, valid values are between 0 and 99
   duration: 60                  # Duration in seconds for the fault
+  block_size: 102400            # used only by dd if fallocate not present in the container
