@@ -459,7 +459,7 @@ def main(cfg) -> int:
         if enable_alerts:
             logging.info("Alerts checking is enabled")
             if alert_profile:
-                prometheus_plugin.alerts(
+                slo_alerts_list = prometheus_plugin.alerts(
                     prometheus,
                     elastic_search,
                     run_uuid,
@@ -469,6 +469,7 @@ def main(cfg) -> int:
                     elastic_colllect_alerts,
                     elastic_alerts_index,
                 )
+                chaos_telemetry.slo_alert = slo_alerts_list
 
             else:
                 logging.error("Alert profile is not defined")

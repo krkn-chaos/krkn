@@ -12,6 +12,7 @@ import yaml
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic.models import ElasticAlert
 from krkn_lib.models.krkn import ChaosRunAlertSummary, ChaosRunAlert
+from krkn_lib.models.telemetry import SloAlert
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 
 
@@ -27,8 +28,8 @@ def alerts(
     alert_profile,
     elastic_collect_alerts,
     elastic_alerts_index,
-):
-
+) -> list[SloAlert]:
+    slo_alert_list: list[SloAlert] = []
     if alert_profile is None or os.path.exists(alert_profile) is False:
         logging.error(f"{alert_profile} alert profile does not exist")
         sys.exit(1)
@@ -52,6 +53,8 @@ def alerts(
                 datetime.datetime.fromtimestamp(start_time),
                 datetime.datetime.fromtimestamp(end_time),
             )
+            if (processed_alert[0] and processed_alert[1]):
+                slo_alert_list.append(SloAlert(processed_alert[1][:23], alert["severity"], processed_alert[1][23:]))
             if (
                 processed_alert[0]
                 and processed_alert[1]
@@ -68,7 +71,7 @@ def alerts(
                 if result == -1:
                     logging.error("failed to save alert on ElasticSearch")
                 pass
-
+    return slo_alert_list
 
 def critical_alerts(
     prom_cli: KrknPrometheus,
