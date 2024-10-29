@@ -42,8 +42,7 @@ def get_test_pods(
         pod names (string) in the namespace
     """
     pods_list = []
-    pods_list = kubecli.list_pods(
-        label_selector=pod_label, namespace=namespace)
+    pods_list = kubecli.list_pods(label_selector=pod_label, namespace=namespace)
     if pod_name and pod_name not in pods_list:
         raise Exception("pod name not found in namespace ")
     elif pod_name and pod_name in pods_list:
@@ -92,8 +91,7 @@ def delete_jobs(kubecli: KrknKubernetes, job_list: typing.List[str]):
 
     for job_name in job_list:
         try:
-            api_response = kubecli.get_job_status(
-                job_name, namespace="default")
+            api_response = kubecli.get_job_status(job_name, namespace="default")
             if api_response.status.failed is not None:
                 pod_name = get_job_pods(kubecli, api_response)
                 pod_stat = kubecli.read_pod(name=pod_name, namespace="default")
@@ -131,8 +129,7 @@ def wait_for_job(
     while count != job_len:
         for job_name in job_list:
             try:
-                api_response = kubecli.get_job_status(
-                    job_name, namespace="default")
+                api_response = kubecli.get_job_status(job_name, namespace="default")
                 if (
                     api_response.status.succeeded is not None
                     or api_response.status.failed is not None
@@ -149,8 +146,7 @@ def wait_for_job(
             time.sleep(5)
 
 
-def get_bridge_name(cli: ApiextensionsV1Api,
-                    custom_obj: CustomObjectsApi) -> str:
+def get_bridge_name(cli: ApiextensionsV1Api, custom_obj: CustomObjectsApi) -> str:
     """
     Function that gets OVS bridge present in node.
 
@@ -328,16 +324,13 @@ def apply_ingress_policy(
     create_virtual_interfaces(kubecli, len(ips), node, pod_template)
 
     for count, pod_ip in enumerate(set(ips)):
-        pod_inf = get_pod_interface(
-            node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
         exec_cmd = get_ingress_cmd(
             test_execution, pod_inf, mod, count, network_params, duration
         )
-        logging.info("Executing %s on pod %s in node %s" %
-                     (exec_cmd, pod_ip, node))
+        logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
         job_body = yaml.safe_load(
-            job_template.render(jobname=mod + str(pod_ip),
-                                nodename=node, cmd=exec_cmd)
+            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
         )
         job_list.append(job_body["metadata"]["name"])
         api_response = kubecli.create_job(job_body)
@@ -405,16 +398,13 @@ def apply_net_policy(
     job_list = []
 
     for pod_ip in set(ips):
-        pod_inf = get_pod_interface(
-            node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
         exec_cmd = get_egress_cmd(
             test_execution, pod_inf, mod, network_params, duration
         )
-        logging.info("Executing %s on pod %s in node %s" %
-                     (exec_cmd, pod_ip, node))
+        logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
         job_body = yaml.safe_load(
-            job_template.render(jobname=mod + str(pod_ip),
-                                nodename=node, cmd=exec_cmd)
+            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
         )
         job_list.append(job_body["metadata"]["name"])
         api_response = kubecli.create_job(job_body)
@@ -456,18 +446,16 @@ def get_ingress_cmd(
     Returns:
         str: ingress filter
     """
-    ifb_dev = 'ifb{0}'.format(count)
+    ifb_dev = "ifb{0}".format(count)
     tc_set = tc_unset = tc_ls = ""
     param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
     tc_set = "tc qdisc add dev {0} ingress ;".format(test_interface)
     tc_set = "{0} tc filter add dev {1} ingress matchall action mirred egress redirect dev {2} ;".format(
-        tc_set, test_interface, ifb_dev)
-    tc_set = "{0} tc qdisc replace dev {1} root netem".format(
-        tc_set, ifb_dev)
-    tc_unset = "{0} tc qdisc del dev {1} root ;".format(
-        tc_unset, ifb_dev)
-    tc_unset = "{0} tc qdisc del dev {1} ingress".format(
-        tc_unset, test_interface)
+        tc_set, test_interface, ifb_dev
+    )
+    tc_set = "{0} tc qdisc replace dev {1} root netem".format(tc_set, ifb_dev)
+    tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, ifb_dev)
+    tc_unset = "{0} tc qdisc del dev {1} ingress".format(tc_unset, test_interface)
     tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, ifb_dev)
     if execution == "parallel":
         for val in vallst.keys():
@@ -475,8 +463,7 @@ def get_ingress_cmd(
         tc_set += ";"
     else:
         tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
-    exec_cmd = "{0} {1} sleep {2};{3}".format(
-        tc_set, tc_ls, duration, tc_unset)
+    exec_cmd = "{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
 
     return exec_cmd
 
@@ -512,10 +499,8 @@ def get_egress_cmd(
     """
     tc_set = tc_unset = tc_ls = ""
     param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
-    tc_set = "{0} tc qdisc replace dev {1} root netem".format(
-        tc_set, test_interface)
-    tc_unset = "{0} tc qdisc del dev {1} root ;".format(
-        tc_unset, test_interface)
+    tc_set = "{0} tc qdisc replace dev {1} root netem".format(tc_set, test_interface)
+    tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, test_interface)
     tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, test_interface)
     if execution == "parallel":
         for val in vallst.keys():
@@ -523,17 +508,13 @@ def get_egress_cmd(
         tc_set += ";"
     else:
         tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
-    exec_cmd = "{0} {1} sleep {2};{3}".format(
-        tc_set, tc_ls, duration, tc_unset)
+    exec_cmd = "{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
 
     return exec_cmd
 
 
 def create_virtual_interfaces(
-    kubecli: KrknKubernetes,
-    nummber: int,
-    node: str,
-    pod_template
+    kubecli: KrknKubernetes, nummber: int, node: str, pod_template
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
@@ -554,25 +535,18 @@ def create_virtual_interfaces(
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
     """
-    pod_body = yaml.safe_load(
-        pod_template.render(nodename=node)
-    )
+    pod_body = yaml.safe_load(pod_template.render(nodename=node))
     kubecli.create_pod(pod_body, "default", 300)
     logging.info(
-        "Creating {0} virtual interfaces on node {1} using a pod".format(
-            nummber,
-            node
-        )
+        "Creating {0} virtual interfaces on node {1} using a pod".format(nummber, node)
     )
-    create_ifb(kubecli, nummber, 'modtools')
+    create_ifb(kubecli, nummber, "modtools")
     logging.info("Deleting pod used to create virtual interfaces")
     kubecli.delete_pod("modtools", "default")
 
 
 def delete_virtual_interfaces(
-    kubecli: KrknKubernetes,
-    node_list: typing.List[str],
-    pod_template
+    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -595,14 +569,10 @@ def delete_virtual_interfaces(
     """
 
     for node in node_list:
-        pod_body = yaml.safe_load(
-            pod_template.render(nodename=node)
-        )
+        pod_body = yaml.safe_load(pod_template.render(nodename=node))
         kubecli.create_pod(pod_body, "default", 300)
-        logging.info(
-            "Deleting all virtual interfaces on node {0}".format(node)
-        )
-        delete_ifb(kubecli, 'modtools')
+        logging.info("Deleting all virtual interfaces on node {0}".format(node))
+        delete_ifb(kubecli, "modtools")
         kubecli.delete_pod("modtools", "default")
 
 
@@ -612,24 +582,14 @@ def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
     Makes use of modprobe commands
     """
 
-    exec_command = [
-        '/host',
-        'modprobe', 'ifb', 'numifbs=' + str(number)
-    ]
-    kubecli.exec_cmd_in_pod(
-        exec_command,
-        pod_name,
-        'default',
-        base_command="chroot")
+    exec_command = ["/host", "modprobe", "ifb", "numifbs=" + str(number)]
+    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
     for i in range(0, number):
-        exec_command = ['/host', 'ip', 'link', 'set', 'dev']
-        exec_command += ['ifb' + str(i), 'up']
+        exec_command = ["/host", "ip", "link", "set", "dev"]
+        exec_command += ["ifb" + str(i), "up"]
         kubecli.exec_cmd_in_pod(
-            exec_command,
-            pod_name,
-            'default',
-            base_command="chroot"
+            exec_command, pod_name, "default", base_command="chroot"
         )
 
 
@@ -639,17 +599,11 @@ def delete_ifb(kubecli: KrknKubernetes, pod_name: str):
     Makes use of modprobe command
     """
 
-    exec_command = ['/host', 'modprobe', '-r', 'ifb']
-    kubecli.exec_cmd_in_pod(
-        exec_command,
-        pod_name,
-        'default',
-        base_command="chroot")
+    exec_command = ["/host", "modprobe", "-r", "ifb"]
+    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
 
-def list_bridges(
-    node: str, pod_template, kubecli: KrknKubernetes
-) -> typing.List[str]:
+def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.List[str]:
     """
     Function that returns a list of bridges on the node
 
@@ -787,7 +741,7 @@ def get_pod_interface(
             find_ip = f"external-ids:ip_addresses={ip}/23"
         else:
             find_ip = f"external-ids:ip={ip}"
-                       
+
         cmd = [
             "/host",
             "ovs-vsctl",
@@ -797,24 +751,20 @@ def get_pod_interface(
             "interface",
             find_ip,
         ]
-      
+
         output = kubecli.exec_cmd_in_pod(
             cmd, "modtools", "default", base_command="chroot"
         )
         if not output:
-            cmd= [
-                "/host",
-                "ip",
-                "addr",
-                "show"
-            ]
+            cmd = ["/host", "ip", "addr", "show"]
             output = kubecli.exec_cmd_in_pod(
-                cmd, "modtools", "default", base_command="chroot")
+                cmd, "modtools", "default", base_command="chroot"
+            )
             for if_str in output.split("\n"):
-                if re.search(ip,if_str):
-                    inf = if_str.split(' ')[-1]
+                if re.search(ip, if_str):
+                    inf = if_str.split(" ")[-1]
         else:
-            inf = output       
+            inf = output
     finally:
         logging.info("Deleting pod to query interface on node")
         kubecli.delete_pod("modtools", "default")
@@ -927,11 +877,11 @@ class InputParams:
         },
     )
 
-    kraken_config: typing.Optional[str] = field(
+    kraken_config: typing.Dict[str, typing.Any] = field(
         default=None,
         metadata={
             "name": "Kraken Config",
-            "description": "Path to the config file of Kraken. "
+            "description": "Kraken config file dictionary "
             "Set this field if you wish to publish status onto Cerberus",
         },
     )
@@ -1043,14 +993,6 @@ def pod_outage(
     publish = False
 
     if params.kraken_config:
-        failed_post_scenarios = ""
-        try:
-            with open(params.kraken_config, "r") as f:
-                config = yaml.full_load(f)
-        except Exception:
-            logging.error("Error reading Kraken config from %s" %
-                          params.kraken_config)
-            return "error", PodOutageErrorOutput(format_exc())
         publish = True
 
     for i in params.direction:
@@ -1106,7 +1048,7 @@ def pod_outage(
         end_time = int(time.time())
         if publish:
             cerberus.publish_kraken_status(
-                config, failed_post_scenarios, start_time, end_time
+                params.kraken_config, "", start_time, end_time
             )
 
         return "success", PodOutageSuccessOutput(
@@ -1116,8 +1058,7 @@ def pod_outage(
             egress_ports=params.egress_ports,
         )
     except Exception as e:
-        logging.error(
-            "Pod network outage scenario exiting due to Exception - %s" % e)
+        logging.error("Pod network outage scenario exiting due to Exception - %s" % e)
         return "error", PodOutageErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
@@ -1179,11 +1120,11 @@ class EgressParams:
         },
     )
 
-    kraken_config: typing.Optional[str] = field(
+    kraken_config: typing.Dict[str, typing.Any] = field(
         default=None,
         metadata={
             "name": "Kraken Config",
-            "description": "Path to the config file of Kraken. "
+            "description": "Krkn config file dictionary "
             "Set this field if you wish to publish status onto Cerberus",
         },
     )
@@ -1276,8 +1217,7 @@ class PodEgressNetShapingErrorOutput:
 def pod_egress_shaping(
     params: EgressParams,
 ) -> typing.Tuple[
-    str, typing.Union[PodEgressNetShapingSuccessOutput,
-                      PodEgressNetShapingErrorOutput]
+    str, typing.Union[PodEgressNetShapingSuccessOutput, PodEgressNetShapingErrorOutput]
 ]:
     """
     Function that performs egress pod traffic shaping based
@@ -1302,14 +1242,6 @@ def pod_egress_shaping(
     publish = False
 
     if params.kraken_config:
-        failed_post_scenarios = ""
-        try:
-            with open(params.kraken_config, "r") as f:
-                config = yaml.full_load(f)
-        except Exception:
-            logging.error("Error reading Kraken config from %s" %
-                          params.kraken_config)
-            return "error", PodEgressNetShapingErrorOutput(format_exc())
         publish = True
 
     try:
@@ -1344,30 +1276,30 @@ def pod_egress_shaping(
 
         for mod in mod_lst:
             for node, ips in node_dict.items():
-                job_list.extend( apply_net_policy(
-                    mod,
-                    node,
-                    ips,
-                    job_template,
-                    pod_module_template,
-                    params.network_params,
-                    params.test_duration,
-                    br_name,
-                    kubecli,
-                    params.execution_type,
-                ))
+                job_list.extend(
+                    apply_net_policy(
+                        mod,
+                        node,
+                        ips,
+                        job_template,
+                        pod_module_template,
+                        params.network_params,
+                        params.test_duration,
+                        br_name,
+                        kubecli,
+                        params.execution_type,
+                    )
+                )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
-                wait_for_job(job_list[:], kubecli,
-                                params.test_duration + 20)
-                logging.info("Waiting for wait_duration %s" %
-                                params.test_duration)
+                wait_for_job(job_list[:], kubecli, params.test_duration + 20)
+                logging.info("Waiting for wait_duration %s" % params.test_duration)
                 time.sleep(params.test_duration)
                 end_time = int(time.time())
                 if publish:
                     cerberus.publish_kraken_status(
-                        config, failed_post_scenarios, start_time, end_time
+                        params.kraken_config, "", start_time, end_time
                     )
             if params.execution_type == "parallel":
                 break
@@ -1380,7 +1312,7 @@ def pod_egress_shaping(
             end_time = int(time.time())
             if publish:
                 cerberus.publish_kraken_status(
-                    config, failed_post_scenarios, start_time, end_time
+                    params.kraken_config, "", start_time, end_time
                 )
 
         return "success", PodEgressNetShapingSuccessOutput(
@@ -1389,8 +1321,7 @@ def pod_egress_shaping(
             execution_type=params.execution_type,
         )
     except Exception as e:
-        logging.error(
-            "Pod network Shaping scenario exiting due to Exception - %s" % e)
+        logging.error("Pod network Shaping scenario exiting due to Exception - %s" % e)
         return "error", PodEgressNetShapingErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
@@ -1452,7 +1383,7 @@ class IngressParams:
         },
     )
 
-    kraken_config: typing.Optional[str] = field(
+    kraken_config: typing.Dict[str, typing.Any] = field(
         default=None,
         metadata={
             "name": "Kraken Config",
@@ -1549,8 +1480,8 @@ class PodIngressNetShapingErrorOutput:
 def pod_ingress_shaping(
     params: IngressParams,
 ) -> typing.Tuple[
-    str, typing.Union[PodIngressNetShapingSuccessOutput,
-                      PodIngressNetShapingErrorOutput]
+    str,
+    typing.Union[PodIngressNetShapingSuccessOutput, PodIngressNetShapingErrorOutput],
 ]:
     """
     Function that performs ingress pod traffic shaping based
@@ -1575,14 +1506,6 @@ def pod_ingress_shaping(
     publish = False
 
     if params.kraken_config:
-        failed_post_scenarios = ""
-        try:
-            with open(params.kraken_config, "r") as f:
-                config = yaml.full_load(f)
-        except Exception:
-            logging.error("Error reading Kraken config from %s" %
-                          params.kraken_config)
-            return "error", PodIngressNetShapingErrorOutput(format_exc())
         publish = True
 
     try:
@@ -1617,30 +1540,30 @@ def pod_ingress_shaping(
 
         for mod in mod_lst:
             for node, ips in node_dict.items():
-                job_list.extend(apply_ingress_policy(
-                    mod,
-                    node,
-                    ips,
-                    job_template,
-                    pod_module_template,
-                    params.network_params,
-                    params.test_duration,
-                    br_name,
-                    kubecli,
-                    params.execution_type,
-                ))
+                job_list.extend(
+                    apply_ingress_policy(
+                        mod,
+                        node,
+                        ips,
+                        job_template,
+                        pod_module_template,
+                        params.network_params,
+                        params.test_duration,
+                        br_name,
+                        kubecli,
+                        params.execution_type,
+                    )
+                )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
-                wait_for_job(job_list[:], kubecli,
-                             params.test_duration + 20)
-                logging.info("Waiting for wait_duration %s" %
-                             params.test_duration)
+                wait_for_job(job_list[:], kubecli, params.test_duration + 20)
+                logging.info("Waiting for wait_duration %s" % params.test_duration)
                 time.sleep(params.test_duration)
                 end_time = int(time.time())
                 if publish:
                     cerberus.publish_kraken_status(
-                        config, failed_post_scenarios, start_time, end_time
+                        params.kraken_config, "", start_time, end_time
                     )
             if params.execution_type == "parallel":
                 break
@@ -1653,7 +1576,7 @@ def pod_ingress_shaping(
             end_time = int(time.time())
             if publish:
                 cerberus.publish_kraken_status(
-                    config, failed_post_scenarios, start_time, end_time
+                    params.kraken_config, "", start_time, end_time
                 )
 
         return "success", PodIngressNetShapingSuccessOutput(
@@ -1662,14 +1585,9 @@ def pod_ingress_shaping(
             execution_type=params.execution_type,
         )
     except Exception as e:
-        logging.error(
-            "Pod network Shaping scenario exiting due to Exception - %s" % e)
+        logging.error("Pod network Shaping scenario exiting due to Exception - %s" % e)
         return "error", PodIngressNetShapingErrorOutput(format_exc())
     finally:
-        delete_virtual_interfaces(
-            kubecli,
-            node_dict.keys(),
-            pod_module_template
-        )
+        delete_virtual_interfaces(kubecli, node_dict.keys(), pod_module_template)
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
