@@ -38,11 +38,11 @@ A couple of [alert profiles](https://github.com/redhat-chaos/krkn/tree/main/conf
   severity: critical
 ```
 
-Kube-burner supports setting the severity for the alerts with each one having different effects:
+Krkn supports setting the severity for the alerts with each one having different effects:
 
 ```
 info: Prints an info message with the alarm description to stdout. By default all expressions have this severity.
 warning: Prints a warning message with the alarm description to stdout.
-error: Prints a error message with the alarm description to stdout and makes kube-burner rc = 1
+error: Prints a error message with the alarm description to stdout and sets Krkn rc = 1
 critical: Prints a fatal message with the alarm description to stdout and exits execution inmediatly with rc != 0
 ```
