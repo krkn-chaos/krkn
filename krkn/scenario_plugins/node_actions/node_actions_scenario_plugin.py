@@ -64,23 +64,23 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             global node_general
             node_general = True
             return general_node_scenarios(kubecli)
-        if node_scenario["cloud_type"] == "aws":
+        if node_scenario["cloud_type"].lower() == "aws":
             return aws_node_scenarios(kubecli)
-        elif node_scenario["cloud_type"] == "gcp":
+        elif node_scenario["cloud_type"].lower() == "gcp":
             return gcp_node_scenarios(kubecli)
-        elif node_scenario["cloud_type"] == "openstack":
+        elif node_scenario["cloud_type"].lower() == "openstack":
             from krkn.scenario_plugins.node_actions.openstack_node_scenarios import (
                 openstack_node_scenarios,
             )
 
             return openstack_node_scenarios(kubecli)
         elif (
-            node_scenario["cloud_type"] == "azure"
+            node_scenario["cloud_type"].lower() == "azure"
             or node_scenario["cloud_type"] == "az"
         ):
             return azure_node_scenarios(kubecli)
         elif (
-            node_scenario["cloud_type"] == "alibaba"
+            node_scenario["cloud_type"].lower() == "alibaba"
             or node_scenario["cloud_type"] == "alicloud"
         ):
             from krkn.scenario_plugins.node_actions.alibaba_node_scenarios import (
@@ -88,7 +88,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             )
 
             return alibaba_node_scenarios(kubecli)
-        elif node_scenario["cloud_type"] == "bm":
+        elif node_scenario["cloud_type"].lower() == "bm":
             from krkn.scenario_plugins.node_actions.bm_node_scenarios import (
                 bm_node_scenarios,
             )
@@ -99,7 +99,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_scenario.get("bmc_password", None),
                 kubecli,
             )
-        elif node_scenario["cloud_type"] == "docker":
+        elif node_scenario["cloud_type"].lower() == "docker":
             return docker_node_scenarios(kubecli)
         else:
             logging.error(

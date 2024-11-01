@@ -34,7 +34,16 @@ class IbmCloud:
             self.service.set_service_url(service_url)
         except Exception as e:
             logging.error("error authenticating" + str(e))
-            sys.exit(1)
+
+
+    # Get the instance ID of the node
+    def get_instance_id(self, node_name):
+        node_list = self.list_instances()
+        for node in node_list:
+            if node_name == node["vpc_name"]:
+                return node["vpc_id"]
+        logging.error("Couldn't find node with name " + str(node_name) + ", you could try another region")
+        sys.exit(1)
 
     def delete_instance(self, instance_id):
         """
