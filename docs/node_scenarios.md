@@ -57,6 +57,8 @@ kind was primarily designed for testing Kubernetes itself, but may be used for l
 #### GCP
 Cloud setup instructions can be found [here](cloud_setup.md#gcp). Sample scenario config can be found [here](https://github.com/krkn-chaos/krkn/blob/main/scenarios/openshift/gcp_node_scenarios.yml).
 
+NOTE: The parallel option is not available for GCP, the api doesn't perform processes at the same time
+
 
 #### Openstack
 
