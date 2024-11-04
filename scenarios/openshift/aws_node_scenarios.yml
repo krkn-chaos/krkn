@@ -1,13 +1,14 @@
 node_scenarios:
-  - actions:                                                        # node chaos scenarios to be injected
+  - actions:                                                      # node chaos scenarios to be injected
     - node_stop_start_scenario
-    node_name:                                                      # node on which scenario has to be injected; can set multiple names separated by comma
-    label_selector: node-role.kubernetes.io/worker                  # when node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection
-    instance_count: 1                                               # Number of nodes to perform action/select that match the label selector
-    runs: 1                                                         # number of times to inject each scenario under actions (will perform on same node each time)
-    timeout: 360                                                    # duration to wait for completion of node scenario injection
-    duration: 120                                                   # duration to stop the node before running the start action
-    cloud_type: aws                                                 # cloud type on which Kubernetes/OpenShift runs  
+    node_name:                                                    # node on which scenario has to be injected; can set multiple names separated by comma
+    label_selector: node-role.kubernetes.io/worker                # when node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection
+    instance_count: 2                                             # Number of nodes to perform action/select that match the label selector
+    runs: 1                                                       # number of times to inject each scenario under actions (will perform on same node each time)
+    timeout: 360                                                  # duration to wait for completion of node scenario injection
+    duration: 20                                                  # duration to stop the node before running the start action
+    cloud_type: aws                                               # cloud type on which Kubernetes/OpenShift runs  
+    parallel: true                                                # Run action on label or node name in parallel or sequential, defaults to sequential
   - actions:
     - node_reboot_scenario
     node_name:
