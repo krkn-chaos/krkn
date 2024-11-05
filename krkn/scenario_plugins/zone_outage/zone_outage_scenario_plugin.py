@@ -29,6 +29,8 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 subnet_ids = scenario_config["subnet_id"]
                 duration = scenario_config["duration"]
                 cloud_type = scenario_config["cloud_type"]
+                # Add support for user-provided default network ACL
+                default_acl_id = scenario_config.get("default_acl_id")
                 ids = {}
                 acl_ids_created = []
 
@@ -58,7 +60,15 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                         "Network association ids associated with "
                         "the subnet %s: %s" % (subnet_id, network_association_ids)
                     )
-                    acl_id = cloud_object.create_default_network_acl(vpc_id)
+                    
+                    # Use provided default ACL if available, otherwise create a new one
+                    if default_acl_id:
+                        acl_id = default_acl_id
+                        # Don't add to acl_id since we didn't create it
+                    else:
+                        acl_id = cloud_object.create_default_network_acl(vpc_id)
+                        acl_ids_created.append(acl_id)
+
                     new_association_id = cloud_object.replace_network_acl_association(
                         network_association_ids[0], acl_id
                     )
@@ -66,7 +76,6 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                     # capture the orginal_acl_id, created_acl_id and
                     # new association_id to use during the recovery
                     ids[new_association_id] = original_acl_id
-                    acl_ids_created.append(acl_id)
 
                 # wait for the specified duration
                 logging.info(
