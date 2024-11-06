@@ -13,10 +13,12 @@ zone_outage:                                         # Scenario to create an out
   duration: 600                                      # Duration in seconds after which the zone will be back online.
   vpc_id:                                            # Cluster virtual private network to target.
   subnet_id: [subnet1, subnet2]                      # List of subnet-id's to deny both ingress and egress traffic.
+  default_acl_id: acl-xxxxxxxx                       # (Optional) ID of an existing network ACL to use instead of creating a new one. If provided, this ACL will not be deleted after the scenario.
 ```
 
 **NOTE**: vpc_id and subnet_id can be obtained from the cloud web console by selecting one of the instances in the targeted zone ( us-west-2a for example ).
 **NOTE**: Multiple zones will experience downtime in case of targeting multiple subnets which might have an impact on the cluster health especially if the zones have control plane components deployed.
+**NOTE**: default_acl_id can be obtained from the AWS VPC Console by selecting "Network ACLs" from the left sidebar ( the ID will be in the format 'acl-xxxxxxxx' ). Make sure the selected ACL has the desired ingress/egress rules for your outage scenario ( i.e., deny all ).
 
 ##### Debugging steps in case of failures
 In case of failures during the steps which revert back the network acl to allow traffic and bring back the cluster nodes in the zone, the nodes in the particular zone will be in `NotReady` condition. Here is how to fix it:
