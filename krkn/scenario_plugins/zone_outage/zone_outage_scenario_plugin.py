@@ -64,9 +64,14 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                     # Use provided default ACL if available, otherwise create a new one
                     if default_acl_id:
                         acl_id = default_acl_id
-                        # Don't add to acl_id since we didn't create it
+                        logging.info(
+                            "Using provided default ACL ID %s - this ACL will not be deleted after the scenario", 
+                            default_acl_id
+                        )
+                        # Don't add to acl_ids_created since we don't want to delete user-provided ACLs at cleanup
                     else:
                         acl_id = cloud_object.create_default_network_acl(vpc_id)
+                        logging.info("Created new default ACL %s", acl_id)
                         acl_ids_created.append(acl_id)
 
                     new_association_id = cloud_object.replace_network_acl_association(
