@@ -140,7 +140,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             )
 
         # GCP api doesn't support multiprocessing calls, will only actually run 1 
-        if parallel_nodes and node_scenario['cloud_type'].lower() is not "gcp":
+        if parallel_nodes and node_scenario['cloud_type'].lower() != "gcp":
             self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
         else: 
             for single_node in nodes:
