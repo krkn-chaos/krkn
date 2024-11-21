@@ -42,19 +42,13 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                 test_egress = get_yaml_item_value(
                     test_dict, "egress", {"bandwidth": "100mbit"}
                 )
+
                 if test_node:
                     node_name_list = test_node.split(",")
+                    nodelst = common_node_functions.get_node_by_name(node_name_list, lib_telemetry.get_lib_kubernetes())
                 else:
-                    node_name_list = [test_node]
-                nodelst = []
-                for single_node_name in node_name_list:
-                    nodelst.extend(
-                        common_node_functions.get_node(
-                            single_node_name,
-                            test_node_label,
-                            test_instance_count,
-                            lib_telemetry.get_lib_kubernetes(),
-                        )
+                    nodelst = common_node_functions.get_node(
+                        test_node_label, test_instance_count, lib_telemetry.get_lib_kubernetes()
                     )
                 file_loader = FileSystemLoader(
                     os.path.abspath(os.path.dirname(__file__))
@@ -149,7 +143,10 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                 finally:
                     logging.info("Deleting jobs")
                     self.delete_job(joblst[:], lib_telemetry.get_lib_kubernetes())
-        except (RuntimeError, Exception):
+        except (RuntimeError, Exception) as e:
+            logging.error(
+                "NetworkChaosScenarioPlugin exiting due to Exception %s" % e
+            )
             scenario_telemetry.exit_status = 1
             return 1
         else:
