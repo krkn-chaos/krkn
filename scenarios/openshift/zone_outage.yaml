@@ -3,3 +3,4 @@ zone_outage:                                         # Scenario to create an out
   duration: 600                                      # duration in seconds after which the zone will be back online
   vpc_id:                                            # cluster virtual private network to target
   subnet_id: [subnet1, subnet2]                      # List of subnet-id's to deny both ingress and egress traffic
+  default_acl_id: acl-xxxxxxxx                       # (Optional) ID of an existing network ACL to use instead of creating a new one. If provided, this ACL will not be deleted after the scenario.

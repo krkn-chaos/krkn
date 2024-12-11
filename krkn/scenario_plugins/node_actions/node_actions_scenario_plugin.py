@@ -1,5 +1,7 @@
 import logging
 import time
+from multiprocessing.pool import ThreadPool
+from itertools import repeat
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -64,23 +66,23 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             global node_general
             node_general = True
             return general_node_scenarios(kubecli)
-        if node_scenario["cloud_type"] == "aws":
+        if node_scenario["cloud_type"].lower() == "aws":
             return aws_node_scenarios(kubecli)
-        elif node_scenario["cloud_type"] == "gcp":
+        elif node_scenario["cloud_type"].lower() == "gcp":
             return gcp_node_scenarios(kubecli)
-        elif node_scenario["cloud_type"] == "openstack":
+        elif node_scenario["cloud_type"].lower() == "openstack":
             from krkn.scenario_plugins.node_actions.openstack_node_scenarios import (
                 openstack_node_scenarios,
             )
 
             return openstack_node_scenarios(kubecli)
         elif (
-            node_scenario["cloud_type"] == "azure"
+            node_scenario["cloud_type"].lower() == "azure"
             or node_scenario["cloud_type"] == "az"
         ):
             return azure_node_scenarios(kubecli)
         elif (
-            node_scenario["cloud_type"] == "alibaba"
+            node_scenario["cloud_type"].lower() == "alibaba"
             or node_scenario["cloud_type"] == "alicloud"
         ):
             from krkn.scenario_plugins.node_actions.alibaba_node_scenarios import (
@@ -88,7 +90,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             )
 
             return alibaba_node_scenarios(kubecli)
-        elif node_scenario["cloud_type"] == "bm":
+        elif node_scenario["cloud_type"].lower() == "bm":
             from krkn.scenario_plugins.node_actions.bm_node_scenarios import (
                 bm_node_scenarios,
             )
@@ -99,7 +101,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_scenario.get("bmc_password", None),
                 kubecli,
             )
-        elif node_scenario["cloud_type"] == "docker":
+        elif node_scenario["cloud_type"].lower() == "docker":
             return docker_node_scenarios(kubecli)
         else:
             logging.error(
@@ -120,100 +122,131 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
     def inject_node_scenario(
         self, action, node_scenario, node_scenario_object, kubecli: KrknKubernetes
     ):
-        generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario")
-        # Get the node scenario configurations
-        run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
+        
+        # Get the node scenario configurations for setting nodes
+       
         instance_kill_count = get_yaml_item_value(node_scenario, "instance_count", 1)
         node_name = get_yaml_item_value(node_scenario, "node_name", "")
         label_selector = get_yaml_item_value(node_scenario, "label_selector", "")
-        if action == "node_stop_start_scenario":
+        parallel_nodes = get_yaml_item_value(node_scenario, "parallel", False)
+        
+        # Get the node to apply the scenario
+        if node_name:
+            node_name_list = node_name.split(",")
+            nodes = common_node_functions.get_node_by_name(node_name_list, kubecli)
+        else:
+            nodes = common_node_functions.get_node(
+                label_selector, instance_kill_count, kubecli
+            )
+
+        # GCP api doesn't support multiprocessing calls, will only actually run 1 
+        if parallel_nodes and node_scenario['cloud_type'].lower() != "gcp":
+            self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
+        else: 
+            for single_node in nodes:
+                self.run_node(single_node, node_scenario_object, action, node_scenario)
+
+    def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
+        try:
+            logging.info("parallely call to nodes")
+            # pool object with number of element
+            pool = ThreadPool(processes=len(nodes))
+    
+            pool.starmap(self.run_node,zip(nodes, repeat(node_scenario_object), repeat(action), repeat(node_scenario)))
+
+            pool.close()
+        except Exception as e:
+            logging.info("Error on pool multiprocessing: " + str(e))
+
+
+    def run_node(self, single_node, node_scenario_object, action, node_scenario):
+        logging.info("action" + str(action))
+        # Get the scenario specifics for running action nodes
+        run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
+        if action in ("node_stop_start_scenario", "node_disk_detach_attach_scenario"):
             duration = get_yaml_item_value(node_scenario, "duration", 120)
+
         timeout = get_yaml_item_value(node_scenario, "timeout", 120)
         service = get_yaml_item_value(node_scenario, "service", "")
         ssh_private_key = get_yaml_item_value(
             node_scenario, "ssh_private_key", "~/.ssh/id_rsa"
         )
-        # Get the node to apply the scenario
-        if node_name:
-            node_name_list = node_name.split(",")
-        else:
-            node_name_list = [node_name]
-        for single_node_name in node_name_list:
-            nodes = common_node_functions.get_node(
-                single_node_name, label_selector, instance_kill_count, kubecli
+        generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario")
+
+        if node_general and action not in generic_cloud_scenarios:
+            logging.info(
+                "Scenario: "
+                + action
+                + " is not set up for generic cloud type, skipping action"
             )
-            for single_node in nodes:
-                if node_general and action not in generic_cloud_scenarios:
-                    logging.info(
-                        "Scenario: "
-                        + action
-                        + " is not set up for generic cloud type, skipping action"
+        else:
+            if action == "node_start_scenario":
+                node_scenario_object.node_start_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_stop_scenario":
+                node_scenario_object.node_stop_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_stop_start_scenario":
+                node_scenario_object.node_stop_start_scenario(
+                    run_kill_count, single_node, timeout, duration
+                )
+            elif action == "node_termination_scenario":
+                node_scenario_object.node_termination_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_reboot_scenario":
+                node_scenario_object.node_reboot_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_disk_detach_attach_scenario":
+                node_scenario_object.node_disk_detach_attach_scenario(
+                    run_kill_count, single_node, timeout, duration)
+            elif action == "stop_start_kubelet_scenario":
+                node_scenario_object.stop_start_kubelet_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "restart_kubelet_scenario":
+                node_scenario_object.restart_kubelet_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "stop_kubelet_scenario":
+                node_scenario_object.stop_kubelet_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_crash_scenario":
+                node_scenario_object.node_crash_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "stop_start_helper_node_scenario":
+                if node_scenario["cloud_type"] != "openstack":
+                    logging.error(
+                        "Scenario: " + action + " is not supported for "
+                        "cloud type "
+                        + node_scenario["cloud_type"]
+                        + ", skipping action"
                     )
                 else:
-                    if action == "node_start_scenario":
-                        node_scenario_object.node_start_scenario(
-                            run_kill_count, single_node, timeout
+                    if not node_scenario["helper_node_ip"]:
+                        logging.error("Helper node IP address is not provided")
+                        raise Exception(
+                            "Helper node IP address is not provided"
                         )
-                    elif action == "node_stop_scenario":
-                        node_scenario_object.node_stop_scenario(
-                            run_kill_count, single_node, timeout
-                        )
-                    elif action == "node_stop_start_scenario":
-                        node_scenario_object.node_stop_start_scenario(
-                            run_kill_count, single_node, timeout, duration
-                        )
-                    elif action == "node_termination_scenario":
-                        node_scenario_object.node_termination_scenario(
-                            run_kill_count, single_node, timeout
-                        )
-                    elif action == "node_reboot_scenario":
-                        node_scenario_object.node_reboot_scenario(
-                            run_kill_count, single_node, timeout
-                        )
-                    elif action == "stop_start_kubelet_scenario":
-                        node_scenario_object.stop_start_kubelet_scenario(
-                            run_kill_count, single_node, timeout
-                        )
-                    elif action == "restart_kubelet_scenario":
-                        node_scenario_object.restart_kubelet_scenario(
-                            run_kill_count, single_node, timeout
-                        )
-                    elif action == "stop_kubelet_scenario":
-                        node_scenario_object.stop_kubelet_scenario(
-                            run_kill_count, single_node, timeout
-                        )
-                    elif action == "node_crash_scenario":
-                        node_scenario_object.node_crash_scenario(
-                            run_kill_count, single_node, timeout
-                        )
-                    elif action == "stop_start_helper_node_scenario":
-                        if node_scenario["cloud_type"] != "openstack":
-                            logging.error(
-                                "Scenario: " + action + " is not supported for "
-                                "cloud type "
-                                + node_scenario["cloud_type"]
-                                + ", skipping action"
-                            )
-                        else:
-                            if not node_scenario["helper_node_ip"]:
-                                logging.error("Helper node IP address is not provided")
-                                raise Exception(
-                                    "Helper node IP address is not provided"
-                                )
-                            node_scenario_object.helper_node_stop_start_scenario(
-                                run_kill_count, node_scenario["helper_node_ip"], timeout
-                            )
-                            node_scenario_object.helper_node_service_status(
-                                node_scenario["helper_node_ip"],
-                                service,
-                                ssh_private_key,
-                                timeout,
-                            )
-                    else:
-                        logging.info(
-                            "There is no node action that matches %s, skipping scenario"
-                            % action
-                        )
+                    node_scenario_object.helper_node_stop_start_scenario(
+                        run_kill_count, node_scenario["helper_node_ip"], timeout
+                    )
+                    node_scenario_object.helper_node_service_status(
+                        node_scenario["helper_node_ip"],
+                        service,
+                        ssh_private_key,
+                        timeout,
+                    )
+            else:
+                logging.info(
+                    "There is no node action that matches %s, skipping scenario"
+                    % action
+                )
 
     def get_scenario_types(self) -> list[str]:
         return ["node_scenarios"]

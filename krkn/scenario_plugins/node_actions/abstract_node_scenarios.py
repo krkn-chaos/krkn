@@ -36,6 +36,20 @@ class abstract_node_scenarios:
         self.helper_node_start_scenario(instance_kill_count, node, timeout)
         logging.info("helper_node_stop_start_scenario has been successfully injected!")
 
+    # Node scenario to detach and attach the disk
+    def node_disk_detach_attach_scenario(self, instance_kill_count, node, timeout, duration):
+        logging.info("Starting disk_detach_attach_scenario injection")
+        disk_attachment_details = self.get_disk_attachment_info(instance_kill_count, node)
+        if disk_attachment_details:
+            self.disk_detach_scenario(instance_kill_count, node, timeout)
+            logging.info("Waiting for %s seconds before attaching the disk" % (duration))
+            time.sleep(duration)
+            self.disk_attach_scenario(instance_kill_count, disk_attachment_details, timeout)
+            logging.info("node_disk_detach_attach_scenario has been successfully injected!")
+        else:
+            logging.error("Node %s has only root disk attached" % (node))
+            logging.error("node_disk_detach_attach_scenario failed!")
+
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
         pass
