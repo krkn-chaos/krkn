@@ -122,7 +122,7 @@
     "name": "es-server",
     "short_description": "Elasticsearch instance URL",
     "description": "Elasticsearch instance URL",
-    "variable": "ENABLE_ES",
+    "variable": "ES_SERVER",
     "type": "string",
     "default": "http://0.0.0.0",
     "validator": "^(http|https):\/\/.*",
