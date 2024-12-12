@@ -93,12 +93,7 @@ How to set up Alibaba cli to run node scenarios is defined [here](cloud_setup.md
 #### VMware
 How to set up VMware vSphere to run node scenarios is defined [here](cloud_setup.md#vmware)
 
-This cloud type uses a different configuration style, see actions below and [example config file](../scenarios/openshift/vmware_node_scenarios.yml)
-
-- vmware-node-terminate
-- vmware-node-reboot
-- vmware-node-stop
-- vmware-node-start
+See [example config file](../scenarios/openshift/vmware_node_scenarios.yml)
 
 
 
