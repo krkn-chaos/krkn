@@ -426,6 +426,55 @@
     "required": "false"
   },
   {
+    "name": "kubevirt-check-interval",
+    "short_description": "Kube Virt check interval",
+    "description": "How often to check the kube virt check Vms ssh status",
+    "variable": "KUBE_VIRT_CHECK_INTERVAL",
+    "type": "number",
+    "default": "2",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-namespace",
+    "short_description": "KubeVirt namespace to check",
+    "description": "KubeVirt namespace to check the health of",
+    "variable": "KUBE_VIRT_NAMESPACE",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-namespace",
+    "short_description": "KubeVirt regex names to watch",
+    "description": "KubeVirt regex names to check VMs",
+    "variable": "KUBE_VIRT_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-only-failures",
+    "short_description": "KubeVirt checks only report if failure occurs",
+    "description": "KubeVirt checks only report if failure occurs",
+    "variable": "KUBE_VIRT_FAILURES",
+    "type": "enum",
+    "allowed_values": "True,False,true,false",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-disconnected",
+    "short_description": "KubeVirt checks in disconnected mode",
+    "description": "KubeVirt checks in disconnected mode, bypassing the clusters Api",
+    "variable": "KUBE_VIRT_DISCONNECTED",
+    "type": "enum",
+    "allowed_values": "True,False,true,false",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
     "name": "krkn-debug",
     "short_description": "Krkn debug mode",
     "description": "Enables debug mode for Krkn",
