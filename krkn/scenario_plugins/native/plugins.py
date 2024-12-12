@@ -18,9 +18,6 @@ from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin i
 )
 from arcaflow_plugin_sdk import schema, serialization, jsonschema
 
-from krkn.scenario_plugins.native.node_scenarios import vmware_plugin
-
-
 @dataclasses.dataclass
 class PluginStep:
     schema: schema.StepSchema
@@ -160,10 +157,6 @@ PLUGINS = Plugins(
         ),
         PluginStep(wait_for_pods, ["error"]),
         PluginStep(run_python_file, ["error"]),
-        PluginStep(vmware_plugin.node_start, ["error"]),
-        PluginStep(vmware_plugin.node_stop, ["error"]),
-        PluginStep(vmware_plugin.node_reboot, ["error"]),
-        PluginStep(vmware_plugin.node_terminate, ["error"]),
         PluginStep(ibmcloud_plugin.node_start, ["error"]),
         PluginStep(ibmcloud_plugin.node_stop, ["error"]),
         PluginStep(ibmcloud_plugin.node_reboot, ["error"]),

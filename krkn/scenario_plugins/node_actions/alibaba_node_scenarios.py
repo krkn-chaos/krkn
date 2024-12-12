@@ -199,7 +199,7 @@ class Alibaba:
                 return False
         end_time = time.time()
         if affected_node:
-            affected_node.set_affected_node_status("running", end_time - start_time)
+            affected_node.set_affected_node_status("stopped", end_time - start_time)
         return True
 
     # Wait until the node instance is terminated
