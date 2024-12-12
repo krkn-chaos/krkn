@@ -22,6 +22,7 @@ from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scena
 from krkn.scenario_plugins.node_actions.general_cloud_node_scenarios import (
     general_node_scenarios,
 )
+from krkn.scenario_plugins.node_actions.vmware_node_scenarios import vmware_node_scenarios
 
 node_general = False
 
@@ -81,12 +82,12 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             return openstack_node_scenarios(kubecli, affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "azure"
-            or node_scenario["cloud_type"] == "az"
+            or node_scenario["cloud_type"].lower() == "az"
         ):
             return azure_node_scenarios(kubecli, affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "alibaba"
-            or node_scenario["cloud_type"] == "alicloud"
+            or node_scenario["cloud_type"].lower() == "alicloud"
         ):
             from krkn.scenario_plugins.node_actions.alibaba_node_scenarios import (
                 alibaba_node_scenarios,
@@ -106,7 +107,12 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 affected_nodes_status
             )
         elif node_scenario["cloud_type"].lower() == "docker":
-            return docker_node_scenarios(kubecli, affected_nodes_status)
+            return docker_node_scenarios(kubecli)
+        elif (
+            node_scenario["cloud_type"].lower() == "vsphere"
+            or node_scenario["cloud_type"].lower() == "vmware"
+        ):
+            return vmware_node_scenarios(kubecli, affected_nodes_status)
         else:
             logging.error(
                 "Cloud type "
