@@ -29,6 +29,7 @@ from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
 from krkn.utils import TeeLogHandler
 from krkn.utils.HealthChecker import HealthChecker
+from krkn.utils.VirtChecker import VirtChecker
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
@@ -121,7 +122,8 @@ def main(cfg) -> int:
             config["performance_monitoring"], "check_critical_alerts", False
         )
         telemetry_api_url = config["telemetry"].get("api_url")
-        health_check_config = config["health_checks"]
+        health_check_config = get_yaml_item_value(config, "health_checks",{})
+        kubevirt_check_config = get_yaml_item_value(config, "kubevirt_checks", {})
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
@@ -306,6 +308,10 @@ def main(cfg) -> int:
                                                args=(health_check_config, health_check_telemetry_queue))
         health_check_worker.start()
 
+        kubevirt_check_telemetry_queue = queue.Queue()
+        kubevirt_checker = VirtChecker(kubevirt_check_config, iterations=iterations, krkn_lib=kubecli)
+        kubevirt_checker.batch_list(kubevirt_check_telemetry_queue)
+
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -367,7 +373,7 @@ def main(cfg) -> int:
 
             iteration += 1
             health_checker.current_iterations += 1
-
+            kubevirt_checker.current_iterations += 1
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
         # is disabled, it's necessary to serialize the ChaosRunTelemetry object
@@ -378,7 +384,16 @@ def main(cfg) -> int:
             chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
         except queue.Empty:
             chaos_telemetry.health_checks = None
-
+        kubevirt_checker.thread_join()
+        kubevirt_check_telem = []
+        i =0
+        while i <= kubevirt_checker.threads_limit:
+            if not kubevirt_check_telemetry_queue.empty():
+                kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
+            else:
+                break
+            i+= 1
+        chaos_telemetry.virt_checks = kubevirt_check_telem
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
