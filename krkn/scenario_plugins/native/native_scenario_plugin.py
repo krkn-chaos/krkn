@@ -49,7 +49,6 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
         return [
             "pod_disruption_scenarios",
             "pod_network_scenarios",
-            "vmware_node_scenarios",
             "ibmcloud_node_scenarios",
         ]
 
