@@ -1,0 +1,396 @@
+[
+  {
+    "name": "cerberus-enabled",
+    "short_description": "Enable Cerberus",
+    "description": "Enables Cerberus Support",
+    "variable": "CERBERUS_ENABLED",
+    "type": "enum",
+    "default": "False",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "required": "false"
+  },
+  {
+    "name": "cerberus-url",
+    "short_description": "Cerberus URL",
+    "description": "Cerberus http url",
+    "variable": "CERBERUS_URL",
+    "type": "string",
+    "default": "http://0.0.0.0:8080",
+    "validator": "^(http|https):\/\/.*",
+    "required": "false"
+  },
+  {
+    "name": "distribution",
+    "short_description": "Orchestrator distribution",
+    "description": "Selects the orchestrator distribution",
+    "variable": "DISTRIBUTION",
+    "type": "enum",
+    "default": "openshift",
+    "allowed_values": "openshift,kubernetes",
+    "separator": ",",
+    "required": "false"
+  },
+  {
+    "name": "krkn-kubeconfig",
+    "short_description": "Krkn kubeconfig path",
+    "description": "Sets the path where krkn will search for kubeconfig (in container)",
+    "variable": "KRKN_KUBE_CONFIG",
+    "type": "string",
+    "default": "/home/krkn/.kube/config",
+    "required": "false"
+  },
+  {
+    "name": "wait-duration",
+    "short_description": "Post chaos wait duration",
+    "description": "waits for a certain amount of time after the scenario",
+    "variable": "WAIT_DURATION",
+    "type": "number",
+    "default": "1"
+  },
+  {
+    "name": "iterations",
+    "short_description": "Chaos scenario iterations",
+    "description": "number of times the same chaos scenario will be executed",
+    "variable": "ITERATIONS",
+    "type": "number",
+    "default": "1"
+  },
+  {
+    "name": "daemon-mode",
+    "short_description": "Sets krkn daemon mode",
+    "description": "if set the scenario will execute forever",
+    "variable": "DAEMON_MODE",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "uuid",
+    "short_description": "Sets krkn run uuid",
+    "description": "sets krkn run uuid instead of generating it",
+    "variable": "UUID",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "capture-metrics",
+    "short_description": "Enables metrics capture",
+    "description": "Enables metrics capture",
+    "variable": "CAPTURE_METRICS",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "enable-alerts",
+    "short_description": "Enables cluster alerts check",
+    "description": "Enables cluster alerts check",
+    "variable": "ENABLE_ALERTS",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "alerts-path",
+    "short_description": "Cluster alerts path file (in container)",
+    "description": "Enables cluster alerts check",
+    "variable": "ALERTS_PATH",
+    "type": "string",
+    "default": "config/alerts.yaml",
+    "required": "false"
+  },
+  {
+    "name": "enable-es",
+    "short_description": "Enables elastic search data collection",
+    "description": "Enables elastic search data collection",
+    "variable": "ENABLE_ES",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "es-server",
+    "short_description": "Elasticsearch instance URL",
+    "description": "Elasticsearch instance URL",
+    "variable": "ES_SERVER",
+    "type": "string",
+    "default": "http://0.0.0.0",
+    "validator": "^(http|https):\/\/.*",
+    "required": "false"
+  },
+  {
+    "name": "es-port",
+    "short_description": "Elasticsearch instance port",
+    "description": "Elasticsearch instance port",
+    "variable": "ES_PORT",
+    "type": "number",
+    "default": "443",
+    "required": "false"
+  },
+  {
+    "name": "es-username",
+    "short_description": "Elasticsearch instance username",
+    "description": "Elasticsearch instance username",
+    "variable": "ES_USERNAME",
+    "type": "string",
+    "default": "elastic",
+    "required": "false"
+  },
+  {
+    "name": "es-password",
+    "short_description": "Elasticsearch instance password",
+    "description": "Elasticsearch instance password",
+    "variable": "ES_PASSWORD",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "es-verify-certs",
+    "short_description": "Enables elasticsearch TLS certificate verification",
+    "description": "Enables elasticsearch TLS certificate verification",
+    "variable": "ES_VERIFY_CERTS",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "es-collect-metrics",
+    "short_description": "Enables metrics collection on elastic search",
+    "description": "Enables metrics collection on elastic search",
+    "variable": "ES_COLLECT_METRICS",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "es-collect-alerts",
+    "short_description": "Enables alerts collection on elastic search",
+    "description": "Enables alerts collection on elastic search",
+    "variable": "ES_COLLECT_ALERTS",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "es-metrics-index",
+    "short_description": "Elasticsearch metrics index",
+    "description": "Index name for metrics in Elasticsearch",
+    "variable": "ES_METRICS_INDEX",
+    "type": "string",
+    "default": "krkn-metrics",
+    "required": "false"
+  },
+  {
+    "name": "es-alerts-index",
+    "short_description": "Elasticsearch alerts index",
+    "description": "Index name for alerts in Elasticsearch",
+    "variable": "ES_ALERTS_INDEX",
+    "type": "string",
+    "default": "krkn-alerts",
+    "required": "false"
+  },
+  {
+    "name": "es-telemetry-index",
+    "short_description": "Elasticsearch telemetry index",
+    "description": "Index name for telemetry in Elasticsearch",
+    "variable": "ES_TELEMETRY_INDEX",
+    "type": "string",
+    "default": "krkn-telemetry",
+    "required": "false"
+  },
+  {
+    "name": "check-critical-alerts",
+    "short_description": "Check critical alerts",
+    "description": "Enables checking for critical alerts",
+    "variable": "CHECK_CRITICAL_ALERTS",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-enabled",
+    "short_description": "Enable telemetry",
+    "description": "Enables telemetry support",
+    "variable": "TELEMETRY_ENABLED",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-api-url",
+    "short_description": "Telemetry API URL",
+    "description": "API endpoint for telemetry data",
+    "variable": "TELEMETRY_API_URL",
+    "type": "string",
+    "default": "https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production",
+    "validator": "^(http|https):\/\/.*",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-username",
+    "short_description": "Telemetry username",
+    "description": "Username for telemetry authentication",
+    "variable": "TELEMETRY_USERNAME",
+    "type": "string",
+    "default": "redhat-chaos",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-password",
+    "short_description": "Telemetry password",
+    "description": "Password for telemetry authentication",
+    "variable": "TELEMETRY_PASSWORD",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-prometheus-backup",
+    "short_description": "Prometheus backup for telemetry",
+    "description": "Enables Prometheus backup for telemetry",
+    "variable": "TELEMETRY_PROMETHEUS_BACKUP",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "True",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-full-prometheus-backup",
+    "short_description": "Full Prometheus backup",
+    "description": "Enables full Prometheus backup for telemetry",
+    "variable": "TELEMETRY_FULL_PROMETHEUS_BACKUP",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-backup-threads",
+    "short_description": "Telemetry backup threads",
+    "description": "Number of threads for telemetry backup",
+    "variable": "TELEMETRY_BACKUP_THREADS",
+    "type": "number",
+    "default": "5",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-archive-path",
+    "short_description": "Telemetry archive path",
+    "description": "Path to save telemetry archive",
+    "variable": "TELEMETRY_ARCHIVE_PATH",
+    "type": "string",
+    "default": "/tmp",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-max-retries",
+    "short_description": "Telemetry max retries",
+    "description": "Maximum retries for telemetry operations",
+    "variable": "TELEMETRY_MAX_RETRIES",
+    "type": "number",
+    "default": "0",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-run-tag",
+    "short_description": "Telemetry run tag",
+    "description": "Tag for telemetry run",
+    "variable": "TELEMETRY_RUN_TAG",
+    "type": "string",
+    "default": "chaos",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-group",
+    "short_description": "Telemetry group",
+    "description": "Group name for telemetry data",
+    "variable": "TELEMETRY_GROUP",
+    "type": "string",
+    "default": "default",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-archive-size",
+    "short_description": "Telemetry archive size",
+    "description": "Maximum size for telemetry archives",
+    "variable": "TELEMETRY_ARCHIVE_SIZE",
+    "type": "number",
+    "default": "1000",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-logs-backup",
+    "short_description": "Telemetry logs backup",
+    "description": "Enables logs backup for telemetry",
+    "variable": "TELEMETRY_LOGS_BACKUP",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-filter-pattern",
+    "short_description": "Telemetry filter pattern",
+    "description": "Filter pattern for telemetry logs",
+    "variable": "TELEMETRY_FILTER_PATTERN",
+    "type": "string",
+    "default": "[\"(\\\\w{3}\\\\s\\\\d{1,2}\\\\s\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d+).+\",\"kinit (\\\\d+/\\\\d+/\\\\d+\\\\s\\\\d{2}:\\\\d{2}:\\\\d{2})\\\\s+\",\"(\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d+Z).+\"]",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-cli-path",
+    "short_description": "Telemetry CLI path (oc)",
+    "description": "Path to telemetry CLI tool (oc)",
+    "variable": "TELEMETRY_CLI_PATH",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "telemetry-events-backup",
+    "short_description": "Telemetry events backup",
+    "description": "Enables events backup for telemetry",
+    "variable": "TELEMETRY_EVENTS_BACKUP",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "True",
+    "required": "false"
+  },
+  {
+    "name": "krkn-debug",
+    "short_description": "Krkn debug mode",
+    "description": "Enables debug mode for Krkn",
+    "variable": "KRKN_DEBUG",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  }
+]
+
