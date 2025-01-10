@@ -1,4 +1,4 @@
-input_list:
+"input_list:
 - duration: 30
   io_block_size: 1m
   io_workers: 1

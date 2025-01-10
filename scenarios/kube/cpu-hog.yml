@@ -1,0 +1,9 @@
+- duration: 30
+  workers: ''
+  hog-type: cpu
+  image: quay.io/krkn-chaos/krkn-hog
+  namespace: default
+  cpu-load-percentage: 90
+  cpu-method: all
+  node-selector:
+    node-role.kubernetes.io/worker: ''

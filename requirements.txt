@@ -16,7 +16,7 @@ google-cloud-compute==1.22.0
 ibm_cloud_sdk_core==3.18.0
 ibm_vpc==0.20.0
 jinja2==3.1.5
-krkn-lib==4.0.4
+krkn-lib@git+https://github.com/krkn-chaos/krkn-lib.git@arca_to_native
 lxml==5.1.0
 kubernetes==28.1.0
 numpy==1.26.4
