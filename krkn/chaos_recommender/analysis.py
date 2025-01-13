@@ -29,9 +29,9 @@ def calculate_zscores(data):
 
 
 def identify_outliers(data, threshold):
-    outliers_cpu = data[data["CPU"] > threshold]["Service"].tolist()
-    outliers_memory = data[data["Memory"] > threshold]["Service"].tolist()
-    outliers_network = data[data["Network"] > threshold]["Service"].tolist()
+    outliers_cpu = data[data["CPU"] > float(threshold)]["Service"].tolist()
+    outliers_memory = data[data["Memory"] > float(threshold)]["Service"].tolist()
+    outliers_network = data[data["Network"] > float(threshold)]["Service"].tolist()
 
     return outliers_cpu, outliers_memory, outliers_network
 
@@ -39,13 +39,13 @@ def identify_outliers(data, threshold):
 def get_services_above_heatmap_threshold(dataframe, cpu_threshold, mem_threshold):
     # Filter the DataFrame based on CPU_HEATMAP and MEM_HEATMAP thresholds
     filtered_df = dataframe[
-        ((dataframe["CPU"] / dataframe["CPU_LIMITS"]) > cpu_threshold)
+        ((dataframe["CPU"] / dataframe["CPU_LIMITS"]) > float(cpu_threshold))
     ]
     # Get the lists of services
     cpu_services = filtered_df["service"].tolist()
 
     filtered_df = dataframe[
-        ((dataframe["MEM"] / dataframe["MEM_LIMITS"]) > mem_threshold)
+        ((dataframe["MEM"] / dataframe["MEM_LIMITS"]) > float(mem_threshold))
     ]
     mem_services = filtered_df["service"].tolist()
 

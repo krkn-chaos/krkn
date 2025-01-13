@@ -112,12 +112,12 @@ def parse_arguments(parser):
         default=[],
         help="Memory related chaos tests (space separated list)",
     )
-    parser.add_argument("--threshold", action="store", default="", help="Threshold")
+    parser.add_argument("--threshold", action="store", help="Threshold")
     parser.add_argument(
-        "--cpu-threshold", action="store", default="", help="CPU threshold"
+        "--cpu-threshold", action="store", help="CPU threshold"
     )
     parser.add_argument(
-        "--mem-threshold", action="store", default="", help="Memory threshold"
+        "--mem-threshold", action="store", help="Memory threshold"
     )
 
     return parser.parse_args()
@@ -141,9 +141,9 @@ def read_configuration(config_file_path):
     prometheus_endpoint = config.get("prometheus_endpoint")
     auth_token = config.get("auth_token")
     scrape_duration = get_yaml_item_value(config, "scrape_duration", "10m")
-    threshold = get_yaml_item_value(config, "threshold", ".7")
-    heatmap_cpu_threshold = get_yaml_item_value(config, "cpu_threshold", ".5")
-    heatmap_mem_threshold = get_yaml_item_value(config, "mem_threshold", ".3")
+    threshold = get_yaml_item_value(config, "threshold")
+    heatmap_cpu_threshold = get_yaml_item_value(config, "cpu_threshold")
+    heatmap_mem_threshold = get_yaml_item_value(config, "mem_threshold")
     output_file = config.get("json_output_file", False)
     if output_file is True:
         output_path = config.get("json_output_folder_path")
