@@ -1,5 +1,5 @@
 - duration: 30
-  workers: 4
+  workers: '' # leave it empty '' node cpu auto-detection
   hog-type: io
   image: quay.io/krkn-chaos/krkn-hog
   namespace: default
@@ -10,5 +10,5 @@
     name: node-volume
     hostPath:
       path: /root # a path writable by kubelet in the root filesystem of the node
-  node-selector:
+  node-selector: # leave it empty {} for random node selection
     node-role.kubernetes.io/worker: ''
