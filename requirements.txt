@@ -1,7 +1,6 @@
 aliyun-python-sdk-core==2.13.36
 aliyun-python-sdk-ecs==4.24.25
 arcaflow-plugin-sdk==0.14.0
-arcaflow==0.19.1
 boto3==1.28.61
 azure-identity==1.16.1
 azure-keyvault==4.2.0
