@@ -1,9 +1,9 @@
-- duration: 30
-  workers: '' # leave it empty '' node cpu auto-detection
-  hog-type: cpu
-  image: quay.io/krkn-chaos/krkn-hog
-  namespace: default
-  cpu-load-percentage: 90
-  cpu-method: all
-  node-selector: # leave it empty {} for random node selection
-    node-role.kubernetes.io/worker: ''
+duration: 60
+workers: '' # leave it empty '' node cpu auto-detection
+hog-type: cpu
+image: quay.io/krkn-chaos/krkn-hog
+namespace: default
+cpu-load-percentage: 90
+cpu-method: all
+node-selector: # leave it empty {} for random node selection
+  node-role.kubernetes.io/worker: ''

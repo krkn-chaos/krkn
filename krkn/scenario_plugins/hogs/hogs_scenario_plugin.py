@@ -8,6 +8,7 @@ import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.krkn import  HogConfig, HogType
+from krkn_lib.models.k8s import NodeResources
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.utils import get_random_string
 
@@ -20,32 +21,25 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             scenario_telemetry: ScenarioTelemetry) -> int:
         try:
             with open(scenario, "r") as f:
-                hog_scenarios = yaml.full_load(f)
-                lib_telemetry.get_lib_kubernetes()
-            if not isinstance(hog_scenarios, list):
-                raise Exception("configuration file must be a list of objects")
+                scenario = yaml.full_load(f)
+            scenario_config = HogConfig.from_yaml_dict(scenario)
+            node_selector = ""
+            has_selector = True
+            if scenario_config.node_selector and isinstance(scenario_config.node_selector, dict):
+                node_selector_keys = list(scenario_config.node_selector.keys())
+                node_selector_key = node_selector_keys[0]
+                node_selector_value = scenario_config.node_selector[node_selector_keys[0]]
+                node_selector = f"{node_selector_key}={node_selector_value}"
+            else:
+                has_selector = False
 
-            for scenario in hog_scenarios:
-                scenario_config = HogConfig.from_yaml_dict(scenario)
-                node_selector = ""
-                has_selector = True
-                if scenario_config.node_selector and isinstance(scenario_config.node_selector, dict):
-                    node_selector_keys = list(scenario_config.node_selector.keys())
-                    node_selector_key = node_selector_keys[0]
-                    node_selector_value = scenario_config.node_selector[node_selector_keys[0]]
-                    node_selector = f"{node_selector_key}={node_selector_value}"
-                else:
-                    has_selector = False
-
-                available_nodes = lib_telemetry.get_lib_kubernetes().list_schedulable_nodes(node_selector)
-
-                if len(available_nodes) == 0:
-                    raise Exception("no available nodes to schedule workload")
-                if not has_selector:
-                    # if selector not specified picks a random node between the available
-                    available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
-
-                self.run_scenario(scenario_config, lib_telemetry.get_lib_kubernetes(), available_nodes)
+            available_nodes = lib_telemetry.get_lib_kubernetes().list_schedulable_nodes(node_selector)
+            if len(available_nodes) == 0:
+                raise Exception("no available nodes to schedule workload")
+            if not has_selector:
+                # if selector not specified picks a random node between the available
+                available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
+            self.run_scenario(scenario_config, lib_telemetry.get_lib_kubernetes(), available_nodes)
             return 0
         except Exception as e:
             logging.error(f"scenario exception: {e}")
@@ -68,8 +62,17 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
         node_resources_start = lib_k8s.get_node_resources_info(node)
         lib_k8s.deploy_hog(pod_name, config)
-        time.sleep(config.duration - 1)
+        start = time.time()
+        # waiting 3 seconds before starting sample collection
+        time.sleep(3)
         node_resources_end = lib_k8s.get_node_resources_info(node)
+
+        samples: list[NodeResources] = []
+        avg_node_resources = NodeResources()
+
+        while time.time() - start < config.duration-1:
+            samples.append(lib_k8s.get_node_resources_info(node))
+
         max_wait = 30
         wait = 0
         logging.info(f"[{node}] waiting {max_wait} up to seconds pod: {pod_name} namespace: {config.namespace} to finish")
@@ -80,18 +83,28 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             time.sleep(1)
             wait += 1
             continue
+
         logging.info(f"[{node}] deleting pod: {pod_name} namespace: {config.namespace}")
         lib_k8s.delete_pod(pod_name, config.namespace)
 
+        for resource in samples:
+            avg_node_resources.cpu += resource.cpu
+            avg_node_resources.memory += resource.memory
+            avg_node_resources.disk_space += resource.disk_space
+
+        avg_node_resources.cpu = avg_node_resources.cpu/len(samples)
+        avg_node_resources.memory = avg_node_resources.memory / len(samples)
+        avg_node_resources.disk_space = avg_node_resources.disk_space / len(samples)
+
         if config.type == HogType.cpu:
             logging.info(f"[{node}] detected cpu consumption: "
-                         f"{(node_resources_end.cpu / (config.workers * 1000000000)) * 100} %")
+                         f"{(avg_node_resources.cpu / (config.workers * 1000000000)) * 100} %")
         if config.type == HogType.memory:
             logging.info(f"[{node}] detected memory increase: "
-                         f"{node_resources_end.memory / node_resources_start.memory * 100} %")
+                         f"{avg_node_resources.memory / node_resources_start.memory * 100} %")
         if config.type == HogType.io:
             logging.info(f"[{node}] detected disk space allocated: "
-                         f"{(node_resources_start.disk_space - node_resources_end.disk_space) / 1024 / 1024} MB")
+                         f"{(avg_node_resources.disk_space - node_resources_end.disk_space) / 1024 / 1024} MB")
 
     def run_scenario(self, config: HogConfig, lib_k8s: KrknKubernetes, available_nodes: list[str]):
         workers = []

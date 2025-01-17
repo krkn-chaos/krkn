@@ -1,8 +1,8 @@
-- duration: 120
-  workers: '' # leave it empty '' node cpu auto-detection
-  hog-type: memory
-  image: quay.io/krkn-chaos/krkn-hog
-  namespace: default
-  memory-vm-bytes: 90%
-  node-selector: # leave it empty {} for random node selection
-      node-role.kubernetes.io/worker: ''
+duration: 120
+workers: '' # leave it empty '' node cpu auto-detection
+hog-type: memory
+image: quay.io/krkn-chaos/krkn-hog
+namespace: default
+memory-vm-bytes: 90%
+node-selector: # leave it empty {} for random node selection
+  node-role.kubernetes.io/worker: ''

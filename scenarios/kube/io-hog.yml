@@ -1,14 +1,14 @@
-- duration: 30
-  workers: '' # leave it empty '' node cpu auto-detection
-  hog-type: io
-  image: quay.io/krkn-chaos/krkn-hog
-  namespace: default
-  io-block-size: 1m
-  io-write-bytes: 1g
-  io-target-pod-folder: /hog-data
-  io-target-pod-volume:
-    name: node-volume
-    hostPath:
-      path: /root # a path writable by kubelet in the root filesystem of the node
-  node-selector: # leave it empty {} for random node selection
-    node-role.kubernetes.io/worker: ''
+duration: 30
+workers: '' # leave it empty '' node cpu auto-detection
+hog-type: io
+image: quay.io/krkn-chaos/krkn-hog
+namespace: default
+io-block-size: 1m
+io-write-bytes: 1g
+io-target-pod-folder: /hog-data
+io-target-pod-volume:
+  name: node-volume
+  hostPath:
+    path: /root # a path writable by kubelet in the root filesystem of the node
+node-selector: # leave it empty {} for random node selection
+  node-role.kubernetes.io/worker: ''
