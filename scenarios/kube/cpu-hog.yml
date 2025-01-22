@@ -5,5 +5,5 @@ image: quay.io/krkn-chaos/krkn-hog
 namespace: default
 cpu-load-percentage: 90
 cpu-method: all
-node-selector: # leave it empty {} for random node selection
-  node-role.kubernetes.io/worker: ''
+node-selector: "node-role.kubernetes.io/worker="
+

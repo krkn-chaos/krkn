@@ -10,5 +10,4 @@ io-target-pod-volume:
   name: node-volume
   hostPath:
     path: /root # a path writable by kubelet in the root filesystem of the node
-node-selector: # leave it empty {} for random node selection
-  node-role.kubernetes.io/worker: ''
+node-selector: "node-role.kubernetes.io/worker="
