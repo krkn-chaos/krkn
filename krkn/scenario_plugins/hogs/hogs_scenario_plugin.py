@@ -1,8 +1,10 @@
 import copy
 import logging
 import random
+import re
 import threading
 import time
+
 
 import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
@@ -12,7 +14,6 @@ from krkn_lib.models.k8s import NodeResources
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.utils import get_random_string
 
-from krkn import utils
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -25,13 +26,12 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             scenario_config = HogConfig.from_yaml_dict(scenario)
             node_selector = ""
             has_selector = True
-            if scenario_config.node_selector and isinstance(scenario_config.node_selector, dict):
-                node_selector_keys = list(scenario_config.node_selector.keys())
-                node_selector_key = node_selector_keys[0]
-                node_selector_value = scenario_config.node_selector[node_selector_keys[0]]
-                node_selector = f"{node_selector_key}={node_selector_value}"
+            if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
+                if scenario_config.node_selector:
+                    logging.warning(f"node selector {scenario_config.node_selector} not in right format (key=value)")
+                node_selector = ""
             else:
-                has_selector = False
+                node_selector = scenario_config.node_selector
 
             available_nodes = lib_telemetry.get_lib_kubernetes().list_schedulable_nodes(node_selector)
             if len(available_nodes) == 0:
@@ -54,11 +54,10 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             logging.info(f"[{node}] detected {config.workers} cpus for node {node}")
 
         logging.info(f"[{node}] workers number: {config.workers}")
-        config.node_selector.clear()
 
         # using kubernetes.io/hostname = <node_name> selector to
         # precisely deploy each workload on each selected node
-        config.node_selector["kubernetes.io/hostname"] = node
+        config.node_selector = f"kubernetes.io/hostname={node}"
         pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
         node_resources_start = lib_k8s.get_node_resources_info(node)
         lib_k8s.deploy_hog(pod_name, config)
