@@ -49,7 +49,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         return ["hog_scenarios"]
 
     def run_scenario_worker(self, config: HogConfig, lib_k8s: KrknKubernetes, node: str):
-        if config.type == HogType.cpu and not config.workers:
+        if not config.workers:
             config.workers = lib_k8s.get_node_cpu_count(node)
             logging.info(f"[{node}] detected {config.workers} cpus for node {node}")
 
