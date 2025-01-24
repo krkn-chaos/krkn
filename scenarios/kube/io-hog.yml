@@ -11,3 +11,4 @@ io-target-pod-volume:
   hostPath:
     path: /root # a path writable by kubelet in the root filesystem of the node
 node-selector: "node-role.kubernetes.io/worker="
+number-of-nodes: ''

@@ -5,3 +5,4 @@ image: quay.io/krkn-chaos/krkn-hog
 namespace: default
 memory-vm-bytes: 90%
 node-selector: "node-role.kubernetes.io/worker="
+number-of-nodes: ''
