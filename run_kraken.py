@@ -91,13 +91,6 @@ def main(cfg) -> int:
         )
         # elastic search
         enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
-        elastic_collect_metrics = get_yaml_item_value(
-            config["elastic"], "collect_metrics", False
-        )
-
-        elastic_colllect_alerts = get_yaml_item_value(
-            config["elastic"], "collect_alerts", False
-        )
 
         elastic_url = get_yaml_item_value(config["elastic"], "elastic_url", "")
 
@@ -210,7 +203,7 @@ def main(cfg) -> int:
                     else:
                         # If can't make a connection, set alerts to false
                         enable_alerts = False
-                        critical_alerts = False
+                        check_critical_alerts = False
                 except Exception:
                     logging.error(
                         "invalid distribution selected, running openshift scenarios against kubernetes cluster."
@@ -230,6 +223,7 @@ def main(cfg) -> int:
             safe_logger, ocpcli, telemetry_request_id, config["telemetry"]
         )
         if enable_elastic:
+            logging.info(f"Elastic collection enabled at: {elastic_url}:{elastic_port}")
             elastic_search = KrknElastic(
                 safe_logger,
                 elastic_url,
@@ -489,8 +483,7 @@ def main(cfg) -> int:
                     start_time,
                     end_time,
                     alert_profile,
-                    elastic_colllect_alerts,
-                    elastic_alerts_index,
+                    elastic_alerts_index
                 )
 
             else:
@@ -498,15 +491,15 @@ def main(cfg) -> int:
                 return 1
                 # sys.exit(1)
         if enable_metrics:
+            logging.info(f'Capturing metrics using file {metrics_profile}')
             prometheus_plugin.metrics(
                 prometheus,
                 elastic_search,
-                start_time,
                 run_uuid,
+                start_time,
                 end_time,
                 metrics_profile,
-                elastic_collect_metrics,
-                elastic_metrics_index,
+                elastic_metrics_index
             )
 
         if post_critical_alerts > 0:
