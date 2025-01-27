@@ -25,7 +25,6 @@ def alerts(
     start_time,
     end_time,
     alert_profile,
-    elastic_collect_alerts,
     elastic_alerts_index,
 ):
 
@@ -56,7 +55,6 @@ def alerts(
                 processed_alert[0]
                 and processed_alert[1]
                 and elastic
-                and elastic_collect_alerts
             ):
                 elastic_alert = ElasticAlert(
                     run_uuid=run_uuid,
@@ -156,7 +154,6 @@ def metrics(
     start_time,
     end_time,
     metrics_profile,
-    elastic_collect_metrics,
     elastic_metrics_index,
 ) -> list[dict[str, list[(int, float)] | str]]:
     metrics_list: list[dict[str, list[(int, float)] | str]] = []
@@ -185,7 +182,7 @@ def metrics(
                 end_time=datetime.datetime.fromtimestamp(end_time),
             )
 
-            metric = {"name": metric_query["metricName"], "values": []}
+            metric = {"name": metric_query["metricName"], "values": [], }
             for returned_metric in metrics_result:
                 if "values" in returned_metric:
                     for value in returned_metric["values"]:
@@ -195,7 +192,7 @@ def metrics(
                             pass
             metrics_list.append(metric)
 
-        if elastic_collect_metrics and elastic:
+        if elastic:
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
