@@ -45,9 +45,7 @@ def main(cfg) -> int:
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
         global kubeconfig_path, wait_duration, kraken_config
-        distribution = get_yaml_item_value(
-            config["kraken"], "distribution", "openshift"
-        )
+
         kubeconfig_path = os.path.expanduser(
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
@@ -162,6 +160,11 @@ def main(cfg) -> int:
             ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
         except:
             kubecli.initialize_clients(None)
+
+        distribution = "kubernetes"
+        if ocpcli.is_openshift():
+            distribution = "openshift"
+        logging.info("Detected distribution %s" % (distribution))
 
         # find node kraken might be running on
         kubecli.find_kraken_node()

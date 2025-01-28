@@ -12,10 +12,6 @@ Config components:
 # Kraken 
 This section defines scenarios and specific data to the chaos run 
 
-## Distribution
-Either **openshift** or **kubernetes** depending on the type of cluster you want to run chaos on. 
-The prometheus url/route and bearer token are automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.
-
 ## Exit on failure
 **exit_on_failure**:  Exit when a post action check or cerberus run fails
 
