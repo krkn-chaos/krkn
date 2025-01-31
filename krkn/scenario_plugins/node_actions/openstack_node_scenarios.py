@@ -7,7 +7,7 @@ from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
 )
 from krkn_lib.k8s import KrknKubernetes
-
+from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
 class OPENSTACKCLOUD:
     def __init__(self):
@@ -56,12 +56,22 @@ class OPENSTACKCLOUD:
             raise RuntimeError()
 
     # Wait until the node instance is running
-    def wait_until_running(self, node, timeout):
-        return self.get_instance_status(node, "ACTIVE", timeout)
+    def wait_until_running(self, node, timeout, affected_node):
+        start_time = time.time()
+        instance_status= self.get_instance_status(node, "ACTIVE", timeout)
+        end_time = time.time()
+        if affected_node:
+            affected_node.set_affected_node_status("running", end_time - start_time)
+        return instance_status
 
     # Wait until the node instance is stopped
-    def wait_until_stopped(self, node, timeout):
-        return self.get_instance_status(node, "SHUTOFF", timeout)
+    def wait_until_stopped(self, node, timeout, affected_node):
+        start_time = time.time()
+        instance_status = self.get_instance_status(node, "SHUTOFF", timeout)
+        end_time = time.time()
+        if affected_node:
+            affected_node.set_affected_node_status("stopped", end_time - start_time)
+        return instance_status
 
     # Get instance status
     def get_instance_status(self, node, expected_status, timeout):
@@ -107,19 +117,21 @@ class OPENSTACKCLOUD:
 
 # krkn_lib
 class openstack_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes):
+    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus ):
+        super().__init__(kubecli, affected_nodes_status)
         self.openstackcloud = OPENSTACKCLOUD()
-
+    
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_start_scenario injection")
                 logging.info("Starting the node %s" % (node))
                 openstack_node_name = self.openstackcloud.get_instance_id(node)
                 self.openstackcloud.start_instances(openstack_node_name)
-                self.openstackcloud.wait_until_running(openstack_node_name, timeout)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
+                self.openstackcloud.wait_until_running(openstack_node_name, timeout, affected_node)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with instance ID: %s is in running state" % (node))
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -130,18 +142,20 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.error("node_start_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_stop_scenario injection")
                 logging.info("Stopping the node %s " % (node))
                 openstack_node_name = self.openstackcloud.get_instance_id(node)
                 self.openstackcloud.stop_instances(openstack_node_name)
-                self.openstackcloud.wait_until_stopped(openstack_node_name, timeout)
+                self.openstackcloud.wait_until_stopped(openstack_node_name, timeout, affected_node)
                 logging.info("Node with instance name: %s is in stopped state" % (node))
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_not_ready_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -150,17 +164,19 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.error("node_stop_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info("Rebooting the node %s" % (node))
                 openstack_node_name = self.openstackcloud.get_instance_id(node)
                 self.openstackcloud.reboot_instances(openstack_node_name)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with instance name: %s has been rebooted" % (node))
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
@@ -171,10 +187,12 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.error("node_reboot_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to start the node
     def helper_node_start_scenario(self, instance_kill_count, node_ip, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node_ip)
             try:
                 logging.info("Starting helper_node_start_scenario injection")
                 openstack_node_name = self.openstackcloud.get_openstack_nodename(
@@ -182,7 +200,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 )
                 logging.info("Starting the helper node %s" % (openstack_node_name))
                 self.openstackcloud.start_instances(openstack_node_name)
-                self.openstackcloud.wait_until_running(openstack_node_name, timeout)
+                self.openstackcloud.wait_until_running(openstack_node_name, timeout, affected_node)
                 logging.info("Helper node with IP: %s is in running state" % (node_ip))
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -193,10 +211,12 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.error("helper_node_start_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
     def helper_node_stop_scenario(self, instance_kill_count, node_ip, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node_ip)
             try:
                 logging.info("Starting helper_node_stop_scenario injection")
                 openstack_node_name = self.openstackcloud.get_openstack_nodename(
@@ -204,7 +224,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 )
                 logging.info("Stopping the helper node %s " % (openstack_node_name))
                 self.openstackcloud.stop_instances(openstack_node_name)
-                self.openstackcloud.wait_until_stopped(openstack_node_name, timeout)
+                self.openstackcloud.wait_until_stopped(openstack_node_name, timeout, affected_node)
                 logging.info("Helper node with IP: %s is in stopped state" % (node_ip))
             except Exception as e:
                 logging.error(
@@ -214,6 +234,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 logging.error("helper_node_stop_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     def helper_node_service_status(self, node_ip, service, ssh_private_key, timeout):
         try:
