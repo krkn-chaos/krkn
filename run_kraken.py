@@ -90,13 +90,6 @@ def main(cfg) -> int:
         )
         # elastic search
         enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
-        elastic_collect_metrics = get_yaml_item_value(
-            config["elastic"], "collect_metrics", False
-        )
-
-        elastic_colllect_alerts = get_yaml_item_value(
-            config["elastic"], "collect_alerts", False
-        )
 
         elastic_url = get_yaml_item_value(config["elastic"], "elastic_url", "")
 
@@ -197,13 +190,14 @@ def main(cfg) -> int:
             if not prometheus_url:
                 try:
                     connection_data = ocpcli.get_prometheus_api_connection_data()
+                    logging.info('connection data' + str(connection_data.endpoint))
                     if connection_data:
                         prometheus_url = connection_data.endpoint
                         prometheus_bearer_token = connection_data.token
                     else:
                         # If can't make a connection, set alerts to false
                         enable_alerts = False
-                        critical_alerts = False
+                        check_critical_alerts = False
                 except Exception:
                     logging.error(
                         "invalid distribution selected, running openshift scenarios against kubernetes cluster."
@@ -470,8 +464,8 @@ def main(cfg) -> int:
                     start_time,
                     end_time,
                     alert_profile,
-                    elastic_colllect_alerts,
                     elastic_alerts_index,
+                    logging
                 )
 
             else:
@@ -482,12 +476,12 @@ def main(cfg) -> int:
             prometheus_plugin.metrics(
                 prometheus,
                 elastic_search,
-                start_time,
                 run_uuid,
+                start_time,
                 end_time,
                 metrics_profile,
-                elastic_collect_metrics,
                 elastic_metrics_index,
+                logging
             )
 
         if post_critical_alerts > 0:
