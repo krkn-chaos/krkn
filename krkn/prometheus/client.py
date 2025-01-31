@@ -173,34 +173,53 @@ def metrics(
             sys.exit(1)
 
         for metric_query in profile_yaml["metrics"]:
-            if (
+            query = metric_query['query']
+            # calculate elapsed time
+            if ".elapsed" in metric_query["query"]:
+                query = metric_query['query'].replace(".elapsed", str(end_time - start_time))
+
+            if "instant" in list(metric_query.keys()) and metric_query['instant']:
+                metrics_result = prom_cli.process_query(
+                   query
+                )
+            elif (
                 list(metric_query.keys()).sort()
-                != ["query", "metricName", "instant"].sort()
+                == ["query", "metricName"].sort()
             ):
-                print(f"wrong alert {metric_query}, skipping")
-            metrics_result = prom_cli.process_prom_query_in_range(
-                metric_query["query"],
-                start_time=datetime.datetime.fromtimestamp(start_time),
-                end_time=datetime.datetime.fromtimestamp(end_time),
-            )
-            print('metric result' + str(metrics_result))
+                metrics_result = prom_cli.process_prom_query_in_range(
+                    query,
+                    start_time=datetime.datetime.fromtimestamp(start_time),
+                    end_time=datetime.datetime.fromtimestamp(end_time),
+                )
+            else: 
+                print('didnt match keys')
             
             for returned_metric in metrics_result:
-                metric = {"query": metric_query["query"]}
+                print('metric list' + str(returned_metric))
+                metric = {"query": query, "name": metric_query['metricName']}
                 for k,v in returned_metric['metric'].items():
                     metric[k] = v
-                if "values" in returned_metric:
+                
+                if "values" in returned_metric: 
                     for value in returned_metric["values"]:
                         try:
-                            metric['timestamp'] = datetime.datetime.fromtimestamp(value[0])
-                            metric["values"] = float(value[1])
+                            metric['timestamp'] = str(datetime.datetime.fromtimestamp(value[0]))
+                            metric["value"] = float(value[1])
+                            # want double array of the known details and the metrics specific to each call
                             metrics_list.append(metric)
                         except ValueError:
                             pass
-                        
+                elif "value" in returned_metric:
+                    try:
+                        value =returned_metric["value"]
+                        metric['timestamp'] = str(datetime.datetime.fromtimestamp(value[0]))
+                        metric["value"] = float(value[1])
 
+                        # want double array of the known details and the metrics specific to each call
+                        metrics_list.append(metric)
+                    except ValueError:
+                        pass
         if elastic:
-            print('if elastic')
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
