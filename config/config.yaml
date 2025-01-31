@@ -9,10 +9,9 @@ kraken:
     chaos_scenarios:
         # List of policies/chaos scenarios to load
         - hog_scenarios:
-            - scenarios/kube/cpu-hog/input.yaml
-            - scenarios/kube/memory-hog/input.yaml
-            - scenarios/kube/io-hog/input.yaml
-            - scenarios/kube/io-hog/input.yaml
+            - scenarios/kube/cpu-hog.yml
+            - scenarios/kube/memory-hog.yml
+            - scenarios/kube/io-hog.yml
         - application_outages_scenarios:
             - scenarios/openshift/app_outage.yaml
         - container_scenarios:                             # List of chaos pod scenarios to load
