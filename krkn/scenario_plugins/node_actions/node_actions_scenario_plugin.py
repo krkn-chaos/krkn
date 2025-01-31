@@ -6,6 +6,7 @@ from itertools import repeat
 import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
+from krkn_lib.models.k8s import AffectedNodeStatus
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value, log_exception
 
@@ -49,6 +50,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                                 node_scenario,
                                 node_scenario_object,
                                 lib_telemetry.get_lib_kubernetes(),
+                                scenario_telemetry,
                             )
                             end_time = int(time.time())
                             cerberus.get_status(krkn_config, start_time, end_time)
@@ -59,28 +61,29 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     return 0
 
     def get_node_scenario_object(self, node_scenario, kubecli: KrknKubernetes):
+        affected_nodes_status = AffectedNodeStatus()
         if (
             "cloud_type" not in node_scenario.keys()
             or node_scenario["cloud_type"] == "generic"
         ):
             global node_general
             node_general = True
-            return general_node_scenarios(kubecli)
+            return general_node_scenarios(kubecli, affected_nodes_status)
         if node_scenario["cloud_type"].lower() == "aws":
-            return aws_node_scenarios(kubecli)
+            return aws_node_scenarios(kubecli, affected_nodes_status)
         elif node_scenario["cloud_type"].lower() == "gcp":
-            return gcp_node_scenarios(kubecli)
+            return gcp_node_scenarios(kubecli, affected_nodes_status)
         elif node_scenario["cloud_type"].lower() == "openstack":
             from krkn.scenario_plugins.node_actions.openstack_node_scenarios import (
                 openstack_node_scenarios,
             )
 
-            return openstack_node_scenarios(kubecli)
+            return openstack_node_scenarios(kubecli, affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "azure"
             or node_scenario["cloud_type"] == "az"
         ):
-            return azure_node_scenarios(kubecli)
+            return azure_node_scenarios(kubecli, affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "alibaba"
             or node_scenario["cloud_type"] == "alicloud"
@@ -89,7 +92,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 alibaba_node_scenarios,
             )
 
-            return alibaba_node_scenarios(kubecli)
+            return alibaba_node_scenarios(kubecli, affected_nodes_status)
         elif node_scenario["cloud_type"].lower() == "bm":
             from krkn.scenario_plugins.node_actions.bm_node_scenarios import (
                 bm_node_scenarios,
@@ -100,9 +103,10 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_scenario.get("bmc_user", None),
                 node_scenario.get("bmc_password", None),
                 kubecli,
+                affected_nodes_status
             )
         elif node_scenario["cloud_type"].lower() == "docker":
-            return docker_node_scenarios(kubecli)
+            return docker_node_scenarios(kubecli, affected_nodes_status)
         else:
             logging.error(
                 "Cloud type "
@@ -120,7 +124,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             )
 
     def inject_node_scenario(
-        self, action, node_scenario, node_scenario_object, kubecli: KrknKubernetes
+        self, action, node_scenario, node_scenario_object, kubecli: KrknKubernetes, scenario_telemetry: ScenarioTelemetry
     ):
         
         # Get the node scenario configurations for setting nodes
@@ -138,17 +142,18 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             nodes = common_node_functions.get_node(
                 label_selector, instance_kill_count, kubecli
             )
-
+        
         # GCP api doesn't support multiprocessing calls, will only actually run 1 
-        if parallel_nodes and node_scenario['cloud_type'].lower() != "gcp":
+        if parallel_nodes:
             self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
         else: 
             for single_node in nodes:
                 self.run_node(single_node, node_scenario_object, action, node_scenario)
+        affected_nodes_status = node_scenario_object.affected_nodes_status
+        scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
 
     def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
         try:
-            logging.info("parallely call to nodes")
             # pool object with number of element
             pool = ThreadPool(processes=len(nodes))
     
@@ -160,7 +165,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
 
 
     def run_node(self, single_node, node_scenario_object, action, node_scenario):
-        logging.info("action" + str(action))
         # Get the scenario specifics for running action nodes
         run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
         if action in ("node_stop_start_scenario", "node_disk_detach_attach_scenario"):
@@ -247,6 +251,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     "There is no node action that matches %s, skipping scenario"
                     % action
                 )
+
 
     def get_scenario_types(self) -> list[str]:
         return ["node_scenarios"]

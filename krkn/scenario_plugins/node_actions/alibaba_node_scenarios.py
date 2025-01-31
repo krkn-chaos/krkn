@@ -18,7 +18,7 @@ from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
 )
 from krkn_lib.k8s import KrknKubernetes
-
+from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
 class Alibaba:
     def __init__(self):
@@ -161,8 +161,9 @@ class Alibaba:
             return None
 
     # Wait until the node instance is running
-    def wait_until_running(self, instance_id, timeout):
+    def wait_until_running(self, instance_id, timeout, affected_node):
         time_counter = 0
+        start_time = time.time()
         status = self.get_vm_status(instance_id)
         while status != "Running":
             status = self.get_vm_status(instance_id)
@@ -174,11 +175,15 @@ class Alibaba:
             if time_counter >= timeout:
                 logging.info("ECS %s is still not ready in allotted time" % instance_id)
                 return False
+        end_time = time.time()
+        if affected_node:
+            affected_node.set_affected_node_status("running", end_time - start_time)
         return True
 
     # Wait until the node instance is stopped
-    def wait_until_stopped(self, instance_id, timeout):
+    def wait_until_stopped(self, instance_id, timeout, affected_node):
         time_counter = 0
+        start_time = time.time()
         status = self.get_vm_status(instance_id)
         while status != "Stopped":
             status = self.get_vm_status(instance_id)
@@ -192,10 +197,14 @@ class Alibaba:
                     "Vm %s is still not stopped in allotted time" % instance_id
                 )
                 return False
+        end_time = time.time()
+        if affected_node:
+            affected_node.set_affected_node_status("running", end_time - start_time)
         return True
 
     # Wait until the node instance is terminated
-    def wait_until_released(self, instance_id, timeout):
+    def wait_until_released(self, instance_id, timeout, affected_node):
+        start_time = time.time()
         statuses = self.get_vm_status(instance_id)
         time_counter = 0
         while statuses and statuses != "Released":
@@ -210,17 +219,23 @@ class Alibaba:
                 return False
 
         logging.info("ECS %s is released" % instance_id)
+        end_time = time.time()
+        if affected_node:
+            affected_node.set_affected_node_status("terminated", end_time - start_time)
         return True
 
 
 # krkn_lib
 class alibaba_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes):
+    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, affected_nodes_status)
         self.alibaba = Alibaba()
+        
 
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_start_scenario injection")
                 vm_id = self.alibaba.get_instance_id(node)
@@ -228,8 +243,8 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                     "Starting the node %s with instance ID: %s " % (node, vm_id)
                 )
                 self.alibaba.start_instances(vm_id)
-                self.alibaba.wait_until_running(vm_id, timeout)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
+                self.alibaba.wait_until_running(vm_id, timeout, affected_node)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with instance ID: %s is in running state" % node)
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -239,10 +254,12 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_start_scenario injection failed!")
                 raise e
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_stop_scenario injection")
                 vm_id = self.alibaba.get_instance_id(node)
@@ -250,9 +267,9 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                     "Stopping the node %s with instance ID: %s " % (node, vm_id)
                 )
                 self.alibaba.stop_instances(vm_id)
-                self.alibaba.wait_until_stopped(vm_id, timeout)
+                self.alibaba.wait_until_stopped(vm_id, timeout, affected_node)
                 logging.info("Node with instance ID: %s is in stopped state" % vm_id)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -260,23 +277,25 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_stop_scenario injection failed!")
                 raise e
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Might need to stop and then release the instance
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info(
                     "Starting node_termination_scenario injection by first stopping instance"
                 )
                 vm_id = self.alibaba.get_instance_id(node)
                 self.alibaba.stop_instances(vm_id)
-                self.alibaba.wait_until_stopped(vm_id, timeout)
+                self.alibaba.wait_until_stopped(vm_id, timeout, affected_node)
                 logging.info(
                     "Releasing the node %s with instance ID: %s " % (node, vm_id)
                 )
                 self.alibaba.release_instance(vm_id)
-                self.alibaba.wait_until_released(vm_id, timeout)
+                self.alibaba.wait_until_released(vm_id, timeout, affected_node)
                 logging.info("Node with instance ID: %s has been released" % node)
                 logging.info(
                     "node_termination_scenario has been successfully injected!"
@@ -288,17 +307,19 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_termination_scenario injection failed!")
                 raise e
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 instance_id = self.alibaba.get_instance_id(node)
                 logging.info("Rebooting the node with instance ID: %s " % (instance_id))
                 self.alibaba.reboot_instances(instance_id)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
                     "Node with instance ID: %s has been rebooted" % (instance_id)
                 )
@@ -310,3 +331,4 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_reboot_scenario injection failed!")
                 raise e
+            self.affected_nodes_status.affected_nodes.append(affected_node)

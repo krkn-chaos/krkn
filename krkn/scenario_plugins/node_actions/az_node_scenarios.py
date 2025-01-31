@@ -8,7 +8,7 @@ from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
 from azure.mgmt.compute import ComputeManagementClient
 from azure.identity import DefaultAzureCredential
 from krkn_lib.k8s import KrknKubernetes
-
+from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
 class Azure:
     def __init__(self):
@@ -18,8 +18,11 @@ class Azure:
         logging.info("credential " + str(credentials))
         # az_account = runcommand.invoke("az account list -o yaml")
         # az_account_yaml = yaml.safe_load(az_account, Loader=yaml.FullLoader)
+        logger = logging.getLogger("azure")
+        logger.setLevel(logging.WARNING)
         subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
-        self.compute_client = ComputeManagementClient(credentials, subscription_id)
+        self.compute_client = ComputeManagementClient(credentials, subscription_id,logging=logger)
+        
 
     # Get the instance ID of the node
     def get_instance_id(self, node_name):
@@ -90,8 +93,9 @@ class Azure:
         return status
 
     # Wait until the node instance is running
-    def wait_until_running(self, resource_group, vm_name, timeout):
+    def wait_until_running(self, resource_group, vm_name, timeout, affected_node):
         time_counter = 0
+        start_time = time.time()
         status = self.get_vm_status(resource_group, vm_name)
         while status and status.code != "PowerState/running":
             status = self.get_vm_status(resource_group, vm_name)
@@ -101,11 +105,15 @@ class Azure:
             if time_counter >= timeout:
                 logging.info("Vm %s is still not ready in allotted time" % vm_name)
                 return False
+        end_time = time.time()
+        if affected_node:
+            affected_node.set_affected_node_status("running", end_time - start_time)
         return True
 
     # Wait until the node instance is stopped
-    def wait_until_stopped(self, resource_group, vm_name, timeout):
+    def wait_until_stopped(self, resource_group, vm_name, timeout, affected_node):
         time_counter = 0
+        start_time = time.time()
         status = self.get_vm_status(resource_group, vm_name)
         while status and status.code != "PowerState/stopped":
             status = self.get_vm_status(resource_group, vm_name)
@@ -115,10 +123,14 @@ class Azure:
             if time_counter >= timeout:
                 logging.info("Vm %s is still not stopped in allotted time" % vm_name)
                 return False
+        end_time = time.time()
+        if affected_node:
+            affected_node.set_affected_node_status("stopped", end_time - start_time)
         return True
 
     # Wait until the node instance is terminated
-    def wait_until_terminated(self, resource_group, vm_name, timeout):
+    def wait_until_terminated(self, resource_group, vm_name, timeout, affected_node):
+        start_time = time.time()
         statuses = self.compute_client.virtual_machines.instance_view(
             resource_group, vm_name
         ).statuses[0]
@@ -137,29 +149,35 @@ class Azure:
                     return False
             except Exception:
                 logging.info("Vm %s is terminated" % vm_name)
+                end_time = time.time()
+                if affected_node:
+                    affected_node.set_affected_node_status("terminated", end_time - start_time)
                 return True
 
 
 # krkn_lib
 class azure_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes):
-        super().__init__(kubecli)
+    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, affected_nodes_status)
         logging.info("init in azure")
         self.azure = Azure()
+        
 
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_start_scenario injection")
                 vm_name, resource_group = self.azure.get_instance_id(node)
+                
                 logging.info(
                     "Starting the node %s with instance ID: %s "
                     % (vm_name, resource_group)
                 )
                 self.azure.start_instances(resource_group, vm_name)
-                self.azure.wait_until_running(resource_group, vm_name, timeout)
-                nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli)
+                self.azure.wait_until_running(resource_group, vm_name, timeout, affected_node=affected_node)
+                nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
                 logging.info("Node with instance ID: %s is in running state" % node)
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -170,10 +188,12 @@ class azure_node_scenarios(abstract_node_scenarios):
                 logging.error("node_start_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_stop_scenario injection")
                 vm_name, resource_group = self.azure.get_instance_id(node)
@@ -182,9 +202,9 @@ class azure_node_scenarios(abstract_node_scenarios):
                     % (vm_name, resource_group)
                 )
                 self.azure.stop_instances(resource_group, vm_name)
-                self.azure.wait_until_stopped(resource_group, vm_name, timeout)
+                self.azure.wait_until_stopped(resource_group, vm_name, timeout, affected_node=affected_node)
                 logging.info("Node with instance ID: %s is in stopped state" % vm_name)
-                nodeaction.wait_for_unknown_status(vm_name, timeout, self.kubecli)
+                nodeaction.wait_for_unknown_status(vm_name, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -193,19 +213,22 @@ class azure_node_scenarios(abstract_node_scenarios):
                 logging.error("node_stop_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_termination_scenario injection")
+                affected_node = AffectedNode(node)
                 vm_name, resource_group = self.azure.get_instance_id(node)
                 logging.info(
                     "Terminating the node %s with instance ID: %s "
                     % (vm_name, resource_group)
                 )
                 self.azure.terminate_instances(resource_group, vm_name)
-                self.azure.wait_until_terminated(resource_group, vm_name, timeout)
+                self.azure.wait_until_terminated(resource_group, vm_name, timeout, affected_node)
                 for _ in range(timeout):
                     if vm_name not in self.kubecli.list_nodes():
                         break
@@ -224,10 +247,13 @@ class azure_node_scenarios(abstract_node_scenarios):
                 logging.error("node_termination_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
+
 
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 vm_name, resource_group = self.azure.get_instance_id(node)
@@ -235,9 +261,11 @@ class azure_node_scenarios(abstract_node_scenarios):
                     "Rebooting the node %s with instance ID: %s "
                     % (vm_name, resource_group)
                 )
+                
                 self.azure.reboot_instances(resource_group, vm_name)
-                nodeaction.wait_for_unknown_status(vm_name, timeout, self.kubecli)
-                nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli)
+
+                nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
+
                 logging.info("Node with instance ID: %s has been rebooted" % (vm_name))
                 logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
@@ -248,3 +276,4 @@ class azure_node_scenarios(abstract_node_scenarios):
                 logging.error("node_reboot_scenario injection failed!")
 
                 raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
