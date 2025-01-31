@@ -195,8 +195,7 @@ def metrics(
                 print('didnt match keys')
             
             for returned_metric in metrics_result:
-                print('metric list' + str(returned_metric))
-                metric = {"query": query, "name": metric_query['metricName']}
+                metric = {"query": query, "metricName": metric_query['metricName']}
                 for k,v in returned_metric['metric'].items():
                     metric[k] = v
                 
@@ -223,7 +222,6 @@ def metrics(
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
-            print('elastic metric result' +str(result))
             if result == -1:
                 print("failed to save metrics on ElasticSearch")
 
