@@ -36,7 +36,6 @@ from krkn.scenario_plugins.scenario_plugin_factory import (
 
 # removes TripleDES warning
 import warnings
-
 warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 
 report_file = ""
