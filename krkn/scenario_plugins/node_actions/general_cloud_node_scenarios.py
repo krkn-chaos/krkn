@@ -3,7 +3,7 @@ from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
 )
 from krkn_lib.k8s import KrknKubernetes
-
+from krkn_lib.models.k8s import AffectedNodeStatus
 
 class GENERAL:
     def __init__(self):
@@ -12,8 +12,8 @@ class GENERAL:
 
 # krkn_lib
 class general_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes):
-        super().__init__(kubecli)
+    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, affected_nodes_status)
         self.general = GENERAL()
 
     # Node scenario to start the node

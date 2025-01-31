@@ -9,7 +9,7 @@ import pyipmi.interfaces
 import time
 import traceback
 from krkn_lib.k8s import KrknKubernetes
-
+from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
 class BM:
     def __init__(self, bm_info, user, passwd):
@@ -127,8 +127,8 @@ class BM:
 
 # krkn_lib
 class bm_node_scenarios(abstract_node_scenarios):
-    def __init__(self, bm_info, user, passwd, kubecli: KrknKubernetes):
-        super().__init__(kubecli)
+    def __init__(self, bm_info, user, passwd, kubecli: KrknKubernetes,affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, affected_nodes_status)
         self.bm = BM(bm_info, user, passwd)
 
     # Node scenario to start the node
@@ -159,6 +159,7 @@ class bm_node_scenarios(abstract_node_scenarios):
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_stop_scenario injection")
                 bmc_addr = self.bm.get_bmc_addr(node)
@@ -166,11 +167,11 @@ class bm_node_scenarios(abstract_node_scenarios):
                     "Stopping the node %s with bmc address: %s " % (node, bmc_addr)
                 )
                 self.bm.stop_instances(bmc_addr, node)
-                self.bm.wait_until_stopped(bmc_addr, node)
+                self.bm.wait_until_stopped(bmc_addr, node, affected_node)
                 logging.info(
                     "Node with bmc address: %s is in stopped state" % (bmc_addr)
                 )
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -179,6 +180,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_stop_scenario injection failed!")
                 raise e
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to terminate the node
     def node_termination_scenario(self, instance_kill_count, node, timeout):
@@ -187,6 +189,7 @@ class bm_node_scenarios(abstract_node_scenarios):
     # Node scenario to reboot the node
     def node_reboot_scenario(self, instance_kill_count, node, timeout):
         for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 bmc_addr = self.bm.get_bmc_addr(node)
@@ -195,8 +198,8 @@ class bm_node_scenarios(abstract_node_scenarios):
                     "Rebooting the node %s with bmc address: %s " % (node, bmc_addr)
                 )
                 self.bm.reboot_instances(bmc_addr, node)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli)
+                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
+                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with bmc address: %s has been rebooted" % (bmc_addr))
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
@@ -208,3 +211,4 @@ class bm_node_scenarios(abstract_node_scenarios):
                 traceback.print_exc()
                 logging.error("node_reboot_scenario injection failed!")
                 raise e
+            self.affected_nodes_status.affected_nodes.append(affected_node)

@@ -56,6 +56,7 @@ class AbstractScenarioPlugin(ABC):
         scenario_telemetries: list[ScenarioTelemetry] = []
         failed_scenarios = []
         wait_duration = krkn_config["tunings"]["wait_duration"]
+        events_backup = krkn_config["telemetry"]["events_backup"]
         for scenario_config in scenarios_list:
             if isinstance(scenario_config, list):
                 logging.error(
@@ -99,13 +100,15 @@ class AbstractScenarioPlugin(ABC):
                 int(scenario_telemetry.start_timestamp),
                 int(scenario_telemetry.end_timestamp),
             )
-            utils.populate_cluster_events(
-                scenario_telemetry,
-                parsed_scenario_config,
-                telemetry.get_lib_kubernetes(),
-                int(scenario_telemetry.start_timestamp),
-                int(scenario_telemetry.end_timestamp),
-            )
+
+            if events_backup: 
+                utils.populate_cluster_events(
+                    scenario_telemetry,
+                    parsed_scenario_config,
+                    telemetry.get_lib_kubernetes(),
+                    int(scenario_telemetry.start_timestamp),
+                    int(scenario_telemetry.end_timestamp),
+                )
 
             if scenario_telemetry.exit_status != 0:
                 failed_scenarios.append(scenario_config)
