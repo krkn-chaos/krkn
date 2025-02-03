@@ -222,7 +222,6 @@ class azure_node_scenarios(abstract_node_scenarios):
             affected_node = AffectedNode(node)
             try:
                 logging.info("Starting node_termination_scenario injection")
-                affected_node = AffectedNode(node)
                 vm_name, resource_group = self.azure.get_instance_id(node)
                 affected_node.node_id = vm_name
                 logging.info(
