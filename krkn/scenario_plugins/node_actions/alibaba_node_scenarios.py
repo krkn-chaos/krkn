@@ -239,6 +239,7 @@ class alibaba_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 vm_id = self.alibaba.get_instance_id(node)
+                affected_node.node_id = vm_id
                 logging.info(
                     "Starting the node %s with instance ID: %s " % (node, vm_id)
                 )
@@ -263,6 +264,7 @@ class alibaba_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 vm_id = self.alibaba.get_instance_id(node)
+                affected_node.node_id = vm_id
                 logging.info(
                     "Stopping the node %s with instance ID: %s " % (node, vm_id)
                 )
@@ -289,6 +291,7 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                     "Starting node_termination_scenario injection by first stopping instance"
                 )
                 vm_id = self.alibaba.get_instance_id(node)
+                affected_node.node_id = vm_id
                 self.alibaba.stop_instances(vm_id)
                 self.alibaba.wait_until_stopped(vm_id, timeout, affected_node)
                 logging.info(
@@ -316,6 +319,7 @@ class alibaba_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 instance_id = self.alibaba.get_instance_id(node)
+                affected_node.node_id = instance_id
                 logging.info("Rebooting the node with instance ID: %s " % (instance_id))
                 self.alibaba.reboot_instances(instance_id)
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)

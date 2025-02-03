@@ -49,6 +49,7 @@ class docker_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 container_id = self.docker.get_container_id(node)
+                affected_node.node_id = container_id
                 logging.info(
                     "Starting the node %s with container ID: %s " % (node, container_id)
                 )
@@ -74,6 +75,7 @@ class docker_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 container_id = self.docker.get_container_id(node)
+                affected_node.node_id = container_id
                 logging.info(
                     "Stopping the node %s with container ID: %s " % (node, container_id)
                 )

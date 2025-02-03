@@ -15,6 +15,8 @@ from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
 from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
 from krkn.scenario_plugins.native.node_scenarios.ibmcloud_plugin import IbmCloud
 
+import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
+
 from krkn_lib.models.k8s import AffectedNodeStatus, AffectedNode
 
 class ShutDownScenarioPlugin(AbstractScenarioPlugin):
@@ -38,7 +40,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                     shut_down_config_scenario, lib_telemetry.get_lib_kubernetes(), affected_nodes_status
                 )
 
-                scenario_telemetry.affected_nodes = affected_nodes_status
+                scenario_telemetry.affected_nodes = affected_nodes_status.affected_nodes
                 end_time = int(time.time())
                 cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
                 return 0
@@ -56,7 +58,6 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                 pool = ThreadPool(processes=len(nodes))
             else:
                 pool = ThreadPool(processes=processes)
-            logging.info("nodes type " + str(type(nodes[0])))
             if type(nodes[0]) is tuple:
                 node_id = []
                 node_info = []
@@ -105,9 +106,8 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
         node_id = []
         for node in nodes:
             instance_id = cloud_object.get_instance_id(node)
-            affected_nodes_status.affected_nodes.append(AffectedNode(node))
+            affected_nodes_status.affected_nodes.append(AffectedNode(node, node_id=instance_id))
             node_id.append(instance_id)
-        logging.info("node id list " + str(node_id))
         for _ in range(runs):
             logging.info("Starting cluster_shut_down scenario injection")
             stopping_nodes = set(node_id)
@@ -117,8 +117,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
             while len(stopping_nodes) > 0:
                 for node in stopping_nodes:
                     affected_node = affected_nodes_status.get_affected_node_index(node)
-                    # need to add in time that is passing while waiting for other nodes to be stopped
-                    affected_node.set_cloud_stopping_time(time.time() - start_time)
+                    
                     if type(node) is tuple:
                         node_status = cloud_object.wait_until_stopped(
                             node[1], node[0], timeout, affected_node
@@ -129,6 +128,8 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                     # Only want to remove node from stopping list
                     # when fully stopped/no error
                     if node_status:
+                        # need to add in time that is passing while waiting for other nodes to be stopped
+                        affected_node.set_cloud_stopping_time(time.time() - start_time)
                         stopped_nodes.remove(node)
 
                 stopping_nodes = stopped_nodes.copy()
@@ -148,7 +149,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                 for node in not_running_nodes:
                     affected_node = affected_nodes_status.get_affected_node_index(node)
                     # need to add in time that is passing while waiting for other nodes to be running
-                    affected_node.set_cloud_running_time(time.time() - start_time)
+                    
                     if type(node) is tuple:
                         node_status = cloud_object.wait_until_running(
                             node[1], node[0], timeout, affected_node
@@ -156,8 +157,10 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                     else:
                         node_status = cloud_object.wait_until_running(node, timeout, affected_node)
                     if node_status:
+                        affected_node.set_cloud_running_time(time.time() - start_time)
                         restarted_nodes.remove(node)
                 not_running_nodes = restarted_nodes.copy()
+
             logging.info("Waiting for 150s to allow cluster component initialization")
             time.sleep(150)
 
