@@ -272,6 +272,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 instance_id = self.aws.get_instance_id(node)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Starting the node %s with instance ID: %s " % (node, instance_id)
                 )
@@ -299,6 +300,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 instance_id = self.aws.get_instance_id(node)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Stopping the node %s with instance ID: %s " % (node, instance_id)
                 )
@@ -325,6 +327,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_termination_scenario injection")
                 instance_id = self.aws.get_instance_id(node)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Terminating the node %s with instance ID: %s "
                     % (node, instance_id)
@@ -358,6 +361,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection" + str(node))
                 instance_id = self.aws.get_instance_id(node)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Rebooting the node %s with instance ID: %s " % (node, instance_id)
                 )

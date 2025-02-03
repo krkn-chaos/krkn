@@ -234,6 +234,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting node_start_scenario injection")
                 instance = self.gcp.get_node_instance(node)
                 instance_id = self.gcp.get_instance_name(instance)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Starting the node %s with instance ID: %s " % (node, instance_id)
                 )
@@ -252,7 +253,6 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 logging.error("node_start_scenario injection failed!")
 
                 raise RuntimeError()
-            logging.info("started affected node" + str(affected_node.to_json()))
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
@@ -263,6 +263,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting node_stop_scenario injection")
                 instance = self.gcp.get_node_instance(node)
                 instance_id = self.gcp.get_instance_name(instance)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Stopping the node %s with instance ID: %s " % (node, instance_id)
                 )
@@ -280,7 +281,6 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 logging.error("node_stop_scenario injection failed!")
 
                 raise RuntimeError()
-            logging.info("stopedd affected node" + str(affected_node.to_json()))
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to terminate the node
@@ -291,6 +291,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting node_termination_scenario injection")
                 instance = self.gcp.get_node_instance(node)
                 instance_id = self.gcp.get_instance_name(instance)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Terminating the node %s with instance ID: %s "
                     % (node, instance_id)
@@ -325,6 +326,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting node_reboot_scenario injection")
                 instance = self.gcp.get_node_instance(node)
                 instance_id = self.gcp.get_instance_name(instance)
+                affected_node.node_id = instance_id
                 logging.info(
                     "Rebooting the node %s with instance ID: %s " % (node, instance_id)
                 )
