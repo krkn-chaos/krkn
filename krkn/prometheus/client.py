@@ -25,18 +25,17 @@ def alerts(
     start_time,
     end_time,
     alert_profile,
-    elastic_alerts_index,
-    logging
+    elastic_alerts_index
 ):
 
     if alert_profile is None or os.path.exists(alert_profile) is False:
-        print(f"{alert_profile} alert profile does not exist")
+        logging.info(f"{alert_profile} alert profile does not exist")
         sys.exit(1)
 
     with open(alert_profile) as profile:
         profile_yaml = yaml.safe_load(profile)
         if not isinstance(profile_yaml, list):
-            print(
+            logging.info(
                 f"{alert_profile} wrong file format, alert profile must be "
                 f"a valid yaml file containing a list of items with at least 3 properties: "
                 f"expr, description, severity"
@@ -45,7 +44,7 @@ def alerts(
 
         for alert in profile_yaml:
             if list(alert.keys()).sort() != ["expr", "description", "severity"].sort():
-                print(f"wrong alert {alert}, skipping")
+                logging.info(f"wrong alert {alert}, skipping")
 
             processed_alert = prom_cli.process_alert(
                 alert,
@@ -65,7 +64,7 @@ def alerts(
                 )
                 result = elastic.push_alert(elastic_alert, elastic_alerts_index)
                 if result == -1:
-                    print("failed to save alert on ElasticSearch")
+                    logging.info("failed to save alert on ElasticSearch")
                 pass
 
 
@@ -80,7 +79,7 @@ def critical_alerts(
     summary.scenario = scenario
     summary.run_id = run_id
     query = r"""ALERTS{severity="critical"}"""
-    print("Checking for critical alerts firing post chaos")
+    logging.info("Checking for critical alerts firing post chaos")
 
     during_critical_alerts = prom_cli.process_prom_query_in_range(
         query, start_time=datetime.datetime.fromtimestamp(start_time), end_time=end_time
@@ -145,7 +144,7 @@ def critical_alerts(
         firing_alerts = True
 
     if not firing_alerts:
-        print("No critical alerts are firing!!")
+        logging.info("No critical alerts are firing!!")
 
 
 def metrics(
@@ -155,17 +154,16 @@ def metrics(
     start_time,
     end_time,
     metrics_profile,
-    elastic_metrics_index,
-    logging
+    elastic_metrics_index
 ) -> list[dict[str, list[(int, float)] | str]]:
     metrics_list: list[dict[str, list[(int, float)] | str]] = []
     if metrics_profile is None or os.path.exists(metrics_profile) is False:
-        print(f"{metrics_profile} alert profile does not exist")
+        logging.info(f"{metrics_profile} alert profile does not exist")
         sys.exit(1)
     with open(metrics_profile) as profile:
         profile_yaml = yaml.safe_load(profile)
         if not profile_yaml["metrics"] or not isinstance(profile_yaml["metrics"], list):
-            print(
+            logging.info(
                 f"{metrics_profile} wrong file format, alert profile must be "
                 f"a valid yaml file containing a list of items with 3 properties: "
                 f"expr, description, severity"
@@ -192,7 +190,8 @@ def metrics(
                     end_time=datetime.datetime.fromtimestamp(end_time),
                 )
             else: 
-                print('didnt match keys')
+                logging.info('didnt match keys')
+                continue
             
             for returned_metric in metrics_result:
                 metric = {"query": query, "metricName": metric_query['metricName']}
@@ -223,6 +222,6 @@ def metrics(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
             if result == -1:
-                print("failed to save metrics on ElasticSearch")
+                logging.info("failed to save metrics on ElasticSearch")
 
     return metrics_list

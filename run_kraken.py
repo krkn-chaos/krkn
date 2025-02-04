@@ -480,8 +480,7 @@ def main(cfg) -> int:
                 start_time,
                 end_time,
                 metrics_profile,
-                elastic_metrics_index,
-                logging
+                elastic_metrics_index
             )
 
         if post_critical_alerts > 0:
