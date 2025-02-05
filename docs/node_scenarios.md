@@ -2,7 +2,7 @@
 
 The following node chaos scenarios are supported:
 
-1. **node_start_scenario**: Scenario to stop the node instance.
+1. **node_start_scenario**: Scenario to start the node instance.
 2. **node_stop_scenario**: Scenario to stop the node instance.
 3. **node_stop_start_scenario**: Scenario to stop the node instance for specified duration and then start the node instance. Not supported on VMware.
 4. **node_termination_scenario**: Scenario to terminate the node instance.
