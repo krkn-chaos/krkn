@@ -9,6 +9,8 @@ import optparse
 import pyfiglet
 import uuid
 import time
+import queue
+import threading
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
@@ -26,6 +28,7 @@ from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
 from krkn.utils import TeeLogHandler
+from krkn.utils.HealthChecker import HealthChecker
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
@@ -125,6 +128,7 @@ def main(cfg) -> int:
             config["performance_monitoring"], "check_critical_alerts", False
         )
         telemetry_api_url = config["telemetry"].get("api_url")
+        health_check_config = config["health_checks"]
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
@@ -302,6 +306,13 @@ def main(cfg) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}\n")
+        
+        health_check_telemetry_queue = queue.Queue()
+        health_checker = HealthChecker(iterations)
+        health_check_worker = threading.Thread(target=health_checker.run_health_check,
+                                      args=(health_check_config, health_check_telemetry_queue))
+        health_check_worker.start()
+
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -362,12 +373,16 @@ def main(cfg) -> int:
                                 break
 
             iteration += 1
+            health_checker.current_iterations += 1
 
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
         # is disabled, it's necessary to serialize the ChaosRunTelemetry object
         # to json, and recreate a new object from it.
         end_time = int(time.time())
+        health_check_worker.join()
+        health_check_telemetry = health_check_telemetry_queue.get()
+        chaos_telemetry.health_checks = health_check_telemetry
 
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
