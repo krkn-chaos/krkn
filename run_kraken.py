@@ -36,6 +36,7 @@ from krkn.scenario_plugins.scenario_plugin_factory import (
 
 # removes TripleDES warning
 import warnings
+
 warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 
 report_file = ""
@@ -132,7 +133,7 @@ def main(cfg) -> int:
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
-            "/var/run/secrets/kubernetes.io/serviceaccount/token"
+                "/var/run/secrets/kubernetes.io/serviceaccount/token"
         ):
             logging.error(
                 "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
@@ -278,8 +279,8 @@ def main(cfg) -> int:
         classes_and_types: dict[str, list[str]] = {}
         for loaded in scenario_plugin_factory.loaded_plugins.keys():
             if (
-                scenario_plugin_factory.loaded_plugins[loaded].__name__
-                not in classes_and_types.keys()
+                    scenario_plugin_factory.loaded_plugins[loaded].__name__
+                    not in classes_and_types.keys()
             ):
                 classes_and_types[
                     scenario_plugin_factory.loaded_plugins[loaded].__name__
@@ -306,11 +307,11 @@ def main(cfg) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}\n")
-        
+
         health_check_telemetry_queue = queue.Queue()
         health_checker = HealthChecker(iterations)
         health_check_worker = threading.Thread(target=health_checker.run_health_check,
-                                      args=(health_check_config, health_check_telemetry_queue))
+                                               args=(health_check_config, health_check_telemetry_queue))
         health_check_worker.start()
 
         # Loop to run the chaos starts here
@@ -439,9 +440,9 @@ def main(cfg) -> int:
                         )
                     else:
                         if (
-                            config["telemetry"]["prometheus_namespace"]
-                            and config["telemetry"]["prometheus_pod_name"]
-                            and config["telemetry"]["prometheus_container_name"]
+                                config["telemetry"]["prometheus_namespace"]
+                                and config["telemetry"]["prometheus_pod_name"]
+                                and config["telemetry"]["prometheus_container_name"]
                         ):
                             try:
                                 prometheus_archive_files = (
