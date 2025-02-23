@@ -111,7 +111,8 @@ telemetry:
     oc_cli_path: /usr/bin/oc                                # optional, if not specified will be search in $PATH
     events_backup: True                                     # enables/disables cluster events collection
 
-
-
-
-
+health_checks:
+    urls: ["http://my-node-app-my-nginx-example.apps.mkatta.aws.rhperfscale.org", "http://nginx-default.apps.mkatta.aws.rhperfscale.org"]
+    bearer_token:
+    auth:
+    interval:
