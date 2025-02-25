@@ -4,68 +4,85 @@ import time
 import logging
 import queue
 from datetime import datetime
-import pdb
-
 
 class HealthChecker:
     current_iterations: int = 0
-
     def __init__(self, iterations):
         self.iterations = iterations
 
-    def make_request(self, url, args):
+    def make_request(self, url, auth=None, headers=None):
         response_data = {}
-        response = requests.get(url, args, verify=False)
-
+        response = requests.get(url, auth=auth, headers=headers)
         response_data["url"] = url
-        response_data["status"] = True if response.status_code == 200 else False
+        response_data["status"] = response.status_code == 200
         response_data["status_code"] = response.status_code
         logging.info(response_data)
         return response_data
 
-    def run_health_check(self, config: any, health_check_telemetry_queue: queue.Queue):
-        auth = config["auth"]
-        bearer_token = config["bearer_token"]
-        urls = config["urls"]
-        interval = config["interval"] if config["interval"] else 2
-        health_check_telemetry = []
-        request_args = {}
-        headers = {}
-        if bearer_token: headers["Authorization"] = "Bearer " + bearer_token
-        if auth: request_args["auth"] = auth
-        if headers: request_args["headers"] = headers
 
-        health_check_tracker = {}
-        while self.current_iterations < self.iterations:
-            for url in urls:
-                response = self.make_request(url, request_args)
-                if response["status_code"] != 200:
-                    if url not in health_check_tracker:
-                        start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        health_check_tracker[url] = {
-                            "status_code": response["status_code"],
-                            "start_timestamp": start_timestamp
-                        }
-                else:
-                    if url in health_check_tracker:
-                        end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        start_timestamp = health_check_tracker[url]["start_timestamp"]
-                        previous_status_code = str(health_check_tracker[url]["status_code"])
+    def run_health_check(self, health_check_config, health_check_telemetry_queue: queue.Queue):
+        logging.info(health_check_config)
+        if health_check_config and health_check_config["config"] and any(config.get("url") for config in health_check_config["config"]):
+            health_check_start_time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            health_check_telemetry = []
+            health_check_tracker = {}
+            interval = health_check_config["interval"] if health_check_config["interval"] else 2
+            response_tracker = {config["url"]:True for config in health_check_config["config"]}
+            while self.current_iterations < self.iterations:
+                for config in health_check_config.get("config"):
+                    auth, headers = None, None
+                    if config["url"]: url = config["url"]
 
-                        start_time = datetime.strptime(start_timestamp, "%Y-%m-%d %H:%M:%S")
-                        end_time = datetime.strptime(end_timestamp, "%Y-%m-%d %H:%M:%S")
-                        duration = str(end_time - start_time)
+                    if config["bearer_token"]:
+                        bearer_token = "Bearer " + config["bearer_token"]
+                        headers = {"Authorization": bearer_token}
 
-                        downtime_record = {
-                            "url": url,
-                            "status_code": previous_status_code,
-                            "start_timestamp": start_timestamp,
-                            "end_timestamp": end_timestamp,
-                            "duration": duration
-                        }
+                    if config["auth"]: auth = config["auth"]
+                    response = self.make_request(url, auth, headers)
 
-                        health_check_telemetry.append(downtime_record)
-                        del health_check_tracker[url]
-            time.sleep(interval)
-        health_check_telemetry_queue.put(health_check_telemetry)
+                    if response["status_code"] != 200:
+                        if config["url"] not in health_check_tracker:
+                            start_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            health_check_tracker[config["url"]] = {
+                                "status_code": response["status_code"],
+                                "start_timestamp": start_timestamp
+                            }
+                            if response_tracker[config["url"]] != False: response_tracker[config["url"]] = False
+
+                    else:
+                        if config["url"] in health_check_tracker:
+                            end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            start_timestamp = health_check_tracker[config["url"]]["start_timestamp"]
+                            previous_status_code = str(health_check_tracker[config["url"]]["status_code"])
+
+                            start_time = datetime.strptime(start_timestamp, "%Y-%m-%d %H:%M:%S")
+                            end_time = datetime.strptime(end_timestamp, "%Y-%m-%d %H:%M:%S")
+                            duration = str(end_time - start_time)
+                            downtime_record = {
+                                "url": config["url"],
+                                "status": False,
+                                "status_code": previous_status_code,
+                                "start_timestamp": start_timestamp,
+                                "end_timestamp": end_timestamp,
+                                "duration": duration
+                            }
+                            health_check_telemetry.append(downtime_record)
+                            del health_check_tracker[config["url"]]
+                    time.sleep(interval)
+            health_check_end_time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            for url, status in response_tracker.items():
+                if status == True:
+                    success_response ={
+                        "url": url,
+                        "status": True,
+                        "status_code": 200,
+                        "start_time_stamp": health_check_start_time_stamp,
+                        "end_timestamp": health_check_end_time_stamp
+                    }
+                    health_check_telemetry.append(success_response)
+            health_check_telemetry_queue.put(health_check_telemetry)
+        else:
+            logging.info("health checks config is empty")
+
+
 
