@@ -26,7 +26,7 @@ health_checks:
     - url: http://general-service.com
       bearer_token:
       auth:
-      exit_on_failure  
+      exit_on_failure:  
 ```
 #### Sample health check telemetry
 ```
