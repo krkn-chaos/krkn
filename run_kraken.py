@@ -519,6 +519,9 @@ def main(cfg) -> int:
             )
             # sys.exit(2)
             return 2
+        if health_checker.ret_value != 0:
+            logging.error("Health check failed for the applications, Please check; exiting")
+            return health_checker.ret_value
 
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
