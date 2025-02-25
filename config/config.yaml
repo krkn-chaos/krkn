@@ -122,4 +122,3 @@ health_checks:                                              # Utilizing health c
           bearer_token:
           auth:
           exit_on_failure:
-
