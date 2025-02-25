@@ -7,6 +7,7 @@ from datetime import datetime
 
 class HealthChecker:
     current_iterations: int = 0
+    ret_value = 0
     def __init__(self, iterations):
         self.iterations = iterations
 
@@ -16,7 +17,6 @@ class HealthChecker:
         response_data["url"] = url
         response_data["status"] = response.status_code == 200
         response_data["status_code"] = response.status_code
-        logging.info(response_data)
         return response_data
 
 
@@ -48,7 +48,7 @@ class HealthChecker:
                                 "start_timestamp": start_timestamp
                             }
                             if response_tracker[config["url"]] != False: response_tracker[config["url"]] = False
-
+                            if config["exit_on_failure"] and config["exit_on_failure"] == True and self.ret_value==0: self.ret_value = 2
                     else:
                         if config["url"] in health_check_tracker:
                             end_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -72,12 +72,16 @@ class HealthChecker:
             health_check_end_time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             for url, status in response_tracker.items():
                 if status == True:
+                    start_time = datetime.strptime(health_check_start_time_stamp, "%Y-%m-%d %H:%M:%S")
+                    end_time = datetime.strptime(health_check_end_time_stamp, "%Y-%m-%d %H:%M:%S")
+                    duration = str(end_time - start_time)
                     success_response ={
                         "url": url,
                         "status": True,
                         "status_code": 200,
                         "start_time_stamp": health_check_start_time_stamp,
-                        "end_timestamp": health_check_end_time_stamp
+                        "end_timestamp": health_check_end_time_stamp,
+                        "duration": duration
                     }
                     health_check_telemetry.append(success_response)
             health_check_telemetry_queue.put(health_check_telemetry)
