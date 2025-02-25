@@ -119,4 +119,3 @@ health_checks:                                              # Utilizing health c
           auth:                                             # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
           exit_on_failure:                                  # If value is True exits when health check failed for application, values can be True/False
 
-
