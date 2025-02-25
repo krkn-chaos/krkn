@@ -121,4 +121,4 @@ health_checks:                                              # Utilizing health c
         - url: "http://nginx-default.apps.mkatta.aws.rhperfscale.org"
           bearer_token:
           auth:
-          exit_on_failure: True
+          exit_on_failure:
