@@ -79,4 +79,4 @@ class HealthChecker:
                     health_check_telemetry.append(success_response)
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
-            logging.info("health checks config is not defined, skipping them")
+            logging.info("health checks config is empty, skipping")
