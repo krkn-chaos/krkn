@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 MAX_RETRIES=60
 
 KUBECTL=`which kubectl 2>/dev/null`
