@@ -1,7 +1,7 @@
 ### Health Checks
 
-Health checks provide real-time visibility into the impact of chaos scenarios on application availability and performance. 
-Health checks are configured in the ```config.yaml```For applications requiring authentication bearer tokens and credentials can be configured.
+Health checks provide real-time visibility into the impact of chaos scenarios on application availability and performance. Health check configuration supports application endpoints accessible via http / https along with authentication mechanism such as bearer token and authentication credentials.
+Health checks are configured in the ```config.yaml```
 
 The system periodically checks the provided URLs based on the defined interval and records the results in Telemetry. The telemetry data includes:
 
@@ -16,12 +16,12 @@ health_checks:
   interval: <time_in_seconds>                       # Defines the frequency of health checks, default value is 2 seconds
   config:                                           # List of application endpoints to check
     - url: "http://example.com/health"
-      bearer_token:                                 # Bearer token for authentication if any
-      auth:                                         # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
+      bearer_token: "hfjauljl..."                   # Bearer token for authentication if any
+      auth:                                         
       exit_on_failure:                              # Exit when health check failed for application, value can be True/False
     - url: "http://another-service.com/status"
       bearer_token:
-      auth:
+      auth: ("admin","secretpassword")              # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
       exit_on_failure:
 ```
 #### Sample health check telemetry
@@ -29,7 +29,7 @@ health_checks:
 "health_checks": [
             {
                 "url": "http://example.com/health",
-                "status": false,
+                "status": False,
                 "status_code": "503",
                 "start_timestamp": "2025-02-25 11:51:33",
                 "end_timestamp": "2025-02-25 11:51:40",
@@ -37,7 +37,7 @@ health_checks:
             },
             {
                 "url": "http://another-service.com/status",
-                "status": true,
+                "status": True,
                 "status_code": 200,
                 "start_time_stamp": "2025-02-25 22:18:19",
                 "end_timestamp": "22025-02-25 22:22:46",
