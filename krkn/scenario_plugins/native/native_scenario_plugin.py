@@ -49,7 +49,6 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
         return [
             "pod_disruption_scenarios",
             "pod_network_scenarios",
-            "ibmcloud_node_scenarios",
         ]
 
     def start_monitoring(self, pool: PodsMonitorPool, scenarios: list[Any]):
