@@ -13,7 +13,7 @@ from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
 from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
-from krkn.scenario_plugins.native.node_scenarios.ibmcloud_plugin import IbmCloud
+from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import IbmCloud
 
 import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 

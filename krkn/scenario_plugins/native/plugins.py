@@ -12,7 +12,6 @@ from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin i
 from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin import (
     pod_egress_shaping,
 )
-import krkn.scenario_plugins.native.node_scenarios.ibmcloud_plugin as ibmcloud_plugin
 from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin import (
     pod_ingress_shaping,
 )
@@ -157,10 +156,6 @@ PLUGINS = Plugins(
         ),
         PluginStep(wait_for_pods, ["error"]),
         PluginStep(run_python_file, ["error"]),
-        PluginStep(ibmcloud_plugin.node_start, ["error"]),
-        PluginStep(ibmcloud_plugin.node_stop, ["error"]),
-        PluginStep(ibmcloud_plugin.node_reboot, ["error"]),
-        PluginStep(ibmcloud_plugin.node_terminate, ["error"]),
         PluginStep(network_chaos, ["error"]),
         PluginStep(pod_outage, ["error"]),
         PluginStep(pod_egress_shaping, ["error"]),

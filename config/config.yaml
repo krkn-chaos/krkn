@@ -24,12 +24,10 @@ kraken:
             - scenarios/openshift/prom_kill.yml
             - scenarios/openshift/openshift-apiserver.yml
             - scenarios/openshift/openshift-kube-apiserver.yml
-        - vmware_node_scenarios:
-            - scenarios/openshift/vmware_node_scenarios.yml
-        - ibmcloud_node_scenarios:
-            - scenarios/openshift/ibmcloud_node_scenarios.yml
         - node_scenarios:                                  # List of chaos node scenarios to load
             - scenarios/openshift/aws_node_scenarios.yml
+            - scenarios/openshift/vmware_node_scenarios.yml
+            - scenarios/openshift/ibmcloud_node_scenarios.yml
         - time_scenarios:                                  # List of chaos time scenarios to load
             - scenarios/openshift/time_scenarios_example.yml
         - cluster_shut_down_scenarios:
