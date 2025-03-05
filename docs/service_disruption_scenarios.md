@@ -1,6 +1,9 @@
 ###  Service Disruption Scenarios (Previously Delete Namespace Scenario)
 
-Using this type of scenario configuration one is able to delete crucial objects in a specific namespace, or a namespace matching a certain regex string.
+Using this type of scenario configuration one is able to delete crucial objects in a specific namespace, or a namespace matching a certain regex string. The goal of this scenario is to ensure Pod Disruption Budgets with appropriate configurations are set to have minimum number of replicas are running at a given time and avoid downtime.
+
+
+**NOTE**: Protect your application during disruptions by setting a [pod disruption budget](https://kubernetes.io/docs/tasks/run-application/configure-pdb/) to avoid downtime. For instance, etcd, zookeeper or similar applications need at least 2 replicas to maintain quorum. This can be ensured by setting PDB maxUnavailable to 1. 
 
 Configuration Options:
 
