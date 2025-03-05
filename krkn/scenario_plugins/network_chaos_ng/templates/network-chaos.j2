@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{pod_name}}
+  namespace: {{namespace}}
+spec:
+  {% if host_network %}
+  hostNetwork: true
+  {%endif%}
+  nodeSelector:
+    kubernetes.io/hostname:{{target}}
+  containers:
+  - name: fedtools
+    image: quay.io/krkn-chaos/krkn-network-chaos:latest
+    securityContext:
+      privileged: true

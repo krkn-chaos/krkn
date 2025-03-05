@@ -1,0 +1,14 @@
+- id: network_filter
+  wait_duration: 300
+  test_duration: 100
+  label_selector: "kubernetes.io/hostname=kind-control-plane"
+  namespace: ''
+  instance_count: 1
+  execution: serial
+  ingress: true
+  egress: true
+  target: node
+  interfaces:
+    - eth0
+  ports:
+    - 40292
