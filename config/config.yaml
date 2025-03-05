@@ -113,12 +113,8 @@ telemetry:
 
 health_checks:                                              # Utilizing health check endpoints to observe application behavior during chaos injection.
     interval:                                               # Interval in seconds to perform health checks, default value is 2 seconds
-    config:                                                 # Provide list of application endpoints to perform health check
-        - url:
+    config:                                                 # Provide list of health check configurations for applications
+        - url:                                              # Provide application endpoint
           bearer_token:                                     # Bearer token for authentication if any
           auth:                                             # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
-          exit_on_failure:                                  # Exit when health check failed for application, default value is False
-        - url:
-          bearer_token:
-          auth:
-          exit_on_failure:
+          exit_on_failure:                                  # If value is True exits when health check failed for application, values can be True/False
