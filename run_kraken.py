@@ -381,8 +381,10 @@ def main(cfg) -> int:
         # to json, and recreate a new object from it.
         end_time = int(time.time())
         health_check_worker.join()
-        health_check_telemetry = health_check_telemetry_queue.get()
-        chaos_telemetry.health_checks = health_check_telemetry
+        try:
+            chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
+        except queue.Empty:
+            chaos_telemetry.health_checks = None
 
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
