@@ -20,7 +20,6 @@ class HealthChecker:
 
 
     def run_health_check(self, health_check_config, health_check_telemetry_queue: queue.Queue):
-        logging.info(health_check_config)
         if health_check_config and health_check_config["config"] and any(config.get("url") for config in health_check_config["config"]):
             health_check_start_time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             health_check_telemetry = []
@@ -85,4 +84,4 @@ class HealthChecker:
                     health_check_telemetry.append(success_response)
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
-            logging.info("health checks config is empty")
+            logging.info("health checks config is empty, skipping")
