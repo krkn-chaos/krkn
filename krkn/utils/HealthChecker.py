@@ -80,3 +80,4 @@ class HealthChecker:
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
             logging.info("health checks config is empty, skipping")
+
