@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 readonly SECONDS_PER_HOUR=3600
 readonly SECONDS_PER_MINUTE=60
 function get_time_format() {
