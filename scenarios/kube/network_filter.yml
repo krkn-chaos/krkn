@@ -1,14 +1,13 @@
-- id: network_filter
+- id: node_network_filter
   wait_duration: 300
   test_duration: 100
-  label_selector: "kubernetes.io/hostname=kind-control-plane"
-  namespace: ''
+  label_selector: "kubernetes.io/hostname=ip-10-0-39-182.us-east-2.compute.internal"
+  namespace: 'default'
   instance_count: 1
-  execution: serial
-  ingress: true
+  execution: parallel
+  ingress: false
   egress: true
   target: node
-  interfaces:
-    - eth0
+  interfaces: []
   ports:
-    - 40292
+    - 2049

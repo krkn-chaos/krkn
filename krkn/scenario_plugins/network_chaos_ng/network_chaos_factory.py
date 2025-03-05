@@ -14,7 +14,7 @@ class NetworkChaosFactory:
         if config["id"] not in supported_modules:
             raise Exception(f"{config['id']} is not a supported network chaos module")
 
-        if config["id"] == "network_filter":
+        if config["id"] == "node_network_filter":
             config = NetworkFilterConfig(**config)
             errors = config.validate()
             if len(errors) > 0:

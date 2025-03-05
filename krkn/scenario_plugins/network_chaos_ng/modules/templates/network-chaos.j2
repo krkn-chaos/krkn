@@ -8,9 +8,10 @@ spec:
   hostNetwork: true
   {%endif%}
   nodeSelector:
-    kubernetes.io/hostname:{{target}}
+    kubernetes.io/hostname: {{target}}
   containers:
-  - name: fedtools
+  - name: fedora
+    imagePullPolicy: Always
     image: quay.io/krkn-chaos/krkn-network-chaos:latest
     securityContext:
       privileged: true
