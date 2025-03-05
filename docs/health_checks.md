@@ -15,20 +15,24 @@ This helps users quickly identify application health issues and take necessary a
 health_checks:
   interval: <time_in_seconds>                       # Defines the frequency of health checks, default value is 2 seconds
   config:                                           # List of application endpoints to check
-    - url: "http://example.com/health"
+    - url: "https://example.com/health"
       bearer_token: "hfjauljl..."                   # Bearer token for authentication if any
       auth:                                         
-      exit_on_failure:                              # Exit when health check failed for application, value can be True/False
-    - url: "http://another-service.com/status"
+      exit_on_failure: True                         # If value is True exits when health check failed for application, values can be True/False
+    - url: "https://another-service.com/status"
       bearer_token:
       auth: ("admin","secretpassword")              # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
-      exit_on_failure:
+      exit_on_failure: False
+    - url: http://general-service.com
+      bearer_token:
+      auth:
+      exit_on_failure  
 ```
 #### Sample health check telemetry
 ```
 "health_checks": [
             {
-                "url": "http://example.com/health",
+                "url": "https://example.com/health",
                 "status": False,
                 "status_code": "503",
                 "start_timestamp": "2025-02-25 11:51:33",
@@ -36,7 +40,15 @@ health_checks:
                 "duration": "0:00:07"
             },
             {
-                "url": "http://another-service.com/status",
+                "url": "https://another-service.com/status",
+                "status": True,
+                "status_code": 200,
+                "start_time_stamp": "2025-02-25 22:18:19",
+                "end_timestamp": "22025-02-25 22:22:46",
+                "duration": "0:04:27"
+            },
+            {
+                "url": "http://general-service.com",
                 "status": True,
                 "status_code": 200,
                 "start_time_stamp": "2025-02-25 22:18:19",
