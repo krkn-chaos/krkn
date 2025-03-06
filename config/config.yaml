@@ -66,8 +66,6 @@ performance_monitoring:
     check_critical_alerts: False                          # When enabled will check prometheus for critical alerts firing post chaos
 elastic:
     enable_elastic: False
-    collect_metrics: False
-    collect_alerts: False
     verify_certs: False
     elastic_url: ""                                         # To track results in elasticsearch, give url to server here; will post telemetry details when url and index not blank
     elastic_port: 32766

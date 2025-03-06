@@ -1,217 +1,209 @@
 metrics:
 # API server
-  - query: histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{apiserver="kube-apiserver", verb!~"WATCH", subresource!="log"}[2m])) by (verb,resource,subresource,instance,le)) > 0
-    metricName: API99thLatency
+  # - query: histogram_quantile(0.99, sum(rate(apiserver_request_duration_seconds_bucket{apiserver="kube-apiserver", verb!~"WATCH", subresource!="log"}[2m])) by (verb,resource,subresource,instance,le)) > 0
+  #   metricName: API99thLatency
 
-  - query: sum(irate(apiserver_request_total{apiserver="kube-apiserver",verb!="WATCH",subresource!="log"}[2m])) by (verb,instance,resource,code) > 0
-    metricName: APIRequestRate
+  # - query: sum(irate(apiserver_request_total{apiserver="kube-apiserver",verb!="WATCH",subresource!="log"}[2m])) by (verb,instance,resource,code) > 0
+  #   metricName: APIRequestRate
 
   - query: sum(apiserver_current_inflight_requests{}) by (request_kind) > 0
     metricName: APIInflightRequests
 
-# Container & pod metrics
-  - query: (sum(container_memory_rss{name!="",container!="POD",namespace=~"openshift-(etcd|oauth-apiserver|.*apiserver|ovn-kubernetes|sdn|ingress|authentication|.*controller-manager|.*scheduler)"}) by (container, pod, namespace, node) and on (node) kube_node_role{role="master"}) > 0
-    metricName: containerMemory-Masters
+  # - query: (sum(irate(node_cpu_seconds_total[2m])) by (mode,instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")) > 0
+  #   metricName: nodeCPU-Masters
 
-  - query: (sum(irate(container_cpu_usage_seconds_total{name!="",container!="POD",namespace=~"openshift-(etcd|oauth-apiserver|sdn|ovn-kubernetes|.*apiserver|authentication|.*controller-manager|.*scheduler)"}[2m]) * 100) by (container, pod, namespace, node) and on (node) kube_node_role{role="master"}) > 0
-    metricName: containerCPU-Masters
+  # - query: (avg((sum(irate(node_cpu_seconds_total[2m])) by (mode,instance) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))) by (mode)) > 0
+  #   metricName: nodeCPU-AggregatedWorkers
 
-  - query: (sum(irate(container_cpu_usage_seconds_total{pod!="",container="prometheus",namespace="openshift-monitoring"}[2m]) * 100) by (container, pod, namespace, node) and on (node) kube_node_role{role="infra"}) > 0
-    metricName: containerCPU-Prometheus
+  # - query: (avg((sum(irate(node_cpu_seconds_total[2m])) by (mode,instance) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))) by (mode)) > 0
+  #   metricName: nodeCPU-AggregatedInfra
 
-  - query: (avg(irate(container_cpu_usage_seconds_total{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress)"}[2m]) * 100 and on (node) kube_node_role{role="worker"}) by (namespace, container)) > 0
-    metricName: containerCPU-AggregatedWorkers
+  # - query: avg(node_memory_MemAvailable_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
+  #   metricName: nodeMemoryAvailable-Masters
 
-  - query: (avg(irate(container_cpu_usage_seconds_total{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress|monitoring|image-registry|logging)"}[2m]) * 100 and on (node) kube_node_role{role="infra"}) by (namespace, container)) > 0
-    metricName: containerCPU-AggregatedInfra
+  # - query: avg(node_memory_MemAvailable_bytes and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))
+  #   metricName: nodeMemoryAvailable-AggregatedWorkers
 
-  - query: (sum(container_memory_rss{pod!="",namespace="openshift-monitoring",name!="",container="prometheus"}) by (container, pod, namespace, node) and on (node) kube_node_role{role="infra"}) > 0
-    metricName: containerMemory-Prometheus
+  # - query: avg(node_memory_MemAvailable_bytes and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))
+  #   metricName: nodeMemoryAvailable-AggregatedInfra
 
-  - query: avg(container_memory_rss{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress)"} and on (node) kube_node_role{role="worker"}) by (container, namespace)
-    metricName: containerMemory-AggregatedWorkers
+  # - query: avg(node_memory_Active_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
+  #   metricName: nodeMemoryActive-Masters
 
-  - query: avg(container_memory_rss{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress|monitoring|image-registry|logging)"} and on (node) kube_node_role{role="infra"}) by (container, namespace)
-    metricName: containerMemory-AggregatedInfra
+  # - query: avg(node_memory_Active_bytes and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))
+  #   metricName: nodeMemoryActive-AggregatedWorkers
+
+  # - query: avg(avg(node_memory_Active_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))
+  #   metricName: nodeMemoryActive-AggregatedInfra
+
+
+# # Container & pod metrics
+#   - query: (sum(container_memory_rss{name!="",container!="POD",namespace=~"openshift-(etcd|oauth-apiserver|.*apiserver|ovn-kubernetes|sdn|ingress|authentication|.*controller-manager|.*scheduler)"}) by (container, pod, namespace, node) and on (node) kube_node_role{role="master"}) > 0
+#     metricName: containerMemory-Masters
+
+#   - query: (sum(irate(container_cpu_usage_seconds_total{name!="",container!="POD",namespace=~"openshift-(etcd|oauth-apiserver|sdn|ovn-kubernetes|.*apiserver|authentication|.*controller-manager|.*scheduler)"}[2m]) * 100) by (container, pod, namespace, node) and on (node) kube_node_role{role="master"}) > 0
+#     metricName: containerCPU-Masters
+
+#   - query: (sum(irate(container_cpu_usage_seconds_total{pod!="",container="prometheus",namespace="openshift-monitoring"}[2m]) * 100) by (container, pod, namespace, node) and on (node) kube_node_role{role="infra"}) > 0
+#     metricName: containerCPU-Prometheus
+
+#   - query: (avg(irate(container_cpu_usage_seconds_total{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress)"}[2m]) * 100 and on (node) kube_node_role{role="worker"}) by (namespace, container)) > 0
+#     metricName: containerCPU-AggregatedWorkers
+
+#   - query: (avg(irate(container_cpu_usage_seconds_total{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress|monitoring|image-registry|logging)"}[2m]) * 100 and on (node) kube_node_role{role="infra"}) by (namespace, container)) > 0
+#     metricName: containerCPU-AggregatedInfra
+
+#   - query: (sum(container_memory_rss{pod!="",namespace="openshift-monitoring",name!="",container="prometheus"}) by (container, pod, namespace, node) and on (node) kube_node_role{role="infra"}) > 0
+#     metricName: containerMemory-Prometheus
+
+#   - query: avg(container_memory_rss{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress)"} and on (node) kube_node_role{role="worker"}) by (container, namespace)
+#     metricName: containerMemory-AggregatedWorkers
+
+#   - query: avg(container_memory_rss{name!="",container!="POD",namespace=~"openshift-(sdn|ovn-kubernetes|ingress|monitoring|image-registry|logging)"} and on (node) kube_node_role{role="infra"}) by (container, namespace)
+#     metricName: containerMemory-AggregatedInfra
 
 # Node metrics
-  - query: (sum(irate(node_cpu_seconds_total[2m])) by (mode,instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")) > 0
-    metricName: nodeCPU-Masters
+ 
 
-  - query: (avg((sum(irate(node_cpu_seconds_total[2m])) by (mode,instance) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))) by (mode)) > 0
-    metricName: nodeCPU-AggregatedWorkers
+  # - query: avg(node_memory_Cached_bytes) by (instance) + avg(node_memory_Buffers_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
+  #   metricName: nodeMemoryCached+nodeMemoryBuffers-Masters
 
-  - query: (avg((sum(irate(node_cpu_seconds_total[2m])) by (mode,instance) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))) by (mode)) > 0
-    metricName: nodeCPU-AggregatedInfra
+  # - query: avg(node_memory_Cached_bytes + node_memory_Buffers_bytes and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))
+  #   metricName: nodeMemoryCached+nodeMemoryBuffers-AggregatedWorkers
 
-  - query: avg(node_memory_MemAvailable_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
-    metricName: nodeMemoryAvailable-Masters
+  # - query: avg(node_memory_Cached_bytes + node_memory_Buffers_bytes and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))
+  #   metricName: nodeMemoryCached+nodeMemoryBuffers-AggregatedInfra
 
-  - query: avg(node_memory_MemAvailable_bytes and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))
-    metricName: nodeMemoryAvailable-AggregatedWorkers
+  # - query: irate(node_network_receive_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
+  #   metricName: rxNetworkBytes-Masters
 
-  - query: avg(node_memory_MemAvailable_bytes and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))
-    metricName: nodeMemoryAvailable-AggregatedInfra
+  # - query: avg(irate(node_network_receive_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: rxNetworkBytes-AggregatedWorkers
 
-  - query: avg(node_memory_Active_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
-    metricName: nodeMemoryActive-Masters
+  # - query: avg(irate(node_network_receive_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: rxNetworkBytes-AggregatedInfra
 
-  - query: avg(node_memory_Active_bytes and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))
-    metricName: nodeMemoryActive-AggregatedWorkers
+  # - query: irate(node_network_transmit_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
+  #   metricName: txNetworkBytes-Masters
 
-  - query: avg(avg(node_memory_Active_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))
-    metricName: nodeMemoryActive-AggregatedInfra
+  # - query: avg(irate(node_network_transmit_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: txNetworkBytes-AggregatedWorkers
 
-  - query: avg(node_memory_Cached_bytes) by (instance) + avg(node_memory_Buffers_bytes) by (instance) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
-    metricName: nodeMemoryCached+nodeMemoryBuffers-Masters
+  # - query: avg(irate(node_network_transmit_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: txNetworkBytes-AggregatedInfra
 
-  - query: avg(node_memory_Cached_bytes + node_memory_Buffers_bytes and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)"))
-    metricName: nodeMemoryCached+nodeMemoryBuffers-AggregatedWorkers
+  # - query: rate(node_disk_written_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
+  #   metricName: nodeDiskWrittenBytes-Masters
 
-  - query: avg(node_memory_Cached_bytes + node_memory_Buffers_bytes and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)"))
-    metricName: nodeMemoryCached+nodeMemoryBuffers-AggregatedInfra
+  # - query: avg(rate(node_disk_written_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: nodeDiskWrittenBytes-AggregatedWorkers
 
-  - query: irate(node_network_receive_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
-    metricName: rxNetworkBytes-Masters
+  # - query: avg(rate(node_disk_written_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: nodeDiskWrittenBytes-AggregatedInfra
 
-  - query: avg(irate(node_network_receive_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: rxNetworkBytes-AggregatedWorkers
+  # - query: rate(node_disk_read_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
+  #   metricName: nodeDiskReadBytes-Masters
 
-  - query: avg(irate(node_network_receive_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: rxNetworkBytes-AggregatedInfra
+  # - query: avg(rate(node_disk_read_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: nodeDiskReadBytes-AggregatedWorkers
 
-  - query: irate(node_network_transmit_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
-    metricName: txNetworkBytes-Masters
+  # - query: avg(rate(node_disk_read_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
+  #   metricName: nodeDiskReadBytes-AggregatedInfra
 
-  - query: avg(irate(node_network_transmit_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: txNetworkBytes-AggregatedWorkers
+# # Etcd metrics
+#   - query: sum(rate(etcd_server_leader_changes_seen_total[2m]))
+#     metricName: etcdLeaderChangesRate
 
-  - query: avg(irate(node_network_transmit_bytes_total{device=~"^(ens|eth|bond|team).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: txNetworkBytes-AggregatedInfra
+#   - query: etcd_server_is_leader > 0
+#     metricName: etcdServerIsLeader
 
-  - query: rate(node_disk_written_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
-    metricName: nodeDiskWrittenBytes-Masters
+#   - query: histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[2m]))
+#     metricName: 99thEtcdDiskBackendCommitDurationSeconds
 
-  - query: avg(rate(node_disk_written_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: nodeDiskWrittenBytes-AggregatedWorkers
+#   - query: histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[2m]))
+#     metricName: 99thEtcdDiskWalFsyncDurationSeconds
 
-  - query: avg(rate(node_disk_written_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: nodeDiskWrittenBytes-AggregatedInfra
+#   - query: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[5m]))
+#     metricName: 99thEtcdRoundTripTimeSeconds
 
-  - query: rate(node_disk_read_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="master"}, "instance", "$1", "node", "(.+)")
-    metricName: nodeDiskReadBytes-Masters
+  # - query: etcd_mvcc_db_total_size_in_bytes
+  #   metricName: etcdDBPhysicalSizeBytes
 
-  - query: avg(rate(node_disk_read_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="worker"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: nodeDiskReadBytes-AggregatedWorkers
+  # - query: etcd_mvcc_db_total_size_in_use_in_bytes
+  #   metricName: etcdDBLogicalSizeBytes
 
-  - query: avg(rate(node_disk_read_bytes_total{device!~"^(dm|rb).*"}[2m]) and on (instance) label_replace(kube_node_role{role="infra"}, "instance", "$1", "node", "(.+)")) by (device)
-    metricName: nodeDiskReadBytes-AggregatedInfra
+  # - query: sum by (cluster_version)(etcd_cluster_version)
+  #   metricName: etcdVersion
+  #   instant: true
 
-# Etcd metrics
-  - query: sum(rate(etcd_server_leader_changes_seen_total[2m]))
-    metricName: etcdLeaderChangesRate
+  # - query: sum(rate(etcd_object_counts{}[5m])) by (resource) > 0
+  #   metricName: etcdObjectCount
 
-  - query: etcd_server_is_leader > 0
-    metricName: etcdServerIsLeader
+  # - query: histogram_quantile(0.99,sum(rate(etcd_request_duration_seconds_bucket[2m])) by (le,operation,apiserver)) > 0
+  #   metricName: P99APIEtcdRequestLatency
 
-  - query: histogram_quantile(0.99, rate(etcd_disk_backend_commit_duration_seconds_bucket[2m]))
-    metricName: 99thEtcdDiskBackendCommitDurationSeconds
+  # - query: sum(grpc_server_started_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"}) - sum(grpc_server_handled_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"})
+  #   metricName: ActiveWatchStreams
 
-  - query: histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[2m]))
-    metricName: 99thEtcdDiskWalFsyncDurationSeconds
+  # - query: sum(grpc_server_started_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Lease",grpc_type="bidi_stream"}) - sum(grpc_server_handled_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Lease",grpc_type="bidi_stream"})
+  #   metricName: ActiveLeaseStreams
 
-  - query: histogram_quantile(0.99, rate(etcd_network_peer_round_trip_time_seconds_bucket[5m]))
-    metricName: 99thEtcdRoundTripTimeSeconds
+  # - query: sum(rate(etcd_debugging_snap_save_total_duration_seconds_sum{namespace="openshift-etcd"}[2m]))
+  #   metricName: snapshotSaveLatency
 
-  - query: etcd_mvcc_db_total_size_in_bytes
-    metricName: etcdDBPhysicalSizeBytes
+  # - query: sum(rate(etcd_server_heartbeat_send_failures_total{namespace="openshift-etcd"}[2m]))
+  #   metricName: HeartBeatFailures
 
-  - query: etcd_mvcc_db_total_size_in_use_in_bytes
-    metricName: etcdDBLogicalSizeBytes
+  # - query: sum(rate(etcd_server_health_failures{namespace="openshift-etcd"}[2m]))
+  #   metricName: HealthFailures
 
-  - query: sum by (cluster_version)(etcd_cluster_version)
-    metricName: etcdVersion
-    instant: true
+  # - query: sum(rate(etcd_server_slow_apply_total{namespace="openshift-etcd"}[2m]))
+  #   metricName: SlowApplies
 
-  - query: sum(rate(etcd_object_counts{}[5m])) by (resource) > 0
-    metricName: etcdObjectCount
+  # - query: sum(rate(etcd_server_slow_read_indexes_total{namespace="openshift-etcd"}[2m]))
+  #   metricName: SlowIndexRead
 
-  - query: histogram_quantile(0.99,sum(rate(etcd_request_duration_seconds_bucket[2m])) by (le,operation,apiserver)) > 0
-    metricName: P99APIEtcdRequestLatency
+  # - query: sum(etcd_server_proposals_pending)
+  #   metricName: PendingProposals
 
-  - query: sum(grpc_server_started_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"}) - sum(grpc_server_handled_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Watch",grpc_type="bidi_stream"})
-    metricName: ActiveWatchStreams
+  # - query: histogram_quantile(1.0, sum(rate(etcd_debugging_mvcc_db_compaction_pause_duration_milliseconds_bucket[1m])) by (le, instance))
+  #   metricName: CompactionMaxPause
 
-  - query: sum(grpc_server_started_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Lease",grpc_type="bidi_stream"}) - sum(grpc_server_handled_total{namespace="openshift-etcd",grpc_service="etcdserverpb.Lease",grpc_type="bidi_stream"})
-    metricName: ActiveLeaseStreams
+  # - query: sum by (instance) (apiserver_storage_objects)
+  #   metricName: etcdTotalObjectCount 
 
-  - query: sum(rate(etcd_debugging_snap_save_total_duration_seconds_sum{namespace="openshift-etcd"}[2m]))
-    metricName: snapshotSaveLatency
-
-  - query: sum(rate(etcd_server_heartbeat_send_failures_total{namespace="openshift-etcd"}[2m]))
-    metricName: HeartBeatFailures
-
-  - query: sum(rate(etcd_server_health_failures{namespace="openshift-etcd"}[2m]))
-    metricName: HealthFailures
-
-  - query: sum(rate(etcd_server_slow_apply_total{namespace="openshift-etcd"}[2m]))
-    metricName: SlowApplies
-
-  - query: sum(rate(etcd_server_slow_read_indexes_total{namespace="openshift-etcd"}[2m]))
-    metricName: SlowIndexRead
-
-  - query: sum(etcd_server_proposals_pending)
-    metricName: PendingProposals
-
-  - query: histogram_quantile(1.0, sum(rate(etcd_debugging_mvcc_db_compaction_pause_duration_milliseconds_bucket[1m])) by (le, instance))
-    metricName: CompactionMaxPause
-
-  - query: sum by (instance) (apiserver_storage_objects)
-    metricName: etcdTotalObjectCount 
-
-  - query: topk(500, max by(resource) (apiserver_storage_objects))
-    metricName: etcdTopObectCount    
+  # - query: topk(500, max by(resource) (apiserver_storage_objects))
+  #   metricName: etcdTopObectCount    
 
 # Cluster metrics
-  - query: count(kube_namespace_created)
-    metricName: namespaceCount
+  # - query: count(kube_namespace_created)
+  #   metricName: namespaceCount
 
-  - query: sum(kube_pod_status_phase{}) by (phase)
-    metricName: podStatusCount
+  # - query: sum(kube_pod_status_phase{}) by (phase)
+  #   metricName: podStatusCount
 
-  - query: count(kube_secret_info{})
-    metricName: secretCount
+  # - query: count(kube_secret_info{})
+  #   metricName: secretCount
 
-  - query: count(kube_deployment_labels{})
-    metricName: deploymentCount
+  # - query: count(kube_deployment_labels{})
+  #   metricName: deploymentCount
 
-  - query: count(kube_configmap_info{})
-    metricName: configmapCount
+  # - query: count(kube_configmap_info{})
+  #   metricName: configmapCount
 
-  - query: count(kube_service_info{})
-    metricName: serviceCount
+  # - query: count(kube_service_info{})
+  #   metricName: serviceCount
 
-  - query: kube_node_role
-    metricName: nodeRoles
-    instant: true
+  # - query: kube_node_role
+  #   metricName: nodeRoles
+  #   instant: true
 
-  - query: sum(kube_node_status_condition{status="true"}) by (condition)
-    metricName: nodeStatus
+  # - query: sum(kube_node_status_condition{status="true"}) by (condition)
+  #   metricName: nodeStatus
 
-  - query: (sum(rate(container_fs_writes_bytes_total{container!="",device!~".+dm.+"}[5m])) by (device, container, node) and on (node) kube_node_role{role="master"}) > 0
-    metricName: containerDiskUsage
+  # - query: (sum(rate(container_fs_writes_bytes_total{container!="",device!~".+dm.+"}[5m])) by (device, container, node) and on (node) kube_node_role{role="master"}) > 0
+  #   metricName: containerDiskUsage
 
-  - query: cluster_version{type="completed"}
-    metricName: clusterVersion
-    instant: true
-
-# Golang metrics
-
-  - query: go_memstats_heap_alloc_bytes{job=~"apiserver|api|etcd"}
-    metricName: goHeapAllocBytes
-
-  - query: go_memstats_heap_inuse_bytes{job=~"apiserver|api|etcd"}
-    metricName: goHeapInuseBytes
-
-  - query: go_gc_duration_seconds{job=~"apiserver|api|etcd",quantile="1"}
-    metricName: goGCDurationSeconds
+  # - query: cluster_version{type="completed"}
+  #   metricName: clusterVersion
+  #   instant: true
