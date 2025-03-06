@@ -77,7 +77,7 @@ class HealthChecker:
                         "url": url,
                         "status": True,
                         "status_code": 200,
-                        "start_time_stamp": health_check_start_time_stamp,
+                        "start_timestamp": health_check_start_time_stamp,
                         "end_timestamp": health_check_end_time_stamp,
                         "duration": duration
                     }
