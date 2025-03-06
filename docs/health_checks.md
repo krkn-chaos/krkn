@@ -43,7 +43,7 @@ health_checks:
                 "url": "https://another-service.com/status",
                 "status": True,
                 "status_code": 200,
-                "start_time_stamp": "2025-02-25 22:18:19",
+                "start_timestamp": "2025-02-25 22:18:19",
                 "end_timestamp": "22025-02-25 22:22:46",
                 "duration": "0:04:27"
             },
@@ -51,7 +51,7 @@ health_checks:
                 "url": "http://general-service.com",
                 "status": True,
                 "status_code": 200,
-                "start_time_stamp": "2025-02-25 22:18:19",
+                "start_timestamp": "2025-02-25 22:18:19",
                 "end_timestamp": "22025-02-25 22:22:46",
                 "duration": "0:04:27"
             }
