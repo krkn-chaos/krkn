@@ -88,7 +88,8 @@ We want to look at this in terms of CPU, Memory, Disk, Throughput, Network etc.
 - Appropriate caching and Content Delivery Network should be enabled to be performant and usable when there is a latency on the client side.
   - Not every user or machine has access to unlimited bandwidth, there might be a delay on the user side ( client ) to access the API’s due to limited bandwidth, throttling or latency depending on the geographic location. It is important to inject latency between the client and API calls to understand the behavior and optimize things including caching wherever possible, using CDN’s or opting for different protocols like HTTP/2 or HTTP/3 vs HTTP.
 
-
+- Ensure Disruption Budgets are enabled for your critical applications
+  - Protect your application during disruptions by setting a [pod disruption budget](https://kubernetes.io/docs/tasks/run-application/configure-pdb/) to avoid downtime. For instance, etcd, zookeeper or similar applications need at least 2 replicas to maintain quorum. This can be ensured by setting PDB maxUnavailable to 1. 
 
 
 ### Tooling
