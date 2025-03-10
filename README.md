@@ -9,14 +9,17 @@ Chaos and resiliency testing tool for Kubernetes.
 Kraken injects deliberate failures into Kubernetes clusters to check if it is resilient to turbulent conditions.
 
 
-### Workflow
-![Kraken workflow](media/kraken-workflow.png)
+### Webiste 
+[Kraken Website](https://krkn-chaos.dev) is the one stop shop for all things Kraken.
+The website contains comprehensive information about the workflow, supported scenarios, and detailed descriptions of each scenario. It also provides the necessary configurations needed to run Kraken, along with insights into performance monitoring and signaling features.
+<!-- ### Workflow
+![Kraken workflow](media/kraken-workflow.png) --> 
 
-### Demo
-[![Kraken demo](media/KrakenStarting.png)](https://youtu.be/LN-fZywp_mo "Kraken Demo - Click to Watch!")
+<!-- ### Demo
+[![Kraken demo](media/KrakenStarting.png)](https://youtu.be/LN-fZywp_mo "Kraken Demo - Click to Watch!") -->
 
 
-### Chaos Testing Guide
+<!-- ### Chaos Testing Guide
 [Guide](docs/index.md) encapsulates:
 - Test methodology that needs to be embraced.
 - Best practices that an Kubernetes cluster, platform and applications running on top of it should take into account for best user experience, performance, resilience and reliability.
@@ -94,7 +97,7 @@ Information on enabling and leveraging this feature can be found [here](docs/SLO
 
 ### OCM / ACM integration
 
-Kraken supports injecting faults into [Open Cluster Management (OCM)](https://open-cluster-management.io/) and [Red Hat Advanced Cluster Management for Kubernetes (ACM)](https://www.krkn.com/en/technologies/management/advanced-cluster-management) managed clusters through [ManagedCluster Scenarios](docs/managedcluster_scenarios.md).
+Kraken supports injecting faults into [Open Cluster Management (OCM)](https://open-cluster-management.io/) and [Red Hat Advanced Cluster Management for Kubernetes (ACM)](https://www.krkn.com/en/technologies/management/advanced-cluster-management) managed clusters through [ManagedCluster Scenarios](docs/managedcluster_scenarios.md). -->
 
 
 ### Blogs and other useful resources
