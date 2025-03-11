@@ -3,10 +3,10 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from tzlocal.unix import get_localzone
-
+import logging
 
 def populate_cluster_events(
-    scenario_telemetry: ScenarioTelemetry,
+    krkn_config: dict,
     scenario_config: dict,
     kubecli: KrknKubernetes,
     start_timestamp: int,
@@ -31,8 +31,12 @@ def populate_cluster_events(
                     namespace=namespace,
                 )
             )
-
-    scenario_telemetry.set_cluster_events(events)
+    archive_path = krkn_config["telemetry"]["archive_path"]
+    file_path = archive_path + "/events.json"
+    with open(file_path, "w+") as f:
+        f.write("\n".join(str(item) for item in events))
+    logging.info(f'Find cluster events in file {file_path}' )
+    
 
 
 def collect_and_put_ocp_logs(
