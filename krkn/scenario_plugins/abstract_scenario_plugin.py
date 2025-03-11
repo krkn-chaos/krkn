@@ -103,7 +103,7 @@ class AbstractScenarioPlugin(ABC):
 
             if events_backup: 
                 utils.populate_cluster_events(
-                    scenario_telemetry,
+                    krkn_config,
                     parsed_scenario_config,
                     telemetry.get_lib_kubernetes(),
                     int(scenario_telemetry.start_timestamp),
