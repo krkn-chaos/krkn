@@ -306,7 +306,6 @@ def main(cfg) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}\n")
-
         health_check_telemetry_queue = queue.Queue()
         health_checker = HealthChecker(iterations)
         health_check_worker = threading.Thread(target=health_checker.run_health_check,
