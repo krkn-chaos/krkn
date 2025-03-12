@@ -3,6 +3,7 @@ import time
 import logging
 import queue
 from datetime import datetime
+from krkn_lib.models.telemetry.models import HealthCheck
 
 class HealthChecker:
     current_iterations: int = 0
@@ -61,14 +62,14 @@ class HealthChecker:
                                 "end_timestamp": end_timestamp.isoformat(),
                                 "duration": duration
                             }
-                            health_check_telemetry.append(downtime_record)
+                            health_check_telemetry.append(HealthCheck(downtime_record))
                             del health_check_tracker[config["url"]]
                     time.sleep(interval)
             health_check_end_time_stamp = datetime.now()
             for url, status in response_tracker.items():
                 if status == True:
                     duration = (health_check_end_time_stamp - health_check_start_time_stamp).total_seconds()
-                    success_response ={
+                    success_response = {
                         "url": url,
                         "status": True,
                         "status_code": 200,
@@ -76,7 +77,7 @@ class HealthChecker:
                         "end_timestamp": health_check_end_time_stamp.isoformat(),
                         "duration": duration
                     }
-                    health_check_telemetry.append(success_response)
+                    health_check_telemetry.append(HealthCheck(success_response))
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
-            logging.info("health checks config is empty, skipping")
+            logging.info("health checks config is not defined, skipping them")
