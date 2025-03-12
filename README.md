@@ -9,11 +9,11 @@ Chaos and resiliency testing tool for Kubernetes.
 Kraken injects deliberate failures into Kubernetes clusters to check if it is resilient to turbulent conditions.
 
 
-### Webiste 
+### Website 
 [Kraken Website](https://krkn-chaos.dev) is the one stop shop for all things Kraken.
 The website contains comprehensive information about the workflow, supported scenarios, and detailed descriptions of each scenario. It also provides the necessary configurations needed to run Kraken, along with insights into performance monitoring and signaling features.
-<!-- ### Workflow
-![Kraken workflow](media/kraken-workflow.png) --> 
+### Workflow
+![Kraken workflow](media/kraken-workflow.png) 
 
 <!-- ### Demo
 [![Kraken demo](media/KrakenStarting.png)](https://youtu.be/LN-fZywp_mo "Kraken Demo - Click to Watch!") -->
@@ -28,28 +28,28 @@ The website contains comprehensive information about the workflow, supported sce
 - Test environment recommendations as to how and where to run chaos tests.
 - Chaos testing in practice.
 
-The guide is hosted at https://krkn-chaos.github.io/krkn.
+The guide is hosted at https://krkn-chaos.github.io/krkn. -->
 
 
 ### How to Get Started
-Instructions on how to setup, configure and run Kraken can be found at [Installation](docs/installation.md).
+Instructions on how to setup, configure and run Kraken can be found at [Installation](https://krkn-chaos.dev/docs/installation/).
 
-You may consider utilizing the chaos recommendation tool prior to initiating the chaos runs to profile the application service(s) under test. This tool discovers a list of Krkn scenarios with a high probability of causing failures or disruptions to your application service(s). The tool can be accessed at [Chaos-Recommender](utils/chaos_recommender/README.md).
+You may consider utilizing the chaos recommendation tool prior to initiating the chaos runs to profile the application service(s) under test. This tool discovers a list of Krkn scenarios with a high probability of causing failures or disruptions to your application service(s). The tool can be accessed at [Chaos-Recommender](https://krkn-chaos.dev/docs/chaos-recommender/).
 
 See the [getting started doc](docs/getting_started.md) on support on how to get started with your own custom scenario or editing current scenarios for your specific usage.
 
 After installation, refer back to the below sections for supported scenarios and how to tweak the kraken config to load them on your cluster.
 
 
-#### Running Kraken with minimal configuration tweaks
-For cases where you want to run Kraken with minimal configuration changes, refer to [krkn-hub](https://github.com/krkn-chaos/krkn-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios.
+<!-- #### Running Kraken with minimal configuration tweaks
+For cases where you want to run Kraken with minimal configuration changes, refer to [krkn-hub](https://github.com/krkn-chaos/krkn-hub). One use case is CI integration where you do not want to carry around different configuration files for the scenarios. -->
 
 
 ### Config
 Instructions on how to setup the config and the options supported can be found at [Config](docs/config.md).
 
 
-### Kubernetes chaos scenarios supported
+<!-- ### Kubernetes chaos scenarios supported
 
 Scenario type               | Kubernetes    
 --------------------------- | ------------- | 
