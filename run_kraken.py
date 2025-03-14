@@ -33,7 +33,8 @@ from krkn.scenario_plugins.scenario_plugin_factory import (
 
 # removes TripleDES warning
 import warnings
-warnings.filterwarnings(action='ignore', module='.*paramiko.*')
+
+warnings.filterwarnings(action="ignore", module=".*paramiko.*")
 
 report_file = ""
 
@@ -485,8 +486,8 @@ def main(cfg) -> int:
             prometheus_plugin.metrics(
                 prometheus,
                 elastic_search,
-                start_time,
                 run_uuid,
+                start_time,
                 end_time,
                 metrics_profile,
                 elastic_collect_metrics,
