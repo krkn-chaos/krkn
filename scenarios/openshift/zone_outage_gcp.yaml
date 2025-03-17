@@ -1,0 +1,4 @@
+zone_outage:                                         # Scenario to create an outage of a zone by tweaking network ACL
+  cloud_type: gcp                                    # cloud type on which Kubernetes/OpenShift runs. aws is only platform supported currently for this scenario.
+  duration: 600                                      # duration in seconds after which the zone will be back online
+  zone: <zone>                    # (Optional) ID of an existing network ACL to use instead of creating a new one. If provided, this ACL will not be deleted after the scenario.

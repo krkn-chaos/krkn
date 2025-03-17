@@ -224,7 +224,6 @@ class gcp_node_scenarios(abstract_node_scenarios):
     def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
         super().__init__(kubecli, affected_nodes_status)
         self.gcp = GCP()
-        print("selfkeys" + str(vars(self)))
 
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):
