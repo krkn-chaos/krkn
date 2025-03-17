@@ -14,6 +14,7 @@ class GCP:
         try:
             _, self.project_id = google.auth.default()
             self.instance_client = compute_v1.InstancesClient()
+            logging.info('gcp init')
         except Exception as e:
             logging.error("Error on setting up GCP connection: " + str(e))
 
