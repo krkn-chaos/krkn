@@ -117,7 +117,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
             while len(stopping_nodes) > 0:
                 for node in stopping_nodes:
                     affected_node = affected_nodes_status.get_affected_node_index(node)
-                    
+
                     if type(node) is tuple:
                         node_status = cloud_object.wait_until_stopped(
                             node[1], node[0], timeout, affected_node
@@ -149,7 +149,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                 for node in not_running_nodes:
                     affected_node = affected_nodes_status.get_affected_node_index(node)
                     # need to add in time that is passing while waiting for other nodes to be running
-                    
+
                     if type(node) is tuple:
                         node_status = cloud_object.wait_until_running(
                             node[1], node[0], timeout, affected_node
