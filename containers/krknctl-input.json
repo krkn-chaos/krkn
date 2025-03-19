@@ -125,7 +125,6 @@
     "variable": "ES_SERVER",
     "type": "string",
     "default": "http://0.0.0.0",
-    "validator": "^(http|https):\/\/.*",
     "required": "false"
   },
   {
@@ -160,28 +159,6 @@
     "short_description": "Enables elasticsearch TLS certificate verification",
     "description": "Enables elasticsearch TLS certificate verification",
     "variable": "ES_VERIFY_CERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false"
-  },
-  {
-    "name": "es-collect-metrics",
-    "short_description": "Enables metrics collection on elastic search",
-    "description": "Enables metrics collection on elastic search",
-    "variable": "ES_COLLECT_METRICS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false"
-  },
-  {
-    "name": "es-collect-alerts",
-    "short_description": "Enables alerts collection on elastic search",
-    "description": "Enables alerts collection on elastic search",
-    "variable": "ES_COLLECT_ALERTS",
     "type": "enum",
     "allowed_values": "True,False",
     "separator": ",",
@@ -393,4 +370,3 @@
     "required": "false"
   }
 ]
-
