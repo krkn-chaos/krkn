@@ -23,7 +23,7 @@ from krkn.scenario_plugins.node_actions.general_cloud_node_scenarios import (
     general_node_scenarios,
 )
 from krkn.scenario_plugins.node_actions.vmware_node_scenarios import vmware_node_scenarios
-
+from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import ibm_node_scenarios
 node_general = False
 
 
@@ -113,6 +113,11 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             or node_scenario["cloud_type"].lower() == "vmware"
         ):
             return vmware_node_scenarios(kubecli, affected_nodes_status)
+        elif (
+            node_scenario["cloud_type"].lower() == "ibm"
+            or node_scenario["cloud_type"].lower() == "ibmcloud"
+        ):
+            return ibm_node_scenarios(kubecli, affected_nodes_status)
         else:
             logging.error(
                 "Cloud type "

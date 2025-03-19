@@ -9,6 +9,8 @@ import optparse
 import pyfiglet
 import uuid
 import time
+import queue
+import threading
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
@@ -26,6 +28,7 @@ from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
 from krkn.utils import TeeLogHandler
+from krkn.utils.HealthChecker import HealthChecker
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
@@ -125,10 +128,11 @@ def main(cfg) -> int:
             config["performance_monitoring"], "check_critical_alerts", False
         )
         telemetry_api_url = config["telemetry"].get("api_url")
+        health_check_config = config["health_checks"]
 
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
-            "/var/run/secrets/kubernetes.io/serviceaccount/token"
+                "/var/run/secrets/kubernetes.io/serviceaccount/token"
         ):
             logging.error(
                 "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
@@ -274,8 +278,8 @@ def main(cfg) -> int:
         classes_and_types: dict[str, list[str]] = {}
         for loaded in scenario_plugin_factory.loaded_plugins.keys():
             if (
-                scenario_plugin_factory.loaded_plugins[loaded].__name__
-                not in classes_and_types.keys()
+                    scenario_plugin_factory.loaded_plugins[loaded].__name__
+                    not in classes_and_types.keys()
             ):
                 classes_and_types[
                     scenario_plugin_factory.loaded_plugins[loaded].__name__
@@ -302,6 +306,12 @@ def main(cfg) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}\n")
+        health_check_telemetry_queue = queue.Queue()
+        health_checker = HealthChecker(iterations)
+        health_check_worker = threading.Thread(target=health_checker.run_health_check,
+                                               args=(health_check_config, health_check_telemetry_queue))
+        health_check_worker.start()
+
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -362,12 +372,18 @@ def main(cfg) -> int:
                                 break
 
             iteration += 1
+            health_checker.current_iterations += 1
 
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
         # is disabled, it's necessary to serialize the ChaosRunTelemetry object
         # to json, and recreate a new object from it.
         end_time = int(time.time())
+        health_check_worker.join()
+        try:
+            chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
+        except queue.Empty:
+            chaos_telemetry.health_checks = None
 
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
@@ -422,9 +438,9 @@ def main(cfg) -> int:
                         )
                     else:
                         if (
-                            config["telemetry"]["prometheus_namespace"]
-                            and config["telemetry"]["prometheus_pod_name"]
-                            and config["telemetry"]["prometheus_container_name"]
+                                config["telemetry"]["prometheus_namespace"]
+                                and config["telemetry"]["prometheus_pod_name"]
+                                and config["telemetry"]["prometheus_container_name"]
                         ):
                             try:
                                 prometheus_archive_files = (
@@ -504,6 +520,9 @@ def main(cfg) -> int:
             )
             # sys.exit(2)
             return 2
+        if health_checker.ret_value != 0:
+            logging.error("Health check failed for the applications, Please check; exiting")
+            return health_checker.ret_value
 
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
