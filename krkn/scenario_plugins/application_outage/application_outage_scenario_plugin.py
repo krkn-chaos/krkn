@@ -3,7 +3,7 @@ import time
 import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-from krkn_lib.utils import get_yaml_item_value
+from krkn_lib.utils import get_yaml_item_value, get_random_string
 from jinja2 import Template
 from krkn import cerberus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
@@ -33,17 +33,22 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 duration = get_yaml_item_value(scenario_config, "duration", 60)
 
                 start_time = int(time.time())
+                policy_name = f"krkn-deny-{get_random_string(5)}"
 
-                network_policy_template = """---
+                network_policy_template = (
+                    """---
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
         metadata:
-          name: kraken-deny
+          name: """
+                    + policy_name
+                    + """
         spec:
           podSelector:
             matchLabels: {{ pod_selector }}
           policyTypes: {{ traffic_type }}
         """
+                )
                 t = Template(network_policy_template)
                 rendered_spec = t.render(
                     pod_selector=pod_selector, traffic_type=traffic_type
@@ -65,7 +70,7 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 # unblock the traffic by deleting the network policy
                 logging.info("Deleting the network policy")
                 lib_telemetry.get_lib_kubernetes().delete_net_policy(
-                    "kraken-deny", namespace
+                    policy_name, namespace
                 )
 
                 logging.info(
