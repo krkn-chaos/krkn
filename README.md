@@ -117,10 +117,10 @@ Enhancements being planned can be found in the [roadmap](ROADMAP.md).
 ### Contributions
 We are always looking for more enhancements, fixes to make it better, any contributions are most welcome. Feel free to report or work on the issues filed on github.
 
-[More information on how to Contribute](docs/contribute.md)
+[More information on how to Contribute](https://krkn-chaos.dev/docs/contribution-guidelines/contribute/)
 
 If adding a new scenario or tweaking the main config, be sure to add in updates into the CI to be sure the CI is up to date.
-Please read [this file]((CI/README.md#adding-a-test-case)) for more information on updates.
+Please read [this file](https://krkn-chaos.dev/docs/getting-started/#adding-new-scenarios) for more information on updates.
 
 
 ### Scenario Plugin Development
