@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import datetime
 import os.path
+import math
 from typing import Optional, List, Dict, Any
 
-import urllib3
 import logging
+import urllib3
 import sys
 
 import yaml
@@ -25,8 +26,7 @@ def alerts(
     start_time,
     end_time,
     alert_profile,
-    elastic_collect_alerts,
-    elastic_alerts_index,
+    elastic_alerts_index
 ):
 
     if alert_profile is None or os.path.exists(alert_profile) is False:
@@ -46,6 +46,7 @@ def alerts(
         for alert in profile_yaml:
             if list(alert.keys()).sort() != ["expr", "description", "severity"].sort():
                 logging.error(f"wrong alert {alert}, skipping")
+                continue
 
             processed_alert = prom_cli.process_alert(
                 alert,
@@ -56,7 +57,6 @@ def alerts(
                 processed_alert[0]
                 and processed_alert[1]
                 and elastic
-                and elastic_collect_alerts
             ):
                 elastic_alert = ElasticAlert(
                     run_uuid=run_uuid,
@@ -156,15 +156,15 @@ def metrics(
     start_time,
     end_time,
     metrics_profile,
-    elastic_collect_metrics,
-    elastic_metrics_index,
+    elastic_metrics_index
 ) -> list[dict[str, list[(int, float)] | str]]:
-    metrics_list: list[dict[str, list[(int, float)] | str]] = []
+   
     if metrics_profile is None or os.path.exists(metrics_profile) is False:
         logging.error(f"{metrics_profile} alert profile does not exist")
         sys.exit(1)
     with open(metrics_profile) as profile:
         profile_yaml = yaml.safe_load(profile)
+
         if not profile_yaml["metrics"] or not isinstance(profile_yaml["metrics"], list):
             logging.error(
                 f"{metrics_profile} wrong file format, alert profile must be "
@@ -172,30 +172,58 @@ def metrics(
                 f"expr, description, severity"
             )
             sys.exit(1)
-
+        elapsed_ceil = math.ceil((end_time - start_time)/ 60 )
+        elapsed_time = str(elapsed_ceil) + "m"
+        metrics_list: list[dict[str, int | float | str]] = []
         for metric_query in profile_yaml["metrics"]:
-            if (
+            query = metric_query['query']
+            
+            # calculate elapsed time
+            if ".elapsed" in metric_query["query"]:
+                query = metric_query['query'].replace(".elapsed", elapsed_time)
+            if "instant" in list(metric_query.keys()) and metric_query['instant']:
+                metrics_result = prom_cli.process_query(
+                   query
+                )
+            elif (
                 list(metric_query.keys()).sort()
-                != ["query", "metricName", "instant"].sort()
+                == ["query", "metricName"].sort()
             ):
-                logging.error(f"wrong alert {metric_query}, skipping")
-            metrics_result = prom_cli.process_prom_query_in_range(
-                metric_query["query"],
-                start_time=datetime.datetime.fromtimestamp(start_time),
-                end_time=datetime.datetime.fromtimestamp(end_time),
-            )
-
-            metric = {"name": metric_query["metricName"], "values": []}
+                metrics_result = prom_cli.process_prom_query_in_range(
+                    query,
+                    start_time=datetime.datetime.fromtimestamp(start_time),
+                    end_time=datetime.datetime.fromtimestamp(end_time), granularity=30
+                )
+            else: 
+                logging.info('didnt match keys')
+                continue
+            
             for returned_metric in metrics_result:
-                if "values" in returned_metric:
+                metric = {"query": query, "metricName": metric_query['metricName']}
+                for k,v in returned_metric['metric'].items():
+                    metric[k] = v
+                
+                if "values" in returned_metric: 
                     for value in returned_metric["values"]:
                         try:
-                            metric["values"].append((value[0], float(value[1])))
+                            metric['timestamp'] = str(datetime.datetime.fromtimestamp(value[0]))
+                            metric["value"] = float(value[1])
+                            # want double array of the known details and the metrics specific to each call                    
+                            metrics_list.append(metric.copy())
                         except ValueError:
                             pass
-            metrics_list.append(metric)
+                elif "value" in returned_metric:
+                    try:
+                        value = returned_metric["value"]
+                        metric['timestamp'] = str(datetime.datetime.fromtimestamp(value[0]))
+                        metric["value"] = float(value[1])
 
-        if elastic_collect_metrics and elastic:
+                        # want double array of the known details and the metrics specific to each call
+                        metrics_list.append(metric.copy())
+                    except ValueError:
+                        pass
+
+        if elastic:
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )

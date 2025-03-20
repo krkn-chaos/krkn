@@ -68,6 +68,7 @@ class AbstractScenarioPlugin(ABC):
 
             scenario_telemetry = ScenarioTelemetry()
             scenario_telemetry.scenario = scenario_config
+            scenario_telemetry.scenario_type = self.get_scenario_types()[0]
             scenario_telemetry.start_timestamp = time.time()
             parsed_scenario_config = telemetry.set_parameters_base64(
                 scenario_telemetry, scenario_config

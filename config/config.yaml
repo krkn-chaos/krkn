@@ -60,12 +60,10 @@ performance_monitoring:
     enable_alerts: False                                  # Runs the queries specified in the alert profile and displays the info or exits 1 when severity=error
     enable_metrics: False
     alert_profile: config/alerts.yaml                          # Path or URL to alert profile with the prometheus queries
-    metrics_profile: config/metrics.yaml
+    metrics_profile: config/metrics-report.yaml
     check_critical_alerts: False                          # When enabled will check prometheus for critical alerts firing post chaos
 elastic:
     enable_elastic: False
-    collect_metrics: False
-    collect_alerts: False
     verify_certs: False
     elastic_url: ""                                         # To track results in elasticsearch, give url to server here; will post telemetry details when url and index not blank
     elastic_port: 32766
