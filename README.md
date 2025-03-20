@@ -36,7 +36,7 @@ Instructions on how to setup, configure and run Kraken can be found at [Installa
 
 You may consider utilizing the chaos recommendation tool prior to initiating the chaos runs to profile the application service(s) under test. This tool discovers a list of Krkn scenarios with a high probability of causing failures or disruptions to your application service(s). The tool can be accessed at [Chaos-Recommender](https://krkn-chaos.dev/docs/chaos-recommender/).
 
-See the [getting started doc](docs/getting_started.md) on support on how to get started with your own custom scenario or editing current scenarios for your specific usage.
+See the [getting started doc](https://krkn-chaos.dev/docs/getting-started/) on support on how to get started with your own custom scenario or editing current scenarios for your specific usage.
 
 After installation, refer back to the below sections for supported scenarios and how to tweak the kraken config to load them on your cluster.
 
