@@ -1,10 +1,10 @@
 # oc build
-FROM golang:1.23.0 AS oc-build
+FROM golang:1.23.1 AS oc-build
 RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
 WORKDIR /tmp
 RUN git clone --branch release-4.18 https://github.com/openshift/oc.git
 WORKDIR /tmp/oc
-RUN go mod edit -go 1.23.0 &&\
+RUN go mod edit -go 1.23.1 &&\
     go get github.com/moby/buildkit@v0.12.5 &&\
     go get github.com/containerd/containerd@v1.7.11&&\
     go get github.com/docker/docker@v25.0.6&&\
@@ -50,7 +50,8 @@ RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR
 # if it is a TAG trigger checkout the tag
 RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 
-RUN python3.9 -m ensurepip
+RUN python3.9 -m ensurepip --upgrade --default-pip
+RUN python3.9 -m pip install --upgrade pip setuptools=70.0.0
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install jsonschema
 
