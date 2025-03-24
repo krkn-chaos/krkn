@@ -51,7 +51,7 @@ RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR
 RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 
 RUN python3.9 -m ensurepip --upgrade --default-pip
-RUN python3.9 -m pip install --upgrade pip setuptools=70.0.0
+RUN python3.9 -m pip install --upgrade pip setuptools==70.0.0
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install jsonschema
 
