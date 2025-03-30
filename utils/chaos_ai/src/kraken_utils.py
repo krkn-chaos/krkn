@@ -17,6 +17,7 @@ class KrakenUtils:
         self.engines = []
         self.wait_checks = wait_checks
         self.command = command
+        self.ns_pods = utils.get_namespace_pods(namespace, kubeconfig)
 
     def exp_status(self, engine='engine-cartns3'):
         substring_list = ['Waiting for the specified duration','Waiting for wait_duration', 'Step workload started, waiting for response']
@@ -83,15 +84,16 @@ class KrakenUtils:
         self.logger.debug('[KRAKEN][INJECT_FAULT] ' + fault + ':' + pod_name)
         fault, load = utils.get_load(fault)
         engine = 'engine-' + pod_name.replace('=', '-').replace('/','-') + '-' + fault
+        ns = utils.get_ns_from_pod(self.ns_pods, pod_name)
         if fault == 'pod-delete':
-            cmd = self.command+' run  -d -e NAMESPACE='+self.namespace+' -e POD_LABEL='+pod_name+' --name='+engine+' --net=host -v '+self.kubeconfig+':/root/.kube/config:Z quay.io/redhat-chaos/krkn-hub:pod-scenarios >> temp'
+            cmd = self.command+' run  -d -e NAMESPACE='+ns+' -e POD_LABEL='+pod_name+' --name='+engine+' --net=host -v '+self.kubeconfig+':/root/.kube/config:Z quay.io/redhat-chaos/krkn-hub:pod-scenarios >> temp'
         elif fault == 'network-chaos':
             # 'docker run -e NODE_NAME=minikube-m03 -e DURATION=10  --name=knetwork --net=host -v /home/chaos/.kube/kube-config-raw:/root/.kube/config:Z -d quay.io/redhat-chaos/krkn-hub:network-chaos >> temp'        
             cmd = self.command+' run -d -e NODE_NAME='+pod_name+' -e DURATION=120  --name='+engine+' --net=host -v '+self.kubeconfig+':/root/.kube/config:Z -d quay.io/redhat-chaos/krkn-hub:network-chaos >> temp'
         elif fault == 'node-memory-hog':
             cmd = self.command+' run -d -e NODE_NAME='+pod_name+' -e DURATION=120 -e NODES_AFFECTED_PERC=100 --name='+engine+' --net=host -v '+self.kubeconfig+':/root/.kube/config:Z -d quay.io/redhat-chaos/krkn-hub:node-memory-hog >> temp'
         elif fault == 'node-cpu-hog':
-            cmd = self.command+'  run -e NODE_SELECTORS='+pod_name+' -e NODE_CPU_PERCENTAGE=100 -e NAMESPACE='+self.namespace+' -e TOTAL_CHAOS_DURATION=120 -e NODE_CPU_CORE=100 --name='+engine+' --net=host -env-host=true -v '+self.kubeconfig+':/root/.kube/config:Z -d quay.io/redhat-chaos/krkn-hub:node-cpu-hog'
+            cmd = self.command+'  run -e NODE_SELECTORS='+pod_name+' -e NODE_CPU_PERCENTAGE=100 -e NAMESPACE='+ns+' -e TOTAL_CHAOS_DURATION=120 -e NODE_CPU_CORE=100 --name='+engine+' --net=host -env-host=true -v '+self.kubeconfig+':/root/.kube/config:Z -d quay.io/redhat-chaos/krkn-hub:node-cpu-hog'
         else:
             cmd = 'echo'
         self.logger.debug('[KRAKEN][INJECT_FAULT] ' + cmd)
