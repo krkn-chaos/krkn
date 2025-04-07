@@ -101,10 +101,19 @@
   {
     "name": "alerts-path",
     "short_description": "Cluster alerts path file (in container)",
-    "description": "Enables cluster alerts check",
+    "description": "Allows to specify a different alert file path",
     "variable": "ALERTS_PATH",
     "type": "string",
     "default": "config/alerts.yaml",
+    "required": "false"
+  },
+  {
+    "name": "metrics-path",
+    "short_description": "Cluster metrics path file (in container)",
+    "description": "Allows to specify a different metrics file path",
+    "variable": "METRICS_PATH",
+    "type": "string",
+    "default": "config/metrics-aggregated.yaml",
     "required": "false"
   },
   {
