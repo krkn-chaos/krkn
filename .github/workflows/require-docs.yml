@@ -1,0 +1,45 @@
+name: Require Documentation Update
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+    branches:
+        - main
+jobs:
+  check-docs:
+    name: Check Documentation Update
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check if Documentation is Required
+        id: check_docs
+        run: |
+          echo "Checking PR body for documentation checkbox..."
+          # Read the PR body from the GitHub event payload
+          if echo "${{ github.event.pull_request.body }}" | grep -qi '\[x\].*documentation needed'; then
+            echo "Documentation required detected."
+            echo "docs_required=true" >> $GITHUB_OUTPUT
+          else
+            echo "Documentation not required."
+            echo "docs_required=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Enforce Documentation Update (if required)
+        if: steps.check_docs.outputs.docs_required == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Retrieve feature branch and repository owner from the GitHub context
+          FEATURE_BRANCH="${{ github.head_ref }}"
+          REPO_OWNER="${{ github.repository_owner }}"
+          WEBSITE_REPO="website"
+          echo "Searching for a merged documentation PR for feature branch: $FEATURE_BRANCH in $REPO_OWNER/$WEBSITE_REPO..."
+          MERGED_PR=$(gh pr list --repo "$REPO_OWNER/$WEBSITE_REPO" --state merged --json headRefName,title,url | jq -r \
+            --arg FEATURE_BRANCH "$FEATURE_BRANCH" '.[] | select(.title | contains($FEATURE_BRANCH)) | .url')
+          if [[ -z "$MERGED_PR" ]]; then
+            echo ":x: Documentation PR for branch '$FEATURE_BRANCH' is required and has not been merged."
+            exit 1
+          else
+            echo ":white_check_mark: Found merged documentation PR: $MERGED_PR"
+          fi
