@@ -1,6 +1,8 @@
 import logging
 import queue
+import random
 import threading
+import time
 
 import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
@@ -58,10 +60,17 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
                             f"with target type {network_chaos_config[0]}"
                         )
 
+                    if network_chaos_config[1].instance_count != 0 and network_chaos_config[1].instance_count > len(targets):
+                        targets = random.sample(targets, network_chaos_config[1].instance_count)
+
                     if network_chaos_config[1].execution == "parallel":
                         self.run_parallel(targets, network_chaos, lib_telemetry)
                     else:
                         self.run_serial(targets, network_chaos, lib_telemetry)
+                    if len(config) > 1:
+                        logging.info(f"waiting {network_chaos_config[1].wait_duration} seconds before running the next "
+                                     f"Network Chaos NG Module")
+                        time.sleep(network_chaos_config[1].wait_duration)
         except Exception as e:
             logging.error(str(e))
             return 1
