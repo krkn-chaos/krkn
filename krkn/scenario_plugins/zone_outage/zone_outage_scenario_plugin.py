@@ -13,7 +13,6 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn_lib.utils import get_yaml_item_value
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-from krkn.scenario_plugins.native.network import cerberus
 
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
@@ -32,7 +31,6 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 zone_outage_config_yaml = yaml.full_load(f)
                 scenario_config = zone_outage_config_yaml["zone_outage"]
                 cloud_type = scenario_config["cloud_type"]
-                start_time = int(time.time())
                 if cloud_type.lower() == "aws":
                     self.cloud_object = AWS()
                     self.network_based_zone(scenario_config)
@@ -51,8 +49,6 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                         )
                         return 1
 
-                end_time = int(time.time())
-                cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
         except (RuntimeError, Exception) as e:
             logging.error(
                 f"ZoneOutageScenarioPlugin scenario {scenario} failed with exception: {e}"

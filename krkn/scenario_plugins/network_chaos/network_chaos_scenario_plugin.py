@@ -10,7 +10,7 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value, log_exception
 
-from krkn import cerberus, utils
+from krkn import cerberus
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
@@ -20,7 +20,6 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -116,7 +115,6 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
 
                             end_time = int(time.time())
                             cerberus.publish_kraken_status(
-                                krkn_config,
                                 None,
                                 start_time,
                                 end_time,
@@ -133,7 +131,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                         )
                         end_time = int(time.time())
                         cerberus.publish_kraken_status(
-                            krkn_config, [], start_time, end_time
+                            [], start_time, end_time
                         )
                 except Exception as e:
                     logging.error(

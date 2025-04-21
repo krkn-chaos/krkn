@@ -14,11 +14,9 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
-        wait_duration = krkn_config["tunings"]["wait_duration"]
         try:
             with open(scenario, "r") as f:
                 app_outage_config_yaml = yaml.full_load(f)
@@ -73,14 +71,8 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                     policy_name, namespace
                 )
 
-                logging.info(
-                    "End of scenario. Waiting for the specified duration: %s"
-                    % wait_duration
-                )
-                time.sleep(wait_duration)
-
                 end_time = int(time.time())
-                cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
+                
         except Exception as e:
             logging.error(
                 "ApplicationOutageScenarioPlugin exiting due to Exception %s" % e
