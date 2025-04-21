@@ -1,8 +1,0 @@
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: krkn-deny-1
-spec:
-  podSelector:
-    matchLabels: {alertmanager: main}
-  policyTypes: [Ingress, Egress]
