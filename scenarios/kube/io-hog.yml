@@ -12,3 +12,4 @@ io-target-pod-volume:
     path: /root # a path writable by kubelet in the root filesystem of the node
 node-selector: "node-role.kubernetes.io/worker="
 number-of-nodes: ''
+taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]
