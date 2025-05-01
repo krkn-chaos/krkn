@@ -5,6 +5,7 @@ boto3==1.28.61
 azure-identity==1.16.1
 azure-keyvault==4.2.0
 azure-mgmt-compute==30.5.0
+azure-mgmt-network==27.0.0
 itsdangerous==2.0.1
 coverage==7.6.12
 datetime==5.4

@@ -6,6 +6,9 @@ from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
 )
 from azure.mgmt.compute import ComputeManagementClient
+from azure.mgmt.network import NetworkManagementClient
+from azure.mgmt.network.models import SecurityRule, Subnet
+
 from azure.identity import DefaultAzureCredential
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
@@ -15,25 +18,40 @@ class Azure:
         logging.info("azure " + str(self))
         # Acquire a credential object using CLI-based authentication.
         credentials = DefaultAzureCredential()
-        logging.info("credential " + str(credentials))
         # az_account = runcommand.invoke("az account list -o yaml")
         # az_account_yaml = yaml.safe_load(az_account, Loader=yaml.FullLoader)
         logger = logging.getLogger("azure")
         logger.setLevel(logging.WARNING)
         subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
         self.compute_client = ComputeManagementClient(credentials, subscription_id,logging=logger)
-        
+        self.network_client = NetworkManagementClient(credentials, subscription_id,logging=logger)
 
     # Get the instance ID of the node
     def get_instance_id(self, node_name):
         vm_list = self.compute_client.virtual_machines.list_all()
         for vm in vm_list:
             array = vm.id.split("/")
-            resource_group = array[4]
-            vm_name = array[-1]
-            if node_name == vm_name:
-                return vm_name, resource_group
+            if node_name == vm.name:
+                resource_group = array[4]
+                return vm.name, resource_group
         logging.error("Couldn't find vm with name " + str(node_name))
+
+    # Get the instance ID of the node
+    def get_network_interface(self, node_name, resource_group):
+
+        vm = self.compute_client.virtual_machines.get(resource_group, node_name,expand='instanceView')
+
+        for nic in vm.network_profile.network_interfaces:
+            nic_name = nic.id.split("/")[-1]
+            nic = self.network_client.network_interfaces.get(resource_group, nic_name)
+            location = nic.location
+            subnet_list = nic.ip_configurations[0].subnet.id.split('/')
+            subnet = subnet_list[-1]
+            virtual_network = subnet_list[-3]
+            network_resource_group = subnet_list[-7]
+
+            private_ip = nic.ip_configurations[0].private_ip_address
+            return subnet, virtual_network, private_ip, network_resource_group, location
 
     # Start the node instance
     def start_instances(self, group_name, vm_name):
@@ -154,6 +172,41 @@ class Azure:
                     affected_node.set_affected_node_status("terminated", end_time - start_time)
                 return True
 
+
+    def create_security_group(self, resource_group, name, region, ip_address): 
+
+        inbound_rule = SecurityRule(name="denyInbound", source_address_prefix="0.0.0.0/0", source_port_range="*", destination_address_prefix=ip_address, destination_port_range="*", priority=100, protocol="*",
+                                    access="Deny", direction="Inbound")
+        outbound_rule = SecurityRule(name="denyOutbound",  source_port_range="*", source_address_prefix=ip_address,destination_address_prefix="0.0.0.0/0", destination_port_range="*", priority=100, protocol="*",
+                                    access="Deny", direction="Outbound")
+
+        # create network resource group with deny in and out rules
+        nsg = self.network_client.network_security_groups.begin_create_or_update(resource_group, name, parameters={"location": region, "security_rules": [inbound_rule,outbound_rule]})
+        return nsg.result().id
+    
+    def delete_security_group(self, resource_group, name): 
+
+        # find and delete network security group
+        nsg = self.network_client.network_security_groups.begin_delete(resource_group,name)
+        if nsg.result() is not None:
+            print(nsg.result().as_dict())
+
+    def update_subnet(self, network_group_id, resource_group, subnet_name, vnet_name): 
+        
+        subnet  = self.network_client.subnets.get(
+            resource_group_name=resource_group,
+            virtual_network_name=vnet_name,
+            subnet_name=subnet_name)
+        old_network_group = subnet.network_security_group.id
+        subnet.network_security_group.id = network_group_id
+        # update subnet
+ 
+        self.network_client.subnets.begin_create_or_update(
+                resource_group_name=resource_group,
+                virtual_network_name=vnet_name,
+                subnet_name=subnet_name,
+                subnet_parameters=subnet)
+        return old_network_group
 
 # krkn_lib
 class azure_node_scenarios(abstract_node_scenarios):
@@ -276,6 +329,42 @@ class azure_node_scenarios(abstract_node_scenarios):
                     " %s. Test Failed" % (e)
                 )
                 logging.error("node_reboot_scenario injection failed!")
+
+                raise RuntimeError()
+            self.affected_nodes_status.affected_nodes.append(affected_node)
+
+    # Node scenario to block traffic to the node
+    def node_block_scenario(self, instance_kill_count, node, timeout, duration):
+        for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
+            try:
+                logging.info("Starting node_block_scenario injection")
+                vm_name, resource_group = self.azure.get_instance_id(node)
+
+                subnet, virtual_network, private_ip, network_resource_group, location = self.azure.get_network_interface(vm_name, resource_group)
+                affected_node.node_id = vm_name
+ 
+                logging.info(
+                    "block the node %s with instance ID: %s "
+                    % (vm_name, network_resource_group)
+                )
+                network_group_id = self.azure.create_security_group(network_resource_group, "chaos", location, private_ip)
+                old_network_group= self.azure.update_subnet(network_group_id, network_resource_group, subnet, virtual_network)
+                logging.info("Node with instance ID: %s has been blocked" % (vm_name))
+                logging.info("Waiting for %s seconds before resetting the subnet" % (duration))
+                time.sleep(duration)
+
+                # replace old network security group
+                self.azure.update_subnet(old_network_group, network_resource_group, subnet, virtual_network)
+                self.azure.delete_security_group(network_resource_group, "chaos")
+                
+                logging.info("node_block_scenario has been successfully injected!")
+            except Exception as e:
+                logging.error(
+                    "Failed to block node instance. Encountered following exception:"
+                    " %s. Test Failed" % (e)
+                )
+                logging.error("node_block_scenario injection failed!")
 
                 raise RuntimeError()
             self.affected_nodes_status.affected_nodes.append(affected_node)
