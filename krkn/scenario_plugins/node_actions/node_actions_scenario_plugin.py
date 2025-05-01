@@ -178,8 +178,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
     def run_node(self, single_node, node_scenario_object, action, node_scenario):
         # Get the scenario specifics for running action nodes
         run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
-        if action in ("node_stop_start_scenario", "node_disk_detach_attach_scenario"):
-            duration = get_yaml_item_value(node_scenario, "duration", 120)
+        duration = get_yaml_item_value(node_scenario, "duration", 120)
 
         timeout = get_yaml_item_value(node_scenario, "timeout", 120)
         service = get_yaml_item_value(node_scenario, "service", "")
@@ -257,6 +256,10 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                         ssh_private_key,
                         timeout,
                     )
+            elif action == "node_block_scenario":
+                node_scenario_object.node_block_scenario(
+                    run_kill_count, single_node, timeout, duration
+                )
             else:
                 logging.info(
                     "There is no node action that matches %s, skipping scenario"

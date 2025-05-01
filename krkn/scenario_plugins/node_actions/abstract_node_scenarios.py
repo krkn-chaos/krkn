@@ -139,3 +139,8 @@ class abstract_node_scenarios:
     # Node scenario to check service status on helper node
     def node_service_status(self, node, service, ssh_private_key, timeout):
         pass
+
+    # Node Scenario to block all inbound and outbound traffic to a specific node
+    # Currently only configured for azure
+    def node_block_scenario(self, instance_kill_count, node, timeout, duration):
+        pass
