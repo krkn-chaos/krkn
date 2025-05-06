@@ -7,3 +7,4 @@ cpu-load-percentage: 90
 cpu-method: all
 node-selector: "node-role.kubernetes.io/worker="
 number-of-nodes: 2
+taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]

@@ -33,7 +33,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             else:
                 node_selector = scenario_config.node_selector
 
-            available_nodes = lib_telemetry.get_lib_kubernetes().list_schedulable_nodes(node_selector)
+            available_nodes = lib_telemetry.get_lib_kubernetes().list_nodes(node_selector)
             if len(available_nodes) == 0:
                 raise Exception("no available nodes to schedule workload")
 
