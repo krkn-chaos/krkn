@@ -14,8 +14,7 @@ class OPENSTACKCLOUD:
         self.Wait = 30
 
     # Get the instance ID of the node
-    def get_instance_id(self, node):
-        openstack_node_ip = nodeaction.get_node_ip(node)
+    def get_instance_id(self, openstack_node_ip):
         openstack_node_name = self.get_openstack_nodename(openstack_node_ip)
         return openstack_node_name
 
@@ -128,7 +127,8 @@ class openstack_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_start_scenario injection")
                 logging.info("Starting the node %s" % (node))
-                openstack_node_name = self.openstackcloud.get_instance_id(node)
+                openstack_node_ip = self.kubecli.get_node_ip(node)
+                openstack_node_name = self.openstackcloud.get_instance_id(openstack_node_ip)
                 self.openstackcloud.start_instances(openstack_node_name)
                 self.openstackcloud.wait_until_running(openstack_node_name, timeout, affected_node)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
@@ -151,7 +151,8 @@ class openstack_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_stop_scenario injection")
                 logging.info("Stopping the node %s " % (node))
-                openstack_node_name = self.openstackcloud.get_instance_id(node)
+                openstack_node_ip = self.kubecli.get_node_ip(node)
+                openstack_node_name = self.openstackcloud.get_instance_id(openstack_node_ip)
                 self.openstackcloud.stop_instances(openstack_node_name)
                 self.openstackcloud.wait_until_stopped(openstack_node_name, timeout, affected_node)
                 logging.info("Node with instance name: %s is in stopped state" % (node))
@@ -173,7 +174,8 @@ class openstack_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info("Rebooting the node %s" % (node))
-                openstack_node_name = self.openstackcloud.get_instance_id(node)
+                openstack_node_ip = self.kubecli.get_node_ip(node)
+                openstack_node_name = self.openstackcloud.get_instance_id(openstack_node_ip)
                 self.openstackcloud.reboot_instances(openstack_node_name)
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
