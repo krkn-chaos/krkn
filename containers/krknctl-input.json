@@ -408,8 +408,10 @@
     "short_description": "Health check exit on failure",
     "description": "Exit on failure when health check URL is not able to connect",
     "variable": "HEALTH_CHECK_EXIT_ON_FAILURE",
-    "type": "string",
-    "default": "",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
     "required": "false"
   },
   {
@@ -417,8 +419,10 @@
     "short_description": "SSL Verification of health check url",
     "description": "SSL Verification to authenticate into health check URL",
     "variable": "HEALTH_CHECK_VERIFY",
-    "type": "string",
-    "default": "false",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
     "required": "false"
   },
   {
