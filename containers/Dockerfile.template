@@ -25,10 +25,6 @@ RUN dnf update -y
 
 ENV KUBECONFIG /home/krkn/.kube/config
 
-# install kubectl
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" &&\
-    cp kubectl /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl &&\
-    cp kubectl /usr/bin/kubectl && chmod +x /usr/bin/kubectl
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
 RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
