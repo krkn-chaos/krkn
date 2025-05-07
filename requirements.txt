@@ -30,7 +30,7 @@ python-openstackclient==6.5.0
 requests==2.32.2
 service_identity==24.1.0
 PyYAML==6.0.1
-setuptools==70.0.0
+setuptools==78.1.1
 werkzeug==3.0.6
 wheel==0.42.0
 zope.interface==5.4.0
