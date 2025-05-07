@@ -368,6 +368,60 @@
     "required": "false"
   },
   {
+    "name": "health-check-interval",
+    "short_description": "Heath check interval",
+    "description": "How often to check the health check urls",
+    "variable": "HEALTH_CHECK_INTERVAL",
+    "type": "number",
+    "default": "2",
+    "required": "false"
+  },
+  {
+    "name": "health-check-url",
+    "short_description": "Health check url",
+    "description": "Url to check the health of",
+    "variable": "HEALTH_CHECK_URL",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "health-check-auth",
+    "short_description": "Health check authentication tuple",
+    "description": "Authentication tuple to authenticate into health check URL",
+    "variable": "HEALTH_CHECK_AUTH",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "health-check-bearer-token",
+    "short_description": "Health check bearer token",
+    "description": "Bearer token to authenticate into health check URL",
+    "variable": "HEALTH_CHECK_BEARER_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "health-check-exit",
+    "short_description": "Health check exit on failure",
+    "description": "Exit on failure when health check URL is not able to connect",
+    "variable": "HEALTH_CHECK_EXIT_ON_FAILURE",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "health-check-verify",
+    "short_description": "SSL Verification of health check url",
+    "description": "SSL Verification to authenticate into health check URL",
+    "variable": "HEALTH_CHECK_VERIFY",
+    "type": "string",
+    "default": "false",
+    "required": "false"
+  },
+  {
     "name": "krkn-debug",
     "short_description": "Krkn debug mode",
     "description": "Enables debug mode for Krkn",
