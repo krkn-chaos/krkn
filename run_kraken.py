@@ -499,7 +499,8 @@ def main(cfg) -> int:
                 start_time,
                 end_time,
                 metrics_profile,
-                elastic_metrics_index
+                elastic_metrics_index,
+                telemetry_json
             )
 
         if post_critical_alerts > 0:
