@@ -256,7 +256,7 @@ def verify_interface(
                         % (interface, node, node_interface_list)
                     )
     finally:
-        logging.info("Deleteing pod to query interface on node")
+        logging.info("Deleting pod to query interface on node")
         kube_helper.delete_pod(cli, "fedtools", "default")
 
     return input_interface_list
@@ -546,7 +546,7 @@ def wait_for_job(
                     count += 1
                     job_list.remove(job_name)
             except Exception:
-                logging.warn("Exception in getting job status")
+                logging.warning("Exception in getting job status")
             if time.time() > wait_time:
                 raise Exception(
                     "Jobs did not complete within "
@@ -585,7 +585,7 @@ def delete_jobs(cli: CoreV1Api, batch_cli: BatchV1Api, job_list: typing.List[str
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception as e:
-            logging.warn("Exception in getting job status: %s" % str(e))
+            logging.warning("Exception in getting job status: %s" % str(e))
         api_response = kube_helper.delete_job(
             batch_cli, name=job_name, namespace="default"
         )
