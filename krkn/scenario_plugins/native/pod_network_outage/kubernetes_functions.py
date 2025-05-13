@@ -26,13 +26,13 @@ def create_job(batch_cli, body, namespace="default"):
         api_response = batch_cli.create_namespaced_job(body=body, namespace=namespace)
         return api_response
     except ApiException as api:
-        logging.warn(
+        logging.warning(
             "Exception when calling \
                        BatchV1Api->create_job: %s"
             % api
         )
         if api.status == 409:
-            logging.warn("Job already present")
+            logging.warning("Job already present")
     except Exception as e:
         logging.error(
             "Exception when calling \
@@ -210,12 +210,12 @@ def delete_job(batch_cli, name, namespace="default"):
         logging.debug("Job deleted. status='%s'" % str(api_response.status))
         return api_response
     except ApiException as api:
-        logging.warn(
+        logging.warning(
             "Exception when calling \
                        BatchV1Api->create_namespaced_job: %s"
             % api
         )
-        logging.warn("Job already deleted\n")
+        logging.warning("Job already deleted\n")
     except Exception as e:
         logging.error(
             "Exception when calling \

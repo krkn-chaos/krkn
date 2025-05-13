@@ -111,7 +111,7 @@ def delete_jobs(kubecli: KrknKubernetes, job_list: typing.List[str]):
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception as e:
-            logging.warn("Exception in getting job status: %s" % str(e))
+            logging.warning("Exception in getting job status: %s" % str(e))
         api_response = kubecli.delete_job(name=job_name, namespace="default")
 
 
@@ -146,7 +146,7 @@ def wait_for_job(
                     count += 1
                     job_list.remove(job_name)
             except Exception:
-                logging.warn("Exception in getting job status")
+                logging.warning("Exception in getting job status")
             if time.time() > wait_time:
                 raise Exception(
                     "Jobs did not complete within "
