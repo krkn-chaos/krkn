@@ -39,7 +39,7 @@ Enhancements being planned can be found in the [roadmap](ROADMAP.md).
 ### Contributions
 We are always looking for more enhancements, fixes to make it better, any contributions are most welcome. Feel free to report or work on the issues filed on github.
 
-[More information on how to Contribute](https://krkn-chaos.dev/docs/contribution-guidelines/contribute/)
+[More information on how to Contribute](https://krkn-chaos.dev/docs/contribution-guidelines/)
 
 
 ### Community
