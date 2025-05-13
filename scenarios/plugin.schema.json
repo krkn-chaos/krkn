@@ -12,6 +12,253 @@
 				"properties": {
 					"id": {
 						"type": "string",
+						"const": "kill-pods"
+					},
+					"config": {
+						"$defs": {
+							"KillPodConfig": {
+								"type": "object",
+								"properties": {
+									"namespace_pattern": {
+										"type": "string",
+										"format": "regex",
+										"title": "Namespace pattern",
+										"description": "Regular expression for target pod namespaces."
+									},
+									"name_pattern": {
+										"type": "string",
+										"format": "regex",
+										"title": "Name pattern",
+										"description": "Regular expression for target pods. Required if label_selector is not set."
+									},
+									"kill": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Number of pods to kill",
+										"description": "How many pods should we attempt to kill?"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1,
+										"title": "Label selector",
+										"description": "Kubernetes label selector for the target pods. Required if name_pattern is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
+									"kubeconfig_path": {
+										"type": "string",
+										"title": "Kubeconfig path",
+										"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+									},
+									"timeout": {
+										"type": "integer",
+										"default": 180,
+										"title": "Timeout",
+										"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+									},
+									"backoff": {
+										"type": "integer",
+										"default": 1,
+										"title": "Backoff",
+										"description": "How many seconds to wait between checks for the target pod status."
+									},
+									"krkn_pod_recovery_time": {
+										"type": "integer",
+										"default": 30,
+										"title": "Recovery Time",
+										"description": "The Expected Recovery time fo the pod (used by Krkn to monitor the pod lifecycle)."
+									}
+
+								},
+								"required": [
+									"namespace_pattern"
+								],
+								"additionalProperties": false,
+								"dependentRequired": {}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"namespace_pattern": {
+								"type": "string",
+								"format": "regex",
+								"title": "Namespace pattern",
+								"description": "Regular expression for target pod namespaces."
+							},
+							"name_pattern": {
+								"type": "string",
+								"format": "regex",
+								"title": "Name pattern",
+								"description": "Regular expression for target pods. Required if label_selector is not set."
+							},
+							"kill": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Number of pods to kill",
+								"description": "How many pods should we attempt to kill?"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1,
+								"title": "Label selector",
+								"description": "Kubernetes label selector for the target pods. Required if name_pattern is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
+							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
+							"kubeconfig_path": {
+								"type": "string",
+								"title": "Kubeconfig path",
+								"description": "Path to your Kubeconfig file. Defaults to ~/.kube/config.\nSee https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/ for details."
+							},
+							"timeout": {
+								"type": "integer",
+								"default": 180,
+								"title": "Timeout",
+								"description": "Timeout to wait for the target pod(s) to be removed in seconds."
+							},
+							"backoff": {
+								"type": "integer",
+								"default": 1,
+								"title": "Backoff",
+								"description": "How many seconds to wait between checks for the target pod status."
+							},
+							"krkn_pod_recovery_time": {
+								"type": "integer",
+								"default": 30,
+								"title": "Recovery Time",
+								"description": "The Expected Recovery time fo the pod (used by Krkn to monitor the pod lifecycle)."
+							}
+						},
+						"required": [
+							"namespace_pattern"
+						],
+						"additionalProperties": false,
+						"dependentRequired": {}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"const": "wait-for-pods"
+					},
+					"config": {
+						"$defs": {
+							"WaitForPodsConfig": {
+								"type": "object",
+								"properties": {
+									"namespace_pattern": {
+										"type": "string",
+										"format": "regex"
+									},
+									"name_pattern": {
+										"type": "string",
+										"format": "regex"
+									},
+									"label_selector": {
+										"type": "string",
+										"minLength": 1
+									},
+									"count": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 1,
+										"title": "Pod count",
+										"description": "Wait for at least this many pods to exist"
+									},
+									"timeout": {
+										"type": "integer",
+										"minimum": 1,
+										"default": 180,
+										"title": "Timeout",
+										"description": "How many seconds to wait for?"
+									},
+									"backoff": {
+										"type": "integer",
+										"default": 1,
+										"title": "Backoff",
+										"description": "How many seconds to wait between checks for the target pod status."
+									},
+									"kubeconfig_path": {
+										"type": "string"
+									}
+								},
+								"required": [
+									"namespace_pattern"
+								],
+								"additionalProperties": false,
+								"dependentRequired": {}
+							}
+						},
+						"type": "object",
+						"properties": {
+							"namespace_pattern": {
+								"type": "string",
+								"format": "regex"
+							},
+							"name_pattern": {
+								"type": "string",
+								"format": "regex"
+							},
+							"label_selector": {
+								"type": "string",
+								"minLength": 1
+							},
+							"count": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 1,
+								"title": "Pod count",
+								"description": "Wait for at least this many pods to exist"
+							},
+							"timeout": {
+								"type": "integer",
+								"minimum": 1,
+								"default": 180,
+								"title": "Timeout",
+								"description": "How many seconds to wait for?"
+							},
+							"backoff": {
+								"type": "integer",
+								"default": 1,
+								"title": "Backoff",
+								"description": "How many seconds to wait between checks for the target pod status."
+							},
+							"kubeconfig_path": {
+								"type": "string"
+							}
+						},
+						"required": [
+							"namespace_pattern"
+						],
+						"additionalProperties": false,
+						"dependentRequired": {}
+					}
+				},
+				"required": [
+					"id",
+					"config"
+				]
+			},
+			{
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
 						"const": "run_python"
 					},
 					"config": {
@@ -119,6 +366,11 @@
 										"title": "Label selector",
 										"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 									"kraken_config": {
 										"type": "string",
 										"title": "Kraken Config",
@@ -206,6 +458,11 @@
 								"title": "Label selector",
 								"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 							"kraken_config": {
 								"type": "string",
 								"title": "Kraken Config",
@@ -286,6 +543,11 @@
 										"title": "Label selector",
 										"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 									"kraken_config": {
 										"type": "string",
 										"title": "Kraken Config",
@@ -358,6 +620,11 @@
 								"title": "Label selector",
 								"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 							"kraken_config": {
 								"type": "string",
 								"title": "Kraken Config",
@@ -462,6 +729,11 @@
 										"title": "Label selector",
 										"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 									"kraken_config": {
 										"type": "string",
 										"title": "Kraken Config",
@@ -534,6 +806,11 @@
 								"title": "Label selector",
 								"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 							"kraken_config": {
 								"type": "string",
 								"title": "Kraken Config",
