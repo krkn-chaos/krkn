@@ -19,7 +19,11 @@ from . import cerberus
 
 
 def get_test_pods(
-    pod_name: str, pod_label: str, namespace: str, kubecli: KrknKubernetes
+    pod_name: str,
+    pod_label: str,
+    namespace: str,
+    kubecli: KrknKubernetes,
+    exclude_label: str = None,
 ) -> typing.List[str]:
     """
     Function that returns a list of pods to apply network policy
@@ -38,11 +42,16 @@ def get_test_pods(
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
+
     Returns:
         pod names (string) in the namespace
     """
     pods_list = []
-    pods_list = kubecli.list_pods(label_selector=pod_label, namespace=namespace)
+    pods_list = kubecli.list_pods(
+        label_selector=pod_label, namespace=namespace, exclude_label=exclude_label
+    )
     if pod_name and pod_name not in pods_list:
         raise Exception("pod name not found in namespace ")
     elif pod_name and pod_name in pods_list:
@@ -223,6 +232,9 @@ def apply_outage_policy(
         batch_cli (BatchV1Api)
             - Object to interact with Kubernetes Python client's BatchV1Api API
 
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
+
     Returns:
         The name of the job created that executes the commands on a node
         for ingress chaos scenario
@@ -314,6 +326,9 @@ def apply_ingress_policy(
         test_execution (String)
             - The order in which the filters are applied
 
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
+
     Returns:
         The name of the job created that executes the traffic shaping
         filter
@@ -390,6 +405,9 @@ def apply_net_policy(
         test_execution (String)
             - The order in which the filters are applied
 
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
+
     Returns:
         The name of the job created that executes the traffic shaping
         filter
@@ -443,6 +461,9 @@ def get_ingress_cmd(
         duration (str):
             - Duration for which the traffic control is to be done
 
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
+
     Returns:
         str: ingress filter
     """
@@ -493,6 +514,9 @@ def get_egress_cmd(
 
         duration (str):
             - Duration for which the traffic control is to be done
+
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
 
     Returns:
         str: egress filter
@@ -617,6 +641,9 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.Lis
 
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
+
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
 
     Returns:
         List of bridges on the node.
@@ -792,6 +819,9 @@ def check_bridge_interface(
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
+        exclude_label (string)
+            - pods matching this label will be excluded from the outage
+
     Returns:
         Returns True if the bridge is found in the  node.
     """
@@ -874,6 +904,15 @@ class InputParams:
             "name": "Label selector",
             "description": "Kubernetes label selector for the target pod. "
             "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
+        },
+    )
+
+    exclude_label: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Exclude label",
+            "description": "Kubernetes label selector for pods to exclude from the chaos. "
+            "Pods matching this label will be excluded even if they match the label_selector",
         },
     )
 
@@ -1009,7 +1048,11 @@ def pod_outage(
 
         br_name = get_bridge_name(api_ext, custom_obj)
         pods_list = get_test_pods(
-            test_pod_name, test_label_selector, test_namespace, kubecli
+            test_pod_name,
+            test_label_selector,
+            test_namespace,
+            kubecli,
+            params.exclude_label,
         )
 
         while not len(pods_list) <= params.instance_count:
@@ -1117,6 +1160,15 @@ class EgressParams:
             "name": "Label selector",
             "description": "Kubernetes label selector for the target pod. "
             "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
+        },
+    )
+
+    exclude_label: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Exclude label",
+            "description": "Kubernetes label selector for pods to exclude from the chaos. "
+            "Pods matching this label will be excluded even if they match the label_selector",
         },
     )
 
@@ -1257,7 +1309,11 @@ def pod_egress_shaping(
 
         br_name = get_bridge_name(api_ext, custom_obj)
         pods_list = get_test_pods(
-            test_pod_name, test_label_selector, test_namespace, kubecli
+            test_pod_name,
+            test_label_selector,
+            test_namespace,
+            kubecli,
+            params.exclude_label,
         )
 
         while not len(pods_list) <= params.instance_count:
@@ -1380,6 +1436,15 @@ class IngressParams:
             "name": "Label selector",
             "description": "Kubernetes label selector for the target pod. "
             "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
+        },
+    )
+
+    exclude_label: typing.Optional[str] = field(
+        default=None,
+        metadata={
+            "name": "Exclude label",
+            "description": "Kubernetes label selector for pods to exclude from the chaos. "
+            "Pods matching this label will be excluded even if they match the label_selector",
         },
     )
 
@@ -1521,7 +1586,11 @@ def pod_ingress_shaping(
 
         br_name = get_bridge_name(api_ext, custom_obj)
         pods_list = get_test_pods(
-            test_pod_name, test_label_selector, test_namespace, kubecli
+            test_pod_name,
+            test_label_selector,
+            test_namespace,
+            kubecli,
+            params.exclude_label,
         )
 
         while not len(pods_list) <= params.instance_count:

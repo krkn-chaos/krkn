@@ -23,8 +23,7 @@ def create_job(batch_cli, body, namespace="default"):
     """
 
     try:
-        api_response = batch_cli.create_namespaced_job(
-            body=body, namespace=namespace)
+        api_response = batch_cli.create_namespaced_job(body=body, namespace=namespace)
         return api_response
     except ApiException as api:
         logging.warn(
@@ -71,7 +70,8 @@ def create_pod(cli, body, namespace, timeout=120):
         end_time = time.time() + timeout
         while True:
             pod_stat = cli.read_namespaced_pod(
-                name=body["metadata"]["name"], namespace=namespace)
+                name=body["metadata"]["name"], namespace=namespace
+            )
             if pod_stat.status.phase == "Running":
                 break
             if time.time() > end_time:
@@ -121,16 +121,18 @@ def exec_cmd_in_pod(cli, command, pod_name, namespace, container=None):
     return ret
 
 
-def list_pods(cli, namespace, label_selector=None):
+def list_pods(cli, namespace, label_selector=None, exclude_label=None):
     """
-    Function used to list pods in a given namespace and having a certain label
+    Function used to list pods in a given namespace and having a certain label and excluding pods with exclude_label
+    and excluding pods with exclude_label
     """
 
     pods = []
     try:
         if label_selector:
             ret = cli.list_namespaced_pod(
-                namespace, pretty=True, label_selector=label_selector)
+                namespace, pretty=True, label_selector=label_selector
+            )
         else:
             ret = cli.list_namespaced_pod(namespace, pretty=True)
     except ApiException as e:
@@ -140,7 +142,16 @@ def list_pods(cli, namespace, label_selector=None):
             % e
         )
         raise e
+
     for pod in ret.items:
+        # Skip pods with the exclude label if specified
+        if exclude_label and pod.metadata.labels:
+            exclude_key, exclude_value = exclude_label.split("=", 1)
+            if (
+                exclude_key in pod.metadata.labels
+                and pod.metadata.labels[exclude_key] == exclude_value
+            ):
+                continue
         pods.append(pod.metadata.name)
 
     return pods
@@ -152,8 +163,7 @@ def get_job_status(batch_cli, name, namespace="default"):
     """
 
     try:
-        return batch_cli.read_namespaced_job_status(
-            name=name, namespace=namespace)
+        return batch_cli.read_namespaced_job_status(name=name, namespace=namespace)
     except Exception as e:
         logging.error(
             "Exception when calling \
@@ -169,7 +179,10 @@ def get_pod_log(cli, name, namespace="default"):
     """
 
     return cli.read_namespaced_pod_log(
-        name=name, namespace=namespace, _return_http_data_only=True, _preload_content=False
+        name=name,
+        namespace=namespace,
+        _return_http_data_only=True,
+        _preload_content=False,
     )
 
 
@@ -191,7 +204,8 @@ def delete_job(batch_cli, name, namespace="default"):
             name=name,
             namespace=namespace,
             body=client.V1DeleteOptions(
-                propagation_policy="Foreground", grace_period_seconds=0),
+                propagation_policy="Foreground", grace_period_seconds=0
+            ),
         )
         logging.debug("Job deleted. status='%s'" % str(api_response.status))
         return api_response
@@ -247,11 +261,8 @@ def get_node(node_name, label_selector, instance_kill_count, cli):
         )
     nodes = list_ready_nodes(cli, label_selector)
     if not nodes:
-        raise Exception(
-            "Ready nodes with the provided label selector do not exist")
-    logging.info(
-        "Ready nodes with the label selector %s: %s" % (label_selector, nodes)
-    )
+        raise Exception("Ready nodes with the provided label selector do not exist")
+    logging.info("Ready nodes with the label selector %s: %s" % (label_selector, nodes))
     number_of_nodes = len(nodes)
     if instance_kill_count == number_of_nodes:
         return nodes
