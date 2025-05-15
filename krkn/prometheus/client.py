@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 import logging
 import urllib3
 import sys
+import json
 
 import yaml
 from krkn_lib.elastic.krkn_elastic import KrknElastic
@@ -156,7 +157,8 @@ def metrics(
     start_time,
     end_time,
     metrics_profile,
-    elastic_metrics_index
+    elastic_metrics_index,
+    telemetry_json
 ) -> list[dict[str, list[(int, float)] | str]]:
    
     if metrics_profile is None or os.path.exists(metrics_profile) is False:
@@ -222,7 +224,33 @@ def metrics(
                         metrics_list.append(metric.copy())
                     except ValueError:
                         pass
-
+        telemetry_json = json.loads(telemetry_json)
+        for scenario in telemetry_json['scenarios']:
+            for k,v in scenario["affected_pods"].items():
+                metric_name = "affected_pods_recovery"
+                metric = {"metricName": metric_name, "type": k}
+                if type(v) is list:
+                    for pod in v:
+                        for k,v in pod.items():
+                            metric[k] = v
+                            metric['timestamp'] = str(datetime.datetime.now())
+                        print('adding pod' + str(metric))
+                        metrics_list.append(metric.copy())
+            for affected_node in scenario["affected_nodes"]:
+                metric_name = "affected_nodes_recovery"
+                metric = {"metricName": metric_name}
+                for k,v in affected_node.items():
+                    metric[k] = v
+                    metric['timestamp'] = str(datetime.datetime.now())
+                metrics_list.append(metric.copy())
+        if telemetry_json['health_checks']:
+            for health_check in telemetry_json["health_checks"]:
+                    metric_name = "health_check_recovery"
+                    metric = {"metricName": metric_name}
+                    for k,v in health_check.items():
+                        metric[k] = v
+                        metric['timestamp'] = str(datetime.datetime.now())
+                    metrics_list.append(metric.copy())
         if elastic:
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
