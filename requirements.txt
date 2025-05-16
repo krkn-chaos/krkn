@@ -35,6 +35,7 @@ setuptools==78.1.1
 werkzeug==3.0.6
 wheel==0.42.0
 zope.interface==5.4.0
+psutil>=5.9.0  # For disk I/O monitoring
 
 
 git+https://github.com/krkn-chaos/arcaflow-plugin-kill-pod.git@v0.1.0
