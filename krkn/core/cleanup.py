@@ -15,18 +15,17 @@ from typing import Callable, List, Optional
 
 
 class CleanupManager:
-    """
-    Manages cleanup operations for Krkn.
-    
+    """    
     This class handles registering signal handlers, exit handlers, and exception hooks
-    to ensure cleanup functions are called during termination.
+    to ensure cleanup functions are called exactly once during termination, regardless
+    of how the termination occurs (Ctrl+C, kill signal, exception, or normal exit).
     
-    Implementted capturing of diagnostic information to help with debugging.
+    It also captures diagnostic information to help with debugging.
     """
     
     def __init__(self, artifacts_dir: Optional[str] = None):
         """
-        Initialization ofthe cleanup manager.
+        Initialization of the cleanup manager.
         
         Args:
             artifacts_dir: Directory where diagnostic artifacts will be stored.
@@ -50,5 +49,67 @@ class CleanupManager:
         atexit.register(self._run_cleanup)
         
         sys.excepthook = self._exception_handler
+
+    def register_cleanup(self, func: Callable) -> None:
+        """
+        Register a cleanup callback function.
+        
+        Args:
+            func: A callable that will be invoked during cleanup.
+                  This is a scenario.cleanup() method.
+        """
+        if callable(func):
+            self._cleanup_funcs.append(func)
+            logging.debug(f"Registered cleanup function: {func.__qualname__ if hasattr(func, '__qualname__') else str(func)}")
+
+    def _signal_handler(self, signum: int, frame) -> None:
+        #TODO: frame is not used
+        """
+        Called when a signal (SIGINT/SIGTERM) is received.
+        
+        Args:
+            signum: Signal number
+            frame: Current stack frame
+        """
+        logging.info(f"Received signal {signum}, initiating cleanup...")
+        self._run_cleanup()
+        sys.exit(128 + signum)  # exit code indicating the signal
+
+    def _exception_handler(self, exc_type, exc_value, exc_traceback) -> None:
+        """
+        Called on uncaught exception to ensure cleanup before handling.
+        
+        Args:
+            exc_type: Exception type
+            exc_value: Exception value
+            exc_traceback: Exception traceback
+        """
+        logging.error(f"Unhandled exception ({exc_type.__name__}): {exc_value}")
+        self._run_cleanup()
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+    def _run_cleanup(self) -> None:
+        """
+        Execute all registered cleanup functions once.
+        
+        This method ensures cleanup runs once even if triggered from multiple sources.
+        After running all cleanup callbacks, it captures diagnostic info.
+        """
+        if self._done:
+            return
+        
+        self._done = True
+        logging.info("Running cleanup callbacks...")
+        
+        for func in list(self._cleanup_funcs):
+            try:
+                func()
+                logging.info(f"Successfully executed cleanup function: {func.__qualname__ if hasattr(func, '__qualname__') else str(func)}")
+            except Exception as e:
+                logging.error(f"Error during cleanup function {func.__qualname__ if hasattr(func, '__qualname__') else str(func)}: {e}")
+        
+        self._capture_diagnostics()
+        
+        logging.info(f"Cleanup completed. Artifacts saved to {self.artifacts_dir}")
 
    
