@@ -58,8 +58,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 except (RuntimeError, Exception) as e:
                     logging.error("Node Actions exiting due to Exception %s" % e)
                     return 1
-                else:
-                    return 0
+            return 0
 
     def get_node_scenario_object(self, node_scenario, kubecli: KrknKubernetes):
         affected_nodes_status = AffectedNodeStatus()
