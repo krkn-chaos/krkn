@@ -244,4 +244,61 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         :param namespace: Namespace of the VMI
         :return: 0 for success, 1 for failure
         """
-        return 0
+        try:
+            logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
+            
+            # Check if VM has been automatically recreated (if managed by a VirtualMachine CR)
+            timeout = 300  # seconds
+            start_time = time.time()
+            
+            while time.time() - start_time < timeout:
+                try:
+                    vmi = self.kubevirt_api.read_namespaced_virtual_machine_instance(
+                        name=vm_name, 
+                        namespace=namespace
+                    )
+                    
+                    if vmi:
+                        if vmi.status and vmi.status.phase == "Running":
+                            logging.info(f"VMI {vm_name} has been automatically recovered and is running")
+                            return 0
+                            
+                        logging.info(f"VMI {vm_name} exists but is not yet in Running state. Current state: {vmi.status.phase}")
+                except ApiException as e:
+                    if e.status == 404:
+                        logging.info(f"VMI {vm_name} not yet recreated. Waiting...")
+                
+                time.sleep(10)
+                
+            # No Automatci Recovery Happened
+            # Try manual recovery if we have the original VMI spec
+            if self.original_vmi:
+                logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
+                
+                try:
+                    vmi_dict = self.original_vmi.to_dict()
+                    
+                    if 'metadata' in vmi_dict:
+                        metadata = vmi_dict['metadata']
+                        for field in ['resourceVersion', 'uid', 'creationTimestamp', 'generation']:
+                            if field in metadata:
+                                del metadata[field]
+                    
+                    self.kubevirt_api.create_namespaced_virtual_machine_instance(
+                        namespace=namespace,
+                        body=vmi_dict
+                    )
+                    
+                    logging.info(f"Successfully recreated VMI {vm_name}")
+                    return 0
+                    
+                except ApiException as e:
+                    logging.error(f"Error recreating VMI {vm_name}: {e}")
+                    return 1
+            else:
+                logging.error(f"Failed to recover VMI {vm_name}: No original state captured and auto-recovery did not occur")
+                return 1
+                
+        except Exception as e:
+            logging.error(f"Unexpected error recovering VMI {vm_name}: {e}")
+            return 1
