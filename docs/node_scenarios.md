@@ -13,6 +13,11 @@ The following node chaos scenarios are supported:
 9. **node_crash_scenario**: Scenario to crash the node instance.
 10. **stop_start_helper_node_scenario**: Scenario to stop and start the helper node and check service status.
 11. **node_disk_detach_attach_scenario**: Scenario to detach node disk for specified duration.
+12. **node_disk_failure_scenario**: Scenario to simulate full disk failure by offlining the disk using sysfs, with rollback to restore the disk.
+    - disk_path: Path to the disk to simulate failure on (default: /dev/sdb)
+    - instance_kill_count: Number of times to inject failure per node
+    - timeout: Duration to wait for scenario completion
+    - Note: Monitors I/O impact with psutil and restores disk state using `echo running` via sysfs.
 
 
 **NOTE**: If the node does not recover from the node_crash_scenario injection, reboot the node to get it back to Ready state.

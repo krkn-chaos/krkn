@@ -153,7 +153,114 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             nodes = common_node_functions.get_node(
                 label_selector, instance_kill_count, kubecli
             )
-        
+            
+        # Get scenario-specific parameters
+        run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
+        duration = get_yaml_item_value(node_scenario, "duration", 120)
+        timeout = get_yaml_item_value(node_scenario, "timeout", 120)
+        service = get_yaml_item_value(node_scenario, "service", "")
+        ssh_private_key = get_yaml_item_value(
+            node_scenario, "ssh_private_key", "~/.ssh/id_rsa"
+        )
+        disk_path = get_yaml_item_value(node_scenario, "disk_path", "/dev/sdb")  
+        if action == "node_disk_failure_scenario" and not disk_path.startswith("/dev/"):
+            raise ValueError(f"Invalid disk path: {disk_path}. Must start with /dev/")
+
+        generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario", "node_disk_failure_scenario")  # Add to generic scenarios
+
+        if node_general and action not in generic_cloud_scenarios:
+            logging.info(
+                "Scenario: "
+                + action
+                + " is not set up for generic cloud type, skipping action"
+            )
+        else:
+            if action == "node_start_scenario":
+                node_scenario_object.node_start_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_stop_scenario":
+                node_scenario_object.node_stop_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_stop_start_scenario":
+                node_scenario_object.node_stop_start_scenario(
+                    run_kill_count, single_node, timeout, duration
+                )
+            elif action == "node_termination_scenario":
+                node_scenario_object.node_termination_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_reboot_scenario":
+                node_scenario_object.node_reboot_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_disk_detach_attach_scenario":
+                node_scenario_object.node_disk_detach_attach_scenario(
+                    run_kill_count, single_node, timeout, duration
+                )
+            elif action == "node_disk_failure_scenario":
+                logging.info(f"Executing disk failure scenario on node {single_node} with disk {disk_path}")
+                try:
+                    node_scenario_object.node_disk_failure_scenario(
+                        run_kill_count, single_node, timeout, disk_path
+                    )
+                    logging.info(f"Disk failure scenario completed successfully on node {single_node}")
+                except ValueError as ve:
+                    logging.error(f"Invalid disk configuration: {str(ve)}")
+                    raise
+                except Exception as e:
+                    logging.error(f"Failed to execute disk failure scenario: {str(e)}")
+                    raise
+            elif action == "stop_start_kubelet_scenario":
+                node_scenario_object.stop_start_kubelet_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "restart_kubelet_scenario":
+                node_scenario_object.restart_kubelet_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "stop_kubelet_scenario":
+                node_scenario_object.stop_kubelet_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "node_crash_scenario":
+                node_scenario_object.node_crash_scenario(
+                    run_kill_count, single_node, timeout
+                )
+            elif action == "stop_start_helper_node_scenario":
+                if node_scenario["cloud_type"] != "openstack":
+                    logging.error(
+                        "Scenario: " + action + " is not supported for "
+                        "cloud type "
+                        + node_scenario["cloud_type"]
+                        + ", skipping action"
+                    )
+                else:
+                    if not node_scenario["helper_node_ip"]:
+                        logging.error("Helper node IP address is not provided")
+                        raise Exception(
+                            "Helper node IP address is not provided"
+                        )
+                    node_scenario_object.helper_node_stop_start_scenario(
+                        run_kill_count, node_scenario["helper_node_ip"], timeout
+                    )
+                    node_scenario_object.helper_node_service_status(
+                        node_scenario["helper_node_ip"],
+                        service,
+                        ssh_private_key,
+                        timeout,
+                    )
+            elif action == "node_block_scenario":
+                node_scenario_object.node_block_scenario(
+                    run_kill_count, single_node, timeout, duration
+                )
+            else:
+                logging.info(
+                    "There is no node action that matches %s, skipping scenario"
+                    % action
+                )
+            
         # GCP api doesn't support multiprocessing calls, will only actually run 1 
         if parallel_nodes:
             self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
@@ -162,6 +269,29 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 self.run_node(single_node, node_scenario_object, action, node_scenario)
         affected_nodes_status = node_scenario_object.affected_nodes_status
         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
+        
+    def rollback(self, scenario: str, krkn_config: dict[str, any]) -> None:
+        """
+        Rollback the node scenario to restore the affected resources.
+        Args:
+            scenario: Path to the scenario YAML file.
+            krkn_config: Krkn configuration dictionary.
+        """
+        with open(scenario, "r") as f:
+            node_scenario_config = yaml.full_load(f)
+            for node_scenario in node_scenario_config["node_scenarios"]:
+                try:
+                    node_scenario_object = self.get_node_scenario_object(
+                        node_scenario, KrknKubernetes()
+                    )
+                    action = node_scenario["actions"][0] if node_scenario["actions"] else ""
+                    disk_path = get_yaml_item_value(node_scenario, "disk_path", "/dev/sdb")
+                    if action == "node_disk_failure_scenario":
+                        node_scenario_object.rollback_disk_failure(disk_path)
+                    # Add other rollback actions as needed
+                except Exception as e:
+                    logging.error(f"Rollback failed for scenario {action}: {str(e)}")
+                    raise e
 
     def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
         try:
