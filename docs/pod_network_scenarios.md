@@ -4,6 +4,8 @@
 Scenario to block the traffic ( Ingress/Egress ) of a pod matching the labels for the specified duration of time to understand the behavior of the service/other services which depend on it during downtime. This helps with planning the requirements accordingly, be it improving the timeouts or tweaking the alerts etc.
 With the current network policies, it is not possible to explicitly block ports which are enabled by allowed network policy rule. This chaos scenario addresses this issue by using OVS flow rules to block ports related to the pod. It supports OpenShiftSDN and OVNKubernetes based networks.
 
+The scenario also supports excluding specific pods from the outage using the `exclude_label` parameter, which allows keeping critical pods running within the same namespace while causing outages to others.
+
 ##### Sample scenario config (using a plugin)
 ```
 - id: pod_network_outage
@@ -14,6 +16,8 @@ With the current network policies, it is not possible to explicitly block ports 
     ingress_ports:                 # Optional - List of ports to block traffic on
         - 8443                     # Blocks 8443, Default [], i.e. all ports.
     label_selector: 'component=ui' # Blocks access to openshift console
+    exclude_label: 'skip=true'     # Optional - Pods matching this label will be excluded from the chaos
+    exclude_label: 'excluded=true'               # Optional - Pods matching this label will be excluded from the chaos
 ```
 ### Pod Network shaping
 Scenario to introduce network latency, packet loss, and bandwidth restriction in the Pod's network interface. The purpose of this scenario is to observe faults caused by random variations in the network.
@@ -25,6 +29,7 @@ Scenario to introduce network latency, packet loss, and bandwidth restriction in
     namespace: openshift-console   # Required - Namespace of the pod to which filter need to be applied.
     label_selector: 'component=ui' # Applies traffic shaping to access openshift console.
     network_params:
+    exclude_label: 'excluded=true'               # Optional - Pods matching this label will be excluded from the chaos
         latency: 500ms             # Add 500ms latency to egress traffic from the pod.
 ```
 ##### Sample scenario config for ingress traffic shaping (using plugin)
@@ -34,6 +39,7 @@ Scenario to introduce network latency, packet loss, and bandwidth restriction in
     namespace: openshift-console   # Required - Namespace of the pod to which filter need to be applied.
     label_selector: 'component=ui' # Applies traffic shaping to access openshift console.
     network_params:
+    exclude_label: 'excluded=true'               # Optional - Pods matching this label will be excluded from the chaos
         latency: 500ms             # Add 500ms latency to egress traffic from the pod.
 ```
 

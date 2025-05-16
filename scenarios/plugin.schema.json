@@ -44,6 +44,11 @@
 										"title": "Label selector",
 										"description": "Kubernetes label selector for the target pods. Required if name_pattern is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
 									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 									"kubeconfig_path": {
 										"type": "string",
 										"title": "Kubeconfig path",
@@ -103,6 +108,11 @@
 								"title": "Label selector",
 								"description": "Kubernetes label selector for the target pods. Required if name_pattern is not set.\nSee https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/ for details."
 							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 							"kubeconfig_path": {
 								"type": "string",
 								"title": "Kubeconfig path",
@@ -2141,6 +2151,11 @@
 										"title": "Label selector",
 										"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 									"kraken_config": {
 										"type": "string",
 										"title": "Kraken Config",
@@ -2228,6 +2243,11 @@
 								"title": "Label selector",
 								"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 							"kraken_config": {
 								"type": "string",
 								"title": "Kraken Config",
@@ -2301,6 +2321,11 @@
 										"title": "Label selector",
 										"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 									"kraken_config": {
 										"type": "string",
 										"title": "Kraken Config",
@@ -2373,6 +2398,11 @@
 								"title": "Label selector",
 								"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 							"kraken_config": {
 								"type": "string",
 								"title": "Kraken Config",
@@ -2470,6 +2500,11 @@
 										"title": "Label selector",
 										"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 									},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 									"kraken_config": {
 										"type": "string",
 										"title": "Kraken Config",
@@ -2542,6 +2577,11 @@
 								"title": "Label selector",
 								"description": "Kubernetes label selector for the target pod. When pod_name is not specified, pod with matching label_selector is selected for chaos scenario"
 							},
+									"exclude_label": {
+										"type": "string",
+										"title": "Exclude label",
+										"description": "Kubernetes label selector for pods to exclude from the chaos. Pods matching this label will be excluded even if they match the label_selector"
+									},
 							"kraken_config": {
 								"type": "string",
 								"title": "Kraken Config",
