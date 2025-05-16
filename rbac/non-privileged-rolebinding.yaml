@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: krkn-non-privileged-rolebinding
+  namespace: target-namespace
+subjects:
+- kind: ServiceAccount
+  name: krkn-sa
+  namespace: target-namespace
+roleRef:
+  kind: Role
+  name: krkn-non-privileged-role
+  apiGroup: rbac.authorization.k8s.io
