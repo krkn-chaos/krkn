@@ -29,6 +29,7 @@ from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
 from krkn.utils import TeeLogHandler
 from krkn.utils.HealthChecker import HealthChecker
+from krkn.core.cleanup import CleanupManager
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
@@ -46,6 +47,10 @@ def main(cfg) -> int:
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
+    
+    run_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    artifacts_dir = os.path.join("artifacts", f"krkn-run-{run_id}")
+    cleanup_manager = CleanupManager(artifacts_dir)
 
     # Parse and read the config
     if os.path.isfile(cfg):
@@ -338,6 +343,9 @@ def main(cfg) -> int:
                                 f"impossible to find scenario {scenario_type}, plugin not found. Exiting"
                             )
                             sys.exit(1)
+
+                        if hasattr(scenario_plugin, 'cleanup') and callable(scenario_plugin.cleanup):
+                            cleanup_manager.register_cleanup(scenario_plugin.cleanup)
 
                         failed_post_scenarios, scenario_telemetries = (
                             scenario_plugin.run_scenarios(

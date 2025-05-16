@@ -112,4 +112,68 @@ class CleanupManager:
         
         logging.info(f"Cleanup completed. Artifacts saved to {self.artifacts_dir}")
 
-   
+    def _capture_diagnostics(self) -> None:
+        """
+        Capture diagnostic info about the cluster.
+        
+        This method runs kubectl commands to gather information about pods, nodes, 
+        and events, and saves them to files in the artifacts directory.
+        """
+        logging.info("Capturing diagnostic information...")
+        
+        try:
+            self._run_and_save_command(["kubectl", "get", "pods", "-A", "-o", "wide"], "all-pods.txt")
+            self._run_and_save_command(["kubectl", "get", "nodes", "-o", "wide"], "nodes.txt")
+            self._run_and_save_command(["kubectl", "get", "events", "-A"], "events.txt")
+            
+            try:
+                nodes_output = subprocess.run(
+                    ["kubectl", "get", "nodes", "-o", "name"], 
+                    capture_output=True, 
+                    text=True,
+                    check=True
+                )
+                
+                for node in nodes_output.stdout.strip().split('\n'):
+                    if node:  # Skip empty lines
+                        node_name = node.replace('node/', '')
+                        self._run_and_save_command(
+                            ["kubectl", "describe", "node", node_name],
+                            f"node-{node_name}-details.txt"
+                        )
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Error getting node details: {e}")
+                
+        except Exception as e:
+            logging.error(f"Error capturing diagnostics: {e}")
+
+    def _run_and_save_command(self, command: List[str], output_file: str) -> None:
+        """
+        Run a command and save its output to a file in the artifacts directory.
+        
+        Args:
+            command: Command to run as a list of strings
+            output_file: Filename to save the output to
+        """
+        try:
+            result = subprocess.run(
+                command, 
+                capture_output=True, 
+                text=True,
+                check=True
+            )
+            
+            output_path = os.path.join(self.artifacts_dir, output_file)
+            with open(output_path, "w") as f:
+                f.write(result.stdout)
+                
+            logging.debug(f"Saved output of '{' '.join(command)}' to {output_path}")
+            
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Command '{' '.join(command)}' failed with exit code {e.returncode}: {e.stderr}")
+            output_path = os.path.join(self.artifacts_dir, f"error-{output_file}")
+            with open(output_path, "w") as f:
+                f.write(f"Command: {' '.join(command)}\n")
+                f.write(f"Exit code: {e.returncode}\n")
+                f.write(f"Stdout:\n{e.stdout}\n")
+                f.write(f"Stderr:\n{e.stderr}\n")
