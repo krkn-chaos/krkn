@@ -45,6 +45,16 @@ class AbstractScenarioPlugin(ABC):
         """
         pass
 
+    def cleanup(self) -> bool:
+        """
+        Cleanup method that should be implemented by each scenario plugin to handle
+        cleanup of resources when Krkn is interrupted or killed unexpectedly.
+        
+        :return: True if cleanup was successful, False otherwise
+        """
+        logging.info(f"Running default cleanup for {self.__class__.__name__}")
+        return True
+
     def run_scenarios(
         self,
         run_uuid: str,
