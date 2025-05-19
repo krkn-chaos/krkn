@@ -4,15 +4,14 @@ from typing import Optional, Dict, Any
 
 import kubernetes
 import yaml
-from kubevirt.api import DefaultApi
-from kubevirt.models.v1_virtual_machine_instance import V1VirtualMachineInstance
+from kubevirt import ApiClient, DefaultApi
 from kubevirt.rest import ApiException
+from kubevirt.models import V1VirtualMachineInstance
 from kubernetes.client import ApiClient
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import log_exception
-
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -81,9 +80,8 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             
             api_client = ApiClient(k8s_config)
             self.kubevirt_api = DefaultApi(api_client)
-            
-            self.kubevirt_api.get_api_group()
-            logging.info("Successfully connected to KubeVirt API")
+                        
+            logging.info("Successfully initialized KubeVirt API client")
         except ApiException as e:
             logging.error(f"Error initializing KubeVirt client: {e}")
             raise RuntimeError(f"Failed to initialize KubeVirt client: {e}")
@@ -236,69 +234,43 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             logging.error(f"Unexpected error deleting VMI {vm_name}: {e}")
             return 1
 
-    def recover(self, vm_name: str, namespace: str) -> int:
-        """
-        Recover a deleted VMI, either by waiting for auto-recovery or manually recreating it.
-        
-        :param vm_name: Name of the VMI to recover
-        :param namespace: Namespace of the VMI
-        :return: 0 for success, 1 for failure
-        """
+
+
+    def recover(self, name, namespace):
+        logging.info(f"[recover] Starting recovery for VMI: {name} in namespace: {namespace}")
+
         try:
-            logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
-            
-            # Check if VM has been automatically recreated (if managed by a VirtualMachine CR)
-            timeout = 300  # seconds
-            start_time = time.time()
-            
-            while time.time() - start_time < timeout:
-                try:
-                    vmi = self.kubevirt_api.read_namespaced_virtual_machine_instance(
-                        name=vm_name, 
-                        namespace=namespace
-                    )
-                    
-                    if vmi:
-                        if vmi.status and vmi.status.phase == "Running":
-                            logging.info(f"VMI {vm_name} has been automatically recovered and is running")
-                            return 0
-                            
-                        logging.info(f"VMI {vm_name} exists but is not yet in Running state. Current state: {vmi.status.phase}")
-                except ApiException as e:
-                    if e.status == 404:
-                        logging.info(f"VMI {vm_name} not yet recreated. Waiting...")
-                
-                time.sleep(10)
-                
-            # No Automatci Recovery Happened
-            # Try manual recovery if we have the original VMI spec
-            if self.original_vmi:
-                logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
-                
-                try:
-                    vmi_dict = self.original_vmi.to_dict()
-                    
-                    if 'metadata' in vmi_dict:
-                        metadata = vmi_dict['metadata']
-                        for field in ['resourceVersion', 'uid', 'creationTimestamp', 'generation']:
-                            if field in metadata:
-                                del metadata[field]
-                    
-                    self.kubevirt_api.create_namespaced_virtual_machine_instance(
-                        namespace=namespace,
-                        body=vmi_dict
-                    )
-                    
-                    logging.info(f"Successfully recreated VMI {vm_name}")
-                    return 0
-                    
-                except ApiException as e:
-                    logging.error(f"Error recreating VMI {vm_name}: {e}")
-                    return 1
+            logging.info(f"[recover] Trying initial read of VMI {name} in {namespace}")
+            vmi = self.kubevirt_api.read_namespaced_virtual_machine_instance(name, namespace)
+        except ApiException as e:
+            if e.status == 404:
+                logging.warning(f"[recover] VMI {name} not found initially (404). Will retry...")
+                vmi = None
             else:
-                logging.error(f"Failed to recover VMI {vm_name}: No original state captured and auto-recovery did not occur")
-                return 1
-                
-        except Exception as e:
-            logging.error(f"Unexpected error recovering VMI {vm_name}: {e}")
-            return 1
+                logging.error(f"[recover] Unexpected error during initial read: {e}")
+                raise
+
+        retries = self.recover_timeout 
+        for attempt in range(1, retries + 1):
+            try:
+                logging.info(f"[recover] Retry attempt {attempt}: reading VMI {name}")
+                vmi = self.kubevirt_api.read_namespaced_virtual_machine_instance(name, namespace)
+                phase = getattr(vmi.status, 'phase', None)
+                logging.info(f"[recover] VMI phase: {phase}")
+
+                if phase == "Running":
+                    logging.info(f"[recover] VMI {name} successfully recovered (Running).")
+                    return 0
+            except ApiException as e:
+                if e.status == 404:
+                    logging.warning(f"[recover] Attempt {attempt}: VMI {name} not found (404). Retrying...")
+                else:
+                    logging.error(f"[recover] Attempt {attempt}: Unexpected API error: {e}")
+                    raise
+            time.sleep(1)
+
+        logging.error(f"[recover] VMI {name} did not recover in time after {retries} attempts.")
+        return 1
+
+
+
