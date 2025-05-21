@@ -199,19 +199,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_scenario_object.node_disk_detach_attach_scenario(
                     run_kill_count, single_node, timeout, duration
                 )
-            elif action == "node_disk_failure_scenario":
-                logging.info(f"Executing disk failure scenario on node {single_node} with disk {disk_path}")
-                try:
-                    node_scenario_object.node_disk_failure_scenario(
-                        run_kill_count, single_node, timeout, disk_path
-                    )
-                    logging.info(f"Disk failure scenario completed successfully on node {single_node}")
-                except ValueError as ve:
-                    logging.error(f"Invalid disk configuration: {str(ve)}")
-                    raise
-                except Exception as e:
-                    logging.error(f"Failed to execute disk failure scenario: {str(e)}")
-                    raise
             elif action == "stop_start_kubelet_scenario":
                 node_scenario_object.stop_start_kubelet_scenario(
                     run_kill_count, single_node, timeout
@@ -347,6 +334,11 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             elif action == "node_disk_detach_attach_scenario":
                 node_scenario_object.node_disk_detach_attach_scenario(
                     run_kill_count, single_node, timeout, duration)
+            elif action == "node_disk_failure_scenario":
+                disk_path = get_yaml_item_value(node_scenario, "disk_path", "/dev/sdb")
+                node_scenario_object.node_disk_failure_scenario(
+                    run_kill_count, single_node, timeout, disk_path
+                )
             elif action == "stop_start_kubelet_scenario":
                 node_scenario_object.stop_start_kubelet_scenario(
                     run_kill_count, single_node, timeout
