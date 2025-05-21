@@ -10,7 +10,6 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value
 
-
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
