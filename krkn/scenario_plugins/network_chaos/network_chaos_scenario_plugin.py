@@ -10,7 +10,6 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value, log_exception
 
-from krkn import cerberus
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
@@ -111,32 +110,20 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                                 return 1
                         if test_execution == "serial":
                             logging.info("Waiting for serial job to finish")
-                            start_time = int(time.time())
                             self.wait_for_job(
                                 joblst[:],
                                 lib_telemetry.get_lib_kubernetes(),
                                 test_duration + 300,
                             )
 
-                            end_time = int(time.time())
-                            cerberus.publish_kraken_status(
-                                None,
-                                start_time,
-                                end_time,
-                            )
                         if test_execution == "parallel":
                             break
                     if test_execution == "parallel":
                         logging.info("Waiting for parallel job to finish")
-                        start_time = int(time.time())
                         self.wait_for_job(
                             joblst[:],
                             lib_telemetry.get_lib_kubernetes(),
                             test_duration + 300,
-                        )
-                        end_time = int(time.time())
-                        cerberus.publish_kraken_status(
-                            [], start_time, end_time
                         )
                 except Exception as e:
                     logging.error(
