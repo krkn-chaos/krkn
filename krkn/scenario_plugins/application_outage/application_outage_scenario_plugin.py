@@ -5,7 +5,6 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value, get_random_string
 from jinja2 import Template
-from krkn import cerberus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
