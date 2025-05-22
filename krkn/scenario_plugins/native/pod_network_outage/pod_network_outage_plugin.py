@@ -15,7 +15,6 @@ from arcaflow_plugin_sdk import plugin, validation
 from kubernetes import client
 from kubernetes.client.api.apiextensions_v1_api import ApiextensionsV1Api
 from kubernetes.client.api.custom_objects_api import CustomObjectsApi
-from . import cerberus
 
 
 def get_test_pods(
@@ -877,15 +876,6 @@ class InputParams:
         },
     )
 
-    kraken_config: typing.Dict[str, typing.Any] = field(
-        default=None,
-        metadata={
-            "name": "Kraken Config",
-            "description": "Kraken config file dictionary "
-            "Set this field if you wish to publish status onto Cerberus",
-        },
-    )
-
     test_duration: typing.Annotated[typing.Optional[int], validation.min(1)] = field(
         default=120,
         metadata={
@@ -992,9 +982,6 @@ def pod_outage(
     job_list = []
     publish = False
 
-    if params.kraken_config:
-        publish = True
-
     for i in params.direction:
         filter_dict[i] = eval(f"params.{i}_ports")
 
@@ -1045,11 +1032,6 @@ def pod_outage(
         start_time = int(time.time())
         logging.info("Waiting for job to finish")
         wait_for_job(job_list[:], kubecli, params.test_duration + 300)
-        end_time = int(time.time())
-        if publish:
-            cerberus.publish_kraken_status(
-                params.kraken_config, "", start_time, end_time
-            )
 
         return "success", PodOutageSuccessOutput(
             test_pods=pods_list,
@@ -1117,15 +1099,6 @@ class EgressParams:
             "name": "Label selector",
             "description": "Kubernetes label selector for the target pod. "
             "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
-        },
-    )
-
-    kraken_config: typing.Dict[str, typing.Any] = field(
-        default=None,
-        metadata={
-            "name": "Kraken Config",
-            "description": "Krkn config file dictionary "
-            "Set this field if you wish to publish status onto Cerberus",
         },
     )
 
@@ -1296,24 +1269,13 @@ def pod_egress_shaping(
                 wait_for_job(job_list[:], kubecli, params.test_duration + 20)
                 logging.info("Waiting for wait_duration %s" % params.test_duration)
                 time.sleep(params.test_duration)
-                end_time = int(time.time())
-                if publish:
-                    cerberus.publish_kraken_status(
-                        params.kraken_config, "", start_time, end_time
-                    )
             if params.execution_type == "parallel":
                 break
         if params.execution_type == "parallel":
             logging.info("Waiting for parallel job to finish")
-            start_time = int(time.time())
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
             time.sleep(params.test_duration)
-            end_time = int(time.time())
-            if publish:
-                cerberus.publish_kraken_status(
-                    params.kraken_config, "", start_time, end_time
-                )
 
         return "success", PodEgressNetShapingSuccessOutput(
             test_pods=pods_list,
@@ -1380,15 +1342,6 @@ class IngressParams:
             "name": "Label selector",
             "description": "Kubernetes label selector for the target pod. "
             "When pod_name is not specified, pod with matching label_selector is selected for chaos scenario",
-        },
-    )
-
-    kraken_config: typing.Dict[str, typing.Any] = field(
-        default=None,
-        metadata={
-            "name": "Kraken Config",
-            "description": "Path to the config file of Kraken. "
-            "Set this field if you wish to publish status onto Cerberus",
         },
     )
 
@@ -1556,15 +1509,12 @@ def pod_ingress_shaping(
                 )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
-                start_time = int(time.time())
-                wait_for_job(job_list[:], kubecli, params.test_duration + 20)
-                logging.info("Waiting for wait_duration %s" % params.test_duration)
+                wait_for_job(job_list[:], kubecli,
+                             params.test_duration + 20)
+                logging.info("Waiting for wait_duration %s" %
+                             params.test_duration)
                 time.sleep(params.test_duration)
-                end_time = int(time.time())
-                if publish:
-                    cerberus.publish_kraken_status(
-                        params.kraken_config, "", start_time, end_time
-                    )
+
             if params.execution_type == "parallel":
                 break
         if params.execution_type == "parallel":
@@ -1573,11 +1523,6 @@ def pod_ingress_shaping(
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
             time.sleep(params.test_duration)
-            end_time = int(time.time())
-            if publish:
-                cerberus.publish_kraken_status(
-                    params.kraken_config, "", start_time, end_time
-                )
 
         return "success", PodIngressNetShapingSuccessOutput(
             test_pods=pods_list,
