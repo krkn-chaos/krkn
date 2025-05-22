@@ -1,6 +1,7 @@
 import sys
 import logging
 import time
+import psutil
 import krkn.invoke.command as runcommand
 import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 from krkn_lib.k8s import KrknKubernetes
@@ -144,3 +145,89 @@ class abstract_node_scenarios:
     # Currently only configured for azure
     def node_block_scenario(self, instance_kill_count, node, timeout, duration):
         pass
+    
+    def node_disk_failure_scenario(self, instance_kill_count, node, timeout, disk_path="/dev/sdb"):
+        """
+        Simulate full disk failure on a node by offlining the disk using sysfs.
+        Args:
+            instance_kill_count: Number of times to run the scenario.
+            node: Node name to target.
+            timeout: Timeout in seconds for node status checks.
+            disk_path: Path to the disk (e.g., /dev/sdb).
+        """
+        for _ in range(instance_kill_count):
+            affected_node = AffectedNode(node)
+            try:
+                logging.info(f"Starting full disk failure scenario on node {node} for disk {disk_path}")
+                
+                # Prevent accidental root disk corruption
+                if disk_path in ["/dev/sda", "/dev/vda", "/dev/xvda"]:
+                    logging.error(f"Cannot simulate failure on root disk {disk_path}")
+                    raise ValueError(f"Cannot simulate failure on root disk {disk_path}")
+            
+                # Validate disk existence
+                disk_name = disk_path.split('/')[-1]
+                result = runcommand.run(
+                    f"oc debug node/{node} -- chroot /host ls /sys/block/{disk_name}"
+                )
+                if not result:
+                    logging.error(f"Disk {disk_path} not found on node {node}")
+                    raise ValueError(f"Disk {disk_path} not found")
+                
+                # Offline the disk to simulate full failure
+                runcommand.run(
+                    f"oc debug node/{node} -- chroot /host "
+                    f"echo offline > /sys/block/{disk_name}/state"
+                )
+                
+                # Monitor I/O impact
+                self.monitor_io(node, disk_path)
+                
+                # Wait for node to reflect failure (e.g., pod evictions, I/O errors)
+                nodeaction.wait_for_not_ready_status(node, timeout, self.kubecli, affected_node)
+                
+                logging.info(f"Full disk failure injected on {disk_path} for node {node}")
+                self.add_affected_node(affected_node)
+                
+            except Exception as e:
+                logging.error(f"Failed to simulate disk failure on {node}: {str(e)}")
+                raise e
+
+    def rollback_disk_failure(self, disk_path="/dev/sdb"):
+        """
+        Rollback the disk failure by restoring the disk to running state.
+        Args:
+            disk_path: Path to the disk (e.g., /dev/sdb).
+        """
+        for affected_node in self.affected_nodes_status.affected_nodes:
+            try:
+                logging.info(f"Rolling back disk failure on node {affected_node.node} for disk {disk_path}")
+                disk_name = disk_path.split('/')[-1]
+                runcommand.run(
+                    f"oc debug node/{affected_node.node} -- chroot /host "
+                    f"echo running > /sys/block/{disk_name}/state"
+                )
+                # Verify node recovery
+                nodeaction.wait_for_ready_status(affected_node.node, 60, self.kubecli, affected_node)
+                logging.info(f"Disk {disk_path} restored on node {affected_node.node}")
+            except Exception as e:
+                logging.error(f"Rollback failed for node {affected_node.node}: {str(e)}")
+                raise e
+
+    def monitor_io(self, node, disk_path):
+        """
+        Monitor I/O metrics for the disk to validate failure impact.
+        Args:
+            node: Node name.
+            disk_path: Path to the disk.
+        Returns:
+            Dictionary of I/O metrics.
+        """
+        try:
+            disk_name = disk_path.split('/')[-1]
+            metrics = psutil.disk_io_counters(perdisk=True).get(disk_name, {})
+            logging.info(f"Disk I/O metrics for {disk_path} on {node}: {metrics}")
+            return metrics
+        except Exception as e:
+            logging.error(f"Failed to monitor I/O for {disk_path} on {node}: {str(e)}")
+            return {}
