@@ -11,6 +11,8 @@ import uuid
 import time
 import queue
 import threading
+import signal
+import atexit
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
@@ -33,6 +35,91 @@ from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
 )
+
+# Global variables for cleanup
+current_scenario = None
+current_telemetry = None
+current_krkn_config = None
+cleanup_lock = threading.Lock()
+
+def cleanup_handler(signum=None, frame=None):
+    """
+    Handle cleanup when Krkn is interrupted or killed
+    """
+    with cleanup_lock:
+        if current_scenario and current_telemetry and current_krkn_config:
+            logging.info("Starting cleanup due to interruption...")
+            try:
+                # Collect artifacts
+                collect_artifacts()
+                # Run scenario cleanup
+                run_scenario_cleanup()
+                # Save cleanup status
+                save_cleanup_status()
+            except Exception as e:
+                logging.error(f"Cleanup failed: {e}")
+            finally:
+                logging.info("Cleanup completed")
+                sys.exit(0)
+
+def collect_artifacts():
+    """
+    Collect artifacts during cleanup
+    """
+    if current_telemetry and current_krkn_config:
+        try:
+            # Collect logs
+            utils.collect_and_put_ocp_logs(
+                current_telemetry,
+                current_scenario,
+                current_telemetry.get_telemetry_request_id(),
+                int(time.time() - 300),  # Last 5 minutes
+                int(time.time())
+            )
+            # Collect events if enabled
+            if current_krkn_config["telemetry"]["events_backup"]:
+                utils.populate_cluster_events(
+                    current_krkn_config,
+                    current_scenario,
+                    current_telemetry.get_lib_kubernetes(),
+                    int(time.time() - 300),
+                    int(time.time())
+                )
+        except Exception as e:
+            logging.error(f"Failed to collect artifacts: {e}")
+
+def run_scenario_cleanup():
+    """
+    Run scenario-specific cleanup
+    """
+    if current_scenario:
+        try:
+            # Get the appropriate plugin
+            plugin = ScenarioPluginFactory.get_plugin(current_scenario)
+            if plugin:
+                plugin.cleanup()
+        except Exception as e:
+            logging.error(f"Failed to run scenario cleanup: {e}")
+
+def save_cleanup_status():
+    """
+    Save cleanup status to a file
+    """
+    try:
+        status = {
+            "timestamp": time.time(),
+            "scenario": current_scenario,
+            "cleanup_status": "completed"
+        }
+        with open("cleanup_status.json", "w") as f:
+            json.dump(status, f)
+    except Exception as e:
+        logging.error(f"Failed to save cleanup status: {e}")
+
+# Register signal handlers
+signal.signal(signal.SIGINT, cleanup_handler)
+signal.signal(signal.SIGTERM, cleanup_handler)
+atexit.register(cleanup_handler)
 
 # removes TripleDES warning
 import warnings

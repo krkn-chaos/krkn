@@ -20,6 +20,35 @@ There are 3 states in the kraken status:
 
 
 
+#### Cleanup During Unexpected Failures
+
+When Krkn is interrupted (Ctrl+C) or killed unexpectedly, it will automatically:
+
+1. Capture current state artifacts:
+   - Logs from the last 5 minutes
+   - Cluster events (if enabled)
+   - Current scenario state
+   - Resource status
+
+2. Run scenario-specific cleanup:
+   - Each scenario plugin implements its own cleanup method
+   - Resources are restored to their original state
+   - Temporary resources are removed
+   - Network policies are cleaned up
+
+3. Save cleanup status:
+   - Timestamp of cleanup
+   - Scenario being cleaned up
+   - Cleanup success/failure status
+   - Saved to cleanup_status.json
+
+4. Exit gracefully:
+   - All cleanup operations complete
+   - Status is saved
+   - Process exits with status 0
+
+
+
 #### Configuration
 
 In the config you need to set these parameters to tell kraken which port to post the kraken run status to.
