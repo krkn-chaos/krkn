@@ -3,6 +3,7 @@ import logging
 from arcaflow_plugin_sdk import plugin
 
 from krkn.scenario_plugins.native.network import ingress_shaping
+from krkn.scenario_plugins.types import ExecutionType
 
 
 class NetworkScenariosTest(unittest.TestCase):
@@ -28,7 +29,7 @@ class NetworkScenariosTest(unittest.TestCase):
                     "loss": "0.02",
                     "bandwidth": "100mbit",
                 },
-                execution_type="parallel",
+                execution_type=ExecutionType.PARALLEL.value,
             ),
             self.fail,
         )
