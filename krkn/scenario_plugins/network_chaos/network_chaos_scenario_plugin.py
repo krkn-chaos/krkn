@@ -13,6 +13,7 @@ from krkn_lib.utils import get_yaml_item_value, log_exception
 from krkn import cerberus, utils
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.scenario_plugins.types import ExecutionType
 
 
 class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
@@ -35,7 +36,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                 test_node_label = get_yaml_item_value(
                     test_dict, "label_selector", "node-role.kubernetes.io/master"
                 )
-                test_execution = get_yaml_item_value(test_dict, "execution", "serial")
+                test_execution = get_yaml_item_value(test_dict, "execution", ExecutionType.SERIAL.value)
                 test_instance_count = get_yaml_item_value(
                     test_dict, "instance_count", 1
                 )
@@ -105,7 +106,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                                     "NetworkChaosScenarioPlugin Error creating job"
                                 )
                                 return 1
-                        if test_execution == "serial":
+                        if test_execution == ExecutionType.SERIAL.value:
                             logging.info("Waiting for serial job to finish")
                             start_time = int(time.time())
                             self.wait_for_job(
@@ -121,9 +122,9 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                                 start_time,
                                 end_time,
                             )
-                        if test_execution == "parallel":
+                        if test_execution == ExecutionType.PARALLEL.value:
                             break
-                    if test_execution == "parallel":
+                    if test_execution == ExecutionType.PARALLEL.value:
                         logging.info("Waiting for parallel job to finish")
                         start_time = int(time.time())
                         self.wait_for_job(
@@ -237,7 +238,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
             tc_set = "{0} tc qdisc add dev {1} root netem".format(tc_set, i)
             tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, i)
             tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, i)
-            if execution == "parallel":
+            if execution == ExecutionType.PARALLEL.value:
                 for val in vallst.keys():
                     tc_set += " {0} {1} ".format(param_map[val], vallst[val])
                 tc_set += ";"
