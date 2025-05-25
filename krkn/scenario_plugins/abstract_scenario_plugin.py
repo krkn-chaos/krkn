@@ -1,10 +1,13 @@
 import logging
 import time
+from typing import Optional
 from abc import ABC, abstractmethod
+
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn import utils
+from krkn.scenario_plugins.rollback_scenario_plugin import RollbackCallableTracer
 
 
 class AbstractScenarioPlugin(ABC):
@@ -16,6 +19,7 @@ class AbstractScenarioPlugin(ABC):
         krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
+        rollback_callable_tracer: RollbackCallableTracer = RollbackCallableTracer("/path/to/rollback/directory")
     ) -> int:
         """
         This method serves as the entry point for a ScenarioPlugin. To make the plugin loadable,
@@ -117,3 +121,15 @@ class AbstractScenarioPlugin(ABC):
             logging.info(f"wating {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
         return failed_scenarios, scenario_telemetries
+
+    @staticmethod
+    @abstractmethod
+    def rollback_callable(arguments: Optional[tuple] = None, kwargs: Optional[dict] = None) -> None:
+        """
+        This method is used to rollback the changes made by the scenario plugin.
+        It should be implemented by the scenario plugin to perform the rollback actions.
+        
+        :param arguments: Optional tuple of arguments for the rollback callable.
+        :param kwargs: Optional dictionary of keyword arguments for the rollback callable.
+        """
+        raise NotImplementedError("Rollback method must be implemented in the scenario plugin.")
