@@ -22,19 +22,7 @@ def rollback_callable(run_uuid: str, scenario: str, krkn_config: dict[str, any])
 if __name__ == "__main__":
     print("Executing rollback callable...")
     rollback_callable(
-        "t",
-        "e",
-        "s",
-        "t",
-        "_",
-        "r",
-        "u",
-        "n",
-        "_",
-        "u",
-        "u",
-        "i",
-        "d",
+        "test_run_uuid",
         scenario="test_scenario",
         krkn_config={"key1": "value", "key2": False, "key3": 123, "key4": ["value1", "value2", "value3"]},
     )

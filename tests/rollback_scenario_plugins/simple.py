@@ -29,7 +29,7 @@ class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
         logging.info(f"Setting rollback callable for run {run_uuid} with scenario {scenario}.")
         rollback_callable_tracer.set_rollback_callable(
             self.rollback_callable,
-            arguments=(run_uuid),
+            arguments=(run_uuid,),
             kwargs={"scenario": scenario, "krkn_config": krkn_config},
         )
         return 0

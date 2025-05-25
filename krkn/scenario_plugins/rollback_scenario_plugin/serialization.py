@@ -85,7 +85,7 @@ class Serializer:
             return "None"
         elif isinstance(argument, bool):
             return "True" if argument else "False"
-        if isinstance(argument, str):
+        elif isinstance(argument, str):
             return f'"{argument}"'
         elif isinstance(argument, (int, float)):
             return str(argument)
@@ -297,7 +297,7 @@ class Serializer:
             has_lib_telemetry=self._has_krkn_lib_obj(KrknTelemetryOpenshift, arguments, kwargs),
             has_kubecli=self._has_krkn_lib_obj(KrknKubernetes, arguments, kwargs),
             has_scenario_telemetry=self._has_krkn_lib_obj(ScenarioTelemetry, arguments, kwargs),
-            serialized_arguments=self._parse_arguments(arguments),
+            serialized_arguments=self._parse_arguments(arguments=arguments),
             serialized_kwargs=self._parse_kwargs(kwargs),
         )
 
