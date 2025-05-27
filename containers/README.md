@@ -6,7 +6,7 @@ Container image gets automatically built by quay.io at [Kraken image](https://qu
 
 ### Run containerized version
 
-Refer [instructions](https://github.com/redhat-chaos/krkn/blob/main/docs/installation.md#run-containerized-version) for information on how to run the containerized version of kraken.
+Refer [instructions](https://krkn-chaos.dev/docs/installation/) for information on how to run the containerized version of kraken.
 
 
 ### Run Custom Kraken Image
