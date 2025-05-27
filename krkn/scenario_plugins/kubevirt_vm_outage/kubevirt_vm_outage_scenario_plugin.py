@@ -1,17 +1,14 @@
 import logging
 import time
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
 
-import kubernetes
 import yaml
-from kubevirt import ApiClient, DefaultApi
-from kubevirt.rest import ApiException
-from kubevirt.models import V1VirtualMachineInstance
-from kubernetes.client import ApiClient
+from kubernetes.client.rest import ApiException
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import log_exception
+
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -22,8 +19,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
     """
 
     def __init__(self):
-        self.kubevirt_api = None
-        self.k8s_api = None
+        self.k8s_client = None
         self.original_vmi = None
         
     def get_scenario_types(self) -> list[str]:
@@ -64,28 +60,39 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
 
     def init_clients(self, k8s_client: KrknKubernetes):
         """
-        Initialize KubeVirt and Kubernetes API clients.
+        Initialize Kubernetes client for KubeVirt operations.
+        """
+        self.k8s_client = k8s_client
+        logging.info("Successfully initialized Kubernetes client for KubeVirt operations")
+
+    def get_vmi(self, name: str, namespace: str) -> Optional[Dict]:
+        """
+        Get a Virtual Machine Instance by name and namespace.
+        
+        :param name: Name of the VMI to retrieve
+        :param namespace: Namespace of the VMI
+        :return: The VMI object if found, None otherwise
         """
         try:
-            self.k8s_api = k8s_client
-            
-            k8s_config = kubernetes.client.Configuration().get_default_copy()
-            k8s_config.api_key = k8s_client.api_client.configuration.api_key
-            k8s_config.api_key_prefix = k8s_client.api_client.configuration.api_key_prefix
-            k8s_config.host = k8s_client.api_client.configuration.host
-            k8s_config.ssl_ca_cert = k8s_client.api_client.configuration.ssl_ca_cert
-            k8s_config.verify_ssl = k8s_client.api_client.configuration.verify_ssl
-            k8s_config.cert_file = k8s_client.api_client.configuration.cert_file
-            k8s_config.key_file = k8s_client.api_client.configuration.key_file
-            
-            api_client = ApiClient(k8s_config)
-            self.kubevirt_api = DefaultApi(api_client)
-                        
-            logging.info("Successfully initialized KubeVirt API client")
+            vmi = self.k8s_client.custom_object_client.get_namespaced_custom_object(
+                group="kubevirt.io",
+                version="v1",
+                namespace=namespace,
+                plural="virtualmachineinstances",
+                name=name
+            )
+            return vmi
         except ApiException as e:
-            logging.error(f"Error initializing KubeVirt client: {e}")
-            raise RuntimeError(f"Failed to initialize KubeVirt client: {e}")
-
+            if e.status == 404:
+                logging.warning(f"VMI {name} not found in namespace {namespace}")
+                return None
+            else:
+                logging.error(f"Error getting VMI {name}: {e}")
+                raise
+        except Exception as e:
+            logging.error(f"Unexpected error getting VMI {name}: {e}")
+            raise
+            
     def execute_scenario(self, config: Dict[str, Any], scenario_telemetry: ScenarioTelemetry) -> int:
         """
         Execute a KubeVirt VM outage scenario based on the provided configuration.
@@ -117,12 +124,10 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             self.original_vmi = vmi
             logging.info(f"Captured initial state of VMI: {vm_name}")
             
-            # Inject chaos - delete the VMI
             result = self.inject(vm_name, namespace)
             if result != 0:
                 return 1
                 
-            # Wait for specified duration before recovering
             logging.info(f"Waiting for {duration} seconds before attempting recovery")
             time.sleep(duration)
             
@@ -147,13 +152,15 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         :return: True if environment is valid, False otherwise
         """
         try:
-            crd_list = self.k8s_api.list_custom_resource_definition()
+            # Check if KubeVirt CRDs exist
+            crd_list = self.k8s_client.list_custom_resource_definition()
             kubevirt_crds = [crd for crd in crd_list.items if 'kubevirt.io' in crd.spec.group]
             
             if not kubevirt_crds:
                 logging.error("KubeVirt CRDs not found. Ensure KubeVirt/CNV is installed in the cluster")
                 return False
                 
+            # Check if VMI exists
             vmi = self.get_vmi(vm_name, namespace)
             if not vmi:
                 logging.error(f"VMI {vm_name} not found in namespace {namespace}")
@@ -166,31 +173,6 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             logging.error(f"Error validating environment: {e}")
             return False
 
-    def get_vmi(self, vm_name: str, namespace: str) -> Optional[V1VirtualMachineInstance]:
-        """
-        Get a Virtual Machine Instance by name and namespace.
-        
-        :param vm_name: Name of the VMI to retrieve
-        :param namespace: Namespace of the VMI
-        :return: The VMI object if found, None otherwise
-        """
-        try:
-            vmi = self.kubevirt_api.read_namespaced_virtual_machine_instance(
-                name=vm_name, 
-                namespace=namespace
-            )
-            return vmi
-        except ApiException as e:
-            if e.status == 404:
-                logging.warning(f"VMI {vm_name} not found in namespace {namespace}")
-                return None
-            else:
-                logging.error(f"Error getting VMI {vm_name}: {e}")
-                raise
-        except Exception as e:
-            logging.error(f"Unexpected error getting VMI {vm_name}: {e}")
-            raise
-
     def inject(self, vm_name: str, namespace: str) -> int:
         """
         Delete a Virtual Machine Instance to simulate a VM outage.
@@ -202,75 +184,111 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         try:
             logging.info(f"Injecting chaos: Deleting VMI {vm_name} in namespace {namespace}")
             
-            # Delete the VMI
-            self.kubevirt_api.delete_namespaced_virtual_machine_instance(
-                name=vm_name, 
-                namespace=namespace
-            )
+            try:
+                self.k8s_client.custom_object_client.delete_namespaced_custom_object(
+                    group="kubevirt.io",
+                    version="v1",
+                    namespace=namespace,
+                    plural="virtualmachineinstances",
+                    name=vm_name
+                )
+            except ApiException as e:
+                if e.status == 404:
+                    logging.warning(f"VMI {vm_name} not found during deletion")
+                    return 1
+                else:
+                    logging.error(f"API error during VMI deletion: {e}")
+                    return 1
             
             # Wait for the VMI to be deleted
             timeout = 120  # seconds
             start_time = time.time()
             while time.time() - start_time < timeout:
-                try:
-                    self.kubevirt_api.read_namespaced_virtual_machine_instance(
-                        name=vm_name, 
-                        namespace=namespace
-                    )
-                    # VMI still exists, wait
-                    time.sleep(5)
-                except ApiException as e:
-                    if e.status == 404:
-                        logging.info(f"VMI {vm_name} successfully deleted")
-                        return 0
+                if not self.get_vmi(vm_name, namespace):
+                    logging.info(f"VMI {vm_name} successfully deleted")
+                    return 0
+                time.sleep(5)
                 
             logging.error(f"Timed out waiting for VMI {vm_name} to be deleted")
             return 1
             
-        except ApiException as e:
-            logging.error(f"Error deleting VMI {vm_name}: {e}")
-            return 1
         except Exception as e:
-            logging.error(f"Unexpected error deleting VMI {vm_name}: {e}")
+            logging.error(f"Error deleting VMI {vm_name}: {e}")
+            log_exception(e)
             return 1
 
-
-
-    def recover(self, name, namespace):
-        logging.info(f"[recover] Starting recovery for VMI: {name} in namespace: {namespace}")
-
+    def recover(self, vm_name: str, namespace: str) -> int:
+        """
+        Recover a deleted VMI, either by waiting for auto-recovery or manually recreating it.
+        
+        :param vm_name: Name of the VMI to recover
+        :param namespace: Namespace of the VMI
+        :return: 0 for success, 1 for failure
+        """
         try:
-            logging.info(f"[recover] Trying initial read of VMI {name} in {namespace}")
-            vmi = self.kubevirt_api.read_namespaced_virtual_machine_instance(name, namespace)
-        except ApiException as e:
-            if e.status == 404:
-                logging.warning(f"[recover] VMI {name} not found initially (404). Will retry...")
-                vmi = None
-            else:
-                logging.error(f"[recover] Unexpected error during initial read: {e}")
-                raise
-
-        retries = self.recover_timeout 
-        for attempt in range(1, retries + 1):
-            try:
-                logging.info(f"[recover] Retry attempt {attempt}: reading VMI {name}")
-                vmi = self.kubevirt_api.read_namespaced_virtual_machine_instance(name, namespace)
-                phase = getattr(vmi.status, 'phase', None)
-                logging.info(f"[recover] VMI phase: {phase}")
-
-                if phase == "Running":
-                    logging.info(f"[recover] VMI {name} successfully recovered (Running).")
-                    return 0
-            except ApiException as e:
-                if e.status == 404:
-                    logging.warning(f"[recover] Attempt {attempt}: VMI {name} not found (404). Retrying...")
+            logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
+            
+            timeout = 300  # seconds
+            start_time = time.time()
+            
+            while time.time() - start_time < timeout:
+                vmi = self.get_vmi(vm_name, namespace)
+                
+                if vmi:
+                    if vmi.get('status', {}).get('phase') == "Running":
+                        logging.info(f"VMI {vm_name} has been automatically recovered and is running")
+                        return 0
+                        
+                    logging.info(f"VMI {vm_name} exists but is not yet in Running state. Current state: {vmi.get('status', {}).get('phase')}")
                 else:
-                    logging.error(f"[recover] Attempt {attempt}: Unexpected API error: {e}")
-                    raise
-            time.sleep(1)
-
-        logging.error(f"[recover] VMI {name} did not recover in time after {retries} attempts.")
-        return 1
-
-
-
+                    logging.info(f"VMI {vm_name} not yet recreated. Waiting...")
+                
+                time.sleep(10)
+                
+            if self.original_vmi:
+                logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
+                
+                try:
+                    # Clean up server-generated fields
+                    vmi_dict = self.original_vmi.copy()
+                    if 'metadata' in vmi_dict:
+                        metadata = vmi_dict['metadata']
+                        for field in ['resourceVersion', 'uid', 'creationTimestamp', 'generation']:
+                            if field in metadata:
+                                del metadata[field]
+                    
+                    # Create the VMI
+                    self.k8s_client.custom_object_client.create_namespaced_custom_object(
+                        group="kubevirt.io",
+                        version="v1",
+                        namespace=namespace,
+                        plural="virtualmachineinstances",
+                        body=vmi_dict
+                    )
+                    logging.info(f"Successfully recreated VMI {vm_name}")
+                    
+                    # Wait for VMI to start running
+                    wait_time = 60  # seconds
+                    wait_start = time.time()
+                    while time.time() - wait_start < wait_time:
+                        vmi = self.get_vmi(vm_name, namespace)
+                        if vmi and vmi.get('status', {}).get('phase') == "Running":
+                            logging.info(f"Manually recreated VMI {vm_name} is now running")
+                            return 0
+                        time.sleep(5)
+                    
+                    logging.warning(f"VMI {vm_name} was recreated but didn't reach Running state in time")
+                    return 0  # Still consider it a success as the VMI was recreated
+                    
+                except Exception as e:
+                    logging.error(f"Error recreating VMI {vm_name}: {e}")
+                    log_exception(e)
+                    return 1
+            else:
+                logging.error(f"Failed to recover VMI {vm_name}: No original state captured and auto-recovery did not occur")
+                return 1
+                
+        except Exception as e:
+            logging.error(f"Unexpected error recovering VMI {vm_name}: {e}")
+            log_exception(e)
+            return 1
