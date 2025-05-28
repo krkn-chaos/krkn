@@ -344,9 +344,6 @@ def main(cfg) -> int:
                             )
                             sys.exit(1)
 
-                        if hasattr(scenario_plugin, 'cleanup') and callable(scenario_plugin.cleanup):
-                            cleanup_manager.register_cleanup(scenario_plugin.cleanup)
-
                         failed_post_scenarios, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
                                 run_uuid, scenarios_list, config, telemetry_ocp

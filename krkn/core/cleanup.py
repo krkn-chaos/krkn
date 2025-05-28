@@ -8,10 +8,11 @@ import signal
 import atexit
 import sys
 import os
-import subprocess
 import logging
 import datetime
-from typing import Callable, List, Optional
+import json
+from kubernetes import client
+from typing import Callable, List, Optional, Dict, Any
 
 
 class CleanupManager:
@@ -114,66 +115,148 @@ class CleanupManager:
 
     def _capture_diagnostics(self) -> None:
         """
-        Capture diagnostic info about the cluster.
+        Capture diagnostic info about the cluster using the Kubernetes Python client API.
         
-        This method runs kubectl commands to gather information about pods, nodes, 
-        and events, and saves them to files in the artifacts directory.
+        This method collects information about pods, nodes, and events, 
+        and saves them to files in the artifacts directory.
         """
         logging.info("Capturing diagnostic information...")
         
         try:
-            self._run_and_save_command(["kubectl", "get", "pods", "-A", "-o", "wide"], "all-pods.txt")
-            self._run_and_save_command(["kubectl", "get", "nodes", "-o", "wide"], "nodes.txt")
-            self._run_and_save_command(["kubectl", "get", "events", "-A"], "events.txt")
+            # Use Kubernetes Python client instead of kubectl
+            k8s_client = client.ApiClient()
+            core_v1 = client.CoreV1Api(k8s_client)
+            
+            # Get all pods across all namespaces
+            try:
+                pods = core_v1.list_pod_for_all_namespaces(watch=False)
+                pod_data = [{
+                    "name": pod.metadata.name,
+                    "namespace": pod.metadata.namespace,
+                    "status": pod.status.phase,
+                    "node": pod.spec.node_name,
+                    "ip": pod.status.pod_ip,
+                    "creation_timestamp": pod.metadata.creation_timestamp.isoformat() if pod.metadata.creation_timestamp else None
+                } for pod in pods.items]
+                self._save_json_data(pod_data, "all-pods.json")
+            except Exception as e:
+                logging.error(f"Error getting pod information: {e}")
+            
+            # Get all nodes
+            try:
+                nodes = core_v1.list_node(watch=False)
+                node_data = [{
+                    "name": node.metadata.name,
+                    "status": [cond.type for cond in node.status.conditions if cond.status == 'True'],
+                    "addresses": [addr.address for addr in node.status.addresses],
+                    "kubelet_version": node.status.node_info.kubelet_version if node.status.node_info else None,
+                    "creation_timestamp": node.metadata.creation_timestamp.isoformat() if node.metadata.creation_timestamp else None
+                } for node in nodes.items]
+                self._save_json_data(node_data, "nodes.json")
+                
+                for node in nodes.items:
+                    try:
+                        node_detail = core_v1.read_node(node.metadata.name)
+                        node_detail_dict = self._extract_node_details(node_detail)
+                        self._save_json_data(
+                            node_detail_dict,
+                            f"node-{node.metadata.name}-details.json"
+                        )
+                    except Exception as node_err:
+                        logging.error(f"Error getting details for node {node.metadata.name}: {node_err}")
+            except Exception as e:
+                logging.error(f"Error getting node information: {e}")
             
             try:
-                nodes_output = subprocess.run(
-                    ["kubectl", "get", "nodes", "-o", "name"], 
-                    capture_output=True, 
-                    text=True,
-                    check=True
-                )
-                
-                for node in nodes_output.stdout.strip().split('\n'):
-                    if node:  # Skip empty lines
-                        node_name = node.replace('node/', '')
-                        self._run_and_save_command(
-                            ["kubectl", "describe", "node", node_name],
-                            f"node-{node_name}-details.txt"
-                        )
-            except subprocess.CalledProcessError as e:
-                logging.error(f"Error getting node details: {e}")
-                
+                events = core_v1.list_event_for_all_namespaces(watch=False)
+                event_data = [{
+                    "name": event.metadata.name,
+                    "namespace": event.metadata.namespace,
+                    "reason": event.reason,
+                    "message": event.message,
+                    "involved_object": {
+                        "kind": event.involved_object.kind,
+                        "name": event.involved_object.name,
+                        "namespace": event.involved_object.namespace
+                    },
+                    "count": event.count,
+                    "first_timestamp": event.first_timestamp.isoformat() if event.first_timestamp else None,
+                    "last_timestamp": event.last_timestamp.isoformat() if event.last_timestamp else None,
+                    "type": event.type
+                } for event in events.items]
+                self._save_json_data(event_data, "events.json")
+            except Exception as e:
+                logging.error(f"Error getting event information: {e}")
         except Exception as e:
             logging.error(f"Error capturing diagnostics: {e}")
+    
+    def _extract_node_details(self, node) -> Dict[str, Any]:
+        """Extract important details from a node object."""
+        details = {
+            "name": node.metadata.name,
+            "labels": node.metadata.labels,
+            "annotations": node.metadata.annotations,
+            "creation_timestamp": node.metadata.creation_timestamp.isoformat() if node.metadata.creation_timestamp else None,
+            "status": {
+                "conditions": [{
+                    "type": cond.type,
+                    "status": cond.status,
+                    "reason": cond.reason,
+                    "message": cond.message,
+                    "last_transition_time": cond.last_transition_time.isoformat() if cond.last_transition_time else None
+                } for cond in node.status.conditions],
+                "capacity": node.status.capacity,
+                "allocatable": node.status.allocatable,
+                "addresses": [{
+                    "type": addr.type,
+                    "address": addr.address
+                } for addr in node.status.addresses],
+                "node_info": {
+                    "machine_id": node.status.node_info.machine_id,
+                    "system_uuid": node.status.node_info.system_uuid,
+                    "boot_id": node.status.node_info.boot_id,
+                    "kernel_version": node.status.node_info.kernel_version,
+                    "os_image": node.status.node_info.os_image,
+                    "container_runtime_version": node.status.node_info.container_runtime_version,
+                    "kubelet_version": node.status.node_info.kubelet_version,
+                    "kube_proxy_version": node.status.node_info.kube_proxy_version,
+                    "operating_system": node.status.node_info.operating_system,
+                    "architecture": node.status.node_info.architecture
+                } if node.status.node_info else None
+            },
+            "spec": {
+                "unschedulable": node.spec.unschedulable if hasattr(node.spec, 'unschedulable') else None,
+                "taints": [{
+                    "key": taint.key,
+                    "value": taint.value,
+                    "effect": taint.effect
+                } for taint in node.spec.taints] if node.spec.taints else []
+            }
+        }
+        return details
 
-    def _run_and_save_command(self, command: List[str], output_file: str) -> None:
+    def _save_json_data(self, data: Any, output_file: str) -> None:
         """
-        Run a command and save its output to a file in the artifacts directory.
+        Save data as JSON to a file in the artifacts directory.
         
         Args:
-            command: Command to run as a list of strings
-            output_file: Filename to save the output to
+            data: Data to save (must be JSON serializable)
+            output_file: Filename to save the data to
         """
         try:
-            result = subprocess.run(
-                command, 
-                capture_output=True, 
-                text=True,
-                check=True
-            )
-            
             output_path = os.path.join(self.artifacts_dir, output_file)
             with open(output_path, "w") as f:
-                f.write(result.stdout)
+                json.dump(data, f, indent=2)
                 
-            logging.debug(f"Saved output of '{' '.join(command)}' to {output_path}")
+            logging.debug(f"Saved data to {output_path}")
             
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Command '{' '.join(command)}' failed with exit code {e.returncode}: {e.stderr}")
-            output_path = os.path.join(self.artifacts_dir, f"error-{output_file}")
-            with open(output_path, "w") as f:
-                f.write(f"Command: {' '.join(command)}\n")
-                f.write(f"Exit code: {e.returncode}\n")
-                f.write(f"Stdout:\n{e.stdout}\n")
-                f.write(f"Stderr:\n{e.stderr}\n")
+        except Exception as e:
+            logging.error(f"Error saving data to {output_file}: {e}")
+            
+            error_path = os.path.join(self.artifacts_dir, f"error-{output_file}")
+            try:
+                with open(error_path, "w") as f:
+                    f.write(f"Error saving data: {str(e)}\n")
+            except Exception:
+                logging.error(f"Could not even save error information to {error_path}")
+                pass

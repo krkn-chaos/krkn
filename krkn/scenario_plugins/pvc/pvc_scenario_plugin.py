@@ -2,8 +2,10 @@ import logging
 import random
 import re
 import time
+from typing import List, Dict, Any
 
 import yaml
+from kubernetes import client
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -14,7 +16,12 @@ from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugi
 
 
 class PvcScenarioPlugin(AbstractScenarioPlugin):
-    def run(
+    def __init__(self):
+        super().__init__()
+        self._temp_files: List[Dict[str, Any]] = []
+        self._current_scenario_config = None
+    
+    def _run_implementation(
         self,
         run_uuid: str,
         scenario: str,
@@ -229,6 +236,18 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 logging.info("\n" + str(response))
                 if str(file_name).lower() in str(response).lower():
                     logging.info("%s file successfully created" % (str(full_path)))
+                    # Track the file for cleanup
+                    self._temp_files.append({
+                        "file_name": file_name,
+                        "full_path": full_path,
+                        "pod_name": pod_name,
+                        "namespace": namespace,
+                        "container_name": container_name,
+                        "mount_path": mount_path,
+                        "file_size_kb": file_size_kb
+                    })
+                    # Track the pod as a resource
+                    self.track_resource("pod", pod_name, namespace)
                 else:
                     logging.error(
                         "PvcScenarioPlugin Failed to create tmp file with %s size"
@@ -312,6 +331,46 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         exp = unit[value[-2:-1]]
         res = int(value[:-2]) * (base**exp)
         return res
+        
+    def cleanup(self):
+        """Clean up any temporary files created during the PVC scenario."""
+        logging.info("Running PVC scenario cleanup")
+        
+        # First call the parent class cleanup for common resources
+        super().cleanup()
+        
+        # Now handle PVC-specific cleanup
+        if self._temp_files:
+            for file_info in self._temp_files:
+                try:
+                    logging.info(f"Cleaning up temporary file {file_info['full_path']} on pod {file_info['pod_name']}")
+                    # Use K8s client to create a pod exec API instance
+                    k8s_client = client.ApiClient()
+                    k8s_core = client.CoreV1Api(k8s_client)
+                    
+                    # Check if pod exists first
+                    try:
+                        pod = k8s_core.read_namespaced_pod(file_info['pod_name'], file_info['namespace'])
+                        if pod:
+                            # Use Python-based cleanup instead of shell commands
+                            command = f"rm -f {file_info['full_path']}"
+                            logging.debug(f"Running cleanup command: {command}")
+                            # This would use the K8s Python client instead of kubectl
+                            # For now, use a fallback to the existing method since we need the pod exec functionality
+                            kubecli = KrknKubernetes()
+                            kubecli.exec_cmd_in_pod(
+                                [command], 
+                                file_info['pod_name'], 
+                                file_info['namespace'], 
+                                file_info['container_name']
+                            )
+                    except client.rest.ApiException as e:
+                        logging.warning(f"Pod {file_info['pod_name']} not found during cleanup: {e}")
+                except Exception as e:
+                    logging.error(f"Error during PVC cleanup for file {file_info['full_path']}: {e}")
+        
+        # Clear the tracked files
+        self._temp_files = []
 
     def get_scenario_types(self) -> list[str]:
         return ["pvc_scenarios"]
