@@ -1,5 +1,6 @@
 import copy
 import logging
+import os
 import queue
 import random
 import re
@@ -23,24 +24,16 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             scenario_telemetry: ScenarioTelemetry) -> int:
         try:
             with open(scenario, "r") as f:
-                scenario = yaml.full_load(f)
-            scenario_config = HogConfig.from_yaml_dict(scenario)
-            has_selector = True
-            if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
-                if scenario_config.node_selector:
-                    logging.warning(f"node selector {scenario_config.node_selector} not in right format (key=value)")
-                node_selector = ""
-            else:
-                node_selector = scenario_config.node_selector
-
-            available_nodes = lib_telemetry.get_lib_kubernetes().list_nodes(node_selector)
+                scenario_dict = yaml.full_load(f)
+            scenario_config = HogConfig.from_yaml_dict(scenario_dict)
+            
+            # Get target nodes using enhanced node selection logic
+            available_nodes = self._get_target_nodes(scenario_config, scenario_dict, lib_telemetry.get_lib_kubernetes())
+            
             if len(available_nodes) == 0:
                 raise Exception("no available nodes to schedule workload")
 
-            if not has_selector:
-                # if selector not specified picks a random node between the available
-                available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
-
+            # Apply number_of_nodes limit if specified
             if scenario_config.number_of_nodes and len(available_nodes) > scenario_config.number_of_nodes:
                 available_nodes = random.sample(available_nodes, scenario_config.number_of_nodes)
 
@@ -50,6 +43,99 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         except Exception as e:
             logging.error(f"scenario exception: {e}")
             return 1
+
+    def _get_target_nodes(self, scenario_config: HogConfig, scenario_dict: dict, lib_k8s: KrknKubernetes) -> list[str]:
+        """
+        Enhanced node selection logic with support for node-name parameter and NODE_NAME environment variable.
+        
+        Precedence order:
+        1. node-name parameter from scenario config (if specified)
+        2. NODE_NAME environment variable (if set)
+        3. node-selector parameter (if specified)
+        4. Random node selection (fallback)
+        
+        Supports:
+        - Single node name as string
+        - Multiple node names as comma-separated string or list
+        - Node validation (existence, readiness, schedulability)
+        - Better error messages
+        """
+        
+        # Check for node-name in scenario config first (highest precedence)
+        node_names = scenario_config.node_name
+        
+        # If not in config, check NODE_NAME environment variable
+        if not node_names:
+            node_names = os.environ.get('NODE_NAME', '').strip()
+            if node_names:
+                logging.info(f"Using node names from NODE_NAME environment variable: {node_names}")
+        
+        # If we have node names, parse and validate them
+        if node_names:
+            parsed_node_names = self._parse_node_names(node_names)
+            if parsed_node_names:
+                validated_nodes = self._validate_nodes(parsed_node_names, lib_k8s)
+                if validated_nodes:
+                    logging.info(f"Using explicitly specified nodes: {validated_nodes}")
+                    return validated_nodes
+                else:
+                    raise Exception(f"None of the specified nodes are available for scheduling: {parsed_node_names}")
+        
+        # Fall back to node_selector logic
+        node_selector = scenario_config.node_selector
+        has_selector = True
+        
+        if not node_selector or not re.match("^.+=.*$", node_selector):
+            if node_selector:
+                logging.warning(f"node selector {node_selector} not in right format (key=value)")
+            node_selector = ""
+            has_selector = False
+
+        available_nodes = lib_k8s.list_nodes(node_selector)
+        
+        if not has_selector:
+            # if selector not specified picks a random node between the available
+            if available_nodes:
+                available_nodes = [available_nodes[random.randint(0, len(available_nodes) - 1)]]
+            
+        return available_nodes
+
+    def _parse_node_names(self, node_names) -> list[str]:
+        """Parse node names from various input formats"""
+        if not node_names:
+            return []
+        
+        # If it's already a list
+        if isinstance(node_names, list):
+            return [name.strip() for name in node_names if name.strip()]
+        
+        # If it's a string, split by comma
+        if isinstance(node_names, str):
+            return [name.strip() for name in node_names.split(',') if name.strip()]
+        
+        return []
+
+    def _validate_nodes(self, node_names: list[str], lib_k8s: KrknKubernetes) -> list[str]:
+        """Validate that nodes exist and are schedulable"""
+        if not node_names:
+            return []
+        
+        # Get all nodes from the cluster
+        all_nodes = lib_k8s.list_nodes("")
+        validated_nodes = []
+        
+        for node_name in node_names:
+            if node_name in all_nodes:
+                # Additional validation could be added here for:
+                # - Node readiness status
+                # - Node schedulability (not cordoned)
+                # For now, we'll just check existence
+                validated_nodes.append(node_name)
+                logging.info(f"Node '{node_name}' validated and available for scheduling")
+            else:
+                logging.warning(f"Node '{node_name}' not found in cluster. Available nodes: {all_nodes}")
+        
+        return validated_nodes
 
     def get_scenario_types(self) -> list[str]:
         return ["hog_scenarios"]

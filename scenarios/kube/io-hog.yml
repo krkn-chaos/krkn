@@ -13,3 +13,10 @@ io-target-pod-volume:
 node-selector: "node-role.kubernetes.io/worker="
 number-of-nodes: ''
 taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]
+
+# below are the way to set the node-name just uncomment whichever you wish to use
+# node-name: "worker-node-1"                    # Target specific node by name
+# node-name: "worker-node-1,worker-node-2"     # Target multiple nodes (comma-separated)
+# node-name: ["worker-node-1", "worker-node-2"] # Target multiple nodes (list format)
+# Note: node-name takes precedence over node-selector
+# Environment variable NODE_NAME is also supported for node targeting
