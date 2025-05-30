@@ -4,6 +4,9 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from tzlocal.unix import get_localzone
 import logging
+import json
+import os
+import tempfile
 
 def populate_cluster_events(
     krkn_config: dict,
@@ -82,3 +85,26 @@ def __retrieve_namespaces(scenario_config: dict, kubecli: KrknKubernetes) -> set
     for pattern in namespace_patterns:
         namespaces.extend(kubecli.list_namespaces_by_regex(pattern))
     return set(namespaces)
+
+
+def write_json_to_tmp(data, filename_prefix, run_uuid):
+    """
+    Write data as pretty-printed JSON to a temporary file with a filename
+    incorporating the run_uuid.
+    
+    Args:
+        data: The data to write as JSON
+        filename_prefix: Prefix for the filename
+        run_uuid: UUID of the current run to include in the filename
+        
+    Returns:
+        str: The full path to the created file
+    """
+    filepath = os.path.join(tempfile.gettempdir(), f"{filename_prefix}_{run_uuid}.json")
+    try:
+        with open(filepath, "w") as f:
+            json.dump(data, f, indent=2)
+        return filepath
+    except Exception as e:
+        logging.error(f"Failed to write JSON to {filepath}: {e}")
+        raise
