@@ -252,6 +252,8 @@ def metrics(
                         metric[k] = v
                         metric['timestamp'] = str(datetime.datetime.now())
                     metrics_list.append(metric.copy())
+
+        save_metrics = False
         if elastic is not None and elastic_metrics_index is not None:
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
@@ -259,11 +261,9 @@ def metrics(
             if result == -1:
                 logging.error("failed to save metrics on ElasticSearch")
                 save_metrics = True
-            else:
-                save_metrics = False
         else:
             save_metrics = True
-        if save_metrics:
+        if save_metrics or elastic is None:
             local_dir = os.path.join(tempfile.gettempdir(), "krkn_metrics")
             os.makedirs(local_dir, exist_ok=True)
             local_file = os.path.join(local_dir, f"{elastic_metrics_index}_{run_uuid}.json")
@@ -271,12 +271,10 @@ def metrics(
             try:
                 with open(local_file, "w") as f:
                     json.dump({
-                        "metadata": {
-                            "run_uuid": run_uuid,
-                        },
+                        "run_uuid": run_uuid,
                         "metrics": metrics_list
-                    }, f, indent=2)
-                    logging.info(f"Metrics saved to {local_file}")
+                }, f, indent=2)
+                logging.info(f"Metrics saved to {local_file}")
             except Exception as e:
                 logging.error(f"Failed to save metrics to {local_file}: {e}")
     return metrics_list
