@@ -252,7 +252,7 @@ def metrics(
                         metric[k] = v
                         metric['timestamp'] = str(datetime.datetime.now())
                     metrics_list.append(metric.copy())
-        if elastic is not None and elastic_metrics_index is not None and hasattr(elastic, 'upload_metrics_to_elasticsearch'):
+        if elastic is not None and elastic_metrics_index is not None:
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
