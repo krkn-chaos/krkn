@@ -2,7 +2,6 @@ import sys
 import time
 import boto3
 import logging
-import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
 )
@@ -278,7 +277,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                 )
                 self.aws.start_instances(instance_id)
                 self.aws.wait_until_running(instance_id, affected_node=affected_node)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
+                self.kubecli.wait_for_node_status(node, expected_status="True", timeout=timeout, affected_node=affected_node)
                 logging.info(
                     "Node with instance ID: %s is in running state" % (instance_id)
                 )
@@ -309,7 +308,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with instance ID: %s is in stopped state" % (instance_id)
                 )
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node=affected_node)
+                self.kubecli.wait_for_node_status(node, expected_status="Unknown", timeout=timeout, affected_node=affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -366,8 +365,8 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Rebooting the node %s with instance ID: %s " % (node, instance_id)
                 )
                 self.aws.reboot_instances(instance_id)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
+                self.kubecli.wait_for_unknown_status(node, timeout, affected_node)
+                self.kubecli.wait_for_ready_status(node, timeout, affected_node)
                 logging.info(
                     "Node with instance ID: %s has been rebooted" % (instance_id)
                 )
