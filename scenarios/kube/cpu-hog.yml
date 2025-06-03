@@ -5,6 +5,7 @@ image: quay.io/krkn-chaos/krkn-hog
 namespace: default
 cpu-load-percentage: 90
 cpu-method: all
+# node-name: "worker-0" # Uncomment to target a specific node by name
 node-selector: "node-role.kubernetes.io/worker="
 number-of-nodes: 2
 taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]

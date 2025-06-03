@@ -25,6 +25,10 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             with open(scenario, "r") as f:
                 scenario = yaml.full_load(f)
             scenario_config = HogConfig.from_yaml_dict(scenario)
+            
+            # Get node-name if provided
+            node_name = scenario.get('node-name')
+            
             has_selector = True
             if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
                 if scenario_config.node_selector:
@@ -33,13 +37,19 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             else:
                 node_selector = scenario_config.node_selector
 
-            available_nodes = lib_telemetry.get_lib_kubernetes().list_nodes(node_selector)
-            if len(available_nodes) == 0:
-                raise Exception("no available nodes to schedule workload")
+            if node_name:
+                logging.info(f"Using specific node: {node_name}")
+                all_nodes = lib_telemetry.get_lib_kubernetes().list_nodes("")
+                if node_name not in all_nodes:
+                    raise Exception(f"Specified node {node_name} not found or not available")
+                available_nodes = [node_name]
+            else:
+                available_nodes = lib_telemetry.get_lib_kubernetes().list_nodes(node_selector)
+                if len(available_nodes) == 0:
+                    raise Exception("no available nodes to schedule workload")
 
-            if not has_selector:
-                # if selector not specified picks a random node between the available
-                available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
+                if not has_selector:
+                    available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
 
             if scenario_config.number_of_nodes and len(available_nodes) > scenario_config.number_of_nodes:
                 available_nodes = random.sample(available_nodes, scenario_config.number_of_nodes)
