@@ -19,6 +19,7 @@ from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_modul
 from krkn.scenario_plugins.network_chaos_ng.network_chaos_factory import (
     NetworkChaosFactory,
 )
+from krkn.scenario_plugins.types import ExecutionType
 
 
 class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
@@ -63,7 +64,7 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
                     if network_chaos_config[1].instance_count != 0 and network_chaos_config[1].instance_count > len(targets):
                         targets = random.sample(targets, network_chaos_config[1].instance_count)
 
-                    if network_chaos_config[1].execution == "parallel":
+                    if network_chaos_config[1].execution == ExecutionType.PARALLEL.value:
                         self.run_parallel(targets, network_chaos, lib_telemetry)
                     else:
                         self.run_serial(targets, network_chaos, lib_telemetry)
