@@ -9,6 +9,7 @@ import logging
 import urllib3
 import sys
 import json
+import tempfile
 
 import yaml
 from krkn_lib.elastic.krkn_elastic import KrknElastic
@@ -251,11 +252,31 @@ def metrics(
                         metric[k] = v
                         metric['timestamp'] = str(datetime.datetime.now())
                     metrics_list.append(metric.copy())
-        if elastic:
+        if elastic is not None and elastic_metrics_index is not None and hasattr(elastic, 'upload_metrics_to_elasticsearch'):
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
             if result == -1:
                 logging.error("failed to save metrics on ElasticSearch")
+                save_metrics = True
+            else:
+                save_metrics = False
+        else:
+            save_metrics = True
+        if save_metrics:
+            local_dir = os.path.join(tempfile.gettempdir(), "krkn_metrics")
+            os.makedirs(local_dir, exist_ok=True)
+            local_file = os.path.join(local_dir, f"{elastic_metrics_index}_{run_uuid}.json")
 
+            try:
+                with open(local_file, "w") as f:
+                    json.dump({
+                        "metadata": {
+                            "run_uuid": run_uuid,
+                        },
+                        "metrics": metrics_list
+                    }, f, indent=2)
+                    logging.info(f"Metrics saved to {local_file}")
+            except Exception as e:
+                logging.error(f"Failed to save metrics to {local_file}: {e}")
     return metrics_list
