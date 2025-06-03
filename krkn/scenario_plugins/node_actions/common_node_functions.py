@@ -1,15 +1,9 @@
-import datetime
 import time
 import random
 import logging
 import paramiko
-from krkn_lib.models.k8s import AffectedNode
-import krkn.invoke.command as runcommand
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 from krkn_lib.models.k8s import AffectedNode
-
-node_general = False
 
 
 def get_node_by_name(node_name_list, kubecli: KrknKubernetes):
@@ -63,14 +57,6 @@ def wait_for_not_ready_status(node, timeout, kubecli: KrknKubernetes, affected_n
 def wait_for_unknown_status(node, timeout, kubecli: KrknKubernetes, affected_node: AffectedNode = None):
     affected_node = kubecli.watch_node_status(node, "Unknown", timeout, affected_node)
     return affected_node
-
-
-# Get the ip of the cluster node
-def get_node_ip(node):
-    return runcommand.invoke(
-        "kubectl get node %s -o "
-        "jsonpath='{.status.addresses[?(@.type==\"InternalIP\")].address}'" % (node)
-    )
 
 
 def check_service_status(node, service, ssh_private_key, timeout):
