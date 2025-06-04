@@ -6,15 +6,15 @@ import sys
 import os
 import re
 from traceback import format_exc
+from krkn_lib.k8s import KrknKubernetes
 from jinja2 import Environment, FileSystemLoader
-from . import kubernetes_functions as kube_helper
 from . import cerberus
 import typing
 from arcaflow_plugin_sdk import validation, plugin
 from kubernetes.client.api.core_v1_api import CoreV1Api as CoreV1Api
 from kubernetes.client.api.batch_v1_api import BatchV1Api as BatchV1Api
 
-
+k8s_client = KrknKubernetes()
 @dataclass
 class NetworkScenarioConfig:
 
@@ -163,11 +163,11 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
 
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query interface on node %s" % node)
-    kube_helper.create_pod(cli, pod_body, "default", 300)
+    k8s_client.create_pod(cli, pod_body, "default", 300)
 
     try:
         cmd = ["ip", "r"]
-        output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+        output = k8s_client.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
 
         if not output:
             logging.error("Exception occurred while executing command in pod")
@@ -183,7 +183,7 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kube_helper.delete_pod(cli, "fedtools", "default")
+        k8s_client.delete_pod(cli, "fedtools", "default")
 
     return interfaces
 
@@ -214,11 +214,11 @@ def verify_interface(
     """
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query interface on node %s" % node)
-    kube_helper.create_pod(cli, pod_body, "default", 300)
+    k8s_client.create_pod(cli, pod_body, "default", 300)
     try:
         if input_interface_list == []:
             cmd = ["ip", "r"]
-            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+            output = k8s_client.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
 
             if not output:
                 logging.error("Exception occurred while executing command in pod")
@@ -234,7 +234,7 @@ def verify_interface(
 
         else:
             cmd = ["ip", "-br", "addr", "show"]
-            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+            output = k8s_client.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
 
             if not output:
                 logging.error("Exception occurred while executing command in pod")
@@ -257,17 +257,17 @@ def verify_interface(
                     )
     finally:
         logging.info("Deleting pod to query interface on node")
-        kube_helper.delete_pod(cli, "fedtools", "default")
+        k8s_client.delete_pod(cli, "fedtools", "default")
 
     return input_interface_list
 
 
-def get_node_interfaces(
+def _interfaces(
     node_interface_dict: typing.Dict[str, typing.List[str]],
     label_selector: str,
     instance_count: int,
     pod_template,
-    cli: CoreV1Api,
+    k8s_client: KrknKubernetes,
 ) -> typing.Dict[str, typing.List[str]]:
     """
     Function that is used to process the input dictionary with the nodes and
@@ -294,7 +294,7 @@ def get_node_interfaces(
             - The YAML template used to instantiate a pod to query
               the node's interfaces
 
-        cli (CoreV1Api)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client's CoreV1 API
 
     Returns:
@@ -306,22 +306,22 @@ def get_node_interfaces(
                 "If node names and interfaces aren't provided, "
                 "then the label selector must be provided"
             )
-        nodes = kube_helper.get_node(None, label_selector, instance_count, cli)
+        nodes = k8s_client.get_node(None, label_selector, instance_count, k8s_client)
         node_interface_dict = {}
         for node in nodes:
-            node_interface_dict[node] = get_default_interface(node, pod_template, cli)
+            node_interface_dict[node] = get_default_interface(node, pod_template, k8s_client)
     else:
         node_name_list = node_interface_dict.keys()
         filtered_node_list = []
 
         for node in node_name_list:
             filtered_node_list.extend(
-                kube_helper.get_node(node, label_selector, instance_count, cli)
+                k8s_client.get_node(node, label_selector, instance_count, k8s_client)
             )
 
         for node in filtered_node_list:
             node_interface_dict[node] = verify_interface(
-                node_interface_dict[node], node, pod_template, cli
+                node_interface_dict[node], node, pod_template, k8s_client
             )
 
     return node_interface_dict
@@ -391,7 +391,7 @@ def apply_ingress_filter(
     job_body = yaml.safe_load(
         job_template.render(jobname=str(hash(node))[:5], nodename=node, cmd=exec_cmd)
     )
-    api_response = kube_helper.create_job(batch_cli, job_body)
+    api_response = k8s_client.create_job(batch_cli, job_body)
 
     if api_response is None:
         raise Exception("Error creating job")
@@ -422,7 +422,7 @@ def create_virtual_interfaces(
               virtual interfaces on the node
     """
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
-    kube_helper.create_pod(cli, pod_body, "default", 300)
+    k8s_client.create_pod(cli, pod_body, "default", 300)
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(
             len(interface_list), node
@@ -430,7 +430,7 @@ def create_virtual_interfaces(
     )
     create_ifb(cli, len(interface_list), "modtools")
     logging.info("Deleting pod used to create virtual interfaces")
-    kube_helper.delete_pod(cli, "modtools", "default")
+    k8s_client.delete_pod(cli, "modtools", "default")
 
 
 def delete_virtual_interfaces(
@@ -458,10 +458,10 @@ def delete_virtual_interfaces(
 
     for node in node_list:
         pod_body = yaml.safe_load(pod_template.render(nodename=node))
-        kube_helper.create_pod(cli, pod_body, "default", 300)
+        k8s_client.create_pod(cli, pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
         delete_ifb(cli, "modtools")
-        kube_helper.delete_pod(cli, "modtools", "default")
+        k8s_client.delete_pod(cli, "modtools", "default")
 
 
 def create_ifb(cli: CoreV1Api, number: int, pod_name: str):
@@ -471,12 +471,12 @@ def create_ifb(cli: CoreV1Api, number: int, pod_name: str):
     """
 
     exec_command = ["chroot", "/host", "modprobe", "ifb", "numifbs=" + str(number)]
-    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
+    k8s_client.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
 
     for i in range(0, number):
         exec_command = ["chroot", "/host", "ip", "link", "set", "dev"]
         exec_command += ["ifb" + str(i), "up"]
-        kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
+        k8s_client.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
 
 
 def delete_ifb(cli: CoreV1Api, pod_name: str):
@@ -486,7 +486,7 @@ def delete_ifb(cli: CoreV1Api, pod_name: str):
     """
 
     exec_command = ["chroot", "/host", "modprobe", "-r", "ifb"]
-    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
+    k8s_client.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
 
 
 def get_job_pods(cli: CoreV1Api, api_response):
@@ -506,7 +506,7 @@ def get_job_pods(cli: CoreV1Api, api_response):
 
     controllerUid = api_response.metadata.labels["controller-uid"]
     pod_label_selector = "controller-uid=" + controllerUid
-    pods_list = kube_helper.list_pods(
+    pods_list = k8s_client.list_pods(
         cli, label_selector=pod_label_selector, namespace="default"
     )
 
@@ -536,7 +536,7 @@ def wait_for_job(
     while count != job_len:
         for job_name in job_list:
             try:
-                api_response = kube_helper.get_job_status(
+                api_response = k8s_client.get_job_status(
                     batch_cli, job_name, namespace="default"
                 )
                 if (
@@ -572,21 +572,21 @@ def delete_jobs(cli: CoreV1Api, batch_cli: BatchV1Api, job_list: typing.List[str
 
     for job_name in job_list:
         try:
-            api_response = kube_helper.get_job_status(
+            api_response = k8s_client.get_job_status(
                 batch_cli, job_name, namespace="default"
             )
             if api_response.status.failed is not None:
                 pod_name = get_job_pods(cli, api_response)
-                pod_stat = kube_helper.read_pod(cli, name=pod_name, namespace="default")
+                pod_stat = k8s_client.read_pod(cli, name=pod_name, namespace="default")
                 logging.error(pod_stat.status.container_statuses)
-                pod_log_response = kube_helper.get_pod_log(
+                pod_log_response = k8s_client.get_pod_log(
                     cli, name=pod_name, namespace="default"
                 )
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception as e:
             logging.warning("Exception in getting job status: %s" % str(e))
-        api_response = kube_helper.delete_job(
+        api_response = k8s_client.delete_job(
             batch_cli, name=job_name, namespace="default"
         )
 
@@ -699,11 +699,11 @@ def network_chaos(
     job_template = env.get_template("job.j2")
     pod_interface_template = env.get_template("pod_interface.j2")
     pod_module_template = env.get_template("pod_module.j2")
-    cli, batch_cli = kube_helper.setup_kubernetes(cfg.kubeconfig_path)
+    cli, batch_cli = k8s_client.setup_kubernetes(cfg.kubeconfig_path)
 
     logging.info("Starting Ingress Network Chaos")
     try:
-        node_interface_dict = get_node_interfaces(
+        node_interface_dict = _interfaces(
             cfg.node_interface_name,
             cfg.label_selector,
             cfg.instance_count,

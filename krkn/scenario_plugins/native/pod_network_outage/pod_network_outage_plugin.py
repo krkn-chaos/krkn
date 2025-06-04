@@ -17,9 +17,9 @@ from kubernetes.client.api.apiextensions_v1_api import ApiextensionsV1Api
 from kubernetes.client.api.custom_objects_api import CustomObjectsApi
 from . import cerberus
 
-
+k8s_client = KrknKubernetes()
 def get_test_pods(
-    pod_name: str, pod_label: str, namespace: str, kubecli: KrknKubernetes
+    pod_name: str, pod_label: str, namespace: str, k8s_client: KrknKubernetes
 ) -> typing.List[str]:
     """
     Function that returns a list of pods to apply network policy
@@ -34,15 +34,15 @@ def get_test_pods(
 
         namepsace (string)
             - namespace in which the pod is present
-
-        kubecli (KrknKubernetes)
+        
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
     Returns:
         pod names (string) in the namespace
     """
     pods_list = []
-    pods_list = kubecli.list_pods(label_selector=pod_label, namespace=namespace)
+    pods_list = k8s_client.list_pods(label_selector=pod_label, namespace=namespace)
     if pod_name and pod_name not in pods_list:
         raise Exception("pod name not found in namespace ")
     elif pod_name and pod_name in pods_list:
@@ -53,14 +53,13 @@ def get_test_pods(
         return pods_list
 
 
-def get_job_pods(kubecli: KrknKubernetes, api_response):
+def get_job_pods(k8s_client: KrknKubernetes, api_response):
     """
     Function that gets the pod corresponding to the job
 
     Args:
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
-
         api_response
             - The API response for the job status
 
@@ -70,44 +69,43 @@ def get_job_pods(kubecli: KrknKubernetes, api_response):
 
     controllerUid = api_response.metadata.labels["controller-uid"]
     pod_label_selector = "controller-uid=" + controllerUid
-    pods_list = kubecli.list_pods(
+    pods_list = k8s_client.list_pods(
         label_selector=pod_label_selector, namespace="default"
     )
 
     return pods_list[0]
 
 
-def delete_jobs(kubecli: KrknKubernetes, job_list: typing.List[str]):
+def delete_jobs(k8s_client: KrknKubernetes, job_list: typing.List[str]):
     """
     Function that deletes jobs
 
     Args:
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
-
         job_list (List of strings)
             - The list of jobs to delete
     """
 
     for job_name in job_list:
         try:
-            api_response = kubecli.get_job_status(job_name, namespace="default")
+            api_response = k8s_client.get_job_status(job_name, namespace="default")
             if api_response.status.failed is not None:
-                pod_name = get_job_pods(kubecli, api_response)
-                pod_stat = kubecli.read_pod(name=pod_name, namespace="default")
+                pod_name = get_job_pods(k8s_client, api_response)
+                pod_stat = k8s_client.read_pod(name=pod_name, namespace="default")
                 logging.error(pod_stat.status.container_statuses)
-                pod_log_response = kubecli.get_pod_log(
+                pod_log_response = k8s_client.get_pod_log(
                     name=pod_name, namespace="default"
                 )
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception as e:
             logging.warning("Exception in getting job status: %s" % str(e))
-        api_response = kubecli.delete_job(name=job_name, namespace="default")
+        api_response = k8s_client.delete_job(name=job_name, namespace="default")
 
 
 def wait_for_job(
-    job_list: typing.List[str], kubecli: KrknKubernetes, timeout: int = 300
+    job_list: typing.List[str], k8s_client: KrknKubernetes, timeout: int = 300
 ) -> None:
     """
     Function that waits for a list of jobs to finish within a time period
@@ -116,7 +114,7 @@ def wait_for_job(
         job_list (List of strings)
             - The list of jobs to check for completion
 
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
         timeout (int)
@@ -129,7 +127,7 @@ def wait_for_job(
     while count != job_len:
         for job_name in job_list:
             try:
-                api_response = kubecli.get_job_status(job_name, namespace="default")
+                api_response = k8s_client.get_job_status(job_name, namespace="default")
                 if (
                     api_response.status.succeeded is not None
                     or api_response.status.failed is not None
@@ -191,7 +189,7 @@ def apply_outage_policy(
     direction: str,
     duration: str,
     bridge_name: str,
-    kubecli: KrknKubernetes,
+    k8s_client: KrknKubernetes,
 ) -> typing.List[str]:
     """
     Function that applies filters(ingress or egress) to block traffic.
@@ -217,12 +215,8 @@ def apply_outage_policy(
         bridge_name (string):
             - bridge to which  filter rules need to be applied
 
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
-
-        batch_cli (BatchV1Api)
-            - Object to interact with Kubernetes Python client's BatchV1Api API
-
+        k8s_client (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
     Returns:
         The name of the job created that executes the commands on a node
         for ingress chaos scenario
@@ -237,7 +231,7 @@ def apply_outage_policy(
         br = "br-int"
         table = 8
     for node, ips in node_dict.items():
-        while len(check_cookie(node, pod_template, br, cookie, kubecli)) > 2:
+        while len(check_cookie(node, pod_template, br, cookie, k8s_client)) > 2:
             cookie = random.randint(100, 10000)
         exec_cmd = ""
         for ip in ips:
@@ -257,7 +251,7 @@ def apply_outage_policy(
                 cmd=exec_cmd,
             )
         )
-        api_response = kubecli.create_job(job_body)
+        api_response = k8s_client.create_job(job_body)
         if api_response is None:
             raise Exception("Error creating job")
 
@@ -274,7 +268,7 @@ def apply_ingress_policy(
     network_params: typing.Dict[str, str],
     duration: str,
     bridge_name: str,
-    kubecli: KrknKubernetes,
+    l8s_client: KrknKubernetes,
     test_execution: str,
 ) -> typing.List[str]:
     """
@@ -308,7 +302,7 @@ def apply_ingress_policy(
         bridge_name (string):
             - bridge to which  filter rules need to be applied
 
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
         test_execution (String)
@@ -321,10 +315,10 @@ def apply_ingress_policy(
 
     job_list = []
 
-    create_virtual_interfaces(kubecli, len(ips), node, pod_template)
+    create_virtual_interfaces(k8s_client, len(ips), node, pod_template)
 
     for count, pod_ip in enumerate(set(ips)):
-        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, k8s_client)
         exec_cmd = get_ingress_cmd(
             test_execution, pod_inf, mod, count, network_params, duration
         )
@@ -333,7 +327,7 @@ def apply_ingress_policy(
             job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
         )
         job_list.append(job_body["metadata"]["name"])
-        api_response = kubecli.create_job(job_body)
+        api_response = k8s_client.create_job(job_body)
         if api_response is None:
             raise Exception("Error creating job")
         if pod_ip == node:
@@ -350,7 +344,7 @@ def apply_net_policy(
     network_params: typing.Dict[str, str],
     duration: str,
     bridge_name: str,
-    kubecli: KrknKubernetes,
+    k8s_client: KrknKubernetes,
     test_execution: str,
 ) -> typing.List[str]:
     """
@@ -384,7 +378,7 @@ def apply_net_policy(
         bridge_name (string):
             - bridge to which  filter rules need to be applied
 
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
         test_execution (String)
@@ -398,7 +392,7 @@ def apply_net_policy(
     job_list = []
 
     for pod_ip in set(ips):
-        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, k8s_client)
         exec_cmd = get_egress_cmd(
             test_execution, pod_inf, mod, network_params, duration
         )
@@ -407,7 +401,7 @@ def apply_net_policy(
             job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
         )
         job_list.append(job_body["metadata"]["name"])
-        api_response = kubecli.create_job(job_body)
+        api_response = k8s_client.create_job(job_body)
         if api_response is None:
             raise Exception("Error creating job")
     return job_list
@@ -514,15 +508,15 @@ def get_egress_cmd(
 
 
 def create_virtual_interfaces(
-    kubecli: KrknKubernetes, nummber: int, node: str, pod_template
+   k8s_client: KrknKubernetes, number: int, node: str, pod_template
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
     virtual interfaces on the node
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        k8s_client (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
         interface_list (List of strings)
             - The list of interfaces on the node for which virtual interfaces
@@ -536,26 +530,25 @@ def create_virtual_interfaces(
               virtual interfaces on the node
     """
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
-    kubecli.create_pod(pod_body, "default", 300)
+    k8s_client.create_pod(pod_body, "default", 300)
     logging.info(
-        "Creating {0} virtual interfaces on node {1} using a pod".format(nummber, node)
+        "Creating {0} virtual interfaces on node {1} using a pod".format(number, node)
     )
-    create_ifb(kubecli, nummber, "modtools")
+    create_ifb(k8s_client, number, "modtools")
     logging.info("Deleting pod used to create virtual interfaces")
-    kubecli.delete_pod("modtools", "default")
+    k8s_client.delete_pod("modtools", "default")
 
 
 def delete_virtual_interfaces(
-    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template
+    node_list: typing.List[str], pod_template, k8s_client: KrknKubernetes
 ):
     """
     Function that creates a privileged pod and uses it to delete all
     virtual interfaces on the specified nodes
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
-
+        k8s_client: Initialized KrknKubernetes client
+        
         node_list (List of strings)
             - The list of nodes on which the list of virtual interfaces are
               to be deleted
@@ -570,40 +563,40 @@ def delete_virtual_interfaces(
 
     for node in node_list:
         pod_body = yaml.safe_load(pod_template.render(nodename=node))
-        kubecli.create_pod(pod_body, "default", 300)
+        k8s_client.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
-        delete_ifb(kubecli, "modtools")
-        kubecli.delete_pod("modtools", "default")
+        delete_ifb(k8s_client, "modtools")
+        k8s_client.delete_pod("modtools", "default")
 
 
-def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
+def create_ifb(number: int, pod_name: str):
     """
     Function that creates virtual interfaces in a pod.
     Makes use of modprobe commands
     """
 
     exec_command = ["/host", "modprobe", "ifb", "numifbs=" + str(number)]
-    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
+    k8s_client.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
     for i in range(0, number):
         exec_command = ["/host", "ip", "link", "set", "dev"]
         exec_command += ["ifb" + str(i), "up"]
-        kubecli.exec_cmd_in_pod(
+        k8s_client.exec_cmd_in_pod(
             exec_command, pod_name, "default", base_command="chroot"
         )
 
 
-def delete_ifb(kubecli: KrknKubernetes, pod_name: str):
+def delete_ifb(pod_name: str):
     """
     Function that deletes all virtual interfaces in a pod.
     Makes use of modprobe command
     """
 
     exec_command = ["/host", "modprobe", "-r", "ifb"]
-    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
+    k8s_client.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
 
-def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.List[str]:
+def list_bridges(node: str, pod_template) -> typing.List[str]:
     """
     Function that returns a list of bridges on the node
 
@@ -614,21 +607,19 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.Lis
         pod_template (jinja2.environment.Template)
             - The YAML template used to instantiate a pod to query
               the node's interface
-
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
-
     Returns:
         List of bridges on the node.
     """
 
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query bridge on node %s" % node)
-    kubecli.create_pod(pod_body, "default", 300)
+    k8s_client.create_pod(pod_body, "default", 300)
 
     try:
         cmd = ["/host", "ovs-vsctl", "list-br"]
-        output = kubecli.exec_cmd_in_pod(
+        output = k8s_client.exec_cmd_in_pod(
             cmd, "modtools", "default", base_command="chroot"
         )
 
@@ -640,13 +631,13 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.Lis
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        k8s_client.delete_pod("modtools", "default")
 
     return bridges
 
 
 def check_cookie(
-    node: str, pod_template, br_name, cookie, kubecli: KrknKubernetes
+    node: str, pod_template, br_name, cookie, k8s_client: KrknKubernetes
 ) -> str:
     """
     Function to check for matching flow rules
@@ -663,18 +654,17 @@ def check_cookie(
             - bridge against which the flows rules need to be checked
 
         cookie (string):
-            - flows matching the cookexec_cmd_in_podie are listed
+            - flows matching the cookie are listed
 
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
-
+        k8s_client (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
     Returns
         Returns the matching flow rules
     """
 
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query duplicate rules on node %s" % node)
-    kubecli.create_pod(pod_body, "default", 300)
+    k8s_client.create_pod(pod_body, "default", 300)
 
     try:
         cmd = [
@@ -687,7 +677,7 @@ def check_cookie(
             br_name,
             f"cookie={cookie}/-1",
         ]
-        output = kubecli.exec_cmd_in_pod(
+        output = k8s_client.exec_cmd_in_pod(
             cmd, "modtools", "default", base_command="chroot"
         )
 
@@ -699,13 +689,13 @@ def check_cookie(
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        k8s_client.delete_pod("modtools", "default")
 
     return flow_list
 
 
 def get_pod_interface(
-    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes
+    node: str, ip: str, pod_template, br_name, k8s_client: KrknKubernetes
 ) -> str:
     """
     Function to query the pod interface on a node
@@ -724,7 +714,7 @@ def get_pod_interface(
         br_name (string):
             - bridge against which the flows rules need to be checked
 
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
     Returns
@@ -733,7 +723,7 @@ def get_pod_interface(
 
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query pod interface on node %s" % node)
-    kubecli.create_pod(pod_body, "default", 300)
+    k8s_client.create_pod(pod_body, "default", 300)
     inf = ""
 
     try:
@@ -752,12 +742,12 @@ def get_pod_interface(
             find_ip,
         ]
 
-        output = kubecli.exec_cmd_in_pod(
+        output = k8s_client.exec_cmd_in_pod(
             cmd, "modtools", "default", base_command="chroot"
         )
         if not output:
             cmd = ["/host", "ip", "addr", "show"]
-            output = kubecli.exec_cmd_in_pod(
+            output = k8s_client.exec_cmd_in_pod(
                 cmd, "modtools", "default", base_command="chroot"
             )
             for if_str in output.split("\n"):
@@ -767,12 +757,12 @@ def get_pod_interface(
             inf = output
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        k8s_client.delete_pod("modtools", "default")
     return inf
 
 
 def check_bridge_interface(
-    node_name: str, pod_template, bridge_name: str, kubecli: KrknKubernetes
+    node_name: str, pod_template, bridge_name: str, k8s_client: KrknKubernetes
 ) -> bool:
     """
     Function  is used to check if the required OVS or OVN bridge is found in
@@ -789,16 +779,16 @@ def check_bridge_interface(
         bridge_name (string):
             - bridge name to check for in the node.
 
-        kubecli (KrknKubernetes)
+        k8s_client (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
     Returns:
         Returns True if the bridge is found in the  node.
     """
-    nodes = kubecli.get_node(node_name, None, 1)
+    nodes = k8s_client.get_node(node_name, None, 1)
     node_bridge = []
     for node in nodes:
-        node_bridge = list_bridges(node, pod_template, kubecli)
+        node_bridge = list_bridges(node, pod_template, k8s_client)
     if bridge_name not in node_bridge:
         raise Exception(f"OVS bridge {bridge_name} not found on the node ")
 
@@ -1003,20 +993,19 @@ def pod_outage(
         node_dict = {}
         label_set = set()
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
-        api_ext = client.ApiextensionsV1Api(kubecli.api_client)
-        custom_obj = client.CustomObjectsApi(kubecli.api_client)
+        api_ext = client.ApiextensionsV1Api(k8s_client.api_client)
+        custom_obj = client.CustomObjectsApi(k8s_client.api_client)
 
         br_name = get_bridge_name(api_ext, custom_obj)
         pods_list = get_test_pods(
-            test_pod_name, test_label_selector, test_namespace, kubecli
+            test_pod_name, test_label_selector, test_namespace, k8s_client
         )
 
         while not len(pods_list) <= params.instance_count:
             pods_list.pop(random.randint(0, len(pods_list) - 1))
 
         for pod_name in pods_list:
-            pod_stat = kubecli.read_pod(pod_name, test_namespace)
+            pod_stat = k8s_client.read_pod(pod_name, test_namespace)
             ip_set.add(pod_stat.status.pod_ip)
             node_dict.setdefault(pod_stat.spec.node_name, [])
             node_dict[pod_stat.spec.node_name].append(pod_stat.status.pod_ip)
@@ -1024,7 +1013,7 @@ def pod_outage(
                 label_set.add("%s=%s" % (key, value))
 
         check_bridge_interface(
-            list(node_dict.keys())[0], pod_module_template, br_name, kubecli
+            list(node_dict.keys())[0], pod_module_template, br_name, k8s_client
         )
 
         for direction, ports in filter_dict.items():
@@ -1038,13 +1027,13 @@ def pod_outage(
                     direction,
                     params.test_duration,
                     br_name,
-                    kubecli,
+                    k8s_client,
                 )
             )
 
         start_time = int(time.time())
         logging.info("Waiting for job to finish")
-        wait_for_job(job_list[:], kubecli, params.test_duration + 300)
+        wait_for_job(job_list[:], k8s_client, params.test_duration + 300)
         end_time = int(time.time())
         if publish:
             cerberus.publish_kraken_status(
@@ -1062,7 +1051,7 @@ def pod_outage(
         return "error", PodOutageErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
-        delete_jobs(kubecli, job_list[:])
+        delete_jobs(k8s_client, job_list[:])
 
 
 @dataclass
@@ -1251,19 +1240,18 @@ def pod_egress_shaping(
         param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
-        api_ext = client.ApiextensionsV1Api(kubecli.api_client)
-        custom_obj = client.CustomObjectsApi(kubecli.api_client)
+        api_ext = client.ApiextensionsV1Api(k8s_client.api_client)
+        custom_obj = client.CustomObjectsApi(k8s_client.api_client)
 
         br_name = get_bridge_name(api_ext, custom_obj)
         pods_list = get_test_pods(
-            test_pod_name, test_label_selector, test_namespace, kubecli
+            test_pod_name, test_label_selector, test_namespace, k8s_client
         )
 
         while not len(pods_list) <= params.instance_count:
             pods_list.pop(random.randint(0, len(pods_list) - 1))
         for pod_name in pods_list:
-            pod_stat = kubecli.read_pod(pod_name, test_namespace)
+            pod_stat = k8s_client.read_pod(pod_name, test_namespace)
             ip_set.add(pod_stat.status.pod_ip)
             node_dict.setdefault(pod_stat.spec.node_name, [])
             node_dict[pod_stat.spec.node_name].append(pod_stat.status.pod_ip)
@@ -1271,7 +1259,7 @@ def pod_egress_shaping(
                 label_set.add("%s=%s" % (key, value))
 
         check_bridge_interface(
-            list(node_dict.keys())[0], pod_module_template, br_name, kubecli
+            list(node_dict.keys())[0], pod_module_template, br_name, k8s_client
         )
 
         for mod in mod_lst:
@@ -1286,14 +1274,14 @@ def pod_egress_shaping(
                         params.network_params,
                         params.test_duration,
                         br_name,
-                        kubecli,
+                        k8s_client,
                         params.execution_type,
                     )
                 )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
-                wait_for_job(job_list[:], kubecli, params.test_duration + 20)
+                wait_for_job(job_list[:], k8s_client, params.test_duration + 20)
                 logging.info("Waiting for wait_duration %s" % params.test_duration)
                 time.sleep(params.test_duration)
                 end_time = int(time.time())
@@ -1306,7 +1294,7 @@ def pod_egress_shaping(
         if params.execution_type == "parallel":
             logging.info("Waiting for parallel job to finish")
             start_time = int(time.time())
-            wait_for_job(job_list[:], kubecli, params.test_duration + 300)
+            wait_for_job(job_list[:], k8s_client, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
             time.sleep(params.test_duration)
             end_time = int(time.time())
@@ -1325,7 +1313,7 @@ def pod_egress_shaping(
         return "error", PodEgressNetShapingErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
-        delete_jobs(kubecli, job_list[:])
+        delete_jobs(k8s_client, job_list[:])
 
 
 @dataclass
@@ -1515,19 +1503,18 @@ def pod_ingress_shaping(
         param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
-        api_ext = client.ApiextensionsV1Api(kubecli.api_client)
-        custom_obj = client.CustomObjectsApi(kubecli.api_client)
+        api_ext = client.ApiextensionsV1Api(k8s_client.api_client)
+        custom_obj = client.CustomObjectsApi(k8s_client.api_client)
 
         br_name = get_bridge_name(api_ext, custom_obj)
         pods_list = get_test_pods(
-            test_pod_name, test_label_selector, test_namespace, kubecli
+            test_pod_name, test_label_selector, test_namespace, k8s_client
         )
 
         while not len(pods_list) <= params.instance_count:
             pods_list.pop(random.randint(0, len(pods_list) - 1))
         for pod_name in pods_list:
-            pod_stat = kubecli.read_pod(pod_name, test_namespace)
+            pod_stat = k8s_client.read_pod(pod_name, test_namespace)
             ip_set.add(pod_stat.status.pod_ip)
             node_dict.setdefault(pod_stat.spec.node_name, [])
             node_dict[pod_stat.spec.node_name].append(pod_stat.status.pod_ip)
@@ -1535,7 +1522,7 @@ def pod_ingress_shaping(
                 label_set.add("%s=%s" % (key, value))
 
         check_bridge_interface(
-            list(node_dict.keys())[0], pod_module_template, br_name, kubecli
+            list(node_dict.keys())[0], pod_module_template, br_name, k8s_client
         )
 
         for mod in mod_lst:
@@ -1550,14 +1537,14 @@ def pod_ingress_shaping(
                         params.network_params,
                         params.test_duration,
                         br_name,
-                        kubecli,
+                        k8s_client,
                         params.execution_type,
                     )
                 )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
-                wait_for_job(job_list[:], kubecli, params.test_duration + 20)
+                wait_for_job(job_list[:], k8s_client, params.test_duration + 20)
                 logging.info("Waiting for wait_duration %s" % params.test_duration)
                 time.sleep(params.test_duration)
                 end_time = int(time.time())
@@ -1570,7 +1557,7 @@ def pod_ingress_shaping(
         if params.execution_type == "parallel":
             logging.info("Waiting for parallel job to finish")
             start_time = int(time.time())
-            wait_for_job(job_list[:], kubecli, params.test_duration + 300)
+            wait_for_job(job_list[:], k8s_client, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
             time.sleep(params.test_duration)
             end_time = int(time.time())
@@ -1588,6 +1575,6 @@ def pod_ingress_shaping(
         logging.error("Pod network Shaping scenario exiting due to Exception - %s" % e)
         return "error", PodIngressNetShapingErrorOutput(format_exc())
     finally:
-        delete_virtual_interfaces(kubecli, node_dict.keys(), pod_module_template)
+        delete_virtual_interfaces(k8s_client, node_dict.keys(), pod_module_template)
         logging.info("Deleting jobs(if any)")
-        delete_jobs(kubecli, job_list[:])
+        delete_jobs(k8s_client, job_list[:])
