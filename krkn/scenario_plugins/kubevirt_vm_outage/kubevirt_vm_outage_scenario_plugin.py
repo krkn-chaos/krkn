@@ -22,11 +22,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         self.k8s_client = None
         self.original_vmi = None
         
-    def get_scenario_types(self) -> list[str]:
-        """
-        Returns the list of scenario types this plugin supports.
-        """
-        return ["kubevirt_vm_outage"]
+    # Scenario type is handled directly in execute_scenario
 
     def run(
         self,
@@ -106,6 +102,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             vm_name = params.get("vm_name")
             namespace = params.get("namespace", "default")
             duration = params.get("duration", 60)
+            disable_auto_restart = params.get("disable_auto_restart", False)
             
             if not vm_name:
                 logging.error("vm_name parameter is required")
@@ -124,7 +121,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             self.original_vmi = vmi
             logging.info(f"Captured initial state of VMI: {vm_name}")
             
-            result = self.inject(vm_name, namespace)
+            result = self.inject(vm_name, namespace, disable_auto_restart)
             if result != 0:
                 return 1
                 
@@ -173,7 +170,49 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             logging.error(f"Error validating environment: {e}")
             return False
 
-    def inject(self, vm_name: str, namespace: str) -> int:
+    def patch_vm_spec(self, vm_name: str, namespace: str, running: bool) -> bool:
+        """
+        Patch the VM spec to enable/disable auto-restart.
+        
+        :param vm_name: Name of the VM to patch
+        :param namespace: Namespace of the VM
+        :param running: Whether the VM should be set to running state
+        :return: True if patch was successful, False otherwise
+        """
+        try:
+            # Get the VM object first to get its current spec
+            vm = self.k8s_client.custom_object_client.get_namespaced_custom_object(
+                group="kubevirt.io",
+                version="v1",
+                namespace=namespace,
+                plural="virtualmachines",
+                name=vm_name
+            )
+            
+            # Update the running state
+            if 'spec' not in vm:
+                vm['spec'] = {}
+            vm['spec']['running'] = running
+            
+            # Apply the patch
+            self.k8s_client.custom_object_client.patch_namespaced_custom_object(
+                group="kubevirt.io",
+                version="v1",
+                namespace=namespace,
+                plural="virtualmachines",
+                name=vm_name,
+                body=vm
+            )
+            return True
+            
+        except ApiException as e:
+            logging.error(f"Failed to patch VM {vm_name}: {e}")
+            return False
+        except Exception as e:
+            logging.error(f"Unexpected error patching VM {vm_name}: {e}")
+            return False
+            
+    def inject(self, vm_name: str, namespace: str, disable_auto_restart: bool = False) -> int:
         """
         Delete a Virtual Machine Instance to simulate a VM outage.
         
@@ -183,6 +222,13 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             logging.info(f"Injecting chaos: Deleting VMI {vm_name} in namespace {namespace}")
+            
+            # If auto-restart should be disabled, patch the VM spec first
+            if disable_auto_restart:
+                logging.info(f"Disabling auto-restart for VM {vm_name} by setting spec.running=False")
+                if not self.patch_vm_spec(vm_name, namespace, running=False):
+                    logging.error("Failed to disable auto-restart for VM"
+                               " - proceeding with deletion but VM may auto-restart")
             
             try:
                 self.k8s_client.custom_object_client.delete_namespaced_custom_object(
@@ -217,33 +263,28 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             log_exception(e)
             return 1
 
-    def recover(self, vm_name: str, namespace: str) -> int:
+    def recover(self, vm_name: str, namespace: str, disable_auto_restart: bool = False) -> int:
         """
         Recover a deleted VMI, either by waiting for auto-recovery or manually recreating it.
         
         :param vm_name: Name of the VMI to recover
         :param namespace: Namespace of the VMI
+        :param disable_auto_restart: Whether auto-restart was disabled during injection
         :return: 0 for success, 1 for failure
         """
         try:
             logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
             
-            timeout = 300  # seconds
-            start_time = time.time()
+            # Check current state once since we've already waited for the duration
+            vmi = self.get_vmi(vm_name, namespace)
             
-            while time.time() - start_time < timeout:
-                vmi = self.get_vmi(vm_name, namespace)
-                
-                if vmi:
-                    if vmi.get('status', {}).get('phase') == "Running":
-                        logging.info(f"VMI {vm_name} has been automatically recovered and is running")
-                        return 0
-                        
-                    logging.info(f"VMI {vm_name} exists but is not yet in Running state. Current state: {vmi.get('status', {}).get('phase')}")
-                else:
-                    logging.info(f"VMI {vm_name} not yet recreated. Waiting...")
-                
-                time.sleep(10)
+            if vmi:
+                if vmi.get('status', {}).get('phase') == "Running":
+                    logging.info(f"VMI {vm_name} is already running")
+                    return 0
+                logging.info(f"VMI {vm_name} exists but is not in Running state. Current state: {vmi.get('status', {}).get('phase')}")
+            else:
+                logging.info(f"VMI {vm_name} not yet recreated")
                 
             if self.original_vmi:
                 logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
