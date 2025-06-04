@@ -86,8 +86,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
                         result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
                     
         self.assertEqual(result, 0)
-        mock_inject.assert_called_once_with("test-vm", "default")
-        mock_recover.assert_called_once_with("test-vm", "default")
+        mock_inject.assert_called_once_with("test-vm", "default", False)
+        mock_recover.assert_called_once_with("test-vm", "default", False)
         
     def test_injection_failure(self):
         """
@@ -102,8 +102,40 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
                         result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
                     
         self.assertEqual(result, 1)
-        mock_inject.assert_called_once_with("test-vm", "default")
+        mock_inject.assert_called_once_with("test-vm", "default", False)
         mock_recover.assert_not_called()
+        
+    def test_disable_auto_restart(self):
+        """
+        Test VM auto-restart can be disabled
+        """
+        # Configure test with disable_auto_restart=True
+        self.config["scenarios"][0]["parameters"]["disable_auto_restart"] = True
+        
+        # Mock VM object for patching
+        mock_vm = {
+            "metadata": {"name": "test-vm", "namespace": "default"},
+            "spec": {}
+        }
+        
+        # Mock get_vmi to return our mock VMI
+        with patch.object(self.plugin, 'get_vmi', return_value=self.mock_vmi):
+            # Mock VM patch operation
+            with patch.object(self.plugin, 'patch_vm_spec') as mock_patch_vm:
+                mock_patch_vm.return_value = True
+                # Mock inject and recover
+                with patch.object(self.plugin, 'inject', return_value=0) as mock_inject:
+                    with patch.object(self.plugin, 'recover', return_value=0) as mock_recover:
+                        with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
+                            result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+        
+        self.assertEqual(result, 0)
+        # Should call patch_vm_spec to disable auto-restart
+        mock_patch_vm.assert_any_call("test-vm", "default", False)
+        # Should call patch_vm_spec to re-enable auto-restart during recovery
+        mock_patch_vm.assert_any_call("test-vm", "default", True)
+        mock_inject.assert_called_once_with("test-vm", "default", True)
+        mock_recover.assert_called_once_with("test-vm", "default", True)
         
     def test_recovery_when_vmi_does_not_exist(self):
         """
@@ -130,7 +162,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
                 
                 # Run recovery with mocked time.sleep
                 with patch('time.sleep'):
-                    result = self.plugin.recover("test-vm", "default")
+                    result = self.plugin.recover("test-vm", "default", False)
         
         self.assertEqual(result, 0)
         # Verify create was called with the right arguments for our API version and kind
@@ -167,7 +199,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         with patch.object(self.plugin, 'get_vmi', return_value=self.mock_vmi):
             # Simulate timeout by making time.time return values that exceed the timeout
             with patch('time.sleep'), patch('time.time', side_effect=[0, 10, 20, 130, 130, 130, 130, 140]):
-                result = self.plugin.inject("test-vm", "default")
+                result = self.plugin.inject("test-vm", "default", False)
             
         self.assertEqual(result, 1)
         self.custom_object_client.delete_namespaced_custom_object.assert_called_once_with(
