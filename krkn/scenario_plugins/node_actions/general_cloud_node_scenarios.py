@@ -12,9 +12,10 @@ class GENERAL:
 
 # krkn_lib
 class general_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
-        super().__init__(kubecli, affected_nodes_status)
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         self.general = GENERAL()
+        self.node_action_kube_check = node_action_kube_check
 
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):
