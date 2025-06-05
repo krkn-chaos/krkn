@@ -62,28 +62,30 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
 
     def get_node_scenario_object(self, node_scenario, kubecli: KrknKubernetes):
         affected_nodes_status = AffectedNodeStatus()
+
+        node_action_kube_check = get_yaml_item_value(node_scenario,"kube_check",True)
         if (
             "cloud_type" not in node_scenario.keys()
             or node_scenario["cloud_type"] == "generic"
         ):
             global node_general
             node_general = True
-            return general_node_scenarios(kubecli, affected_nodes_status)
+            return general_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
         if node_scenario["cloud_type"].lower() == "aws":
-            return aws_node_scenarios(kubecli, affected_nodes_status)
+            return aws_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
         elif node_scenario["cloud_type"].lower() == "gcp":
-            return gcp_node_scenarios(kubecli, affected_nodes_status)
+            return gcp_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
         elif node_scenario["cloud_type"].lower() == "openstack":
             from krkn.scenario_plugins.node_actions.openstack_node_scenarios import (
                 openstack_node_scenarios,
             )
 
-            return openstack_node_scenarios(kubecli, affected_nodes_status)
+            return openstack_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "azure"
             or node_scenario["cloud_type"].lower() == "az"
         ):
-            return azure_node_scenarios(kubecli, affected_nodes_status)
+            return azure_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "alibaba"
             or node_scenario["cloud_type"].lower() == "alicloud"
@@ -92,7 +94,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 alibaba_node_scenarios,
             )
 
-            return alibaba_node_scenarios(kubecli, affected_nodes_status)
+            return alibaba_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
         elif node_scenario["cloud_type"].lower() == "bm":
             from krkn.scenario_plugins.node_actions.bm_node_scenarios import (
                 bm_node_scenarios,
@@ -103,20 +105,22 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_scenario.get("bmc_user", None),
                 node_scenario.get("bmc_password", None),
                 kubecli,
+                node_action_kube_check,
                 affected_nodes_status
             )
         elif node_scenario["cloud_type"].lower() == "docker":
-            return docker_node_scenarios(kubecli)
+            return docker_node_scenarios(kubecli,node_action_kube_check,
+                affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "vsphere"
             or node_scenario["cloud_type"].lower() == "vmware"
         ):
-            return vmware_node_scenarios(kubecli, affected_nodes_status)
+            return vmware_node_scenarios(kubecli, node_action_kube_check,affected_nodes_status)
         elif (
             node_scenario["cloud_type"].lower() == "ibm"
             or node_scenario["cloud_type"].lower() == "ibmcloud"
         ):
-            return ibm_node_scenarios(kubecli, affected_nodes_status)
+            return ibm_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
         else:
             logging.error(
                 "Cloud type "

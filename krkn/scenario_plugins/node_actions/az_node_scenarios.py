@@ -210,10 +210,11 @@ class Azure:
 
 # krkn_lib
 class azure_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
-        super().__init__(kubecli, affected_nodes_status)
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         logging.info("init in azure")
         self.azure = Azure()
+        self.node_action_kube_check = node_action_kube_check
         
 
     # Node scenario to start the node
@@ -230,7 +231,8 @@ class azure_node_scenarios(abstract_node_scenarios):
                 )
                 self.azure.start_instances(resource_group, vm_name)
                 self.azure.wait_until_running(resource_group, vm_name, timeout, affected_node=affected_node)
-                nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
                 logging.info("Node with instance ID: %s is in running state" % node)
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -258,7 +260,8 @@ class azure_node_scenarios(abstract_node_scenarios):
                 self.azure.stop_instances(resource_group, vm_name)
                 self.azure.wait_until_stopped(resource_group, vm_name, timeout, affected_node=affected_node)
                 logging.info("Node with instance ID: %s is in stopped state" % vm_name)
-                nodeaction.wait_for_unknown_status(vm_name, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_unknown_status(vm_name, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -318,8 +321,8 @@ class azure_node_scenarios(abstract_node_scenarios):
                 )
                 
                 self.azure.reboot_instances(resource_group, vm_name)
-
-                nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
 
                 logging.info("Node with instance ID: %s has been rebooted" % (vm_name))
                 logging.info("node_reboot_scenario has been successfully injected!")

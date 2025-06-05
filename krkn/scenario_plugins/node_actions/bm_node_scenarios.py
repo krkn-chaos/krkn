@@ -135,9 +135,10 @@ class BM:
 
 # krkn_lib
 class bm_node_scenarios(abstract_node_scenarios):
-    def __init__(self, bm_info, user, passwd, kubecli: KrknKubernetes,affected_nodes_status: AffectedNodeStatus):
-        super().__init__(kubecli, affected_nodes_status)
+    def __init__(self, bm_info, user, passwd, kubecli: KrknKubernetes,node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         self.bm = BM(bm_info, user, passwd)
+        self.node_action_kube_check = node_action_kube_check
 
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):
@@ -152,7 +153,8 @@ class bm_node_scenarios(abstract_node_scenarios):
                 )
                 self.bm.start_instances(bmc_addr, node)
                 self.bm.wait_until_running(bmc_addr, node, affected_node)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check: 
+                    nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
                     "Node with bmc address: %s is in running state" % (bmc_addr)
                 )
@@ -183,7 +185,8 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with bmc address: %s is in stopped state" % (bmc_addr)
                 )
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check: 
+                    nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -210,8 +213,9 @@ class bm_node_scenarios(abstract_node_scenarios):
                     "Rebooting the node %s with bmc address: %s " % (node, bmc_addr)
                 )
                 self.bm.reboot_instances(bmc_addr, node)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check: 
+                    nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
+                    nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with bmc address: %s has been rebooted" % (bmc_addr))
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
