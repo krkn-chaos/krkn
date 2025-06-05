@@ -243,7 +243,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                 tc_set += ";"
             else:
                 tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
-        exec_cmd = "{0} {1} sleep {2};{3} sleep 20;{4}".format(
+        exec_cmd = "sleep 30;{0} {1} sleep {2};{3} sleep 20;{4}".format(
             tc_set, tc_ls, duration, tc_unset, tc_ls
         )
         return exec_cmd
