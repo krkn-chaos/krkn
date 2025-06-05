@@ -229,6 +229,8 @@ def apply_outage_policy(
     """
 
     job_list = []
+    yml_list = []
+    cookie_list = []
     cookie = random.randint(100, 10000)
     net_direction = {"egress": "nw_src", "ingress": "nw_dst"}
     br = "br0"
@@ -237,7 +239,7 @@ def apply_outage_policy(
         br = "br-int"
         table = 8
     for node, ips in node_dict.items():
-        while len(check_cookie(node, pod_template, br, cookie, kubecli)) > 2:
+        while len(check_cookie(node, pod_template, br, cookie, kubecli)) > 2 or cookie in cookie_list:
             cookie = random.randint(100, 10000)
         exec_cmd = ""
         for ip in ips:
@@ -247,7 +249,8 @@ def apply_outage_policy(
                 exec_cmd = f"{exec_cmd}ovs-ofctl -O  OpenFlow13 add-flow {br} cookie={cookie},table={table},priority=65535,udp,{net_direction[direction]}={ip},tp_dst={target_port},actions=drop;"
             if not ports:
                 exec_cmd = f"{exec_cmd}ovs-ofctl -O  OpenFlow13 add-flow {br} cookie={cookie},table={table},priority=65535,ip,{net_direction[direction]}={ip},actions=drop;"
-        exec_cmd = f"{exec_cmd}sleep {duration};ovs-ofctl -O  OpenFlow13  del-flows {br} cookie={cookie}/-1"
+        exec_cmd = f"sleep 30;{exec_cmd}sleep {duration};ovs-ofctl -O  OpenFlow13  del-flows {br} cookie={cookie}/-1"
+        cookie_list.append(cookie)
         logging.info("Executing %s on node %s" % (exec_cmd, node))
 
         job_body = yaml.safe_load(
@@ -257,6 +260,8 @@ def apply_outage_policy(
                 cmd=exec_cmd,
             )
         )
+        yml_list.append(job_body)
+    for job_body in yml_list:
         api_response = kubecli.create_job(job_body)
         if api_response is None:
             raise Exception("Error creating job")
@@ -320,6 +325,7 @@ def apply_ingress_policy(
     """
 
     job_list = []
+    yml_list = []
 
     create_virtual_interfaces(kubecli, len(ips), node, pod_template)
 
@@ -332,12 +338,16 @@ def apply_ingress_policy(
         job_body = yaml.safe_load(
             job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
         )
-        job_list.append(job_body["metadata"]["name"])
+        yml_list.append(job_body)
+        if pod_ip == node:
+            break
+
+    for job_body in yml_list:
         api_response = kubecli.create_job(job_body)
         if api_response is None:
             raise Exception("Error creating job")
-        if pod_ip == node:
-            break
+
+        job_list.append(job_body["metadata"]["name"])
     return job_list
 
 
@@ -396,6 +406,7 @@ def apply_net_policy(
     """
 
     job_list = []
+    yml_list = []
 
     for pod_ip in set(ips):
         pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
@@ -406,11 +417,16 @@ def apply_net_policy(
         job_body = yaml.safe_load(
             job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
         )
-        job_list.append(job_body["metadata"]["name"])
+        yml_list.append(job_body)
+
+    for job_body in yml_list:
         api_response = kubecli.create_job(job_body)
         if api_response is None:
             raise Exception("Error creating job")
+
+        job_list.append(job_body["metadata"]["name"])
     return job_list
+
 
 
 def get_ingress_cmd(
@@ -463,7 +479,7 @@ def get_ingress_cmd(
         tc_set += ";"
     else:
         tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
-    exec_cmd = "{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
+    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
 
     return exec_cmd
 
@@ -508,7 +524,7 @@ def get_egress_cmd(
         tc_set += ";"
     else:
         tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
-    exec_cmd = "{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
+    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
 
     return exec_cmd
 
