@@ -6,7 +6,6 @@ import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
-k8s_client = KrknKubernetes()
 
 # krkn_lib
 class abstract_node_scenarios:
@@ -127,7 +126,7 @@ class abstract_node_scenarios:
                 logging.info("Crashing the node %s" % (node))
                 pod_name = f"node-crash-{node[:10]}-{int(time.time())}"
                 crash_command = ["dd", "if=/dev/urandom", "of=/proc/sysrq-trigger"]
-                k8s_client.exec_command_on_node(node_name=node,
+                self.kubecli.exec_command_on_node(node_name=node,
                                                      command=crash_command,
                                                      exec_pod_name=pod_name,
                                                      exec_pod_namespace="default",
