@@ -224,9 +224,7 @@ def json_namespace(namespace, queries, analysis_data):
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Krkn Chaos Recommender Command-Line tool"
-    )
+    parser = argparse.ArgumentParser(description="Krkn Chaos Recommender Command-Line tool")
     args = parse_arguments(parser)
 
     if args.config_file is None and not args.options:
@@ -236,90 +234,132 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    if args.config_file is not None:
-        (
+    try:
+        if args.config_file is not None:
+            (
+                namespaces,
+                kubeconfig,
+                prometheus_endpoint,
+                auth_token,
+                scrape_duration,
+                chaos_tests,
+                log_level,
+                threshold,
+                heatmap_cpu_threshold,
+                heatmap_mem_threshold,
+                output_path,
+            ) = read_configuration(args.config_file)
+        else:
+            namespaces = args.namespaces
+            kubeconfig = args.kubeconfig
+            auth_token = args.token
+            scrape_duration = args.scrape_duration
+            log_level = args.log_level
+            prometheus_endpoint = args.prometheus_endpoint
+            output_path = args.json_output_file
+            chaos_tests = {
+                "MEM": args.MEM,
+                "GENERIC": args.GENERIC,
+                "CPU": args.CPU,
+                "NETWORK": args.NETWORK,
+            }
+            threshold = args.threshold
+            heatmap_mem_threshold = args.mem_threshold
+            heatmap_cpu_threshold = args.cpu_threshold
+
+        if log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
+            logging.error(f"{log_level} not a valid log level")
+            sys.exit(1)
+
+        logging.basicConfig(level=log_level)
+
+        if output_path is not False:
+            if output_path is None:
+                output_path = "./recommender_output"
+                logging.info(
+                    f"Path for output file not specified. "
+                    f"Using default folder {output_path}"
+                )
+            if not os.path.exists(os.path.expanduser(output_path)):
+                logging.error(f"Folder {output_path} for output not found.")
+                sys.exit(1)
+
+        # Validate required inputs
+        if not namespaces:
+            logging.error("No namespaces provided")
+            sys.exit(1)
+        if not prometheus_endpoint:
+            logging.error("Prometheus endpoint is required")
+            sys.exit(1)
+        if not auth_token:
+            logging.error("Auth token is required")
+            sys.exit(1)
+
+        logging.info("Loading inputs...")
+        inputs = json_inputs(
             namespaces,
             kubeconfig,
             prometheus_endpoint,
-            auth_token,
             scrape_duration,
             chaos_tests,
-            log_level,
             threshold,
             heatmap_cpu_threshold,
             heatmap_mem_threshold,
-            output_path,
-        ) = read_configuration(args.config_file)
+        )
+        namespaces_data = []
 
-    if args.options:
-        namespaces = args.namespaces
-        kubeconfig = args.kubeconfig
-        auth_token = args.token
-        scrape_duration = args.scrape_duration
-        log_level = args.log_level
-        prometheus_endpoint = args.prometheus_endpoint
-        output_path = args.json_output_file
-        chaos_tests = {
-            "MEM": args.MEM,
-            "GENERIC": args.GENERIC,
-            "CPU": args.CPU,
-            "NETWORK": args.NETWORK,
-        }
-        threshold = args.threshold
-        heatmap_mem_threshold = args.mem_threshold
-        heatmap_cpu_threshold = args.cpu_threshold
+        logging.info("Starting Analysis...")
 
-    if log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
-        logging.error(f"{log_level} not a valid log level")
-        sys.exit(1)
-
-    logging.basicConfig(level=log_level)
-
-    if output_path is not False:
-        if output_path is None:
-            output_path = "./recommender_output"
-            logging.info(
-                f"Path for output file not specified. "
-                f"Using default folder {output_path}"
+        try:
+            # Initialize Prometheus client and fetch utilization data
+            file_path, queries = prometheus.fetch_utilization_from_prometheus(
+                prometheus_endpoint, auth_token, namespaces, scrape_duration
             )
-        if not os.path.exists(os.path.expanduser(output_path)):
-            logging.error(f"Folder {output_path} for output not found.")
+        except prometheus.PrometheusConnectionError as e:
+            logging.error(f"Failed to connect to Prometheus at {prometheus_endpoint}: {str(e)}")
+            sys.exit(1)
+        except prometheus.PrometheusQueryError as e:
+            logging.error(f"Failed to execute Prometheus queries: {str(e)}")
+            sys.exit(1)
+        except Exception as e:
+            logging.error(f"Unexpected error while fetching Prometheus data: {str(e)}")
             sys.exit(1)
 
-    logging.info("Loading inputs...")
-    inputs = json_inputs(
-        namespaces,
-        kubeconfig,
-        prometheus_endpoint,
-        scrape_duration,
-        chaos_tests,
-        threshold,
-        heatmap_cpu_threshold,
-        heatmap_mem_threshold,
-    )
-    namespaces_data = []
+        try:
+            analysis_data = analysis(
+                file_path,
+                namespaces,
+                chaos_tests,
+                threshold,
+                heatmap_cpu_threshold,
+                heatmap_mem_threshold,
+            )
+        except Exception as e:
+            logging.error(f"Failed to analyze data: {str(e)}")
+            sys.exit(1)
 
-    logging.info("Starting Analysis...")
+        try:
+            for namespace in namespaces:
+                namespace_data = json_namespace(
+                    namespace, queries[namespace], analysis_data[namespace]
+                )
+                namespaces_data.append(namespace_data)
+        except KeyError as e:
+            logging.error(f"Failed to process namespace data: {str(e)}")
+            sys.exit(1)
+        except Exception as e:
+            logging.error(f"Unexpected error while processing namespace data: {str(e)}")
+            sys.exit(1)
 
-    file_path, queries = prometheus.fetch_utilization_from_prometheus(
-        prometheus_endpoint, auth_token, namespaces, scrape_duration
-    )
+        try:
+            make_json_output(inputs, namespaces_data, output_path)
+        except Exception as e:
+            logging.error(f"Failed to create JSON output: {str(e)}")
+            sys.exit(1)
 
-    analysis_data = analysis(
-        file_path,
-        namespaces,
-        chaos_tests,
-        threshold,
-        heatmap_cpu_threshold,
-        heatmap_mem_threshold,
-    )
-
-    for namespace in namespaces:
-        namespace_data = json_namespace(
-            namespace, queries[namespace], analysis_data[namespace]
-        )
-        namespaces_data.append(namespace_data)
-    make_json_output(inputs, namespaces_data, output_path)
+    except Exception as e:
+        logging.error(f"An unexpected error occurred: {str(e)}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
