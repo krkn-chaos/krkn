@@ -32,7 +32,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -54,7 +53,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                                 scenario_telemetry,
                             )
                             end_time = int(time.time())
-                            cerberus.get_status(krkn_config, start_time, end_time)
+                            cerberus.get_status(start_time, end_time)
                 except (RuntimeError, Exception) as e:
                     logging.error("Node Actions exiting due to Exception %s" % e)
                     return 1
