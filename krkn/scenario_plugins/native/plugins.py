@@ -4,7 +4,6 @@ import logging
 from os.path import abspath
 from typing import List, Any, Dict
 from krkn.scenario_plugins.native.run_python_plugin import run_python_file
-from arcaflow_plugin_kill_pod import kill_pods, wait_for_pods
 from krkn.scenario_plugins.native.network.ingress_shaping import network_chaos
 from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin import (
     pod_outage,
@@ -148,13 +147,6 @@ class Plugins:
 
 PLUGINS = Plugins(
     [
-        PluginStep(
-            kill_pods,
-            [
-                "error",
-            ],
-        ),
-        PluginStep(wait_for_pods, ["error"]),
         PluginStep(run_python_file, ["error"]),
         PluginStep(network_chaos, ["error"]),
         PluginStep(pod_outage, ["error"]),
