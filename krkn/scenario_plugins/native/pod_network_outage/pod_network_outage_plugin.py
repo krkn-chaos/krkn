@@ -16,6 +16,7 @@ from kubernetes import client
 from kubernetes.client.api.apiextensions_v1_api import ApiextensionsV1Api
 from kubernetes.client.api.custom_objects_api import CustomObjectsApi
 from . import cerberus
+from krkn.scenario_plugins.types import ExecutionType
 
 
 def get_test_pods(
@@ -473,7 +474,7 @@ def get_ingress_cmd(
     tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, ifb_dev)
     tc_unset = "{0} tc qdisc del dev {1} ingress".format(tc_unset, test_interface)
     tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, ifb_dev)
-    if execution == "parallel":
+    if execution == ExecutionType.PARALLEL.value:
         for val in vallst.keys():
             tc_set += " {0} {1} ".format(param_map[val], vallst[val])
         tc_set += ";"
@@ -518,7 +519,7 @@ def get_egress_cmd(
     tc_set = "{0} tc qdisc replace dev {1} root netem".format(tc_set, test_interface)
     tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, test_interface)
     tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, test_interface)
-    if execution == "parallel":
+    if execution == ExecutionType.PARALLEL.value:
         for val in vallst.keys():
             tc_set += " {0} {1} ".format(param_map[val], vallst[val])
         tc_set += ";"
@@ -1173,11 +1174,11 @@ class EgressParams:
     )
 
     execution_type: typing.Optional[str] = field(
-        default="parallel",
+        default=ExecutionType.PARALLEL.value,
         metadata={
             "name": "Execution Type",
-            "description": "The order in which the ingress filters are applied. "
-            "Execution type can be 'serial' or 'parallel'",
+            "description": f"The order in which the ingress filters are applied. "
+            f"Execution type can be one of the following: {ExecutionType.available_options}",
         },
     )
 
@@ -1306,7 +1307,7 @@ def pod_egress_shaping(
                         params.execution_type,
                     )
                 )
-            if params.execution_type == "serial":
+            if params.execution_type == ExecutionType.SERIAL.value:
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
                 wait_for_job(job_list[:], kubecli, params.test_duration + 20)
@@ -1317,9 +1318,9 @@ def pod_egress_shaping(
                     cerberus.publish_kraken_status(
                         params.kraken_config, "", start_time, end_time
                     )
-            if params.execution_type == "parallel":
+            if params.execution_type == ExecutionType.PARALLEL.value:
                 break
-        if params.execution_type == "parallel":
+        if params.execution_type == ExecutionType.PARALLEL.value:
             logging.info("Waiting for parallel job to finish")
             start_time = int(time.time())
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
@@ -1436,11 +1437,11 @@ class IngressParams:
     )
 
     execution_type: typing.Optional[str] = field(
-        default="parallel",
+        default=ExecutionType.PARALLEL.value,
         metadata={
             "name": "Execution Type",
-            "description": "The order in which the ingress filters are applied. "
-            "Execution type can be 'serial' or 'parallel'",
+            "description": f"The order in which the ingress filters are applied. "
+            f"Execution type can be one of the following: {ExecutionType.available_options}",
         },
     )
 
@@ -1570,7 +1571,7 @@ def pod_ingress_shaping(
                         params.execution_type,
                     )
                 )
-            if params.execution_type == "serial":
+            if params.execution_type == ExecutionType.SERIAL.value:
                 logging.info("Waiting for serial job to finish")
                 start_time = int(time.time())
                 wait_for_job(job_list[:], kubecli, params.test_duration + 20)
@@ -1581,9 +1582,9 @@ def pod_ingress_shaping(
                     cerberus.publish_kraken_status(
                         params.kraken_config, "", start_time, end_time
                     )
-            if params.execution_type == "parallel":
+            if params.execution_type == ExecutionType.PARALLEL.value:
                 break
-        if params.execution_type == "parallel":
+        if params.execution_type == ExecutionType.PARALLEL.value:
             logging.info("Waiting for parallel job to finish")
             start_time = int(time.time())
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)

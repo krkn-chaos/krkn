@@ -13,6 +13,7 @@ import typing
 from arcaflow_plugin_sdk import validation, plugin
 from kubernetes.client.api.core_v1_api import CoreV1Api as CoreV1Api
 from kubernetes.client.api.batch_v1_api import BatchV1Api as BatchV1Api
+from krkn.scenario_plugins.types import ExecutionType
 
 
 @dataclass
@@ -79,11 +80,11 @@ class NetworkScenarioConfig:
     )
 
     execution_type: typing.Optional[str] = field(
-        default="parallel",
+        default=ExecutionType.PARALLEL.value,
         metadata={
             "name": "Execution Type",
-            "description": "The order in which the ingress filters are applied. "
-            "Execution type can be 'serial' or 'parallel'",
+            "description": f"The order in which the ingress filters are applied. "
+            f"Execution type can be one of the following: {ExecutionType.available_options}",
         },
     )
 
@@ -715,7 +716,7 @@ def network_chaos(
     job_list = []
 
     try:
-        if cfg.execution_type == "parallel":
+        if cfg.execution_type == ExecutionType.PARALLEL.value:
             for node in node_interface_dict:
                 job_list.append(
                     apply_ingress_filter(
@@ -731,7 +732,7 @@ def network_chaos(
             logging.info("Waiting for parallel job to finish")
             wait_for_job(batch_cli, job_list[:], cfg.test_duration + 100)
 
-        elif cfg.execution_type == "serial":
+        elif cfg.execution_type == ExecutionType.SERIAL.value:
             create_interfaces = True
             for param in cfg.network_params:
                 for node in node_interface_dict:
@@ -757,9 +758,8 @@ def network_chaos(
                 time.sleep(cfg.wait_duration)
                 create_interfaces = False
         else:
-
             return "error", NetworkScenarioErrorOutput(
-                "Invalid execution type - serial and parallel are "
+                f"Invalid execution type - {ExecutionType.available_options} are "
                 "the only accepted types"
             )
         return "success", NetworkScenarioSuccessOutput(
