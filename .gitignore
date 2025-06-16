@@ -67,4 +67,5 @@ CI/results.markdown
 
 #env
 chaos/*
-
+test_app_outage.yaml
+test-config.yaml
