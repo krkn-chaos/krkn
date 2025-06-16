@@ -48,7 +48,6 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return [
             "pod_disruption_scenarios",
-            "pod_network_scenarios",
             "ingress_node_scenarios"
         ]
 

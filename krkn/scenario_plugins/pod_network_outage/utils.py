@@ -1,8 +1,9 @@
 import logging
 import re
-from datetime import time
-from random import random
+import time
+import random
 
+import jinja2
 import yaml
 from krkn_lib.k8s import KrknKubernetes
 from kubernetes.client import ApiextensionsV1Api, CustomObjectsApi
@@ -58,7 +59,7 @@ def get_test_pods(
             - pods matching the label on which network policy
               need to be applied
 
-        namepsace (string)
+        namespace (string)
             - namespace in which the pod is present
 
         kubecli (KrknKubernetes)
@@ -67,7 +68,6 @@ def get_test_pods(
     Returns:
         pod names (string) in the namespace
     """
-    pods_list = []
     pods_list = kubecli.list_pods(label_selector=pod_label, namespace=namespace)
     if pod_name and pod_name not in pods_list:
         raise Exception("pod name not found in namespace ")
@@ -102,7 +102,7 @@ def check_bridge_interface(
     Returns:
         Returns True if the bridge is found in the  node.
     """
-    nodes = kubecli.get_node(node_name, None, 1)
+    nodes = kubecli.get_node(node_name, "", 1)
     node_bridge = []
     for node in nodes:
         node_bridge = list_bridges(node, pod_template, kubecli)
@@ -110,6 +110,8 @@ def check_bridge_interface(
         raise Exception(f"OVS bridge {bridge_name} not found on the node ")
 
     return True
+
+
 
 def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
     """
@@ -133,8 +135,9 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query bridge on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
-
+    bridges: list[str] = []
     try:
+
         cmd = ["/host", "ovs-vsctl", "list-br"]
         output = kubecli.exec_cmd_in_pod(
             cmd, "modtools", "default", base_command="chroot"
@@ -143,13 +146,16 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
         if not output:
             raise Exception(f"Exception occurred while executing command {cmd} in pod")
 
-        bridges = output.split("\n")
+        bridges.extend(output.split("\n"))
 
+    except Exception as e:
+        raise e
     finally:
         logging.info("Deleting pod to query interface on node")
         kubecli.delete_pod("modtools", "default")
-
     return bridges
+
+
 
 def apply_outage_policy(
     node_dict: dict[str, str],
@@ -157,7 +163,7 @@ def apply_outage_policy(
     job_template,
     pod_template,
     direction: str,
-    duration: str,
+    duration: int,
     bridge_name: str,
     kubecli: KrknKubernetes,
 ) -> list[str]:
@@ -180,16 +186,16 @@ def apply_outage_policy(
               the node's interface
 
         direction (string)
+            - ingress/egress
+
+        duration (int)
             - Duration for which the traffic control is to be done
 
         bridge_name (string):
             - bridge to which  filter rules need to be applied
+        kubecli (KrknKubernetes)
+            - Krkn Kubernetes library
 
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
-
-        batch_cli (BatchV1Api)
-            - Object to interact with Kubernetes Python client's BatchV1Api API
 
     Returns:
         The name of the job created that executes the commands on a node
@@ -207,7 +213,8 @@ def apply_outage_policy(
         br = "br-int"
         table = 8
     for node, ips in node_dict.items():
-        while len(check_cookie(node, pod_template, br, cookie, kubecli)) > 2 or cookie in cookie_list:
+        check = check_cookie(node, pod_template, br, f"{cookie}", kubecli)
+        while len(check) > 2 or cookie in cookie_list:
             cookie = random.randint(100, 10000)
         exec_cmd = ""
         for ip in ips:
@@ -238,8 +245,12 @@ def apply_outage_policy(
     return job_list
 
 def check_cookie(
-    node: str, pod_template, br_name, cookie, kubecli: KrknKubernetes
-) -> str:
+    node: str,
+        pod_template: jinja2.environment.Template,
+        br_name: str,
+        cookie: str,
+        kubecli: KrknKubernetes
+) -> list[str]:
     """
     Function to check for matching flow rules
 
@@ -257,17 +268,15 @@ def check_cookie(
         cookie (string):
             - flows matching the cookexec_cmd_in_podie are listed
 
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Krkn Kubernetes library
 
-    Returns
-        Returns the matching flow rules
     """
 
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     logging.info("Creating pod to query duplicate rules on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
-
+    flow_list: list[str] = []
     try:
         cmd = [
             "chroot",
@@ -286,7 +295,7 @@ def check_cookie(
         if not output:
             raise Exception(f"Exception occurred while executing command {cmd} in pod")
 
-        flow_list = output.split("\n")
+        flow_list.extend(output.split("\n"))
 
     finally:
         logging.info("Deleting pod to query interface on node")
@@ -327,7 +336,7 @@ def wait_for_job(
                     job_list.remove(job_name)
             except Exception:
                 logging.warning("Exception in getting job status")
-            if time.time() > wait_time:
+            if time.time() > wait_time and len(job_list) > 0:
                 raise Exception(
                     "Jobs did not complete within "
                     "the {0}s timeout period".format(timeout)
@@ -377,8 +386,8 @@ def get_job_pods(kubecli: KrknKubernetes, api_response):
         Pod corresponding to the job
     """
 
-    controllerUid = api_response.metadata.labels["controller-uid"]
-    pod_label_selector = "controller-uid=" + controllerUid
+    controller_uid = api_response.metadata.labels["controller-uid"]
+    pod_label_selector = "controller-uid=" + controller_uid
     pods_list = kubecli.list_pods(
         label_selector=pod_label_selector, namespace="default"
     )
@@ -392,7 +401,7 @@ def apply_net_policy(
     job_template,
     pod_template,
     network_params: dict[str, str],
-    duration: str,
+    duration: int,
     bridge_name: str,
     kubecli: KrknKubernetes,
     test_execution: str,
@@ -533,8 +542,8 @@ def get_egress_cmd(
     execution: str,
     test_interface: str,
     mod: str,
-    vallst: list[str],
-    duration: str,
+    vallst: dict[str,str],
+    duration: int,
 ) -> str:
     """
     Function generates egress filter to apply on pod
@@ -579,8 +588,8 @@ def apply_ingress_policy(
     ips: list[str],
     job_template,
     pod_template,
-    network_params: list[str, str],
-    duration: str,
+    network_params: dict[str, str],
+    duration: int,
     bridge_name: str,
     kubecli: KrknKubernetes,
     test_execution: str,
@@ -654,33 +663,31 @@ def apply_ingress_policy(
     return job_list
 
 def create_virtual_interfaces(
-    kubecli: KrknKubernetes, nummber: int, node: str, pod_template
+    kubecli: KrknKubernetes, number: int, node: str, pod_template
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
     virtual interfaces on the node
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
-
-        interface_list (List of strings)
-            - The list of interfaces on the node for which virtual interfaces
-              are to be created
-
+        kubecli (KrknKubernetes)
+            - Krkn Kubernetes library
+        number (int)
+            - number of interfaces created
         node (string)
             - The node on which the virtual interfaces are created
 
         pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
+
     """
     pod_body = yaml.safe_load(pod_template.render(nodename=node))
     kubecli.create_pod(pod_body, "default", 300)
     logging.info(
-        "Creating {0} virtual interfaces on node {1} using a pod".format(nummber, node)
+        "Creating {0} virtual interfaces on node {1} using a pod".format(number, node)
     )
-    create_ifb(kubecli, nummber, "modtools")
+    create_ifb(kubecli, number, "modtools")
     logging.info("Deleting pod used to create virtual interfaces")
     kubecli.delete_pod("modtools", "default")
 
@@ -705,8 +712,8 @@ def get_ingress_cmd(
     test_interface: str,
     mod: str,
     count: int,
-    vallst: list[str],
-    duration: str,
+    vallst: dict[str,str],
+    duration: int,
 ) -> str:
     """
     Function generates ingress filter to apply on pod
@@ -734,7 +741,7 @@ def get_ingress_cmd(
         str: ingress filter
     """
     ifb_dev = "ifb{0}".format(count)
-    tc_set = tc_unset = tc_ls = ""
+    tc_unset = tc_ls = ""
     param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
     tc_set = "tc qdisc add dev {0} ingress ;".format(test_interface)
     tc_set = "{0} tc filter add dev {1} ingress matchall action mirred egress redirect dev {2} ;".format(
@@ -755,23 +762,18 @@ def get_ingress_cmd(
     return exec_cmd
 
 def delete_virtual_interfaces(
-    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template
+    kubecli: KrknKubernetes, node_list: list[str], pod_template
 ):
     """
     Function that creates a privileged pod and uses it to delete all
     virtual interfaces on the specified nodes
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
-
+        kubecli (KrknKubernetes)
+            - Krkn Kubernetes library
         node_list (List of strings)
             - The list of nodes on which the list of virtual interfaces are
               to be deleted
-
-        node (string)
-            - The node on which the virtual interfaces are created
-
         pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to delete
               virtual interfaces on the node

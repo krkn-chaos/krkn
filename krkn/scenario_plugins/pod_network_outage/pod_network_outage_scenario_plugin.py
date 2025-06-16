@@ -1,8 +1,9 @@
 import logging
 import os
-from datetime import time
-from random import random
+import time
+import random
 
+import yaml
 from jinja2 import FileSystemLoader, Environment
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
@@ -10,20 +11,44 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from kubernetes import client
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-from krkn.scenario_plugins.pod_outage.models.models import InputParams,EgressParams,IngressParams
-from krkn.scenario_plugins.pod_outage.utils import get_bridge_name, get_test_pods, check_bridge_interface, \
+from krkn.scenario_plugins.pod_network_outage.models.models import InputParams,IngressEgressParams
+from krkn.scenario_plugins.pod_network_outage.utils import get_bridge_name, get_test_pods, check_bridge_interface, \
     apply_outage_policy, wait_for_job, delete_jobs, apply_net_policy, apply_ingress_policy, delete_virtual_interfaces
 
 
-class PodOutageScenarioPlugin(AbstractScenarioPlugin):
+class PodNetworkOutageScenarioPlugin(AbstractScenarioPlugin):
     def run(self, run_uuid: str, scenario: str, krkn_config: dict[str, any], lib_telemetry: KrknTelemetryOpenshift,
             scenario_telemetry: ScenarioTelemetry) -> int:
-        pass
+        try:
+            with open(scenario, "r") as f:
+                scenarios = yaml.full_load(f)
+                for scenario in scenarios:
+                    if scenario["id"] == "pod_egress_shaping":
+                        params = IngressEgressParams(scenario["config"])
+                        pod_egress_shaping(params, lib_telemetry.get_lib_kubernetes())
+                        return 0
+                    elif scenario["id"] == "pod_ingress_shaping":
+                        params = IngressEgressParams(scenario["config"])
+                        pod_ingress_shaping(params, lib_telemetry.get_lib_kubernetes())
+                        return 0
+                    elif scenario["id"] == "pod_network_outage":
+                        params = InputParams(scenario["config"])
+                        pod_outage(params, lib_telemetry.get_lib_kubernetes())
+                        return 0
+                    else:
+                        raise Exception(f"Scenario {scenario['id']} not supported")
+        except Exception as e:
+            logging.error(f"Scenario {scenario} raised an exception: {e}")
+            return 1
+
+
+
 
     def get_scenario_types(self) -> list[str]:
         return [
             "pod_network_scenarios",
         ]
+
 
 def pod_outage(
     params: InputParams,
@@ -34,8 +59,10 @@ def pod_outage(
     on the provided confiapply_net_policyguration
 
     Args:
-        params (InputParams, KrknKubernetes)
+        params (InputParams)
             - The object containing the configuration for the scenario
+        kubecli (KrknKubernetes)
+            - Krkn Kubernetes library
 
     Returns
         A 'success' or 'error' message along with their details
@@ -76,7 +103,7 @@ def pod_outage(
             node_dict.setdefault(pod_stat.spec.node_name, [])
             node_dict[pod_stat.spec.node_name].append(pod_stat.status.pod_ip)
             for key, value in pod_stat.metadata.labels.items():
-                label_set.add("%s=%s" % (key, value))
+                label_set.add(f"{key}={value}")
 
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli
@@ -111,7 +138,7 @@ def pod_outage(
 
 
 def pod_egress_shaping(
-    params: EgressParams,
+    params: IngressEgressParams,
     kubecli: KrknKubernetes
 ):
     """
@@ -119,14 +146,16 @@ def pod_egress_shaping(
     on the provided configuration
 
     Args:
-        params (EgressParams,)
+        params (IngressEgressParams)
             - The object containing the configuration for the scenario
+        kubecli (KrknKubernetes)
+            - Krkn Kubernetes library
 
     Returns
         A 'success' or 'error' message along with their details
     """
 
-    file_loader = FileSystemLoader(os.path.join(os.path.abspath(os.path.dirname(__file__),"templates")))
+    file_loader = FileSystemLoader(os.path.join(os.path.abspath(os.path.dirname(__file__)),"templates"))
     env = Environment(loader=file_loader)
     job_template = env.get_template("job.j2")
     pod_module_template = env.get_template("pod_module.j2")
@@ -157,7 +186,7 @@ def pod_egress_shaping(
             node_dict.setdefault(pod_stat.spec.node_name, [])
             node_dict[pod_stat.spec.node_name].append(pod_stat.status.pod_ip)
             for key, value in pod_stat.metadata.labels.items():
-                label_set.add("%s=%s" % (key, value))
+                label_set.add(f"{key}={value}")
 
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli
@@ -201,7 +230,7 @@ def pod_egress_shaping(
 
 
 def pod_ingress_shaping(
-    params: IngressParams,
+    params: IngressEgressParams,
     kubecli: KrknKubernetes
 ):
     """
@@ -209,14 +238,16 @@ def pod_ingress_shaping(
     on the provided configuration
 
     Args:
-        params (IngressParams,)
+        params (IngressEgressParams)
             - The object containing the configuration for the scenario
+        kubecli (KrknKubernetes)
+            - Krkn Kubernetes library
 
     Returns
         A 'success' or 'error' message along with their details
     """
 
-    file_loader = FileSystemLoader(os.path.join(os.path.abspath(os.path.dirname(__file__),"templates")))
+    file_loader = FileSystemLoader(os.path.join(os.path.abspath(os.path.dirname(__file__)),"templates"))
     env = Environment(loader=file_loader)
     job_template = env.get_template("job.j2")
     pod_module_template = env.get_template("pod_module.j2")
@@ -224,17 +255,14 @@ def pod_ingress_shaping(
     test_label_selector = params.label_selector
     test_pod_name = params.pod_name
     job_list = []
-
+    ip_set = set()
+    node_dict = {}
+    label_set = set()
+    param_lst = ["latency", "loss", "bandwidth"]
     try:
-        ip_set = set()
-        node_dict = {}
-        label_set = set()
-        param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
-
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
-
         br_name = get_bridge_name(api_ext, custom_obj)
         pods_list = get_test_pods(
             test_pod_name, test_label_selector, test_namespace, kubecli
@@ -248,7 +276,7 @@ def pod_ingress_shaping(
             node_dict.setdefault(pod_stat.spec.node_name, [])
             node_dict[pod_stat.spec.node_name].append(pod_stat.status.pod_ip)
             for key, value in pod_stat.metadata.labels.items():
-                label_set.add("%s=%s" % (key, value))
+                label_set.add(f"{key}={value}")
 
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli
@@ -288,6 +316,7 @@ def pod_ingress_shaping(
         raise Exception("Pod ingress shaping scenario exiting due to Exception - %s" % e)
 
     finally:
-        delete_virtual_interfaces(kubecli, node_dict.keys(), pod_module_template)
+        node_keys = list[str](node_dict.keys())
+        delete_virtual_interfaces(kubecli, node_keys, pod_module_template)
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
