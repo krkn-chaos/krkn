@@ -1,4 +1,5 @@
 import logging
+import re
 from datetime import time
 from random import random
 
@@ -110,7 +111,7 @@ def check_bridge_interface(
 
     return True
 
-def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.List[str]:
+def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
     """
     Function that returns a list of bridges on the node
 
@@ -383,3 +384,411 @@ def get_job_pods(kubecli: KrknKubernetes, api_response):
     )
 
     return pods_list[0]
+
+def apply_net_policy(
+    mod: str,
+    node: str,
+    ips: list[str],
+    job_template,
+    pod_template,
+    network_params: dict[str, str],
+    duration: str,
+    bridge_name: str,
+    kubecli: KrknKubernetes,
+    test_execution: str,
+) -> list[str]:
+    """
+    Function that applies egress traffic shaping to pod interface.
+
+    Args:
+
+        mod (String)
+            - Traffic shaping filter to apply
+
+        node (String)
+            - node associated with the pod
+
+        ips (List)
+            - IPs of pods found in the node
+
+        job_template (jinja2.environment.Template)
+            - The YAML template used to instantiate a job to apply and remove
+              the filters on the interfaces
+
+        pod_template (jinja2.environment.Template)
+            - The YAML template used to instantiate a pod to query
+              the node's interface
+
+        network_params (Dictionary with key and value as string)
+            - Loss/Delay/Bandwidth and their corresponding value
+
+        duration (string)
+            - Duration for which the traffic control is to be done
+
+        bridge_name (string):
+            - bridge to which  filter rules need to be applied
+
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
+
+        test_execution (String)
+            - The order in which the filters are applied
+
+    Returns:
+        The name of the job created that executes the traffic shaping
+        filter
+    """
+
+    job_list = []
+    yml_list = []
+
+    for pod_ip in set(ips):
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        exec_cmd = get_egress_cmd(
+            test_execution, pod_inf, mod, network_params, duration
+        )
+        logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
+        job_body = yaml.safe_load(
+            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
+        )
+        yml_list.append(job_body)
+
+    for job_body in yml_list:
+        api_response = kubecli.create_job(job_body)
+        if api_response is None:
+            raise Exception("Error creating job")
+
+        job_list.append(job_body["metadata"]["name"])
+    return job_list
+
+
+def get_pod_interface(
+    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes
+) -> str:
+    """
+    Function to query the pod interface on a node
+
+    Args:
+        node (string):
+            - node in which to check for the flow rules
+
+        ip (string):
+            - Pod IP
+
+        pod_template (jinja2.environment.Template)
+            - The YAML template used to instantiate a pod to query
+              the node's interfaces
+
+        br_name (string):
+            - bridge against which the flows rules need to be checked
+
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
+
+    Returns
+        Returns the pod interface name
+    """
+
+    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    logging.info("Creating pod to query pod interface on node %s" % node)
+    kubecli.create_pod(pod_body, "default", 300)
+    inf = ""
+
+    try:
+        if br_name == "br-int":
+            find_ip = f"external-ids:ip_addresses={ip}/23"
+        else:
+            find_ip = f"external-ids:ip={ip}"
+
+        cmd = [
+            "/host",
+            "ovs-vsctl",
+            "--bare",
+            "--columns=name",
+            "find",
+            "interface",
+            find_ip,
+        ]
+
+        output = kubecli.exec_cmd_in_pod(
+            cmd, "modtools", "default", base_command="chroot"
+        )
+        if not output:
+            cmd = ["/host", "ip", "addr", "show"]
+            output = kubecli.exec_cmd_in_pod(
+                cmd, "modtools", "default", base_command="chroot"
+            )
+            for if_str in output.split("\n"):
+                if re.search(ip, if_str):
+                    inf = if_str.split(" ")[-1]
+        else:
+            inf = output
+    finally:
+        logging.info("Deleting pod to query interface on node")
+        kubecli.delete_pod("modtools", "default")
+    return inf
+
+
+def get_egress_cmd(
+    execution: str,
+    test_interface: str,
+    mod: str,
+    vallst: list[str],
+    duration: str,
+) -> str:
+    """
+    Function generates egress filter to apply on pod
+
+    Args:
+        execution (str):
+            - The order in which the filters are applied
+
+        test_interface (str):
+            - Pod interface
+
+        mod (str):
+            - Filter to apply
+
+        vallst (typing.List[str]):
+            - List of filters to apply
+
+        duration (str):
+            - Duration for which the traffic control is to be done
+
+    Returns:
+        str: egress filter
+    """
+    tc_set = tc_unset = tc_ls = ""
+    param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
+    tc_set = "{0} tc qdisc replace dev {1} root netem".format(tc_set, test_interface)
+    tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, test_interface)
+    tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, test_interface)
+    if execution == "parallel":
+        for val in vallst.keys():
+            tc_set += " {0} {1} ".format(param_map[val], vallst[val])
+        tc_set += ";"
+    else:
+        tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
+    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
+
+    return exec_cmd
+
+def apply_ingress_policy(
+    mod: str,
+    node: str,
+    ips: list[str],
+    job_template,
+    pod_template,
+    network_params: list[str, str],
+    duration: str,
+    bridge_name: str,
+    kubecli: KrknKubernetes,
+    test_execution: str,
+) -> list[str]:
+    """
+    Function that applies ingress traffic shaping to pod interface.
+
+    Args:
+
+        mod (String)
+            - Traffic shaping filter to apply
+
+        node (String)
+            - node associated with the pod
+
+        ips (List)
+            - IPs of pods found in the node
+
+        job_template (jinja2.environment.Template)
+            - The YAML template used to instantiate a job to apply and remove
+              the filters on the interfaces
+
+        pod_template (jinja2.environment.Template)
+            - The YAML template used to instantiate a pod to query
+              the node's interface
+
+        network_params (Dictionary with key and value as string)
+            - Loss/Delay/Bandwidth and their corresponding value
+
+        duration (string)
+            - Duration for which the traffic control is to be done
+
+        bridge_name (string):
+            - bridge to which  filter rules need to be applied
+
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
+
+        test_execution (String)
+            - The order in which the filters are applied
+
+    Returns:
+        The name of the job created that executes the traffic shaping
+        filter
+    """
+
+    job_list = []
+    yml_list = []
+
+    create_virtual_interfaces(kubecli, len(ips), node, pod_template)
+
+    for count, pod_ip in enumerate(set(ips)):
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        exec_cmd = get_ingress_cmd(
+            test_execution, pod_inf, mod, count, network_params, duration
+        )
+        logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
+        job_body = yaml.safe_load(
+            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
+        )
+        yml_list.append(job_body)
+        if pod_ip == node:
+            break
+
+    for job_body in yml_list:
+        api_response = kubecli.create_job(job_body)
+        if api_response is None:
+            raise Exception("Error creating job")
+
+        job_list.append(job_body["metadata"]["name"])
+    return job_list
+
+def create_virtual_interfaces(
+    kubecli: KrknKubernetes, nummber: int, node: str, pod_template
+) -> None:
+    """
+    Function that creates a privileged pod and uses it to create
+    virtual interfaces on the node
+
+    Args:
+        cli (CoreV1Api)
+            - Object to interact with Kubernetes Python client's CoreV1 API
+
+        interface_list (List of strings)
+            - The list of interfaces on the node for which virtual interfaces
+              are to be created
+
+        node (string)
+            - The node on which the virtual interfaces are created
+
+        pod_template (jinja2.environment.Template))
+            - The YAML template used to instantiate a pod to create
+              virtual interfaces on the node
+    """
+    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    kubecli.create_pod(pod_body, "default", 300)
+    logging.info(
+        "Creating {0} virtual interfaces on node {1} using a pod".format(nummber, node)
+    )
+    create_ifb(kubecli, nummber, "modtools")
+    logging.info("Deleting pod used to create virtual interfaces")
+    kubecli.delete_pod("modtools", "default")
+
+def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
+    """
+    Function that creates virtual interfaces in a pod.
+    Makes use of modprobe commands
+    """
+
+    exec_command = ["/host", "modprobe", "ifb", "numifbs=" + str(number)]
+    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
+
+    for i in range(0, number):
+        exec_command = ["/host", "ip", "link", "set", "dev"]
+        exec_command += ["ifb" + str(i), "up"]
+        kubecli.exec_cmd_in_pod(
+            exec_command, pod_name, "default", base_command="chroot"
+        )
+
+def get_ingress_cmd(
+    execution: str,
+    test_interface: str,
+    mod: str,
+    count: int,
+    vallst: list[str],
+    duration: str,
+) -> str:
+    """
+    Function generates ingress filter to apply on pod
+
+    Args:
+        execution (str):
+            - The order in which the filters are applied
+
+        test_interface (str):
+            - Pod interface
+
+        mod (str):
+            - Filter to apply
+
+        count (int):
+            - IFB device number
+
+        vallst (typing.List[str]):
+            - List of filters to apply
+
+        duration (str):
+            - Duration for which the traffic control is to be done
+
+    Returns:
+        str: ingress filter
+    """
+    ifb_dev = "ifb{0}".format(count)
+    tc_set = tc_unset = tc_ls = ""
+    param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
+    tc_set = "tc qdisc add dev {0} ingress ;".format(test_interface)
+    tc_set = "{0} tc filter add dev {1} ingress matchall action mirred egress redirect dev {2} ;".format(
+        tc_set, test_interface, ifb_dev
+    )
+    tc_set = "{0} tc qdisc replace dev {1} root netem".format(tc_set, ifb_dev)
+    tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, ifb_dev)
+    tc_unset = "{0} tc qdisc del dev {1} ingress".format(tc_unset, test_interface)
+    tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, ifb_dev)
+    if execution == "parallel":
+        for val in vallst.keys():
+            tc_set += " {0} {1} ".format(param_map[val], vallst[val])
+        tc_set += ";"
+    else:
+        tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
+    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
+
+    return exec_cmd
+
+def delete_virtual_interfaces(
+    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template
+):
+    """
+    Function that creates a privileged pod and uses it to delete all
+    virtual interfaces on the specified nodes
+
+    Args:
+        cli (CoreV1Api)
+            - Object to interact with Kubernetes Python client's CoreV1 API
+
+        node_list (List of strings)
+            - The list of nodes on which the list of virtual interfaces are
+              to be deleted
+
+        node (string)
+            - The node on which the virtual interfaces are created
+
+        pod_template (jinja2.environment.Template))
+            - The YAML template used to instantiate a pod to delete
+              virtual interfaces on the node
+    """
+
+    for node in node_list:
+        pod_body = yaml.safe_load(pod_template.render(nodename=node))
+        kubecli.create_pod(pod_body, "default", 300)
+        logging.info("Deleting all virtual interfaces on node {0}".format(node))
+        delete_ifb(kubecli, "modtools")
+        kubecli.delete_pod("modtools", "default")
+
+def delete_ifb(kubecli: KrknKubernetes, pod_name: str):
+    """
+    Function that deletes all virtual interfaces in a pod.
+    Makes use of modprobe command
+    """
+
+    exec_command = ["/host", "modprobe", "-r", "ifb"]
+    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")

@@ -7,11 +7,12 @@ from jinja2 import FileSystemLoader, Environment
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+from kubernetes import client
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.pod_outage.models.models import InputParams,EgressParams,IngressParams
 from krkn.scenario_plugins.pod_outage.utils import get_bridge_name, get_test_pods, check_bridge_interface, \
-    apply_outage_policy, wait_for_job, delete_jobs
+    apply_outage_policy, wait_for_job, delete_jobs, apply_net_policy, apply_ingress_policy, delete_virtual_interfaces
 
 
 class PodOutageScenarioPlugin(AbstractScenarioPlugin):
@@ -58,7 +59,6 @@ def pod_outage(
         node_dict = {}
         label_set = set()
 
-        client = kubecli.api_client
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 
@@ -99,12 +99,10 @@ def pod_outage(
 
         logging.info("Waiting for job to finish")
         wait_for_job(job_list[:], kubecli, params.test_duration + 300)
-
+        logging.info("Pod outage successfully executed")
     except Exception as e:
-        raise Exception("Pod network outage scenario exiting due to Exception - %s" % e)
-
+        raise Exception("Pod outage scenario exiting due to Exception - %s" % e)
     finally:
-        logging.info("Pod network outage successfully executed")
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
 
@@ -114,6 +112,7 @@ def pod_outage(
 
 def pod_egress_shaping(
     params: EgressParams,
+    kubecli: KrknKubernetes
 ):
     """
     Function that performs egress pod traffic shaping based
@@ -127,7 +126,7 @@ def pod_egress_shaping(
         A 'success' or 'error' message along with their details
     """
 
-    file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
+    file_loader = FileSystemLoader(os.path.join(os.path.abspath(os.path.dirname(__file__),"templates")))
     env = Environment(loader=file_loader)
     job_template = env.get_template("job.j2")
     pod_module_template = env.get_template("pod_module.j2")
@@ -135,11 +134,6 @@ def pod_egress_shaping(
     test_label_selector = params.label_selector
     test_pod_name = params.pod_name
     job_list = []
-    publish = False
-
-    if params.kraken_config:
-        publish = True
-
     try:
         ip_set = set()
         node_dict = {}
@@ -147,7 +141,6 @@ def pod_egress_shaping(
         param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 
@@ -188,37 +181,20 @@ def pod_egress_shaping(
                 )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
-                start_time = int(time.time())
                 wait_for_job(job_list[:], kubecli, params.test_duration + 20)
                 logging.info("Waiting for wait_duration %s" % params.test_duration)
                 time.sleep(params.test_duration)
-                end_time = int(time.time())
-                if publish:
-                    cerberus.publish_kraken_status(
-                        params.kraken_config, "", start_time, end_time
-                    )
+
             if params.execution_type == "parallel":
                 break
         if params.execution_type == "parallel":
             logging.info("Waiting for parallel job to finish")
-            start_time = int(time.time())
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
             time.sleep(params.test_duration)
-            end_time = int(time.time())
-            if publish:
-                cerberus.publish_kraken_status(
-                    params.kraken_config, "", start_time, end_time
-                )
-
-        return "success", PodEgressNetShapingSuccessOutput(
-            test_pods=pods_list,
-            network_parameters=params.network_params,
-            execution_type=params.execution_type,
-        )
+        logging.info("Pod egress shaping successfully executed")
     except Exception as e:
-        logging.error("Pod network Shaping scenario exiting due to Exception - %s" % e)
-        return "error", PodEgressNetShapingErrorOutput(format_exc())
+        raise Exception("Pod egress shaping scenario exiting due to Exception - %s" % e)
     finally:
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
@@ -226,6 +202,7 @@ def pod_egress_shaping(
 
 def pod_ingress_shaping(
     params: IngressParams,
+    kubecli: KrknKubernetes
 ):
     """
     Function that performs ingress pod traffic shaping based
@@ -239,7 +216,7 @@ def pod_ingress_shaping(
         A 'success' or 'error' message along with their details
     """
 
-    file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
+    file_loader = FileSystemLoader(os.path.join(os.path.abspath(os.path.dirname(__file__),"templates")))
     env = Environment(loader=file_loader)
     job_template = env.get_template("job.j2")
     pod_module_template = env.get_template("pod_module.j2")
@@ -247,10 +224,6 @@ def pod_ingress_shaping(
     test_label_selector = params.label_selector
     test_pod_name = params.pod_name
     job_list = []
-    publish = False
-
-    if params.kraken_config:
-        publish = True
 
     try:
         ip_set = set()
@@ -259,7 +232,6 @@ def pod_ingress_shaping(
         param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 
@@ -300,37 +272,21 @@ def pod_ingress_shaping(
                 )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
-                start_time = int(time.time())
                 wait_for_job(job_list[:], kubecli, params.test_duration + 20)
                 logging.info("Waiting for wait_duration %s" % params.test_duration)
                 time.sleep(params.test_duration)
-                end_time = int(time.time())
-                if publish:
-                    cerberus.publish_kraken_status(
-                        params.kraken_config, "", start_time, end_time
-                    )
             if params.execution_type == "parallel":
                 break
         if params.execution_type == "parallel":
             logging.info("Waiting for parallel job to finish")
-            start_time = int(time.time())
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
             time.sleep(params.test_duration)
-            end_time = int(time.time())
-            if publish:
-                cerberus.publish_kraken_status(
-                    params.kraken_config, "", start_time, end_time
-                )
+        logging.info("Pod ingress shaping successfully executed")
 
-        return "success", PodIngressNetShapingSuccessOutput(
-            test_pods=pods_list,
-            network_parameters=params.network_params,
-            execution_type=params.execution_type,
-        )
     except Exception as e:
-        logging.error("Pod network Shaping scenario exiting due to Exception - %s" % e)
-        return "error", PodIngressNetShapingErrorOutput(format_exc())
+        raise Exception("Pod ingress shaping scenario exiting due to Exception - %s" % e)
+
     finally:
         delete_virtual_interfaces(kubecli, node_dict.keys(), pod_module_template)
         logging.info("Deleting jobs(if any)")
