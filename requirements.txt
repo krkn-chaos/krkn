@@ -1,6 +1,5 @@
 aliyun-python-sdk-core==2.13.36
 aliyun-python-sdk-ecs==4.24.25
-arcaflow-plugin-sdk==0.14.0
 boto3==1.28.61
 azure-identity==1.16.1
 azure-keyvault==4.2.0
@@ -37,6 +36,5 @@ wheel==0.42.0
 zope.interface==5.4.0
 
 
-git+https://github.com/krkn-chaos/arcaflow-plugin-kill-pod.git@v0.1.0
 git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
 cryptography>=42.0.4 # not directly required, pinned by Snyk to avoid a vulnerability
