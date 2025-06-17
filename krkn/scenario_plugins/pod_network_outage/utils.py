@@ -6,6 +6,7 @@ import random
 import jinja2
 import yaml
 from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.utils import get_random_string
 from kubernetes.client import ApiextensionsV1Api, CustomObjectsApi
 
 
@@ -336,7 +337,7 @@ def wait_for_job(
                     job_list.remove(job_name)
             except Exception:
                 logging.warning("Exception in getting job status")
-            if time.time() > wait_time and len(job_list) > 0:
+            if time.time() > wait_time:
                 raise Exception(
                     "Jobs did not complete within "
                     "the {0}s timeout period".format(timeout)
@@ -648,7 +649,7 @@ def apply_ingress_policy(
         )
         logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
         job_body = yaml.safe_load(
-            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
+            job_template.render(jobname=f"{mod}-{str(pod_ip)}-{get_random_string(5)}", nodename=node, cmd=exec_cmd)
         )
         yml_list.append(job_body)
         if pod_ip == node:

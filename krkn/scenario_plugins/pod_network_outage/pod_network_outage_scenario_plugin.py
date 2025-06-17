@@ -125,6 +125,7 @@ def pod_outage(
             )
 
         logging.info("Waiting for job to finish")
+        logging.info("Time out set after %s" % params.test_duration + 300)
         wait_for_job(job_list[:], kubecli, params.test_duration + 300)
         logging.info("Pod outage successfully executed")
     except Exception as e:
@@ -210,8 +211,9 @@ def pod_egress_shaping(
                 )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
-                wait_for_job(job_list[:], kubecli, params.test_duration + 20)
+                wait_for_job(job_list[:], kubecli, params.test_duration + 300)
                 logging.info("Waiting for wait_duration %s" % params.test_duration)
+                logging.info("Time out set after %s" % params.test_duration + 300)
                 time.sleep(params.test_duration)
 
             if params.execution_type == "parallel":
@@ -220,6 +222,7 @@ def pod_egress_shaping(
             logging.info("Waiting for parallel job to finish")
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
+            logging.info("Time out set after %s" % params.test_duration + 300)
             time.sleep(params.test_duration)
         logging.info("Pod egress shaping successfully executed")
     except Exception as e:
@@ -300,8 +303,9 @@ def pod_ingress_shaping(
                 )
             if params.execution_type == "serial":
                 logging.info("Waiting for serial job to finish")
-                wait_for_job(job_list[:], kubecli, params.test_duration + 20)
+                wait_for_job(job_list[:], kubecli, params.test_duration + 300)
                 logging.info("Waiting for wait_duration %s" % params.test_duration)
+                logging.info("Time out set after %s" % params.test_duration + 300)
                 time.sleep(params.test_duration)
             if params.execution_type == "parallel":
                 break
@@ -309,6 +313,7 @@ def pod_ingress_shaping(
             logging.info("Waiting for parallel job to finish")
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
             logging.info("Waiting for wait_duration %s" % params.test_duration)
+            logging.info("Time out set after %s" % params.test_duration + 300)
             time.sleep(params.test_duration)
         logging.info("Pod ingress shaping successfully executed")
 
