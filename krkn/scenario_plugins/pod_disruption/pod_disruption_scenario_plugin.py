@@ -78,6 +78,10 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 max_timeout=recovery_time,
                 field_selector="status.phase=Running"
             )
+            logging.info(
+                f"waiting up to {recovery_time} seconds for pod recovery, "
+                f"pod label pattern: {label_selector} namespace pattern: {namespace_pattern}"
+            )
 
         elif (
             "namespace_pattern" in kill_scenario["config"]
@@ -91,15 +95,15 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 max_timeout=recovery_time,
                 field_selector="status.phase=Running"
             )
-            
+            logging.info(
+                f"waiting up to {recovery_time} seconds for pod recovery, "
+                f"pod name pattern: {name_pattern} namespace pattern: {namespace_pattern}"
+            )
         else:
             raise Exception(
                 f"impossible to determine monitor parameters, check {kill_scenario} configuration"
             )
-        logging.info(
-                f"waiting up to {recovery_time} seconds for pod recovery, "
-                f"pod name pattern: {name_pattern} namespace pattern: {namespace_pattern}"
-            )
+        
 
     def get_pods(self, name_pattern, label_selector,namespace, kubecli: KrknKubernetes, field_selector: str =None): 
         if label_selector and name_pattern: 
@@ -152,7 +156,6 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
         while not timeout:
             pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli)
-            logging.info('pod count ' + str(pod_count) + " " + str(len(pods)))
             if pod_count == len(pods):
                 return
                
