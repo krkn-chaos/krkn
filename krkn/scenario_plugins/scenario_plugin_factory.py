@@ -1,9 +1,11 @@
 import importlib
 import inspect
 import pkgutil
-from typing import Type, Tuple, Optional
+from typing import Type, Tuple, Optional, TYPE_CHECKING
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
+if TYPE_CHECKING:
+    from krkn.rollback.config import RollbackConfig
 
 class ScenarioPluginNotFound(Exception):
     pass
@@ -19,7 +21,7 @@ class ScenarioPluginFactory:
         self.package_name = package_name
         self.__load_plugins(AbstractScenarioPlugin)
 
-    def create_plugin(self, scenario_type: str) -> AbstractScenarioPlugin:
+    def create_plugin(self, scenario_type: str, rollback_config: "RollbackConfig") -> AbstractScenarioPlugin:
         """
         Creates a plugin instance based on the config.yaml scenario name.
         The scenario name is provided by the method `get_scenario_type`
@@ -29,11 +31,12 @@ class ScenarioPluginFactory:
         :param scenario_type: the scenario type defined in the config.yaml
             e.g. `arcaflow_scenarios`, `network_scenarios`, `plugin_scenarios`
             etc.
+        :param rollback_config: the configuration for the rollback handler
         :return: an instance of the class that implements this scenario and
             inherits from the AbstractScenarioPlugin abstract class
         """
         if scenario_type in self.loaded_plugins:
-            return self.loaded_plugins[scenario_type]()
+            return self.loaded_plugins[scenario_type](scenario_type, rollback_config)
         else:
             raise ScenarioPluginNotFound(
                 f"Failed to load the {scenario_type} scenario plugin. "
