@@ -5,6 +5,8 @@ kraken:
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address
     port: 8081                                             # Signal port
+    auto_rollback: False                                    # Enable auto rollback when a scenario fails
+    rollback_versions_directory: /tmp/kraken-rollback            # The rollback version files will be stored in {versions_directory}/{scenario_type}/{run_uuid} directory
     chaos_scenarios:
         # List of policies/chaos scenarios to load
         - hog_scenarios:
