@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import TYPE_CHECKING
 from abc import ABC, abstractmethod
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -7,14 +8,19 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn import utils
 from krkn.rollback.handler import RollbackHandler
 
+if TYPE_CHECKING:
+    from krkn.rollback.config import RollbackConfig
+
 class AbstractScenarioPlugin(ABC):
 
-    def __init__(self, scenario_type: str):
+    def __init__(self, scenario_type: str, rollback_config: "RollbackConfig"):
         """Initializes the AbstractScenarioPlugin with the scenario type and rollback configuration.
         
         :param scenario_type: the scenario type defined in the config.yaml
+        :param rollback_config: the configuration for the rollback handler
         """
-        self.rollback_handler = RollbackHandler(scenario_type)
+        # we will not set run_uuid here because the same instance might be used for different runs
+        self.rollback_handler = RollbackHandler(scenario_type, rollback_config)
 
     @abstractmethod
     def run(
