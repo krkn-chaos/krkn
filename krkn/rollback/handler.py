@@ -46,6 +46,8 @@ def set_rollback_context_decorator(func):
                 kwargs[param_name] = args.pop(0)
 
         # Get run_uuid from final kwargs
+        logger.debug(f"Function {func.__name__} called with args: {orig_args}, kwargs: {orig_kwargs}")
+        logger.debug(f"Merged kwargs: {kwargs}")
         run_uuid = kwargs.get('run_uuid', None)
                 
         # Set context if run_uuid is available and rollback_handler exists
