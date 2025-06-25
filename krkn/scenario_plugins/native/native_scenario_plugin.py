@@ -26,12 +26,7 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
 
         try:
             self.start_monitoring(pool, kill_scenarios)
-            PLUGINS.run(
-                scenario,
-                lib_telemetry.get_lib_kubernetes().get_kubeconfig_path(),
-                krkn_config,
-                run_uuid,
-            )
+            PLUGINS.run(scenario, krkn_config)
             result = pool.join()
             scenario_telemetry.affected_pods = result
             if result.error:
@@ -49,7 +44,7 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
         return [
             "pod_disruption_scenarios",
             "pod_network_scenarios",
-            "ingress_node_scenarios"
+            "ingress_node_scenarios",
         ]
 
     def start_monitoring(self, pool: PodsMonitorPool, scenarios: list[Any]):

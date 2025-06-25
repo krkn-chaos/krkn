@@ -3,49 +3,59 @@ import time
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
+
 from krkn.scenario_plugins.network_chaos_ng.models import (
+    NetworkChaosScenarioType,
     BaseNetworkChaosConfig,
     NetworkFilterConfig,
-    NetworkChaosScenarioType,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
-
 from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
     deploy_network_filter_pod,
-    apply_network_rules,
-    clean_network_rules,
-    generate_rules,
     get_default_interface,
+    generate_namespaced_rules,
+    apply_network_rules,
+    clean_network_rules_namespaced,
 )
 
 
-class NodeNetworkFilterModule(AbstractNetworkChaosModule):
+class PodNetworkFilterModule(AbstractNetworkChaosModule):
     config: NetworkFilterConfig
-    kubecli: KrknTelemetryOpenshift
 
     def run(self, target: str, error_queue: queue.Queue = None):
         parallel = False
         if error_queue:
             parallel = True
         try:
+            pod_name = f"pod-filter-{get_random_string(5)}"
+            container_name = f"fedora-container-{get_random_string(5)}"
+            pod_info = self.kubecli.get_lib_kubernetes().get_pod_info(
+                self.config.target, self.config.namespace
+            )
+
             log_info(
-                f"creating workload to filter node {self.config.target} network"
+                f"creating workload to filter pod {self.config.target} network"
                 f"ports {','.join([str(port) for port in self.config.ports])}, "
                 f"ingress:{str(self.config.ingress)}, "
                 f"egress:{str(self.config.egress)}",
                 parallel,
-                target,
+                pod_name,
             )
 
-            pod_name = f"node-filter-{get_random_string(5)}"
+            if not pod_info:
+                raise Exception(
+                    f"impossible to retrieve infos for pod {self.config.target} namespace {self.config.namespace}"
+                )
+
             deploy_network_filter_pod(
                 self.config,
-                target,
+                pod_info.nodeName,
                 pod_name,
                 self.kubecli.get_lib_kubernetes(),
+                container_name,
             )
 
             if len(self.config.interfaces) == 0:
@@ -58,13 +68,48 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
                 ]
 
                 log_info(
-                    f"detected default interface {interfaces[0]}", parallel, target
+                    f"detected default interface {interfaces[0]}",
+                    parallel,
+                    pod_name,
                 )
 
             else:
                 interfaces = self.config.interfaces
 
-            input_rules, output_rules = generate_rules(interfaces, self.config)
+            container_ids = self.kubecli.get_lib_kubernetes().get_container_ids(
+                self.config.target, self.config.namespace
+            )
+
+            if len(container_ids) == 0:
+                raise Exception(
+                    f"impossible to resolve container id for pod {self.config.target} namespace {self.config.namespace}"
+                )
+
+            log_info(f"targeting container {container_ids[0]}", parallel, pod_name)
+
+            pid = self.kubecli.get_lib_kubernetes().get_pod_pid(
+                base_pod_name=pod_name,
+                base_pod_namespace=self.config.namespace,
+                base_pod_container_name=container_name,
+                pod_name=self.config.target,
+                pod_namespace=self.config.namespace,
+                pod_container_id=container_ids[0],
+            )
+
+            if not pid:
+                raise Exception(
+                    f"impossible to resolve pid for pod {self.config.target}"
+                )
+
+            log_info(
+                f"resolved pid {pid} in node {pod_info.nodeName} for pod {self.config.target}",
+                parallel,
+                pod_name,
+            )
+
+            input_rules, output_rules = generate_namespaced_rules(
+                interfaces, self.config, pid
+            )
 
             apply_network_rules(
                 self.kubecli.get_lib_kubernetes(),
@@ -79,19 +124,20 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             log_info(
                 f"waiting {self.config.test_duration} seconds before removing the iptables rules",
                 parallel,
-                target,
+                pod_name,
             )
 
             time.sleep(self.config.test_duration)
 
-            log_info("removing iptables rules", parallel, target)
+            log_info("removing iptables rules", parallel, pod_name)
 
-            clean_network_rules(
+            clean_network_rules_namespaced(
                 self.kubecli.get_lib_kubernetes(),
                 input_rules,
                 output_rules,
                 pod_name,
                 self.config.namespace,
+                pid,
             )
 
             self.kubecli.get_lib_kubernetes().delete_pod(
@@ -109,20 +155,25 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
         self.config = config
 
     def get_config(self) -> (NetworkChaosScenarioType, BaseNetworkChaosConfig):
-        return NetworkChaosScenarioType.Node, self.config
+        return NetworkChaosScenarioType.Pod, self.config
 
     def get_targets(self) -> list[str]:
+        if not self.config.namespace:
+            raise Exception("namespace not specified, aborting")
         if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_nodes(
-                self.base_network_config.label_selector
+            return self.kubecli.get_lib_kubernetes().list_pods(
+                self.config.namespace, self.config.label_selector
             )
         else:
             if not self.config.target:
                 raise Exception(
                     "neither node selector nor node_name (target) specified, aborting."
                 )
-            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
-            if self.config.target not in node_info:
-                raise Exception(f"node {self.config.target} not found, aborting")
+            if not self.kubecli.get_lib_kubernetes().check_if_pod_exists(
+                self.config.target, self.config.namespace
+            ):
+                raise Exception(
+                    f"pod {self.config.target} not found in namespace {self.config.namespace}"
+                )
 
             return [self.config.target]

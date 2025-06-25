@@ -28,7 +28,7 @@ class BaseNetworkChaosConfig:
             errors.append(
                 f"{self.execution} is not in supported execution mod: {','.join(self.supported_execution)}"
             )
-        if self.label_selector is None:
+        if self.id == "node_network_filter" and self.label_selector is None:
             errors.append("label_selector cannot be None")
         return errors
 

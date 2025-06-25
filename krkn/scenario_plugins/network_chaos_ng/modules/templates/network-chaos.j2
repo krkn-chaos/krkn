@@ -7,10 +7,11 @@ spec:
   {% if host_network %}
   hostNetwork: true
   {%endif%}
+  hostPID: true
   nodeSelector:
     kubernetes.io/hostname: {{target}}
   containers:
-  - name: fedora
+  - name: {{container_name}}
     imagePullPolicy: Always
     image: {{workload_image}}
     securityContext:
