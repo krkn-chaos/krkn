@@ -40,7 +40,7 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     interfaces: list[str]
     target: str
     ports: list[int]
-    workload_image: str
+    image: str
 
     def validate(self) -> list[str]:
         errors = super().validate()

@@ -1,5 +1,5 @@
 - id: node_network_filter
-  workload_image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
   wait_duration: 300
   test_duration: 100
   label_selector: "kubernetes.io/hostname=minikube"
