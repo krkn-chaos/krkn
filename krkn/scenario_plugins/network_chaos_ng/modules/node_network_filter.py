@@ -41,6 +41,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
                     namespace=self.config.namespace,
                     host_network=True,
                     target=target,
+                    workload_image=self.config.workload_image,
                 )
             )
             self.log_info(

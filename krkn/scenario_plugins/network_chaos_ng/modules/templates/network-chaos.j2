@@ -12,6 +12,6 @@ spec:
   containers:
   - name: fedora
     imagePullPolicy: Always
-    image: quay.io/krkn-chaos/krkn-network-chaos:latest
+    image: {{workload_image}}
     securityContext:
       privileged: true
