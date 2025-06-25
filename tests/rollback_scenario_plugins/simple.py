@@ -11,7 +11,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
-
 class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
     """
     Mock implementation of RollbackScenarioPlugin for testing purposes.
