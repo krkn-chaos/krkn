@@ -1,7 +1,8 @@
 - id: node_network_filter
+  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
   wait_duration: 300
   test_duration: 100
-  label_selector: "kubernetes.io/hostname=ip-10-0-39-182.us-east-2.compute.internal"
+  label_selector: "kubernetes.io/hostname=minikube"
   namespace: 'default'
   instance_count: 1
   execution: parallel
