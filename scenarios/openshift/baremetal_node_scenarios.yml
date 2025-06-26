@@ -19,3 +19,15 @@ node_scenarios:
         bmc_addr: mgmt-machine2.example.com
         bmc_user: user                                              # The baremetal IPMI user. Overrides the default IPMI user specified above. Optional if the default is set
         bmc_password: pass                                          # The baremetal IPMI password. Overrides the default IPMI user specified above. Optional if the default is set
+  - actions:
+    - node_disk_detach_attach_scenario
+    node_name: node-1
+    instance_count: 1
+    runs: 1
+    timeout: 360
+    duration: 120
+    parallel: False
+    cloud_type: bm
+    bmc_info:
+      node-1:
+        disks: ["sda", "sdb"]                                       # List of disk devices to be used for disk detach/attach scenarios
