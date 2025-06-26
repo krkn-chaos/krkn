@@ -15,6 +15,7 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic.models import ElasticAlert
 from krkn_lib.models.krkn import ChaosRunAlertSummary, ChaosRunAlert
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
+from krkn.utils.functions import write_json_to_tmp
 
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -251,11 +252,22 @@ def metrics(
                         metric[k] = v
                         metric['timestamp'] = str(datetime.datetime.now())
                     metrics_list.append(metric.copy())
-        if elastic:
+        # Save metrics based on elastic availability
+        if elastic is not None and hasattr(elastic, 'upload_metrics_to_elasticsearch'):
+            # Upload to elasticsearch if elastic client is available
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
             if result == -1:
                 logging.error("failed to save metrics on ElasticSearch")
+        else:
+            # Otherwise save locally
+            local_path = os.path.join(tempfile.gettempdir(), f"krkn_metrics_{run_uuid}.json")
+            try:
+                with open(local_path, "w") as f:
+                    json.dump(metrics_list, f, indent=2)
+                logging.info(f"Saved performance metrics to {local_path}")
+            except Exception as e:
+                logging.error(f"Failed to write metrics to file: {e}")
 
     return metrics_list
