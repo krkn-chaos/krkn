@@ -30,6 +30,10 @@ class BaseNetworkChaosConfig:
             )
         if self.id == "node_network_filter" and self.label_selector is None:
             errors.append("label_selector cannot be None")
+        if not isinstance(self.wait_duration, int):
+            errors.append("wait_duration must be an int")
+        if not isinstance(self.test_duration, int):
+            errors.append("test_duration must be an int")
         return errors
 
 
@@ -41,8 +45,14 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     target: str
     ports: list[int]
     image: str
+    protocols: list[str]
 
     def validate(self) -> list[str]:
         errors = super().validate()
         # here further validations
+        allowed_protocols = {"tcp", "udp"}
+        if not set(self.protocols).issubset(allowed_protocols):
+            errors.append(
+                f"{self.protocols} contains not allowed protocols only tcp and udp is allowed"
+            )
         return errors

@@ -32,7 +32,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             parallel = True
         try:
             log_info(
-                f"creating workload to filter node {self.config.target} network"
+                f"creating workload to filter node {target} network"
                 f"ports {','.join([str(port) for port in self.config.ports])}, "
                 f"ingress:{str(self.config.ingress)}, "
                 f"egress:{str(self.config.egress)}",

@@ -33,7 +33,7 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
             pod_name = f"pod-filter-{get_random_string(5)}"
             container_name = f"fedora-container-{get_random_string(5)}"
             pod_info = self.kubecli.get_lib_kubernetes().get_pod_info(
-                self.config.target, self.config.namespace
+                target, self.config.namespace
             )
 
             log_info(
@@ -77,38 +77,36 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                 interfaces = self.config.interfaces
 
             container_ids = self.kubecli.get_lib_kubernetes().get_container_ids(
-                self.config.target, self.config.namespace
+                target, self.config.namespace
             )
 
             if len(container_ids) == 0:
                 raise Exception(
-                    f"impossible to resolve container id for pod {self.config.target} namespace {self.config.namespace}"
+                    f"impossible to resolve container id for pod {target} namespace {self.config.namespace}"
                 )
 
             log_info(f"targeting container {container_ids[0]}", parallel, pod_name)
 
-            pid = self.kubecli.get_lib_kubernetes().get_pod_pid(
+            pids = self.kubecli.get_lib_kubernetes().get_pod_pids(
                 base_pod_name=pod_name,
                 base_pod_namespace=self.config.namespace,
                 base_pod_container_name=container_name,
-                pod_name=self.config.target,
+                pod_name=target,
                 pod_namespace=self.config.namespace,
                 pod_container_id=container_ids[0],
             )
 
-            if not pid:
-                raise Exception(
-                    f"impossible to resolve pid for pod {self.config.target}"
-                )
+            if not pids:
+                raise Exception(f"impossible to resolve pid for pod {target}")
 
             log_info(
-                f"resolved pid {pid} in node {pod_info.nodeName} for pod {self.config.target}",
+                f"resolved pids {pids} in node {pod_info.nodeName} for pod {target}",
                 parallel,
                 pod_name,
             )
 
             input_rules, output_rules = generate_namespaced_rules(
-                interfaces, self.config, pid
+                interfaces, self.config, pids
             )
 
             apply_network_rules(
@@ -137,7 +135,7 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                 output_rules,
                 pod_name,
                 self.config.namespace,
-                pid,
+                pids,
             )
 
             self.kubecli.get_lib_kubernetes().delete_pod(

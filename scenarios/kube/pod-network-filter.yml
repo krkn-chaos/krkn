@@ -1,14 +1,17 @@
 - id: pod_network_filter
   image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
   wait_duration: 1
-  test_duration: 60ipt
-  label_selector: ""
+  test_duration: 60
+  label_selector: "app=network-attacked"
   namespace: 'default'
   instance_count: 1
   execution: parallel
   ingress: false
   egress: true
-  target: "network-victim"
+  target: ""
   interfaces: []
+  protocols:
+    - tcp
+    - udp
   ports:
-    - 80
+    - 53

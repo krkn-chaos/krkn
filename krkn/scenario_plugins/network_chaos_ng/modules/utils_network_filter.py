@@ -16,29 +16,34 @@ def generate_rules(
     for interface in interfaces:
         for port in config.ports:
             if config.egress:
-                output_rules.append(
-                    f"iptables -I OUTPUT 1 -p tcp --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
-                )
+                for protocol in set(config.protocols):
+                    output_rules.append(
+                        f"iptables -I OUTPUT 1 -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                    )
 
             if config.ingress:
-                input_rules.append(
-                    f"iptables -I INPUT 1 -i {interface} -p tcp --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
-                )
+                for protocol in set(config.protocols):
+                    input_rules.append(
+                        f"iptables -I INPUT 1 -i {interface} -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                    )
     return input_rules, output_rules
 
 
 def generate_namespaced_rules(
-    interfaces: list[str], config: NetworkFilterConfig, pid: str
+    interfaces: list[str], config: NetworkFilterConfig, pids: list[str]
 ) -> (list[str], list[str]):
-
+    namespaced_input_rules: list[str] = []
+    namespaced_output_rules: list[str] = []
     input_rules, output_rules = generate_rules(interfaces, config)
-
-    namespaced_input_rules = [
-        f"nsenter --target {pid} --net -- {rule}" for rule in input_rules
-    ]
-    namespaced_output_rules = [
-        f"nsenter --target {pid} --net -- {rule}" for rule in output_rules
-    ]
+    for pid in pids:
+        ns_input_rules = [
+            f"nsenter --target {pid} --net -- {rule}" for rule in input_rules
+        ]
+        ns_output_rules = [
+            f"nsenter --target {pid} --net -- {rule}" for rule in output_rules
+        ]
+        namespaced_input_rules.extend(ns_input_rules)
+        namespaced_output_rules.extend(ns_output_rules)
 
     return namespaced_input_rules, namespaced_output_rules
 
@@ -105,22 +110,24 @@ def clean_network_rules_namespaced(
     output_rules: list[str],
     pod_name: str,
     namespace: str,
-    pid: str,
+    pids: list[str],
 ):
     for _ in input_rules:
-        # always deleting the first rule since has been inserted from the top
-        kubecli.exec_cmd_in_pod(
-            [f"nsenter --target {pid} --net -- iptables -D INPUT 1"],
-            pod_name,
-            namespace,
-        )
+        for pid in pids:
+            # always deleting the first rule since has been inserted from the top
+            kubecli.exec_cmd_in_pod(
+                [f"nsenter --target {pid} --net -- iptables -D INPUT 1"],
+                pod_name,
+                namespace,
+            )
     for _ in output_rules:
-        # always deleting the first rule since has been inserted from the top
-        kubecli.exec_cmd_in_pod(
-            [f"nsenter --target {pid} --net -- iptables -D OUTPUT 1"],
-            pod_name,
-            namespace,
-        )
+        for pid in pids:
+            # always deleting the first rule since has been inserted from the top
+            kubecli.exec_cmd_in_pod(
+                [f"nsenter --target {pid} --net -- iptables -D OUTPUT 1"],
+                pod_name,
+                namespace,
+            )
 
 
 def get_default_interface(
