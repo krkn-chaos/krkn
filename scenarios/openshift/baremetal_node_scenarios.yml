@@ -7,7 +7,7 @@ node_scenarios:
     runs: 1                                                         # Number of times to inject each scenario under actions (will perform on same node each time).
     timeout: 360                                                    # Duration to wait for completion of node scenario injection.
     duration: 120                                                   # Duration to stop the node before running the start action
-    parallel: False                                                 # Run action on label or node name in parallel or sequential, set to true for parallel
+    parallel: "False"                                               # Run action on label or node name in parallel or sequential, set to true/True as a string for parallel
     cloud_type: bm                                                  # Cloud type on which Kubernetes/OpenShift runs.
     kube_check: True                                                # Run the kubernetes api calls to see if the node gets to a certain state during the node scenario   
     bmc_user: defaultuser                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines
