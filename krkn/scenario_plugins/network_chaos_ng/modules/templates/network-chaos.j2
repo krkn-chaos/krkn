@@ -10,6 +10,10 @@ spec:
   hostPID: true
   nodeSelector:
     kubernetes.io/hostname: {{target}}
+  tolerations:
+  - key: "node-role.kubernetes.io/master"
+    operator: "Exists"
+    effect: "NoSchedule"
   containers:
   - name: {{container_name}}
     imagePullPolicy: Always
