@@ -82,6 +82,7 @@ jobs:
             echo "test_service_hijacking" > ./CI/tests/functional_tests
             echo "test_app_outages" >> ./CI/tests/functional_tests
             echo "test_container"      >> ./CI/tests/functional_tests
+            echo "test_pod" >> ./CI/tests/functional_tests
             echo "test_namespace"      >> ./CI/tests/functional_tests
             echo "test_net_chaos"      >> ./CI/tests/functional_tests
             echo "test_time"           >> ./CI/tests/functional_tests
@@ -111,6 +112,7 @@ jobs:
           echo "test_service_hijacking" >> ./CI/tests/functional_tests
           echo "test_app_outages" >> ./CI/tests/functional_tests
           echo "test_container"      >> ./CI/tests/functional_tests
+          echo "test_pod" >> ./CI/tests/functional_tests
           echo "test_namespace"      >> ./CI/tests/functional_tests
           echo "test_net_chaos"      >> ./CI/tests/functional_tests
           echo "test_time"           >> ./CI/tests/functional_tests
