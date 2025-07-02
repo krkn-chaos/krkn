@@ -1,12 +1,10 @@
 import importlib
 import inspect
 import pkgutil
-from typing import Type, Tuple, Optional, TYPE_CHECKING
+from typing import Type, Tuple, Optional
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.rollback.config import RollbackConfig
 
-if TYPE_CHECKING:
-    from krkn.rollback.config import RollbackConfig
 
 class ScenarioPluginNotFound(Exception):
     pass
