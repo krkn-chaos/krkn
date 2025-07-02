@@ -48,7 +48,7 @@ class TestRollbackScenarioPlugin:
     @pytest.fixture(scope="module")
     def kubeconfig_path(self):
         # Provide the path to the kubeconfig file for testing
-        return os.getenv("KUBECONFIG", "/path/to/your/kubeconfig")
+        return os.getenv("KUBECONFIG", "~/.kube/config")
 
     @pytest.fixture(scope="module")
     def safe_logger(self):
