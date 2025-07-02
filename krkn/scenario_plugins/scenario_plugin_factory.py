@@ -20,7 +20,7 @@ class ScenarioPluginFactory:
         self.package_name = package_name
         self.__load_plugins(AbstractScenarioPlugin)
 
-    def create_plugin(self, scenario_type: str, rollback_config: "RollbackConfig") -> AbstractScenarioPlugin:
+    def create_plugin(self, scenario_type: str) -> AbstractScenarioPlugin:
         """
         Creates a plugin instance based on the config.yaml scenario name.
         The scenario name is provided by the method `get_scenario_type`
