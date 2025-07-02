@@ -75,7 +75,6 @@ class RollbackConfig(metaclass=SingletonMeta):
         if self._registered:
             raise AttributeError("Can't modify 'versions_directory' after registration")
         self._versions_directory = value
-
     @classmethod
     def register(cls, auto=False, versions_directory=""):
         """Initialize and return the singleton instance with given configuration."""

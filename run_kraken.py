@@ -331,7 +331,7 @@ def main(cfg) -> int:
                     if scenarios_list:
                         try:
                             scenario_plugin = scenario_plugin_factory.create_plugin(
-                                scenario_type, rollback_config
+                                scenario_type
                             )
                         except ScenarioPluginNotFound:
                             logging.error(
