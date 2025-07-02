@@ -20,7 +20,7 @@ class ScenarioPluginFactory:
         self.package_name = package_name
         self.__load_plugins(AbstractScenarioPlugin)
 
-    def create_plugin(self, scenario_type: str, rollback_config: "RollbackConfig") -> AbstractScenarioPlugin:
+    def create_plugin(self, scenario_type: str) -> AbstractScenarioPlugin:
         """
         Creates a plugin instance based on the config.yaml scenario name.
         The scenario name is provided by the method `get_scenario_type`
@@ -35,7 +35,7 @@ class ScenarioPluginFactory:
             inherits from the AbstractScenarioPlugin abstract class
         """
         if scenario_type in self.loaded_plugins:
-            return self.loaded_plugins[scenario_type](scenario_type, rollback_config)
+            return self.loaded_plugins[scenario_type](scenario_type)
         else:
             raise ScenarioPluginNotFound(
                 f"Failed to load the {scenario_type} scenario plugin. "
@@ -63,9 +63,9 @@ class ScenarioPluginFactory:
                             continue
 
                         cls = getattr(module, name)
-                        # To construct an instance of ScenarioPlugin, we need scenario_type and rollback_config.
+                        # To construct an instance of ScenarioPlugin, we need scenario_type.
                         # Since we only call get_scenario_types() here, using placeholder values is sufficient.
-                        instance = cls("placeholder_scenario_type", RollbackConfig(auto=False,versions_directory=""))
+                        instance = cls("placeholder_scenario_type")
                         get_scenario_type = getattr(instance, "get_scenario_types")
                         scenario_types = get_scenario_type()
                         has_duplicates = False

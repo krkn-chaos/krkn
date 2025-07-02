@@ -5,10 +5,15 @@ import os
 import logging
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ScenarioTelemetry
+from krkn.rollback.config import RollbackConfig
+
+if TYPE_CHECKING:
+    from krkn.rollback.config import RollbackContext
 
 logger = logging.getLogger(__name__)
 
@@ -49,39 +54,35 @@ class Version:
 
 
 class Serializer:
-    def __init__(self, scenario_type: str, versions_directory: str):
+    def __init__(self, scenario_type: str):
         self.scenario_type = scenario_type
-        self.versions_directory = versions_directory
-        self.run_uuid = None # This will be set later by the RollbackHandler
+        self.rollback_context: RollbackConfig | None = None # This will be set later by the RollbackHandler
 
-    def set_context(self, run_uuid: str):
+    def set_context(self, rollback_context: "RollbackContext"):
         """
         Set the context for the serializer.
-        :param run_uuid: Unique identifier for the run.
+        :param rollback_context: The rollback context to be set.
         """
-        self.run_uuid = run_uuid
+        self.rollback_context = rollback_context
 
     def clear_context(self):
         """
         Clear the context for the serializer.
         This will reset the run_uuid.
         """
-        self.run_uuid = None
+        self.rollback_context = None
 
     def _get_version_file_full_path(self, version: Version) -> str:
         """
         Get the full path for the version file based on the version object and current context.
 
-        Formats the file path as:
-        `<versions_directory>/<scenario_type>/<run_uuid>/<version.version_file_name>`
-
         :param version: The version object containing details for the file path.
         :return: The generated version file path.
         """
-        if not self.run_uuid:
-            raise ValueError("Must run set_context(run_uuid) before serializing a callable.")
+        if not self.rollback_context:
+            raise ValueError("Must run set_context(rollback_context) before serializing a callable.")
 
-        return f"{self.versions_directory}/{self.scenario_type}/{self.run_uuid}/{version.version_file_name}"
+        return f"{RollbackConfig.get_rollback_versions_directory(self.scenario_type, self.rollback_context)}/{version.version_file_name}"
 
     def _serialize_argument(self, argument: Any) -> str:
         """
