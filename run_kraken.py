@@ -62,7 +62,7 @@ def main(cfg) -> int:
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
-        rollback_config = RollbackConfig(
+        RollbackConfig.register(
             auto=get_yaml_item_value(
                 config["kraken"],
                 "auto_rollback",
@@ -331,7 +331,7 @@ def main(cfg) -> int:
                     if scenarios_list:
                         try:
                             scenario_plugin = scenario_plugin_factory.create_plugin(
-                                scenario_type, rollback_config
+                                scenario_type
                             )
                         except ScenarioPluginNotFound:
                             logging.error(
