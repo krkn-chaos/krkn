@@ -92,12 +92,13 @@ class AbstractScenarioPlugin(ABC):
                 logging.info(
                     f"Running {self.__class__.__name__}: {self.get_scenario_types()} -> {scenario_config}"
                 )
+                # pass all the parameters by kwargs to make `set_rollback_context_decorator` get the `run_uuid` and `scenario_type`
                 return_value = self.run(
-                    run_uuid,
-                    scenario_config,
-                    krkn_config,
-                    telemetry,
-                    scenario_telemetry,
+                    run_uuid=run_uuid,
+                    scenario=scenario_config,
+                    krkn_config=krkn_config,
+                    lib_telemetry=telemetry,
+                    scenario_telemetry=scenario_telemetry,
                 )
             except Exception as e:
                 logging.error(

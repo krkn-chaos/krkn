@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 from typing import Callable, cast
-import inspect
 
 from krkn.rollback.config import RollbackConfig
 from krkn.rollback.serialization import Serializer
@@ -32,24 +31,13 @@ def set_rollback_context_decorator(func):
             # Your scenario logic here
             pass
     """
-    def wrapper(self, *orig_args, **orig_kwargs):        
-        # Get function signature
-        sig = inspect.signature(func)
-        param_names = (name for name in sig.parameters.keys() if name != 'self')  # Exclude 'self'
-        # Initialize kwargs with all param_names as key
-        kwargs: dict = {name: None for name in param_names}
-        kwargs.update(orig_kwargs) # Update kwargs with original kwargs, if the parameter is set by args will be None
-        args = list(orig_args)
-        # Fill the missing kwargs with original args
-        for param_name in param_names:
-            if not kwargs.get(param_name, None) and args:
-                kwargs[param_name] = args.pop(0)
-
-        # Get run_uuid from final kwargs
-        logger.debug(f"Function {func.__name__} called with args: {orig_args}, kwargs: {orig_kwargs}")
-        logger.debug(f"Merged kwargs: {kwargs}")
+    def wrapper(self, *args, **kwargs): 
+        # Since `AbstractScenarioPlugin.run_scenarios` will call `self.run` and pass all parameters as `kwargs`
+        logger.debug(f"kwargs of ScenarioPlugin.run: {kwargs}")
         run_uuid = kwargs.get('run_uuid', None)
-                
+        # so we can safely assume that `run_uuid` will be present in `kwargs`
+        assert run_uuid is not None, "run_uuid must be provided in kwargs"
+            
         # Set context if run_uuid is available and rollback_handler exists
         if run_uuid and hasattr(self, 'rollback_handler'):
             self.rollback_handler = cast("RollbackHandler", self.rollback_handler)
@@ -57,7 +45,7 @@ def set_rollback_context_decorator(func):
         
         try:
             # Execute the `run` method with the original arguments
-            result = func(self, *orig_args, **orig_kwargs)
+            result = func(self, *args, **kwargs)
             return result
         finally:
             # Clear context after function execution, regardless of success or failure
@@ -125,5 +113,4 @@ class RollbackHandler:
             version_file = self.serializer.serialize_callable(callable, arguments, kwargs)
             logger.info(f"Rollback callable serialized to {version_file}")
         except Exception as e:
-            print(f"Failed to serialize rollback callable: {e}")
             logger.error(f"Failed to serialize rollback callable: {e}")
