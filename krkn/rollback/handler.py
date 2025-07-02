@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Callable, cast
 
-from krkn.rollback.config import RollbackConfig
+from krkn.rollback.config import RollbackConfig, RollbackContext
 from krkn.rollback.serialization import Serializer
 
 logger = logging.getLogger(__name__)
@@ -60,15 +60,12 @@ class RollbackHandler:
     def __init__(
         self,
         scenario_type: str,
-        rollback_config: RollbackConfig
     ):
-        self.rollback_config = rollback_config
-        self.run_uuid = None
         self.scenario_type = scenario_type
         self.serializer = Serializer(
             scenario_type=scenario_type,
-            versions_directory=self.rollback_config.versions_directory
         )
+        self.rollback_context: RollbackContext | None = None # will be set when `set_context` is called
 
 
     def set_context(self, run_uuid: str):
@@ -77,10 +74,10 @@ class RollbackHandler:
         :param scenario_types: List of scenario types.
         :param run_uuid: Unique identifier for the run.
         """
-        self.run_uuid = run_uuid
-        self.serializer.set_context(run_uuid)
+        self.rollback_context = RollbackContext(run_uuid)
+        self.serializer.set_context(self.rollback_context)
         logger.info(
-            f"Set run_uuid {self.run_uuid} for scenario type {self.scenario_type} RollbackHandler"
+            f"Set rollback_context: {self.rollback_context} for scenario_type: {self.scenario_type} RollbackHandler"
         )
 
     def clear_context(self):
@@ -88,9 +85,9 @@ class RollbackHandler:
         Clear the run_uuid context for the rollback handler.
         """
         logger.debug(
-            f"Clear run_uuid {self.run_uuid} context for scenario type {self.scenario_type} RollbackHandler"
+            f"Clear rollback_context {self.rollback_context} for scenario type {self.scenario_type} RollbackHandler"
         )
-        self.run_uuid = None
+        self.rollback_context = None
         self.serializer.clear_context()
 
     def set_rollback_callable(self, callable: Callable, arguments=(), kwargs=None):
@@ -104,8 +101,8 @@ class RollbackHandler:
         if kwargs is None:
             kwargs = {}
 
-        logger.info(
-            f"Rollback callable set to {callable.__name__} for version directory {self.rollback_config.versions_directory}/{self.scenario_type}"
+        logger.debug(
+            f"Rollback callable set to {callable.__name__} for version directory {RollbackConfig.get_rollback_versions_directory(self.scenario_type, self.rollback_context)}"
         )
 
         # Serialize the callable to a file
