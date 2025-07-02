@@ -1,11 +1,10 @@
 import importlib
 import inspect
 import pkgutil
-from typing import Type, Tuple, Optional, TYPE_CHECKING
+from typing import Type, Tuple, Optional
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackConfig
 
-if TYPE_CHECKING:
-    from krkn.rollback.config import RollbackConfig
 
 class ScenarioPluginNotFound(Exception):
     pass
@@ -64,7 +63,9 @@ class ScenarioPluginFactory:
                             continue
 
                         cls = getattr(module, name)
-                        instance = cls()
+                        # To construct an instance of ScenarioPlugin, we need scenario_type and rollback_config.
+                        # Since we only call get_scenario_types() here, using placeholder values is sufficient.
+                        instance = cls("placeholder_scenario_type", RollbackConfig(auto=False,versions_directory=""))
                         get_scenario_type = getattr(instance, "get_scenario_types")
                         scenario_types = get_scenario_type()
                         has_duplicates = False
