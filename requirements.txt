@@ -38,3 +38,5 @@ zope.interface==5.4.0
 
 git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
 cryptography>=42.0.4 # not directly required, pinned by Snyk to avoid a vulnerability
+protobuf>=4.25.8 # not directly required, pinned by Snyk to avoid a vulnerability
+urllib3>=2.5.0 # not directly required, pinned by Snyk to avoid a vulnerability
