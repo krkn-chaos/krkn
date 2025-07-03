@@ -9,7 +9,7 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value
 
-from krkn import cerberus
+
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -44,7 +44,6 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                     return 1
                 scenario_telemetry.affected_pods = result
 
-                # publish cerberus status
         except (RuntimeError, Exception):
             logging.error("ContainerScenarioPlugin exiting due to Exception %s")
             return 1
@@ -63,6 +62,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             namespace_pattern=namespace_pattern,
             label_selector=label_selector,
             max_timeout=recovery_time,
+            field_selector="status.phase=Running"
         )
 
     def container_killing_in_pod(self, cont_scenario, kubecli: KrknKubernetes):
