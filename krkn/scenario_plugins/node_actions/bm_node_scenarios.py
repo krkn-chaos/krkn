@@ -10,6 +10,7 @@ import time
 import traceback
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
+from krkn_lib.utils import get_random_string
 
 class BM:
     def __init__(self, bm_info, user, passwd):
@@ -20,6 +21,17 @@ class BM:
     def get_node_object(self, node_name):
         with oc.project("openshift-machine-api"):
             return oc.selector("node/" + node_name).object()
+
+    def get_bm_disks(self, node_name):
+        if (
+            self.bm_info is not None
+            and node_name in self.bm_info
+            and "disks" in self.bm_info[node_name]
+        ):
+            return self.bm_info[node_name]["disks"]
+        else:
+            return []
+
 
     # Get the ipmi or other BMC address of the baremetal node
     def get_bmc_addr(self, node_name):
@@ -228,3 +240,104 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.error("node_reboot_scenario injection failed!")
                 raise e
             self.affected_nodes_status.affected_nodes.append(affected_node)
+
+    def node_disk_detach_attach_scenario(self, instance_kill_count, node, timeout, duration):
+        logging.info("Starting disk_detach_attach_scenario injection")
+        disk_attachment_details = self.get_disk_attachment_info(instance_kill_count, node)
+        if disk_attachment_details:
+            self.disk_detach_scenario(instance_kill_count, node, disk_attachment_details, timeout)
+            logging.info("Waiting for %s seconds before attaching the disk" % (duration))
+            time.sleep(duration)
+            self.disk_attach_scenario(instance_kill_count, node, disk_attachment_details)
+            logging.info("node_disk_detach_attach_scenario has been successfully injected!")
+        else:
+            logging.error("Node %s has only root disk attached" % (node))
+            logging.error("node_disk_detach_attach_scenario failed!")
+
+
+    # Get volume attachment info
+    def get_disk_attachment_info(self, instance_kill_count, node):
+        for _ in range(instance_kill_count):
+            try:
+                logging.info("Obtaining disk attachment information")
+                user_disks= self.bm.get_bm_disks(node)
+                disk_pod_name = f"disk-pod-{get_random_string(5)}"
+                cmd = '''bootdev=$(lsblk -no PKNAME $(findmnt -no SOURCE /boot)); 
+for path in /sys/block/*/device/state; do 
+    dev=$(basename $(dirname $(dirname "$path"))); 
+    [[ "$dev" != "$bootdev" ]] && echo "$dev"; 
+done'''
+                pod_command = ["chroot /host /bin/sh -c '" + cmd + "'"]
+                disk_response = self.kubecli.exec_command_on_node(
+                    node, pod_command, disk_pod_name, "default"
+                )
+                logging.info("Disk response: %s" % (disk_response))
+                node_disks = [disk for disk in disk_response.split("\n") if disk]
+                logging.info("Node disks: %s" % (node_disks))
+                offline_disks = [disk for disk in node_disks if disk not in user_disks]
+                return offline_disks if offline_disks else node_disks
+            except Exception as e:
+                logging.error(
+                    "Failed to obtain disk attachment information of %s node. "
+                    "Encounteres following exception: %s." % (node, e)
+                )
+                raise RuntimeError()
+            finally:
+                self.kubecli.delete_pod(disk_pod_name, "default")
+
+    # Node scenario to detach the volume
+    def disk_detach_scenario(self, instance_kill_count, node, disk_attachment_details, timeout):
+        for _ in range(instance_kill_count):
+            try:
+                logging.info("Starting disk_detach_scenario injection")
+                logging.info(
+                    "Detaching the %s disks from instance %s "
+                    % (disk_attachment_details, node)
+                )
+                disk_pod_name = f"detach-disk-pod-{get_random_string(5)}"
+                detach_disk_command=''
+                for disk in disk_attachment_details:
+                    detach_disk_command = detach_disk_command + "echo offline > /sys/block/" + disk + "/device/state;"
+                pod_command = ["chroot /host /bin/sh -c '" + detach_disk_command + "'"]
+                cmd_output = self.kubecli.exec_command_on_node(
+                    node, pod_command, disk_pod_name, "default"
+                )
+                logging.info("Disk command output: %s" % (cmd_output))
+                logging.info("Disk %s has been detached from %s node" % (disk_attachment_details, node))
+            except Exception as e:
+                logging.error(
+                    "Failed to detach disk from %s node. Encountered following"
+                    "exception: %s." % (node, e)
+                )
+                logging.debug("")
+                raise RuntimeError()
+            finally:
+                self.kubecli.delete_pod(disk_pod_name, "default")
+
+    # Node scenario to attach the volume
+    def disk_attach_scenario(self, instance_kill_count, node, disk_attachment_details):
+        for _ in range(instance_kill_count):
+            try:
+                logging.info(
+                    "Attaching the %s disks from instance %s "
+                    % (disk_attachment_details, node)
+                )
+                disk_pod_name = f"attach-disk-pod-{get_random_string(5)}"
+                attach_disk_command=''
+                for disk in disk_attachment_details:
+                    attach_disk_command = attach_disk_command + "echo running > /sys/block/" + disk + "/device/state;"
+                pod_command = ["chroot /host /bin/sh -c '" + attach_disk_command + "'"]
+                cmd_output = self.kubecli.exec_command_on_node(
+                        node, pod_command, disk_pod_name, "default"
+                    )
+                logging.info("Disk command output: %s" % (cmd_output))
+                logging.info("Disk %s has been attached to %s node" % (disk_attachment_details, node))
+            except Exception as e:
+                logging.error(
+                    "Failed to attach disk to %s node. Encountered following"
+                    "exception: %s." % (node, e)
+                )
+                logging.debug("")
+                raise RuntimeError()
+            finally:
+                self.kubecli.delete_pod(disk_pod_name, "default")
