@@ -106,7 +106,7 @@ class Serializer:
                 "Must run set_context(rollback_context) before serializing a callable."
             )
 
-        return f"{RollbackConfig.get_rollback_versions_directory(self.scenario_type, self.rollback_context)}/{version.version_file_name}"
+        return f"{RollbackConfig.get_scenario_rollback_versions_directory(self.scenario_type, self.rollback_context)}/{version.version_file_name}"
 
     def _serialize_argument(self, argument: Any) -> str:
         """
