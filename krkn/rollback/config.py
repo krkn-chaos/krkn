@@ -56,7 +56,7 @@ class RollbackConfig(metaclass=SingletonMeta):
         return instance
     
     @classmethod
-    def get_rollback_versions_directory(cls, scenario_type: str, rollback_context: RollbackContext) -> str:
+    def get_scenario_rollback_versions_directory(cls, scenario_type: str, rollback_context: RollbackContext) -> str:
         """
         Get the rollback context directory for a given scenario type and rollback context.
         
@@ -65,4 +65,15 @@ class RollbackConfig(metaclass=SingletonMeta):
         :return: The path to the rollback context directory.
         """
         return f"{cls().versions_directory}/{rollback_context}/{scenario_type}"
+    
+
+    @classmethod
+    def get_rollback_versions_directory(cls, rollback_context: RollbackContext) -> str:
+        """
+        Get the rollback context directory for a given rollback context.
+        
+        :param rollback_context: The rollback context string.
+        :return: The path to the rollback context directory.
+        """
+        return f"{cls().versions_directory}/{rollback_context}"
 

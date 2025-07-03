@@ -102,7 +102,7 @@ class RollbackHandler:
             kwargs = {}
 
         logger.debug(
-            f"Rollback callable set to {callable.__name__} for version directory {RollbackConfig.get_rollback_versions_directory(self.scenario_type, self.rollback_context)}"
+            f"Rollback callable set to {callable.__name__} for version directory {RollbackConfig.get_rollback_versions_directory(self.rollback_context)}"
         )
 
         # Serialize the callable to a file
