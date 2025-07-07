@@ -274,7 +274,7 @@ done'''
                 logging.info("Disk response: %s" % (disk_response))
                 node_disks = [disk for disk in disk_response.split("\n") if disk]
                 logging.info("Node disks: %s" % (node_disks))
-                offline_disks = [disk for disk in node_disks if disk not in user_disks]
+                offline_disks = [disk for disk in user_disks if disk in node_disks]
                 return offline_disks if offline_disks else node_disks
             except Exception as e:
                 logging.error(
