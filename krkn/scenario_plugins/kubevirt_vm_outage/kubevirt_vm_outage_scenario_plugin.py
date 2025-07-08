@@ -23,6 +23,9 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         self.original_vmi = None
         
     # Scenario type is handled directly in execute_scenario
+    def get_scenario_types(self) -> list[str]:
+        return ["kubevirt_vm_outage"]
+
 
     def run(
         self,
@@ -59,6 +62,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         Initialize Kubernetes client for KubeVirt operations.
         """
         self.k8s_client = k8s_client
+        self.custom_object_client = k8s_client.custom_object_client
         logging.info("Successfully initialized Kubernetes client for KubeVirt operations")
 
     def get_vmi(self, name: str, namespace: str) -> Optional[Dict]:
@@ -70,7 +74,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         :return: The VMI object if found, None otherwise
         """
         try:
-            vmi = self.k8s_client.custom_object_client.get_namespaced_custom_object(
+            vmi = self.custom_object_client.get_namespaced_custom_object(
                 group="kubevirt.io",
                 version="v1",
                 namespace=namespace,
@@ -101,7 +105,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             params = config.get("parameters", {})
             vm_name = params.get("vm_name")
             namespace = params.get("namespace", "default")
-            duration = params.get("duration", 60)
+            timeout = params.get("timeout", 60)
             disable_auto_restart = params.get("disable_auto_restart", False)
             
             if not vm_name:
@@ -124,13 +128,9 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             result = self.inject(vm_name, namespace, disable_auto_restart)
             if result != 0:
                 return 1
-                
-            logging.info(f"Waiting for {duration} seconds before attempting recovery")
-            time.sleep(duration)
-            
-            result = self.recover(vm_name, namespace)
+            result = self.wait_for_running(vm_name,namespace, timeout)
             if result != 0:
-                return 1
+                logging.info(f"VM didn't become running in {timeout}s")     
                 
             logging.info(f"Successfully completed KubeVirt VM outage scenario for VM: {vm_name}")
             return 0
@@ -150,8 +150,8 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             # Check if KubeVirt CRDs exist
-            crd_list = self.k8s_client.list_custom_resource_definition()
-            kubevirt_crds = [crd for crd in crd_list.items if 'kubevirt.io' in crd.spec.group]
+            crd_list = self.custom_object_client.list_namespaced_custom_object("kubevirt.io","v1",namespace,"virtualmachines")
+            kubevirt_crds = [crd for crd in crd_list.items() ]
             
             if not kubevirt_crds:
                 logging.error("KubeVirt CRDs not found. Ensure KubeVirt/CNV is installed in the cluster")
@@ -181,7 +181,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             # Get the VM object first to get its current spec
-            vm = self.k8s_client.custom_object_client.get_namespaced_custom_object(
+            vm = self.custom_object_client.get_namespaced_custom_object(
                 group="kubevirt.io",
                 version="v1",
                 namespace=namespace,
@@ -195,7 +195,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             vm['spec']['running'] = running
             
             # Apply the patch
-            self.k8s_client.custom_object_client.patch_namespaced_custom_object(
+            self.custom_object_client.patch_namespaced_custom_object(
                 group="kubevirt.io",
                 version="v1",
                 namespace=namespace,
@@ -229,9 +229,9 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 if not self.patch_vm_spec(vm_name, namespace, running=False):
                     logging.error("Failed to disable auto-restart for VM"
                                " - proceeding with deletion but VM may auto-restart")
-            
+            start_creation_time = self.original_vmi.get('metadata', {}).get('creationTimestamp')
             try:
-                self.k8s_client.custom_object_client.delete_namespaced_custom_object(
+                self.custom_object_client.delete_namespaced_custom_object(
                     group="kubevirt.io",
                     version="v1",
                     namespace=namespace,
@@ -250,10 +250,15 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             timeout = 120  # seconds
             start_time = time.time()
             while time.time() - start_time < timeout:
-                if not self.get_vmi(vm_name, namespace):
+                deleted_vmi = self.get_vmi(vm_name, namespace)
+                if deleted_vmi:
+                    if start_creation_time != deleted_vmi.get('metadata', {}).get('creationTimestamp'):
+                        logging.info(f"VMI {vm_name} successfully recreated")
+                        self.affected_pod.pod_rescheduling_time = time.time() - start_time
+                        return 0
+                else: 
                     logging.info(f"VMI {vm_name} successfully deleted")
-                    return 0
-                time.sleep(5)
+                time.sleep(1)
                 
             logging.error(f"Timed out waiting for VMI {vm_name} to be deleted")
             return 1
@@ -262,6 +267,24 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             logging.error(f"Error deleting VMI {vm_name}: {e}")
             log_exception(e)
             return 1
+
+    def wait_for_running(self, vm_name: str, namespace: str, timeout: int = 120) -> int: 
+        start_time = time.time()
+        while time.time() - start_time < timeout: 
+
+            # Check current state once since we've already waited for the duration
+            vmi = self.get_vmi(vm_name, namespace)
+
+            if vmi:
+                if vmi.get('status', {}).get('phase') == "Running":
+                    logging.info(f"VMI {vm_name} is already running")
+                    return 0
+                logging.info(f"VMI {vm_name} exists but is not in Running state. Current state: {vmi.get('status', {}).get('phase')}")
+            else:
+                logging.info(f"VMI {vm_name} not yet recreated")
+            time.sleep(1)
+        return 1
+    
 
     def recover(self, vm_name: str, namespace: str, disable_auto_restart: bool = False) -> int:
         """
@@ -275,17 +298,6 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         try:
             logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
             
-            # Check current state once since we've already waited for the duration
-            vmi = self.get_vmi(vm_name, namespace)
-            
-            if vmi:
-                if vmi.get('status', {}).get('phase') == "Running":
-                    logging.info(f"VMI {vm_name} is already running")
-                    return 0
-                logging.info(f"VMI {vm_name} exists but is not in Running state. Current state: {vmi.get('status', {}).get('phase')}")
-            else:
-                logging.info(f"VMI {vm_name} not yet recreated")
-                
             if self.original_vmi:
                 logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
                 
@@ -299,7 +311,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                                 del metadata[field]
                     
                     # Create the VMI
-                    self.k8s_client.custom_object_client.create_namespaced_custom_object(
+                    self.custom_object_client.create_namespaced_custom_object(
                         group="kubevirt.io",
                         version="v1",
                         namespace=namespace,
@@ -309,14 +321,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                     logging.info(f"Successfully recreated VMI {vm_name}")
                     
                     # Wait for VMI to start running
-                    wait_time = 60  # seconds
-                    wait_start = time.time()
-                    while time.time() - wait_start < wait_time:
-                        vmi = self.get_vmi(vm_name, namespace)
-                        if vmi and vmi.get('status', {}).get('phase') == "Running":
-                            logging.info(f"Manually recreated VMI {vm_name} is now running")
-                            return 0
-                        time.sleep(5)
+                    self.wait_for_running(vm_name, namespace)
                     
                     logging.warning(f"VMI {vm_name} was recreated but didn't reach Running state in time")
                     return 0  # Still consider it a success as the VMI was recreated

@@ -4,4 +4,4 @@ scenarios:
     parameters:
       vm_name: <vm-name>  
       namespace: <namespace>  
-      duration: 60
+      timeout: 60
