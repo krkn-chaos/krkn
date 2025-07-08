@@ -254,7 +254,6 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 if deleted_vmi:
                     if start_creation_time != deleted_vmi.get('metadata', {}).get('creationTimestamp'):
                         logging.info(f"VMI {vm_name} successfully recreated")
-                        self.affected_pod.pod_rescheduling_time = time.time() - start_time
                         return 0
                 else: 
                     logging.info(f"VMI {vm_name} successfully deleted")
