@@ -23,7 +23,7 @@ class IbmCloud:
     def __init__(self):
         """
         Initialize the ibm cloud client by using the the env variables:
-            'IBMC_APIKEY' 'IBMC_URL'
+            'IBMC_APIKEY' 'IBMC_URL' 'DISABLE_SSL_VERIFICATION'
         """
         apiKey = environ.get("IBMC_APIKEY")
         service_url = environ.get("IBMC_URL")
@@ -36,10 +36,26 @@ class IbmCloud:
             self.service = VpcV1(authenticator=authenticator)
 
             self.service.set_service_url(service_url)
+            
+            # Configure SSL verification from environment variable
+            disable_ssl_verification = environ.get("DISABLE_SSL_VERIFICATION", "true")
+            self._configure_ssl_verification(disable_ssl_verification)
         except Exception as e:
             logging.error("error authenticating" + str(e))
 
-
+    def _configure_ssl_verification(self, disable_ssl_verification):
+        """
+        Configure SSL verification for IBM Cloud VPC service.
+        
+        Args:
+            disable_ssl_verification: If True or 'true', disables SSL verification.
+        """
+        if str(disable_ssl_verification).lower() == 'true':
+            self.service.set_disable_ssl_verification(True)
+            logging.info("SSL verification disabled for IBM Cloud VPC service")
+        else:
+            logging.info("SSL verification enabled for IBM Cloud VPC service")
+            
     # Get the instance ID of the node
     def get_instance_id(self, node_name):
         node_list = self.list_instances()
@@ -327,7 +343,7 @@ class ibm_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info("Rebooting the node %s " % (node))
                 self.ibmcloud.reboot_instances(instance_id)
-                self.ibmcloud.wait_until_rebooted(instance_id, timeout)
+                self.ibmcloud.wait_until_rebooted(instance_id, timeout, affected_node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(
                         node, timeout, affected_node
