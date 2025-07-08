@@ -14,6 +14,14 @@ RollbackCallable: TypeAlias = Callable[
 ]
 
 
+if TYPE_CHECKING:
+    from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
+RollbackCallable: TypeAlias = Callable[
+    ["RollbackContent", "KrknTelemetryOpenshift"], None
+]
+
+
 class SingletonMeta(type):
     _instances = {}
 
@@ -46,6 +54,7 @@ class RollbackContext(str):
 
     def __new__(cls, run_uuid: str):
         return super().__new__(cls, f"{time.time_ns()}-{run_uuid}")
+
 
 
 class RollbackConfig(metaclass=SingletonMeta):
