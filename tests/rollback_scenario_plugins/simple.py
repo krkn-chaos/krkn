@@ -4,11 +4,19 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ScenarioTelemetry
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
+
+
+class SimpleRollbackContent(RollbackContent):
+    run_uuid: str
+    scenario: str
+    krkn_config: dict[str, any]
+
 
 class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
     """
@@ -25,12 +33,17 @@ class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
-        logger.info(f"Setting rollback callable for run {run_uuid} with scenario {scenario}.")
+        logger.info(
+            f"Setting rollback callable for run {run_uuid} with scenario {scenario}."
+        )
         logger.debug(f"Krkn config: {krkn_config}")
         self.rollback_handler.set_rollback_callable(
             self.rollback_callable,
-            arguments=(run_uuid,),
-            kwargs={"scenario": scenario, "krkn_config": krkn_config},
+            SimpleRollbackContent(
+                run_uuid=run_uuid,
+                scenario=scenario,
+                krkn_config=krkn_config,
+            ),
         )
         logger.info("Rollback callable set successfully.")
         print("Rollback callable has been set for the scenario.")
@@ -44,10 +57,16 @@ class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
         return ["simple_rollback_scenario"]
 
     @staticmethod
-    def rollback_callable(run_uuid: str, scenario: str, krkn_config: dict[str, any]):
+    def rollback_callable(
+        rollback_context: SimpleRollbackContent, lib_telemetry: KrknTelemetryOpenshift
+    ):
         """
         Simple rollback callable that simulates a rollback operation.
         """
+        run_uuid = rollback_context["run_uuid"]
+        scenario = rollback_context["scenario"]
+        krkn_config = rollback_context["krkn_config"]
+
         print(f"Rollback called for run {run_uuid} with scenario {scenario}.")
         print(f"Krkn config: {krkn_config}")
         # Simulate a rollback operation
