@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable, cast
+from typing import cast, TYPE_CHECKING
 
 from krkn.rollback.config import RollbackConfig, RollbackContext
 from krkn.rollback.serialization import Serializer
 
 logger = logging.getLogger(__name__)
+
+
+if TYPE_CHECKING:
+    from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+    from krkn.rollback.config import RollbackContent, RollbackCallable
+
 
 def set_rollback_context_decorator(func):
     """
@@ -31,28 +37,30 @@ def set_rollback_context_decorator(func):
             # Your scenario logic here
             pass
     """
-    def wrapper(self, *args, **kwargs): 
+
+    def wrapper(self, *args, **kwargs):
+        self = cast("AbstractScenarioPlugin", self)
         # Since `AbstractScenarioPlugin.run_scenarios` will call `self.run` and pass all parameters as `kwargs`
         logger.debug(f"kwargs of ScenarioPlugin.run: {kwargs}")
-        run_uuid = kwargs.get('run_uuid', None)
+        run_uuid = kwargs.get("run_uuid", None)
         # so we can safely assume that `run_uuid` will be present in `kwargs`
         assert run_uuid is not None, "run_uuid must be provided in kwargs"
-            
+
         # Set context if run_uuid is available and rollback_handler exists
-        if run_uuid and hasattr(self, 'rollback_handler'):
+        if run_uuid and hasattr(self, "rollback_handler"):
             self.rollback_handler = cast("RollbackHandler", self.rollback_handler)
             self.rollback_handler.set_context(run_uuid)
-        
+
         try:
             # Execute the `run` method with the original arguments
             result = func(self, *args, **kwargs)
             return result
         finally:
             # Clear context after function execution, regardless of success or failure
-            if hasattr(self, 'rollback_handler'):
+            if hasattr(self, "rollback_handler"):
                 self.rollback_handler = cast("RollbackHandler", self.rollback_handler)
                 self.rollback_handler.clear_context()
-                
+
     return wrapper
 
 
@@ -65,8 +73,9 @@ class RollbackHandler:
         self.serializer = Serializer(
             scenario_type=scenario_type,
         )
-        self.rollback_context: RollbackContext | None = None # will be set when `set_context` is called
-
+        self.rollback_context: RollbackContext | None = (
+            None  # will be set when `set_context` is called
+        )
 
     def set_context(self, run_uuid: str):
         """
@@ -90,24 +99,24 @@ class RollbackHandler:
         self.rollback_context = None
         self.serializer.clear_context()
 
-    def set_rollback_callable(self, callable: Callable, arguments=(), kwargs=None):
+    def set_rollback_callable(
+        self, callable: RollbackCallable, rollback_content: RollbackContent
+    ):
         """
         Set the rollback callable to be executed after the scenario is finished.
 
-        :param callable: The callable to be executed.
-        :param arguments: Tuple of arguments for the callable.
-        :param kwargs: Dictionary of keyword arguments for the callable.
+        :param callable: The rollback callable to be set.
+        :param rollback_content: The rollback content for the callable.
         """
-        if kwargs is None:
-            kwargs = {}
-
         logger.debug(
             f"Rollback callable set to {callable.__name__} for version directory {RollbackConfig.get_rollback_versions_directory(self.rollback_context)}"
         )
 
         # Serialize the callable to a file
         try:
-            version_file = self.serializer.serialize_callable(callable, arguments, kwargs)
+            version_file = self.serializer.serialize_callable(
+                callable, rollback_content
+            )
             logger.info(f"Rollback callable serialized to {version_file}")
         except Exception as e:
             logger.error(f"Failed to serialize rollback callable: {e}")
