@@ -7,11 +7,16 @@ from krkn_lib.utils import get_yaml_item_value, get_random_string
 from jinja2 import Template
 from krkn import cerberus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
 
 
-class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
+class ApplicationOutageRollbackContent(RollbackContent):
+    namespace: str
+    policy_name: str
 
+
+class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
     @set_rollback_context_decorator
     def run(
         self,
@@ -65,11 +70,10 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 )
                 self.rollback_handler.set_rollback_callable(
                     self.rollback_network_policy,
-                    kwargs={
-                        "namespace": namespace,
-                        "policy_name": policy_name,
-                        "lib_telemetry": lib_telemetry,
-                    }
+                    ApplicationOutageRollbackContent(
+                        namespace=namespace,
+                        policy_name=policy_name,
+                    ),
                 )
 
                 # wait for the specified duration
@@ -99,26 +103,27 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
             return 1
         else:
             return 0
-        
+
     @staticmethod
     def rollback_network_policy(
-        namespace: str,
-        policy_name: str,
+        rollback_content: ApplicationOutageRollbackContent,
         lib_telemetry: KrknTelemetryOpenshift,
     ):
         """Rollback function to delete the network policy created during the scenario.
 
-        :param namespace: Namespace where the network policy was created.
-        :param policy_name: Name of the network policy to be deleted.
+        :param rollback_content: Rollback content containing namespace and policy_name.
         :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
         """
         try:
-            logging.info(f"Rolling back network policy: {policy_name} in namespace: {namespace}")
+            namespace = rollback_content["namespace"]
+            policy_name = rollback_content["policy_name"]
+            logging.info(
+                f"Rolling back network policy: {policy_name} in namespace: {namespace}"
+            )
             lib_telemetry.get_lib_kubernetes().delete_net_policy(policy_name, namespace)
             logging.info("Network policy rollback completed successfully.")
         except Exception as e:
             logging.error(f"Failed to rollback network policy: {e}")
-        
 
     def get_scenario_types(self) -> list[str]:
         return ["application_outages_scenarios"]
