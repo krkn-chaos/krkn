@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import cast, TYPE_CHECKING
 
-from krkn.rollback.config import RollbackConfig, RollbackContext
+from krkn.rollback.config import RollbackConfig, RollbackContext, Version
 from krkn.rollback.serialization import Serializer
 
 logger = logging.getLogger(__name__)
@@ -100,7 +100,9 @@ class RollbackHandler:
         self.serializer.clear_context()
 
     def set_rollback_callable(
-        self, callable: RollbackCallable, rollback_content: RollbackContent
+        self,
+        callable: RollbackCallable,
+        rollback_content: RollbackContent,
     ):
         """
         Set the rollback callable to be executed after the scenario is finished.
@@ -112,10 +114,15 @@ class RollbackHandler:
             f"Rollback callable set to {callable.__name__} for version directory {RollbackConfig.get_rollback_versions_directory(self.rollback_context)}"
         )
 
+        version: Version = Version.new_version(
+            scenario_type=self.scenario_type,
+            rollback_context=self.rollback_context,
+        )
+
         # Serialize the callable to a file
         try:
             version_file = self.serializer.serialize_callable(
-                callable, rollback_content
+                callable, rollback_content, version
             )
             logger.info(f"Rollback callable serialized to {version_file}")
         except Exception as e:
