@@ -5,6 +5,8 @@ nodes:
     extraPortMappings:
       - containerPort: 30036
         hostPort: 8888
+      - containerPort: 30037
+        hostPort: 8889
   - role: control-plane
   - role: control-plane
   - role: worker
