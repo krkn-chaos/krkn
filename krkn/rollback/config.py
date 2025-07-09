@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TypedDict, Callable, TYPE_CHECKING
 from typing_extensions import TypeAlias
 import time
@@ -21,14 +22,14 @@ class SingletonMeta(type):
         return cls._instances[cls]
 
 
-class RollbackContent(TypedDict):
+@dataclass(frozen=True)
+class RollbackContent:
     """
-    RollbackContent is a TypedDict that defines the necessary fields for rollback operations.
-
-    Each scenario plugin should inherit from this class and use it as type annotation for `set_rollback_callable`.
+    RollbackContent is a dataclass that defines the necessary fields for rollback operations.
     """
 
-    pass
+    namespace: str
+    resource_identifier: str
 
 
 class RollbackContext(str):

@@ -11,11 +11,6 @@ from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
 
 
-class ApplicationOutageRollbackContent(RollbackContent):
-    namespace: str
-    policy_name: str
-
-
 class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
     @set_rollback_context_decorator
     def run(
@@ -70,9 +65,9 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 )
                 self.rollback_handler.set_rollback_callable(
                     self.rollback_network_policy,
-                    ApplicationOutageRollbackContent(
+                    RollbackContent(
                         namespace=namespace,
-                        policy_name=policy_name,
+                        resource_identifier=policy_name,
                     ),
                 )
 
@@ -106,17 +101,17 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
 
     @staticmethod
     def rollback_network_policy(
-        rollback_content: ApplicationOutageRollbackContent,
+        rollback_content: RollbackContent,
         lib_telemetry: KrknTelemetryOpenshift,
     ):
         """Rollback function to delete the network policy created during the scenario.
 
-        :param rollback_content: Rollback content containing namespace and policy_name.
+        :param rollback_content: Rollback content containing namespace and resource_identifier.
         :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
         """
         try:
-            namespace = rollback_content["namespace"]
-            policy_name = rollback_content["policy_name"]
+            namespace = rollback_content.namespace
+            policy_name = rollback_content.resource_identifier
             logging.info(
                 f"Rolling back network policy: {policy_name} in namespace: {namespace}"
             )
