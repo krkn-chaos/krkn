@@ -12,12 +12,6 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
 
-class SimpleRollbackContent(RollbackContent):
-    run_uuid: str
-    scenario: str
-    krkn_config: dict[str, any]
-
-
 class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
     """
     Mock implementation of RollbackScenarioPlugin for testing purposes.
