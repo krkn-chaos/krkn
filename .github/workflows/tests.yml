@@ -89,6 +89,7 @@ jobs:
             echo "test_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_memory_hog" >> ./CI/tests/functional_tests
             echo "test_io_hog" >> ./CI/tests/functional_tests
+            echo "test_pod_network_filter" >> ./CI/tests/functional_tests
 
 
       # Push on main only steps + all other functional to collect coverage
@@ -119,6 +120,7 @@ jobs:
           echo "test_cpu_hog" >> ./CI/tests/functional_tests
           echo "test_memory_hog" >> ./CI/tests/functional_tests
           echo "test_io_hog" >> ./CI/tests/functional_tests
+          echo "test_pod_network_filter" >> ./CI/tests/functional_tests
 
       # Final common steps
       - name: Run Functional tests

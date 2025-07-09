@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-network-filter-test
+  labels:
+    app.kubernetes.io/name: pod-network-filter
+spec:
+  containers:
+  - name: nginx
+    image: quay.io/krkn-chaos/krkn-funtests:pod-network-filter
+    ports:
+      - containerPort: 5000
+        name: pod-network-prt
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pod-network-filter-service
+spec:
+  selector:
+    app.kubernetes.io/name: pod-network-filter
+  type: NodePort
+  ports:
+  - name: pod-network-filter-svc
+    protocol: TCP
+    port: 80
+    targetPort: pod-network-prt
+    nodePort: 30037
