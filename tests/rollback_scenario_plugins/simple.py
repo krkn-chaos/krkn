@@ -12,12 +12,6 @@ logger.setLevel(logging.DEBUG)
 logger.addHandler(logging.StreamHandler())
 
 
-class SimpleRollbackContent(RollbackContent):
-    run_uuid: str
-    scenario: str
-    krkn_config: dict[str, any]
-
-
 class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
     """
     Mock implementation of RollbackScenarioPlugin for testing purposes.
@@ -39,10 +33,8 @@ class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
         logger.debug(f"Krkn config: {krkn_config}")
         self.rollback_handler.set_rollback_callable(
             self.rollback_callable,
-            SimpleRollbackContent(
-                run_uuid=run_uuid,
-                scenario=scenario,
-                krkn_config=krkn_config,
+            RollbackContent(
+                resource_identifier=run_uuid,
             ),
         )
         logger.info("Rollback callable set successfully.")
@@ -58,17 +50,14 @@ class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
 
     @staticmethod
     def rollback_callable(
-        rollback_context: SimpleRollbackContent, lib_telemetry: KrknTelemetryOpenshift
+        rollback_context: RollbackContent, lib_telemetry: KrknTelemetryOpenshift
     ):
         """
         Simple rollback callable that simulates a rollback operation.
         """
-        run_uuid = rollback_context["run_uuid"]
-        scenario = rollback_context["scenario"]
-        krkn_config = rollback_context["krkn_config"]
+        run_uuid = rollback_context.resource_identifier
 
-        print(f"Rollback called for run {run_uuid} with scenario {scenario}.")
-        print(f"Krkn config: {krkn_config}")
+        print(f"Rollback called for run {run_uuid}.")
         # Simulate a rollback operation
         # In a real scenario, this would contain logic to revert changes made during the scenario execution.
         print("Rollback operation completed successfully.")
