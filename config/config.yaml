@@ -47,6 +47,8 @@ kraken:
               - scenarios/kube/syn_flood.yaml
         -  network_chaos_ng_scenarios:
                - scenarios/kube/network-filter.yml
+        -  kubevirt_vm_outage:
+               - scenarios/kubevirt/kubevirt-vm-outage.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed

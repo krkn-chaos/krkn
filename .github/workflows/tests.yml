@@ -35,7 +35,8 @@ jobs:
           --set alertmanager.service.nodePort=32000 \
           --set alertmanager.service.type=NodePort \
           --set prometheus-node-exporter.service.nodePort=32001 \
-          --set prometheus-node-exporter.service.type=NodePort
+          --set prometheus-node-exporter.service.type=NodePort \
+          --set prometheus.prometheusSpec.maximumStartupDurationSeconds=300
 
           SELECTOR=`kubectl -n prometheus-k8s get service kind-prometheus-kube-prome-prometheus -o wide --no-headers=true | awk '{ print $7 }'`
           POD_NAME=`kubectl -n prometheus-k8s get pods --selector="$SELECTOR" --no-headers=true | awk '{ print $1 }'`
@@ -81,12 +82,14 @@ jobs:
             echo "test_service_hijacking" > ./CI/tests/functional_tests
             echo "test_app_outages" >> ./CI/tests/functional_tests
             echo "test_container"      >> ./CI/tests/functional_tests
+            echo "test_pod" >> ./CI/tests/functional_tests
             echo "test_namespace"      >> ./CI/tests/functional_tests
             echo "test_net_chaos"      >> ./CI/tests/functional_tests
             echo "test_time"           >> ./CI/tests/functional_tests
             echo "test_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_memory_hog" >> ./CI/tests/functional_tests
             echo "test_io_hog" >> ./CI/tests/functional_tests
+            echo "test_pod_network_filter" >> ./CI/tests/functional_tests
 
 
       # Push on main only steps + all other functional to collect coverage
@@ -110,12 +113,14 @@ jobs:
           echo "test_service_hijacking" >> ./CI/tests/functional_tests
           echo "test_app_outages" >> ./CI/tests/functional_tests
           echo "test_container"      >> ./CI/tests/functional_tests
+          echo "test_pod" >> ./CI/tests/functional_tests
           echo "test_namespace"      >> ./CI/tests/functional_tests
           echo "test_net_chaos"      >> ./CI/tests/functional_tests
           echo "test_time"           >> ./CI/tests/functional_tests
           echo "test_cpu_hog" >> ./CI/tests/functional_tests
           echo "test_memory_hog" >> ./CI/tests/functional_tests
           echo "test_io_hog" >> ./CI/tests/functional_tests
+          echo "test_pod_network_filter" >> ./CI/tests/functional_tests
 
       # Final common steps
       - name: Run Functional tests
@@ -152,7 +157,8 @@ jobs:
           path: coverage.json
           if-no-files-found: error
       - name: Check CI results
-        run: grep Fail CI/results.markdown && false || true
+        run: "! grep Fail CI/results.markdown"
+
   badge:
     permissions:
       contents: write
@@ -192,7 +198,8 @@ jobs:
             cd krkn-lib-docs
             git add .
             git config user.name "krkn-chaos"
-            git config user.email "<>"
+            git config user.email "krkn-actions@users.noreply.github.com"
             git commit -m "[KRKN] Coverage Badge ${GITHUB_REF##*/}" || echo "no changes to commit"
             git push
+      
       

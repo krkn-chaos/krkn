@@ -117,3 +117,5 @@ class AbstractScenarioPlugin(ABC):
             logging.info(f"wating {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
         return failed_scenarios, scenario_telemetries
+
+    

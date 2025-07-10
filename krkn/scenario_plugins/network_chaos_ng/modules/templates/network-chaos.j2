@@ -7,11 +7,16 @@ spec:
   {% if host_network %}
   hostNetwork: true
   {%endif%}
+  hostPID: true
   nodeSelector:
     kubernetes.io/hostname: {{target}}
+  tolerations:
+  - key: "node-role.kubernetes.io/master"
+    operator: "Exists"
+    effect: "NoSchedule"
   containers:
-  - name: fedora
+  - name: {{container_name}}
     imagePullPolicy: Always
-    image: quay.io/krkn-chaos/krkn-network-chaos:latest
+    image: {{workload_image}}
     securityContext:
       privileged: true

@@ -6,6 +6,8 @@ node_scenarios:
     instance_count: 1
     timeout: 120
     cloud_type: azure
+    parallel: true             # Run action on label or node name in parallel or sequential, defaults to sequential
+    kube_check: true           # Run the kubernetes api calls to see if the node gets to a certain state during the node scenario
   - actions:
     - node_stop_start_scenario
     node_name:

@@ -260,9 +260,10 @@ class IbmCloud:
 
 @dataclass
 class ibm_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
-        super().__init__(kubecli, affected_nodes_status)
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         self.ibmcloud = IbmCloud()
+        self.node_action_kube_check = node_action_kube_check
 
     def node_start_scenario(self, instance_kill_count, node, timeout):
         try:
@@ -276,9 +277,10 @@ class ibm_node_scenarios(abstract_node_scenarios):
                     vm_started = self.ibmcloud.start_instances(instance_id)
                     if vm_started:
                         self.ibmcloud.wait_until_running(instance_id, timeout, affected_node)
-                        nodeaction.wait_for_ready_status(
-                            node, timeout, self.kubecli, affected_node
-                        )
+                        if self.node_action_kube_check: 
+                            nodeaction.wait_for_ready_status(
+                                node, timeout, self.kubecli, affected_node
+                            )
                     logging.info(
                         "Node with instance ID: %s is in running state" % node
                     )
@@ -326,12 +328,13 @@ class ibm_node_scenarios(abstract_node_scenarios):
                 logging.info("Rebooting the node %s " % (node))
                 self.ibmcloud.reboot_instances(instance_id)
                 self.ibmcloud.wait_until_rebooted(instance_id, timeout)
-                nodeaction.wait_for_unknown_status(
-                    node, timeout, affected_node
-                )
-                nodeaction.wait_for_ready_status(
-                    node, timeout, affected_node
-                )
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_unknown_status(
+                        node, timeout, affected_node
+                    )
+                    nodeaction.wait_for_ready_status(
+                        node, timeout, affected_node
+                    )
                 logging.info(
                     "Node with instance ID: %s has rebooted successfully" % node
                 )

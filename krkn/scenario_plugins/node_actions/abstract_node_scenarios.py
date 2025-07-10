@@ -10,10 +10,12 @@ from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 class abstract_node_scenarios:
     kubecli: KrknKubernetes
     affected_nodes_status: AffectedNodeStatus
+    node_action_kube_check: bool
 
-    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
         self.kubecli = kubecli
         self.affected_nodes_status = affected_nodes_status
+        self.node_action_kube_check = node_action_kube_check
 
     # Node scenario to start the node
     def node_start_scenario(self, instance_kill_count, node, timeout):

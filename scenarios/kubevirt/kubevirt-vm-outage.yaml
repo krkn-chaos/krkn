@@ -1,0 +1,7 @@
+scenarios:
+  - name: "kubevirt outage test"
+    scenario: kubevirt_vm_outage
+    parameters:
+      vm_name: <vm-name>  
+      namespace: <namespace>  
+      timeout: 60
