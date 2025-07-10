@@ -7,7 +7,7 @@ trap finish EXIT
 
 
 function functional_test_memory_hog {
-  yq -i '.node_selector="kubernetes.io/hostname=kind-worker2"' scenarios/kube/memory-hog.yml
+  yq -i '."node-selector"="kubernetes.io/hostname=kind-worker2"' scenarios/kube/memory-hog.yml
   export scenario_type="hog_scenarios"
   export scenario_file="scenarios/kube/memory-hog.yml"
   export post_config=""
