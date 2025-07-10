@@ -21,27 +21,7 @@ jobs:
           helm repo add stable https://charts.helm.sh/stable
           helm repo update
       - name: Deploy prometheus & Port Forwarding
-        run: |
-          kubectl create namespace prometheus-k8s
-          helm install \
-          --wait --timeout 360s \
-          kind-prometheus \
-          prometheus-community/kube-prometheus-stack \
-          --namespace prometheus-k8s \
-          --set prometheus.service.nodePort=30000 \
-          --set prometheus.service.type=NodePort \
-          --set grafana.service.nodePort=31000 \
-          --set grafana.service.type=NodePort \
-          --set alertmanager.service.nodePort=32000 \
-          --set alertmanager.service.type=NodePort \
-          --set prometheus-node-exporter.service.nodePort=32001 \
-          --set prometheus-node-exporter.service.type=NodePort \
-          --set prometheus.prometheusSpec.maximumStartupDurationSeconds=300
-
-          SELECTOR=`kubectl -n prometheus-k8s get service kind-prometheus-kube-prome-prometheus -o wide --no-headers=true | awk '{ print $7 }'`
-          POD_NAME=`kubectl -n prometheus-k8s get pods --selector="$SELECTOR" --no-headers=true | awk '{ print $1 }'`
-          kubectl -n prometheus-k8s port-forward $POD_NAME 9090:9090 &
-          sleep 5
+        uses: redhat-chaos/actions/prometheus@main
       - name: Install Python
         uses: actions/setup-python@v4
         with:
