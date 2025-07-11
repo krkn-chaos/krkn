@@ -6,10 +6,11 @@ namespace: default
 io-block-size: 1m
 io-write-bytes: 1g
 io-target-pod-folder: /hog-data
+# node-name: "worker-0" # Uncomment to target a specific node by name
 io-target-pod-volume:
   name: node-volume
   hostPath:
     path: /root # a path writable by kubelet in the root filesystem of the node
 node-selector: "node-role.kubernetes.io/worker="
 number-of-nodes: ''
-taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]
+taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]    

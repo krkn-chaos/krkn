@@ -4,6 +4,7 @@ hog-type: memory
 image: quay.io/krkn-chaos/krkn-hog
 namespace: default
 memory-vm-bytes: 90%
+# node-name: "worker-0" # Uncomment to target a specific node by name
 node-selector: "node-role.kubernetes.io/worker="
 number-of-nodes: ''
 taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]
