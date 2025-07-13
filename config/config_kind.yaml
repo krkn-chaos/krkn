@@ -7,10 +7,8 @@ kraken:
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address
     chaos_scenarios:                                       # List of policies/chaos scenarios to load
-        - plugin_scenarios:
-            - scenarios/kind/scheduler.yml
-        - node_scenarios:
-            - scenarios/kind/node_scenarios_example.yml        
+        - pod_disruption_scenarios:
+            - scenarios/kube/pod.yml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
@@ -26,7 +24,18 @@ performance_monitoring:
     enable_alerts: False                                  # Runs the queries specified in the alert profile and displays the info or exits 1 when severity=error
     alert_profile: config/alerts.yaml                          # Path to alert profile with the prometheus queries
 
+elastic:
+    enable_elastic: False
+
 tunings:
     wait_duration: 60                                      # Duration to wait between each chaos scenario
     iterations: 1                                          # Number of times to execute the scenarios
     daemon_mode: False                                     # Iterations are set to infinity which means that the kraken will cause chaos forever
+
+telemetry:
+    enabled: False                                         # enable/disables the telemetry collection feature
+    archive_path: /tmp                                     # local path where the archive files will be temporarly stored
+    events_backup: False                                   # enables/disables cluster events collection
+    logs_backup: False
+
+health_checks:                                             # Utilizing health check endpoints to observe application behavior during chaos injection.
