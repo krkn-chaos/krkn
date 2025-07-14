@@ -23,7 +23,7 @@ class IbmCloud:
     def __init__(self):
         """
         Initialize the ibm cloud client by using the the env variables:
-            'IBMC_APIKEY' 'IBMC_URL' 'DISABLE_SSL_VERIFICATION'
+            'IBMC_APIKEY' 'IBMC_URL'
         """
         apiKey = environ.get("IBMC_APIKEY")
         service_url = environ.get("IBMC_URL")
@@ -37,23 +37,22 @@ class IbmCloud:
 
             self.service.set_service_url(service_url)
             
-            # Configure SSL verification from environment variable
-            disable_ssl_verification = environ.get("DISABLE_SSL_VERIFICATION", "true")
-            self._configure_ssl_verification(disable_ssl_verification)
         except Exception as e:
             logging.error("error authenticating" + str(e))
 
-    def _configure_ssl_verification(self, disable_ssl_verification):
+    def configure_ssl_verification(self, disable_ssl_verification):
         """
         Configure SSL verification for IBM Cloud VPC service.
         
         Args:
-            disable_ssl_verification: If True or 'true', disables SSL verification.
+            disable_ssl_verification: If True, disables SSL verification.
         """
-        if str(disable_ssl_verification).lower() == 'true':
+        logging.info(f"Configuring SSL verification: disable_ssl_verification={disable_ssl_verification}")
+        if disable_ssl_verification:
             self.service.set_disable_ssl_verification(True)
             logging.info("SSL verification disabled for IBM Cloud VPC service")
         else:
+            self.service.set_disable_ssl_verification(False)
             logging.info("SSL verification enabled for IBM Cloud VPC service")
             
     # Get the instance ID of the node
@@ -276,9 +275,13 @@ class IbmCloud:
 
 @dataclass
 class ibm_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus, disable_ssl_verification: bool):
         super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         self.ibmcloud = IbmCloud()
+        
+        # Configure SSL verification
+        self.ibmcloud.configure_ssl_verification(disable_ssl_verification)
+        
         self.node_action_kube_check = node_action_kube_check
 
     def node_start_scenario(self, instance_kill_count, node, timeout):
