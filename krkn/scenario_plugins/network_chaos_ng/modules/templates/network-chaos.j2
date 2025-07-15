@@ -7,13 +7,20 @@ spec:
   {% if host_network %}
   hostNetwork: true
   {%endif%}
+  {% if taints %}
+  tolerations:
+  {% for toleration in taints %}
+  - key: "{{ toleration.key }}"
+    operator: "{{ toleration.operator }}"
+    {% if toleration.value %}
+    value: "{{ toleration.value }}"
+    {% endif %}
+    effect: "{{ toleration.effect }}"
+  {% endfor %}
+  {% endif %}
   hostPID: true
   nodeSelector:
     kubernetes.io/hostname: {{target}}
-  tolerations:
-  - key: "node-role.kubernetes.io/master"
-    operator: "Exists"
-    effect: "NoSchedule"
   containers:
   - name: {{container_name}}
     imagePullPolicy: Always
