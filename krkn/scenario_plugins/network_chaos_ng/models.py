@@ -17,6 +17,7 @@ class BaseNetworkChaosConfig:
     instance_count: int
     execution: str
     namespace: str
+    taints: list[str]
 
     def validate(self) -> list[str]:
         errors = []

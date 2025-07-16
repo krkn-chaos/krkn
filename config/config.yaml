@@ -46,7 +46,8 @@ kraken:
         - syn_flood_scenarios:
               - scenarios/kube/syn_flood.yaml
         -  network_chaos_ng_scenarios:
-               - scenarios/kube/network-filter.yml
+               - scenarios/kube/pod-network-filter.yml
+               - scenarios/kube/node-network-filter.yml
         -  kubevirt_vm_outage:
                - scenarios/kubevirt/kubevirt-vm-outage.yaml
 
