@@ -120,7 +120,8 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             node_scenario["cloud_type"].lower() == "ibm"
             or node_scenario["cloud_type"].lower() == "ibmcloud"
         ):
-            return ibm_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
+            disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
+            return ibm_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
         else:
             logging.error(
                 "Cloud type "
