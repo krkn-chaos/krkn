@@ -77,6 +77,9 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                         resource_identifier=policy_name,
                     ),
                 )
+                lib_telemetry.get_lib_kubernetes().create_net_policy(
+                    yaml_spec, namespace
+                )
 
                 # wait for the specified duration
                 logging.info(

@@ -98,6 +98,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                     resource_identifier=pod_name,
                 ),
             )
+            lib_k8s.deploy_hog(pod_name, config)
             start = time.time()
             # waiting 3 seconds before starting sample collection
             time.sleep(3)
