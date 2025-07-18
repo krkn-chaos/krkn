@@ -56,7 +56,6 @@ class RollbackContext(str):
         return super().__new__(cls, f"{time.time_ns()}-{run_uuid}")
 
 
-
 class RollbackConfig(metaclass=SingletonMeta):
     """Configuration for the rollback scenarios."""
 
