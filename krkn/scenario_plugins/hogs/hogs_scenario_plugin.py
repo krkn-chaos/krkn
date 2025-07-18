@@ -17,9 +17,12 @@ from krkn_lib.utils import get_random_string
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class HogsScenarioPlugin(AbstractScenarioPlugin):
+    
+    @set_rollback_context_decorator
     def run(self, run_uuid: str, scenario: str, krkn_config: dict[str, any], lib_telemetry: KrknTelemetryOpenshift,
             scenario_telemetry: ScenarioTelemetry) -> int:
         try:
@@ -80,7 +83,6 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             config.node_selector = f"kubernetes.io/hostname={node}"
             pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
             node_resources_start = lib_k8s.get_node_resources_info(node)
-            lib_k8s.deploy_hog(pod_name, config)
             self.rollback_handler.set_rollback_callable(
                 self.rollback_hog_pod,
                 RollbackContent(
@@ -88,6 +90,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                     resource_identifier=pod_name,
                 ),
             )
+            lib_k8s.deploy_hog(pod_name, config)
             start = time.time()
             # waiting 3 seconds before starting sample collection
             time.sleep(3)

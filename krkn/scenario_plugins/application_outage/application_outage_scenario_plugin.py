@@ -60,15 +60,15 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 # Block the traffic by creating network policy
                 logging.info("Creating the network policy")
 
-                lib_telemetry.get_lib_kubernetes().create_net_policy(
-                    yaml_spec, namespace
-                )
                 self.rollback_handler.set_rollback_callable(
                     self.rollback_network_policy,
                     RollbackContent(
                         namespace=namespace,
                         resource_identifier=policy_name,
                     ),
+                )
+                lib_telemetry.get_lib_kubernetes().create_net_policy(
+                    yaml_spec, namespace
                 )
 
                 # wait for the specified duration

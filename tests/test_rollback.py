@@ -39,15 +39,15 @@ class TestRollbackScenarioPlugin:
         )
 
         scenario_rollback_versions_directory = os.path.join(
-            TEST_VERSIONS_DIR, rollback_context_directories[0], scenario
+            TEST_VERSIONS_DIR, rollback_context_directories[0]
         )
         version_files = os.listdir(scenario_rollback_versions_directory)
         assert len(version_files) == versions, (
             f"Expected {versions} version files, found: {len(version_files)}"
         )
         for version_file in version_files:
-            assert version_file.startswith("rollback_"), (
-                f"Version file {version_file} does not start with 'rollback_'"
+            assert version_file.startswith(scenario), (
+                f"Version file {version_file} does not start with '{scenario}'"
             )
             assert version_file.endswith(".py"), (
                 f"Version file {version_file} does not end with '.py'"
