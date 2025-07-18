@@ -5,6 +5,9 @@ from typing import Callable, TYPE_CHECKING, Optional
 from typing_extensions import TypeAlias
 import time
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -101,7 +104,43 @@ class RollbackConfig(metaclass=SingletonMeta):
         :return: The path to the rollback context directory.
         """
         return f"{cls().versions_directory}/{rollback_context}"
+    
+    @classmethod
+    def search_rollback_version_files(cls, run_uuid: str, scenario_type: str) -> list[str]:
+        """
+        Search for rollback version files based on run_uuid and scenario_type.
 
+        1. Search directories with "run_uuid" in name under "cls.versions_directory".
+        2. Search files in those directories that start with "scenario_type" in matched directories in step 1.
+
+        :param run_uuid: Unique identifier for the run.
+        :param scenario_type: Type of the scenario.
+        :return: List of version file paths.
+        """
+        rollback_context_directories = [
+            dirname for dirname in os.listdir(cls().versions_directory) if run_uuid in dirname
+        ]
+        if len(rollback_context_directories) != 1:
+            raise ValueError(
+                f"Expected one directory for run UUID {run_uuid}, found: {rollback_context_directories}"
+            )
+        rollback_context_directory = rollback_context_directories[0]
+
+        version_files = []
+        scenario_rollback_versions_directory = os.path.join(
+            cls().versions_directory, rollback_context_directory
+        )
+        for file in os.listdir(scenario_rollback_versions_directory):
+            # assert all files start with scenario_type and end with .py
+            if file.startswith(scenario_type) and file.endswith(".py"):
+                version_files.append(
+                    os.path.join(scenario_rollback_versions_directory, file)
+                )
+            else:
+                logger.warning(
+                    f"File {file} does not match expected pattern for scenario type {scenario_type}"
+                )
+        return version_files
 
 @dataclass(frozen=True)
 class Version:

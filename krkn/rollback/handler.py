@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import logging
 from typing import cast, TYPE_CHECKING
+import sys
+import subprocess
+import os
 
 from krkn.rollback.config import RollbackConfig, RollbackContext, Version
 from krkn.rollback.serialization import Serializer
@@ -62,6 +65,71 @@ def set_rollback_context_decorator(func):
                 self.rollback_handler.clear_context()
 
     return wrapper
+
+def execute_rollback_version_files(run_uuid: str, scenario_type: str):
+    """
+    Execute rollback version files for the given run_uuid and scenario_type.
+    This function is called when a signal is received to perform rollback operations.
+    
+    :param run_uuid: Unique identifier for the run.
+    :param scenario_type: Type of the scenario being rolled back.
+    """
+    
+    # Get the rollback versions directory
+    version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
+    
+    # Execute all version files in the directory
+    logger.info(f"Executing rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type}")
+    for version_file in version_files:
+        try:
+            logger.info(f"Executing rollback version file: {version_file}")
+            # Use subprocess to execute the version file with real-time output
+            logger.info(f"Starting execution of rollback version file: {version_file}")
+            process = subprocess.Popen(
+                [sys.executable, version_file],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True,
+            )
+            
+            # Stream output in real-time
+            for line in process.stdout:
+                line = line.rstrip('\n')
+                logger.info(f"[{version_file}] {line}")
+            
+            # Wait for process to complete and check return code
+            return_code = process.wait()
+            if return_code != 0:
+                raise subprocess.CalledProcessError(return_code, [sys.executable, version_file])
+            
+            logger.info(f"Executed {version_file} successfully.")
+        except Exception as e:
+            logger.error(f"Failed to execute rollback version file {version_file}: {e}")
+            raise
+
+def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
+    """
+    Cleanup rollback version files for the given run_uuid and scenario_type.
+    This function is called to remove the rollback version files after execution.
+    
+    :param run_uuid: Unique identifier for the run.
+    :param scenario_type: Type of the scenario being rolled back.
+    """
+    
+    # Get the rollback versions directory
+    version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
+    
+    # Remove all version files in the directory
+    logger.info(f"Cleaning up rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type}")
+    for version_file in version_files:
+        try:
+            os.remove(version_file)
+            logger.info(f"Removed {version_file} successfully.")
+        except Exception as e:
+            logger.error(f"Failed to remove rollback version file {version_file}: {e}")
+            raise
 
 
 class RollbackHandler:
