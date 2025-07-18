@@ -84,7 +84,6 @@ class RollbackHandler:
         :param run_uuid: Unique identifier for the run.
         """
         self.rollback_context = RollbackContext(run_uuid)
-        self.serializer.set_context(self.rollback_context)
         logger.info(
             f"Set rollback_context: {self.rollback_context} for scenario_type: {self.scenario_type} RollbackHandler"
         )
@@ -97,7 +96,6 @@ class RollbackHandler:
             f"Clear rollback_context {self.rollback_context} for scenario type {self.scenario_type} RollbackHandler"
         )
         self.rollback_context = None
-        self.serializer.clear_context()
 
     def set_rollback_callable(
         self,

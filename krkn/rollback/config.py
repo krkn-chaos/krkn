@@ -45,8 +45,7 @@ class RollbackContext(str):
     """
 
     def __new__(cls, run_uuid: str):
-        timestamp = int(time.time())
-        return super().__new__(cls, f"{timestamp}-{run_uuid}")
+        return super().__new__(cls, f"{time.time_ns()}-{run_uuid}")
 
 
 class RollbackConfig(metaclass=SingletonMeta):
@@ -87,19 +86,6 @@ class RollbackConfig(metaclass=SingletonMeta):
         return instance
 
     @classmethod
-    def get_scenario_rollback_versions_directory(
-        cls, scenario_type: str, rollback_context: RollbackContext
-    ) -> str:
-        """
-        Get the rollback context directory for a given scenario type and rollback context.
-
-        :param scenario_type: The type of the scenario.
-        :param rollback_context: The rollback context string.
-        :return: The path to the rollback context directory.
-        """
-        return f"{cls().versions_directory}/{rollback_context}/{scenario_type}"
-
-    @classmethod
     def get_rollback_versions_directory(cls, rollback_context: RollbackContext) -> str:
         """
         Get the rollback context directory for a given rollback context.
@@ -113,7 +99,7 @@ class RollbackConfig(metaclass=SingletonMeta):
 @dataclass(frozen=True)
 class Version:
     scenario_type: str
-    rollback_context: "RollbackContext"
+    rollback_context: RollbackContext
     timestamp: int = time.time_ns()  # Get current timestamp in nanoseconds
     hash_suffix: str = os.urandom(
         4
@@ -125,7 +111,7 @@ class Version:
         Generate a version file name based on the timestamp and hash suffix.
         :return: The generated version file name.
         """
-        return f"rollback_{self.timestamp}_{self.hash_suffix}.py"
+        return f"{self.scenario_type}_{self.timestamp}_{self.hash_suffix}.py"
 
     @property
     def version_file_full_path(self) -> str:
@@ -134,12 +120,10 @@ class Version:
 
         :return: The generated version file full path.
         """
-        return f"{RollbackConfig.get_scenario_rollback_versions_directory(self.scenario_type, self.rollback_context)}/{self.version_file_name}"
+        return f"{RollbackConfig.get_rollback_versions_directory(self.rollback_context)}/{self.version_file_name}"
 
     @staticmethod
-    def new_version(
-        scenario_type: str, rollback_context: "RollbackContext"
-    ) -> "Version":
+    def new_version(scenario_type: str, rollback_context: RollbackContext) -> "Version":
         """
         Get the current version of the rollback configuration.
         :return: An instance of Version with the current timestamp and hash suffix.
