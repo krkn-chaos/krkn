@@ -8,7 +8,7 @@ spec:
   hostNetwork: true
   containers:
   - name: fedtools
-    image: docker.io/fedora/tools
+    image: quay.io/krkn-chaos/krkn:tools
     command:
     - /bin/sh
     - -c
