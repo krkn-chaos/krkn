@@ -14,6 +14,7 @@ class BaseNetworkChaosConfig:
     wait_duration: int
     test_duration: int
     label_selector: str
+    service_account: str
     instance_count: int
     execution: str
     namespace: str
