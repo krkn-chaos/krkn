@@ -4,6 +4,9 @@ metadata:
   name: {{pod_name}}
   namespace: {{namespace}}
 spec:
+  {% if service_account %}
+  serviceAccountName: {{ service_account }}
+  {%endif%}
   {% if host_network %}
   hostNetwork: true
   {%endif%}

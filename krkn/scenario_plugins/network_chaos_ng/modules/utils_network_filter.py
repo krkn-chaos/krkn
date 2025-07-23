@@ -87,7 +87,8 @@ def deploy_network_filter_pod(
             target=target_node,
             container_name=container_name,
             workload_image=config.image,
-            taints=tolerations
+            taints=tolerations,
+            service_account=config.service_account
         )
     )
 

@@ -3,6 +3,7 @@
   wait_duration: 1
   test_duration: 60
   label_selector: "<pod_selector>"
+  service_account: ""
   taints: [] # example ["node-role.kubernetes.io/master:NoSchedule"]
   namespace: 'default'
   instance_count: 1
