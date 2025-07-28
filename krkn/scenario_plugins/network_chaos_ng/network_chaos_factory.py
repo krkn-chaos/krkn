@@ -54,4 +54,4 @@ class NetworkChaosFactory:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
             return PodIngressShapingModule(config, kubecli)
         else:
-            raise Exception(f"{config["id"]} Network Chaos NG scenario type not supported (yet)!")
+            raise Exception(f"{config['id']} Network Chaos NG scenario type not supported (yet)!")
