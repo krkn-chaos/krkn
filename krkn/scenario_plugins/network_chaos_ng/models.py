@@ -19,6 +19,7 @@ class BaseNetworkChaosConfig:
     execution: str
     namespace: str
     taints: list[str]
+    target: str
 
     def validate(self) -> list[str]:
         errors = []
@@ -44,7 +45,6 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     ingress: bool
     egress: bool
     interfaces: list[str]
-    target: str
     ports: list[int]
     image: str
     protocols: list[str]
@@ -58,3 +58,11 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
                 f"{self.protocols} contains not allowed protocols only tcp and udp is allowed"
             )
         return errors
+
+
+@dataclass
+class PodNetworkShaping(BaseNetworkChaosConfig):
+    network_shaping_execution: str
+    latency: str
+    loss: str
+    bandwidth: str
