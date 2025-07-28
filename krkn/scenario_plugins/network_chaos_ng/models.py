@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 
 class NetworkChaosScenarioType(Enum):
@@ -10,15 +11,15 @@ class NetworkChaosScenarioType(Enum):
 @dataclass
 class BaseNetworkChaosConfig:
     supported_execution = ["serial", "parallel"]
+    taints = []
+    service_account = None
     id: str
     wait_duration: int
     test_duration: int
     label_selector: str
-    service_account: str
     instance_count: int
     execution: str
     namespace: str
-    taints: list[str]
     target: str
 
     def validate(self) -> list[str]:
