@@ -18,6 +18,7 @@ function functional_test_app_outage {
 
   kubectl get pods 
   envsubst < CI/config/common_test_config.yaml > CI/config/app_outage.yaml
+  cat $scenario_file
   python3 -m coverage run -a run_kraken.py -c CI/config/app_outage.yaml
   echo "App outage scenario test: Success"
 }
