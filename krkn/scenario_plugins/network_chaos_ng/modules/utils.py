@@ -1,5 +1,9 @@
 import logging
 
+from krkn_lib.k8s import KrknKubernetes
+
+from krkn.scenario_plugins.network_chaos_ng.models import BaseNetworkChaosConfig
+
 
 def log_info(message: str, parallel: bool = False, node_name: str = ""):
     """
@@ -29,3 +33,4 @@ def log_warning(self, message: str, parallel: bool = False, node_name: str = "")
         logging.warning(f"[{node_name}]: {message}")
     else:
         logging.warning(message)
+
