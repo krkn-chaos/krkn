@@ -14,14 +14,16 @@ jobs:
         uses: actions/checkout@v3
       - name: Create multi-node KinD cluster
         uses: redhat-chaos/actions/kind@main
-      - name: Install Helm & add repos
-        run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-          helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-          helm repo add stable https://charts.helm.sh/stable
-          helm repo update
       - name: Deploy prometheus & Port Forwarding
         uses: redhat-chaos/actions/prometheus@main
+      
+      - name: Deploy Elasticsearch
+        with:
+          ELASTIC_URL: ${{ vars.ELASTIC_URL }}
+          ELASTIC_PORT: ${{ vars.ELASTIC_PORT }}
+          ELASTIC_USER: ${{ vars.ELASTIC_USER }}
+          ELASTIC_PASSWORD: ${{ vars.ELASTIC_PASSWORD }}
+        uses: redhat-chaos/actions/elastic@main
       - name: Install Python
         uses: actions/setup-python@v4
         with:
@@ -35,6 +37,8 @@ jobs:
 
       - name: Deploy test workloads
         run: |
+          es_pod_name=$(kubectl get pods -l "app.kubernetes.io/instance=elasticsearch" -o name)
+          kubectl --namespace default port-forward $es_pod_name 9200 &
           kubectl apply -f CI/templates/outage_pod.yaml
           kubectl wait --for=condition=ready pod -l scenario=outage --timeout=300s
           kubectl apply -f CI/templates/container_scenario_pod.yaml
@@ -59,6 +63,9 @@ jobs:
             yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
             yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
             yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
+            yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
+            yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
+            yq -i '.elastic.enable_elastic=True' CI/config/common_test_config.yaml
             echo "test_service_hijacking" > ./CI/tests/functional_tests
             echo "test_app_outages" >> ./CI/tests/functional_tests
             echo "test_container"      >> ./CI/tests/functional_tests
@@ -87,6 +94,8 @@ jobs:
           yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
           yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
           yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
+          yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
+          yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
           yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
           yq -i '.telemetry.password="${{secrets.TELEMETRY_PASSWORD}}"' CI/config/common_test_config.yaml
           echo "test_telemetry" > ./CI/tests/functional_tests
@@ -111,20 +120,24 @@ jobs:
           cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Upload CI logs
+        if: ${{ success() || failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: ci-logs
           path: CI/out
           if-no-files-found: error
       - name: Collect coverage report
+        if: ${{ success() || failure() }}
         run: |
           python -m coverage html
           python -m coverage json
       - name: Publish coverage report to job summary
+        if: ${{ success() || failure() }}
         run: |
           pip install html2text
           html2text --ignore-images --ignore-links -b 0 htmlcov/index.html >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage data
+        if: ${{ success() || failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage
