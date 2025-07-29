@@ -13,6 +13,10 @@ function functional_test_app_outage {
   export scenario_type="application_outages_scenarios"
   export scenario_file="scenarios/openshift/app_outage.yaml"
   export post_config=""
+
+  kubectl get services -A 
+
+  kubectl get pods 
   envsubst < CI/config/common_test_config.yaml > CI/config/app_outage.yaml
   python3 -m coverage run -a run_kraken.py -c CI/config/app_outage.yaml
   echo "App outage scenario test: Success"
