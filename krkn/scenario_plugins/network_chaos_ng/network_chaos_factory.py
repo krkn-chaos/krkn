@@ -13,7 +13,6 @@ from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_filter import (
     PodNetworkFilterModule,
 )
 
-supported_modules = ["node_network_filter", "pod_network_filter"]
 
 
 class NetworkChaosFactory:
@@ -24,8 +23,6 @@ class NetworkChaosFactory:
     ) -> AbstractNetworkChaosModule:
         if config["id"] is None:
             raise Exception("network chaos id cannot be None")
-        if config["id"] not in supported_modules:
-            raise Exception(f"{config['id']} is not a supported network chaos module")
 
         if config["id"] == "node_network_filter":
             config = NetworkFilterConfig(**config)
