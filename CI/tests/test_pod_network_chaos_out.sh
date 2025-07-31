@@ -18,7 +18,7 @@ function functional_test_pod_network_chaos {
   yq -i '.[0].latency="1000ms"' scenarios/openshift/pod_egress_shaping.yml
   yq -i '.[0].target="nginx"' scenarios/openshift/pod_egress_shaping.yml
   yq -i '.[0].namespace="default"' scenarios/openshift/pod_egress_shaping.yml
-  yq -i 'del(.[0].label_selector)' scenarios/openshift/pod_egress_shaping.yml
+  yq -i '.[0].label_selector=""' scenarios/openshift/pod_egress_shaping.yml
 
   export scenario_type="network_chaos_ng_scenarios"
   export scenario_file="scenarios/openshift/pod_egress_shaping.yml"
