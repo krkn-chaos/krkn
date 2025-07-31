@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Optional
 
 
 class NetworkChaosScenarioType(Enum):
@@ -10,15 +11,16 @@ class NetworkChaosScenarioType(Enum):
 @dataclass
 class BaseNetworkChaosConfig:
     supported_execution = ["serial", "parallel"]
+    taints = []
+    service_account = None
     id: str
     wait_duration: int
     test_duration: int
     label_selector: str
-    service_account: str
     instance_count: int
     execution: str
     namespace: str
-    taints: list[str]
+    target: str
 
     def validate(self) -> list[str]:
         errors = []
@@ -44,7 +46,6 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     ingress: bool
     egress: bool
     interfaces: list[str]
-    target: str
     ports: list[int]
     image: str
     protocols: list[str]
@@ -58,3 +59,11 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
                 f"{self.protocols} contains not allowed protocols only tcp and udp is allowed"
             )
         return errors
+
+
+@dataclass
+class PodNetworkShaping(BaseNetworkChaosConfig):
+    network_shaping_execution: str
+    latency: str
+    loss: str
+    bandwidth: str
