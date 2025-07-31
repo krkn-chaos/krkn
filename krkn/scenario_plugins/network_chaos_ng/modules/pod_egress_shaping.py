@@ -96,7 +96,7 @@ class PodEgressShapingModule(AbstractNetworkChaosModule):
                 if error_queue is None:
                     raise e
                 else:
-                    error_queue.put("Pod egress shaping scenario exiting due to Exception - {e}")
+                    error_queue.put(f"Pod egress shaping scenario exiting due to Exception - {e}")
             finally:
                 log_info("Deleting jobs(if any)")
                 delete_jobs(self.kubecli.get_lib_kubernetes(), job_list[:])

@@ -94,7 +94,7 @@ class PodIngressShapingModule(AbstractNetworkChaosModule):
             if error_queue is None:
                 raise e
             else:
-                error_queue.put("Pod egress shaping scenario exiting due to Exception - {e}")
+                error_queue.put(f"Pod egress shaping scenario exiting due to Exception - {e}")
 
         finally:
             node_keys = list[str](node_dict.keys())
