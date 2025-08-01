@@ -16,6 +16,7 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.utils import get_random_string
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
 
 
 class HogsScenarioPlugin(AbstractScenarioPlugin):
@@ -80,6 +81,13 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
             node_resources_start = lib_k8s.get_node_resources_info(node)
             lib_k8s.deploy_hog(pod_name, config)
+            self.rollback_handler.set_rollback_callable(
+                self.rollback_hog_pod,
+                RollbackContent(
+                    namespace=config.namespace,
+                    resource_identifier=pod_name,
+                ),
+            )
             start = time.time()
             # waiting 3 seconds before starting sample collection
             time.sleep(3)
@@ -150,3 +158,22 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                 raise exception
         except queue.Empty:
             pass
+
+    @staticmethod
+    def rollback_hog_pod(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+        """
+        Rollback function to delete hog pod.
+
+        :param rollback_content: Rollback content containing namespace and resource_identifier.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations
+        """
+        try:
+            namespace = rollback_content.namespace
+            pod_name = rollback_content.resource_identifier
+            logging.info(
+                f"Rolling back hog pod: {pod_name} in namespace: {namespace}"
+            )
+            lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
+            logging.info("Rollback of hog pod completed successfully.")
+        except Exception as e:
+            logging.error(f"Failed to rollback hog pod: {e}")
