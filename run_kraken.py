@@ -16,7 +16,6 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
-import krkn.performance_dashboards.setup as performance_dashboards
 import krkn.prometheus as prometheus_plugin
 import server as server
 from krkn_lib.k8s import KrknKubernetes
@@ -69,14 +68,6 @@ def main(cfg) -> int:
         wait_duration = get_yaml_item_value(config["tunings"], "wait_duration", 60)
         iterations = get_yaml_item_value(config["tunings"], "iterations", 1)
         daemon_mode = get_yaml_item_value(config["tunings"], "daemon_mode", False)
-        deploy_performance_dashboards = get_yaml_item_value(
-            config["performance_monitoring"], "deploy_dashboards", False
-        )
-        dashboard_repo = get_yaml_item_value(
-            config["performance_monitoring"],
-            "repo",
-            "https://github.com/cloud-bulldozer/performance-dashboards.git",
-        )
 
         prometheus_url = config["performance_monitoring"].get("prometheus_url")
         prometheus_bearer_token = config["performance_monitoring"].get(
@@ -239,10 +230,6 @@ def main(cfg) -> int:
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
 
         logging.info("Server URL: %s" % kubecli.get_host())
-
-        # Deploy performance dashboards
-        if deploy_performance_dashboards:
-            performance_dashboards.setup(dashboard_repo, distribution)
 
         # Initialize the start iteration to 0
         iteration = 0
