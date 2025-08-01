@@ -25,7 +25,7 @@ class VirtChecker:
             return
         vmi_name_match = get_yaml_item_value(kubevirt_check_config, "name", ".*")
         self.krkn_lib = krkn_lib
-        
+        self.disconnected =  get_yaml_item_value(kubevirt_check_config, "disconnected", False) 
         self.only_failures =  get_yaml_item_value(kubevirt_check_config, "only_failures", False)
         self.interval = get_yaml_item_value(kubevirt_check_config, "interval", 2)
         try:
@@ -40,7 +40,16 @@ class VirtChecker:
         for vmi in vmis:
             node_name = vmi.get("status",{}).get("nodeName")
             vmi_name = vmi.get("metadata",{}).get("name")
-            self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'namespace':self.namespace, 'node_name':node_name}))
+            ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
+            self.vm_list.append(VirtCheck({'vm_name':vmi_name,'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name}))
+    
+    def check_disconnected_access(self, ip_address: str, worker_name:str = ''):
+
+        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+        if 'True' in invoke_no_exit(virtctl_vm_cmd):
+            return True
+        else:
+            return False
 
     def get_vm_access(self, vm_name: str = '', namespace: str = ''):
         """
@@ -80,7 +89,10 @@ class VirtChecker:
         while self.current_iterations < self.iterations:
             for vm in vm_list_batch:
                 try: 
-                    vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
+                    if not self.disconnected: 
+                        vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
+                    else:
+                        vm_status = self.check_disconnected_access(vm.ip_address, vm.node_name)
                 except Exception:
                     vm_status = False
                 
@@ -88,6 +100,7 @@ class VirtChecker:
                     start_timestamp = datetime.now()
                     virt_check_tracker[vm.vm_name] = {
                         "vm_name": vm.vm_name,
+                        "ip_address": vm.ip_address,
                         "namespace": vm.namespace,
                         "node_name": vm.node_name,
                         "status": vm_status,
