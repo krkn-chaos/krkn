@@ -24,6 +24,13 @@ jobs:
       run: |
         ./containers/compile_dockerfile.sh
         docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg PR_NUMBER=${{ github.event.pull_request.number }}
+    - name: Run Snyk to check Docker image for vulnerabilities
+      if: ${{ github.event_name == 'pull_request' }}
+      uses: snyk/actions/docker@master
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_PAT }}
+      with:
+        image: quay.io/krkn-chaos/krkn
     - name: Login in quay
       if: startsWith(github.ref, 'refs/tags')
       run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
