@@ -64,7 +64,9 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             else:
                 interfaces = self.config.interfaces
 
-            input_rules, output_rules = generate_rules(interfaces, self.config)
+            input_rules, output_rules = generate_rules(
+                interfaces, self.config, NetworkChaosScenarioType.Node, parallel, target
+            )
 
             apply_network_rules(
                 self.kubecli.get_lib_kubernetes(),

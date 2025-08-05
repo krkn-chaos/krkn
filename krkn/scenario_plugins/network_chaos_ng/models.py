@@ -11,8 +11,7 @@ class NetworkChaosScenarioType(Enum):
 @dataclass
 class BaseNetworkChaosConfig:
     supported_execution = ["serial", "parallel"]
-    taints = []
-    service_account = None
+    taints: list[str]
     id: str
     wait_duration: int
     test_duration: int
@@ -21,6 +20,7 @@ class BaseNetworkChaosConfig:
     execution: str
     namespace: str
     target: str
+    service_account: str
 
     def validate(self) -> list[str]:
         errors = []
@@ -49,6 +49,7 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     ports: list[int]
     image: str
     protocols: list[str]
+    force: bool
 
     def validate(self) -> list[str]:
         errors = super().validate()

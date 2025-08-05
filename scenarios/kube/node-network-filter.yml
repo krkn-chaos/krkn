@@ -2,7 +2,7 @@
   image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
   wait_duration: 1
   test_duration: 10
-  label_selector: "<node_selector>"
+  label_selector: "" # example kubernetes.io/hostname=kind-control-plane
   service_account: ""
   taints: [] # example ["node-role.kubernetes.io/master:NoSchedule"]
   namespace: 'default'
@@ -10,9 +10,10 @@
   execution: parallel
   ingress: false
   egress: true
-  target: '<node_name>'
+  target: 'kind-control-plane' # node name
   interfaces: []
   ports:
-    - 2309
+    - 2049 # use "*" to filter all the ports (use it at your own risk!)
   protocols:
     - tcp
+  force: false # set to true to enable node network filtering on all the node ports (the node will become unreachable)

@@ -17,3 +17,4 @@
     - udp
   ports:
     - 53
+  force: false # unused on pod filter scenarios

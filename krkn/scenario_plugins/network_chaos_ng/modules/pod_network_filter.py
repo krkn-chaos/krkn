@@ -106,7 +106,7 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
             )
 
             input_rules, output_rules = generate_namespaced_rules(
-                interfaces, self.config, pids
+                interfaces, self.config, pids, parallel, target
             )
 
             apply_network_rules(
@@ -131,11 +131,10 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
 
             clean_network_rules_namespaced(
                 self.kubecli.get_lib_kubernetes(),
-                input_rules,
-                output_rules,
                 pod_name,
                 self.config.namespace,
                 pids,
+                self.config.protocols,
             )
 
             self.kubecli.get_lib_kubernetes().delete_pod(
