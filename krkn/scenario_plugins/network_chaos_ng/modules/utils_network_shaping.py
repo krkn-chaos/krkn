@@ -2,6 +2,7 @@ import logging
 import re
 import time
 import random
+from typing import Optional
 
 import jinja2
 import yaml
@@ -46,6 +47,7 @@ def get_bridge_name(cli: ApiextensionsV1Api, custom_obj: CustomObjectsApi) -> st
             )
     return bridge
 
+
 def get_test_pods(
     pod_name: str, pod_label: str, namespace: str, kubecli: KrknKubernetes
 ) -> list[str]:
@@ -79,8 +81,13 @@ def get_test_pods(
     else:
         return pods_list
 
+
 def check_bridge_interface(
-    node_name: str, pod_template, bridge_name: str, kubecli: KrknKubernetes
+    node_name: str,
+    pod_template,
+    bridge_name: str,
+    kubecli: KrknKubernetes,
+    workload_image: str,
 ) -> bool:
     """
     Function  is used to check if the required OVS or OVN bridge is found in
@@ -100,21 +107,25 @@ def check_bridge_interface(
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
+        workload_image (string)
+            - the workload image deployed to perform the scenario
+
     Returns:
         Returns True if the bridge is found in the  node.
     """
     nodes = kubecli.get_node(node_name, "", 1)
     node_bridge = []
     for node in nodes:
-        node_bridge = list_bridges(node, pod_template, kubecli)
+        node_bridge = list_bridges(node, pod_template, kubecli, workload_image)
     if bridge_name not in node_bridge:
         raise Exception(f"OVS bridge {bridge_name} not found on the node ")
 
     return True
 
 
-
-def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
+def list_bridges(
+    node: str, pod_template, kubecli: KrknKubernetes, workload_image: str
+) -> Optional[list[str]]:
     """
     Function that returns a list of bridges on the node
 
@@ -126,6 +137,9 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
             - The YAML template used to instantiate a pod to query
               the node's interface
 
+        workload_image (string)
+            - the workload image deployed to perform the scenario
+
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
@@ -133,7 +147,9 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
         List of bridges on the node.
     """
 
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(
+        pod_template.render(nodename=node, workload_image=workload_image)
+    )
     logging.info("Creating pod to query bridge on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
     bridges: list[str] = []
@@ -155,7 +171,6 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> list[str]:
         logging.info("Deleting pod to query interface on node")
         kubecli.delete_pod("modtools", "default")
     return bridges
-
 
 
 def apply_outage_policy(
@@ -245,12 +260,13 @@ def apply_outage_policy(
         job_list.append(job_body["metadata"]["name"])
     return job_list
 
+
 def check_cookie(
     node: str,
-        pod_template: jinja2.environment.Template,
-        br_name: str,
-        cookie: str,
-        kubecli: KrknKubernetes
+    pod_template: jinja2.environment.Template,
+    br_name: str,
+    cookie: str,
+    kubecli: KrknKubernetes,
 ) -> list[str]:
     """
     Function to check for matching flow rules
@@ -344,6 +360,7 @@ def wait_for_job(
                 )
             time.sleep(5)
 
+
 def delete_jobs(kubecli: KrknKubernetes, job_list: list[str]):
     """
     Function that deletes jobs
@@ -394,6 +411,7 @@ def get_job_pods(kubecli: KrknKubernetes, api_response):
     )
 
     return pods_list[0]
+
 
 def apply_net_policy(
     mod: str,
@@ -543,7 +561,7 @@ def get_egress_cmd(
     execution: str,
     test_interface: str,
     mod: str,
-    vallst: dict[str,str],
+    vallst: dict[str, str],
     duration: int,
 ) -> str:
     """
@@ -579,9 +597,12 @@ def get_egress_cmd(
         tc_set += ";"
     else:
         tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
-    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
+    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(
+        tc_set, tc_ls, duration, tc_unset
+    )
 
     return exec_cmd
+
 
 def apply_ingress_policy(
     mod: str,
@@ -649,7 +670,11 @@ def apply_ingress_policy(
         )
         logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
         job_body = yaml.safe_load(
-            job_template.render(jobname=f"{mod}-{str(pod_ip)}-{get_random_string(5)}", nodename=node, cmd=exec_cmd)
+            job_template.render(
+                jobname=f"{mod}-{str(pod_ip)}-{get_random_string(5)}",
+                nodename=node,
+                cmd=exec_cmd,
+            )
         )
         yml_list.append(job_body)
         if pod_ip == node:
@@ -662,6 +687,7 @@ def apply_ingress_policy(
 
         job_list.append(job_body["metadata"]["name"])
     return job_list
+
 
 def create_virtual_interfaces(
     kubecli: KrknKubernetes, number: int, node: str, pod_template
@@ -692,6 +718,7 @@ def create_virtual_interfaces(
     logging.info("Deleting pod used to create virtual interfaces")
     kubecli.delete_pod("modtools", "default")
 
+
 def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
     """
     Function that creates virtual interfaces in a pod.
@@ -708,12 +735,13 @@ def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
             exec_command, pod_name, "default", base_command="chroot"
         )
 
+
 def get_ingress_cmd(
     execution: str,
     test_interface: str,
     mod: str,
     count: int,
-    vallst: dict[str,str],
+    vallst: dict[str, str],
     duration: int,
 ) -> str:
     """
@@ -758,12 +786,15 @@ def get_ingress_cmd(
         tc_set += ";"
     else:
         tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
-    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(tc_set, tc_ls, duration, tc_unset)
+    exec_cmd = "sleep 30;{0} {1} sleep {2};{3}".format(
+        tc_set, tc_ls, duration, tc_unset
+    )
 
     return exec_cmd
 
+
 def delete_virtual_interfaces(
-    kubecli: KrknKubernetes, node_list: list[str], pod_template
+    kubecli: KrknKubernetes, node_list: list[str], pod_template, workload_image: str
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -775,17 +806,22 @@ def delete_virtual_interfaces(
         node_list (List of strings)
             - The list of nodes on which the list of virtual interfaces are
               to be deleted
-        pod_template (jinja2.environment.Template))
+        pod_template (jinja2.environment.Template)
             - The YAML template used to instantiate a pod to delete
               virtual interfaces on the node
+        workload_image (str)
+            - the workload image used to perform the scenario
     """
 
     for node in node_list:
-        pod_body = yaml.safe_load(pod_template.render(nodename=node))
+        pod_body = yaml.safe_load(
+            pod_template.render(nodename=node, workload_image=workload_image)
+        )
         kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
         delete_ifb(kubecli, "modtools")
         kubecli.delete_pod("modtools", "default")
+
 
 def delete_ifb(kubecli: KrknKubernetes, pod_name: str):
     """

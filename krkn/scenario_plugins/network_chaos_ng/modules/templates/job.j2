@@ -9,7 +9,7 @@ spec:
       hostNetwork: true
       containers:
       - name: networkchaos
-        image: docker.io/fedora/tools
+        image: {{workload_image}}
         command: ["chroot", "/host", "/bin/sh",  "-c", "{{cmd}}"]
         securityContext:
           privileged: true

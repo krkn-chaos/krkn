@@ -21,6 +21,7 @@ class BaseNetworkChaosConfig:
     namespace: str
     target: str
     service_account: str
+    image: str
 
     def validate(self) -> list[str]:
         errors = []
@@ -47,7 +48,6 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     egress: bool
     interfaces: list[str]
     ports: list[int]
-    image: str
     protocols: list[str]
     force: bool
 

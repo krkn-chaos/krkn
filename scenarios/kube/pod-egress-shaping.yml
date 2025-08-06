@@ -1,5 +1,6 @@
 - id: pod_egress_shaping
   namespace: <namespace>              # Required - Namespace of the pod to which traffic shaping need to be applied
+  image: docker.io/fedora/tools       # scenario workload image
   label_selector: <label_selector>    # When pod_name is not specified, pod with matching label_selector is selected for chaos scenario
   target: <pod name>                # When label_selector is not specified, pod matching the name will be selected for the chaos scenario
           # latency, loss and bandwidth are the three supported network parameters to alter for the chaos test

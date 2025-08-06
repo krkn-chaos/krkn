@@ -6,7 +6,7 @@ spec:
   nodeName: {{nodename}}
   containers:
   - name: modtools
-    image: docker.io/fedora/tools
+    image: {{workload_image}}
     imagePullPolicy: IfNotPresent
     command:
     - /bin/sh
