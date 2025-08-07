@@ -10,6 +10,8 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.utils import get_random_string
 from kubernetes.client import ApiextensionsV1Api, CustomObjectsApi
 
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import taints_to_tolerations
+
 
 def get_bridge_name(cli: ApiextensionsV1Api, custom_obj: CustomObjectsApi) -> str:
     """
@@ -88,9 +90,11 @@ def check_bridge_interface(
     bridge_name: str,
     kubecli: KrknKubernetes,
     workload_image: str,
+    taints: list[str],
+    service_account: str,
 ) -> bool:
     """
-    Function  is used to check if the required OVS or OVN bridge is found in
+    Function  is used to check if the required OVS or OVN bridge is found
     in the node.
 
     Args:
@@ -109,6 +113,10 @@ def check_bridge_interface(
 
         workload_image (string)
             - the workload image deployed to perform the scenario
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
 
     Returns:
         Returns True if the bridge is found in the  node.
@@ -116,7 +124,9 @@ def check_bridge_interface(
     nodes = kubecli.get_node(node_name, "", 1)
     node_bridge = []
     for node in nodes:
-        node_bridge = list_bridges(node, pod_template, kubecli, workload_image)
+        node_bridge = list_bridges(
+            node, pod_template, kubecli, workload_image, taints, service_account
+        )
     if bridge_name not in node_bridge:
         raise Exception(f"OVS bridge {bridge_name} not found on the node ")
 
@@ -124,7 +134,12 @@ def check_bridge_interface(
 
 
 def list_bridges(
-    node: str, pod_template, kubecli: KrknKubernetes, workload_image: str
+    node: str,
+    pod_template,
+    kubecli: KrknKubernetes,
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
 ) -> Optional[list[str]]:
     """
     Function that returns a list of bridges on the node
@@ -139,6 +154,10 @@ def list_bridges(
 
         workload_image (string)
             - the workload image deployed to perform the scenario
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
 
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
@@ -146,9 +165,14 @@ def list_bridges(
     Returns:
         List of bridges on the node.
     """
-
+    tolerations = taints_to_tolerations(taints)
     pod_body = yaml.safe_load(
-        pod_template.render(nodename=node, workload_image=workload_image)
+        pod_template.render(
+            nodename=node,
+            workload_image=workload_image,
+            taints=tolerations,
+            service_account=service_account,
+        )
     )
     logging.info("Creating pod to query bridge on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
@@ -182,6 +206,9 @@ def apply_outage_policy(
     duration: int,
     bridge_name: str,
     kubecli: KrknKubernetes,
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
 ) -> list[str]:
     """
     Function that applies filters(ingress or egress) to block traffic.
@@ -211,7 +238,12 @@ def apply_outage_policy(
             - bridge to which  filter rules need to be applied
         kubecli (KrknKubernetes)
             - Krkn Kubernetes library
-
+        workload_image (str):
+            - workload container image
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
 
     Returns:
         The name of the job created that executes the commands on a node
@@ -229,7 +261,16 @@ def apply_outage_policy(
         br = "br-int"
         table = 8
     for node, ips in node_dict.items():
-        check = check_cookie(node, pod_template, br, f"{cookie}", kubecli)
+        check = check_cookie(
+            node,
+            pod_template,
+            br,
+            f"{cookie}",
+            kubecli,
+            workload_image,
+            taints,
+            service_account,
+        )
         while len(check) > 2 or cookie in cookie_list:
             cookie = random.randint(100, 10000)
         exec_cmd = ""
@@ -243,12 +284,15 @@ def apply_outage_policy(
         exec_cmd = f"sleep 30;{exec_cmd}sleep {duration};ovs-ofctl -O  OpenFlow13  del-flows {br} cookie={cookie}/-1"
         cookie_list.append(cookie)
         logging.info("Executing %s on node %s" % (exec_cmd, node))
-
+        tolerations = taints_to_tolerations(taints)
         job_body = yaml.safe_load(
             job_template.render(
                 jobname=str(hash(node))[:5] + str(random.randint(0, 10000)),
                 nodename=node,
                 cmd=exec_cmd,
+                workload_image=workload_image,
+                taints=tolerations,
+                service_account=service_account,
             )
         )
         yml_list.append(job_body)
@@ -267,7 +311,10 @@ def check_cookie(
     br_name: str,
     cookie: str,
     kubecli: KrknKubernetes,
-) -> list[str]:
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
+) -> Optional[list[str]]:
     """
     Function to check for matching flow rules
 
@@ -287,10 +334,23 @@ def check_cookie(
 
         kubecli (KrknKubernetes)
             - Krkn Kubernetes library
+        workload_image (str):
+            - workload container image
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
 
     """
-
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    tolerations = taints_to_tolerations(taints)
+    pod_body = yaml.safe_load(
+        pod_template.render(
+            nodename=node,
+            workload_image=workload_image,
+            taints=tolerations,
+            service_account=service_account,
+        )
+    )
     logging.info("Creating pod to query duplicate rules on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
     flow_list: list[str] = []
@@ -424,6 +484,9 @@ def apply_net_policy(
     bridge_name: str,
     kubecli: KrknKubernetes,
     test_execution: str,
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
 ) -> list[str]:
     """
     Function that applies egress traffic shaping to pod interface.
@@ -461,6 +524,13 @@ def apply_net_policy(
 
         test_execution (String)
             - The order in which the filters are applied
+        workload_image (str):
+            - workload container image
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
+
 
     Returns:
         The name of the job created that executes the traffic shaping
@@ -471,13 +541,30 @@ def apply_net_policy(
     yml_list = []
 
     for pod_ip in set(ips):
-        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(
+            node,
+            pod_ip,
+            pod_template,
+            bridge_name,
+            kubecli,
+            workload_image,
+            taints,
+            service_account,
+        )
         exec_cmd = get_egress_cmd(
             test_execution, pod_inf, mod, network_params, duration
         )
         logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
+        tolerations = taints_to_tolerations(taints)
         job_body = yaml.safe_load(
-            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
+            job_template.render(
+                jobname=mod + str(pod_ip),
+                nodename=node,
+                cmd=exec_cmd,
+                workload_image=workload_image,
+                taints=tolerations,
+                service_account=service_account,
+            )
         )
         yml_list.append(job_body)
 
@@ -491,8 +578,15 @@ def apply_net_policy(
 
 
 def get_pod_interface(
-    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes
-) -> str:
+    node: str,
+    ip: str,
+    pod_template,
+    br_name,
+    kubecli: KrknKubernetes,
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
+) -> Optional[str]:
     """
     Function to query the pod interface on a node
 
@@ -512,12 +606,26 @@ def get_pod_interface(
 
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
+        workload_image (str)
+            - scenario workload_image
+        taints (List[str])
+            - workload taints
+        service_account (str)
+            - workload service account
 
-    Returns
+
         Returns the pod interface name
     """
 
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    tolerations = taints_to_tolerations(taints)
+    pod_body = yaml.safe_load(
+        pod_template.render(
+            nodename=node,
+            workload_image=workload_image,
+            taints=tolerations,
+            service_account=service_account,
+        )
+    )
     logging.info("Creating pod to query pod interface on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
     inf = ""
@@ -615,6 +723,9 @@ def apply_ingress_policy(
     bridge_name: str,
     kubecli: KrknKubernetes,
     test_execution: str,
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
 ) -> list[str]:
     """
     Function that applies ingress traffic shaping to pod interface.
@@ -652,6 +763,12 @@ def apply_ingress_policy(
 
         test_execution (String)
             - The order in which the filters are applied
+        workload_image (str)
+            - scenario workload image
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
 
     Returns:
         The name of the job created that executes the traffic shaping
@@ -661,19 +778,34 @@ def apply_ingress_policy(
     job_list = []
     yml_list = []
 
-    create_virtual_interfaces(kubecli, len(ips), node, pod_template)
+    create_virtual_interfaces(
+        kubecli, len(ips), node, pod_template, workload_image, taints, service_account
+    )
 
     for count, pod_ip in enumerate(set(ips)):
-        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(
+            node,
+            pod_ip,
+            pod_template,
+            bridge_name,
+            kubecli,
+            workload_image,
+            taints,
+            service_account,
+        )
         exec_cmd = get_ingress_cmd(
             test_execution, pod_inf, mod, count, network_params, duration
         )
         logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
+        tolerations = taints_to_tolerations(taints)
         job_body = yaml.safe_load(
             job_template.render(
                 jobname=f"{mod}-{str(pod_ip)}-{get_random_string(5)}",
                 nodename=node,
                 cmd=exec_cmd,
+                workload_image=workload_image,
+                taints=tolerations,
+                service_account=service_account,
             )
         )
         yml_list.append(job_body)
@@ -690,7 +822,13 @@ def apply_ingress_policy(
 
 
 def create_virtual_interfaces(
-    kubecli: KrknKubernetes, number: int, node: str, pod_template
+    kubecli: KrknKubernetes,
+    number: int,
+    node: str,
+    pod_template,
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
@@ -704,12 +842,26 @@ def create_virtual_interfaces(
         node (string)
             - The node on which the virtual interfaces are created
 
-        pod_template (jinja2.environment.Template))
+        pod_template (jinja2.environment.Template)
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
+        workload_image (str)
+            - scenario workload image
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
 
     """
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    tolerations = taints_to_tolerations(taints)
+    pod_body = yaml.safe_load(
+        pod_template.render(
+            nodename=node,
+            workload_image=workload_image,
+            taints=tolerations,
+            service_account=service_account,
+        )
+    )
     kubecli.create_pod(pod_body, "default", 300)
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(number, node)
@@ -794,7 +946,12 @@ def get_ingress_cmd(
 
 
 def delete_virtual_interfaces(
-    kubecli: KrknKubernetes, node_list: list[str], pod_template, workload_image: str
+    kubecli: KrknKubernetes,
+    node_list: list[str],
+    pod_template,
+    workload_image: str,
+    taints: list[str],
+    service_account: str,
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -811,11 +968,21 @@ def delete_virtual_interfaces(
               virtual interfaces on the node
         workload_image (str)
             - the workload image used to perform the scenario
+        taints (list[str])
+            - scenario workload taints
+        service_account (str)
+            - scenario workload service account
     """
 
+    tolerations = taints_to_tolerations(taints)
     for node in node_list:
         pod_body = yaml.safe_load(
-            pod_template.render(nodename=node, workload_image=workload_image)
+            pod_template.render(
+                nodename=node,
+                workload_image=workload_image,
+                taints=tolerations,
+                service_account=service_account,
+            )
         )
         kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))

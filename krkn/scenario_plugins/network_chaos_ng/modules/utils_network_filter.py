@@ -13,6 +13,7 @@ from krkn.scenario_plugins.network_chaos_ng.modules.utils import (
     log_info,
     log_warning,
     log_error,
+    taints_to_tolerations,
 )
 
 
@@ -104,25 +105,7 @@ def deploy_network_filter_pod(
     file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
     env = Environment(loader=file_loader, autoescape=True)
     pod_template = env.get_template("templates/network-chaos.j2")
-    tolerations = []
-
-    for taint in config.taints:
-        key_value_part, effect = taint.split(":", 1)
-        if "=" in key_value_part:
-            key, value = key_value_part.split("=", 1)
-            operator = "Equal"
-        else:
-            key = key_value_part
-            value = None
-            operator = "Exists"
-        toleration = {
-            "key": key,
-            "operator": operator,
-            "effect": effect,
-        }
-        if value is not None:
-            toleration["value"] = value
-        tolerations.append(toleration)
+    tolerations = taints_to_tolerations(config.taints)
 
     pod_body = yaml.safe_load(
         pod_template.render(

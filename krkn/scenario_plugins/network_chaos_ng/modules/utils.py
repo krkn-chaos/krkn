@@ -33,3 +33,25 @@ def log_warning(message: str, parallel: bool = False, node_name: str = ""):
         logging.warning(f"[{node_name}]: {message}")
     else:
         logging.warning(message)
+
+
+def taints_to_tolerations(taints: list[str]) -> list[dict[str, str]]:
+    tolerations = []
+    for taint in taints:
+        key_value_part, effect = taint.split(":", 1)
+        if "=" in key_value_part:
+            key, value = key_value_part.split("=", 1)
+            operator = "Equal"
+        else:
+            key = key_value_part
+            value = None
+            operator = "Exists"
+        toleration = {
+            "key": key,
+            "operator": operator,
+            "effect": effect,
+        }
+        if value is not None:
+            toleration["value"] = value
+        tolerations.append(toleration)
+    return tolerations

@@ -68,3 +68,13 @@ class PodNetworkShaping(BaseNetworkChaosConfig):
     latency: str
     loss: str
     bandwidth: str
+
+    def __iter__(self):
+        if self.network_shaping_execution:
+            yield "network_shaping_execution"
+        if self.latency:
+            yield "latency"
+        if self.loss:
+            yield "loss"
+        if self.bandwidth:
+            yield "bandwidth"

@@ -3,6 +3,20 @@ kind: Pod
 metadata:
   name: modtools
 spec:
+  {% if service_account %}
+  serviceAccountName: {{ service_account }}
+  {%endif%}
+  {% if taints %}
+  tolerations:
+  {% for toleration in taints %}
+  - key: "{{ toleration.key }}"
+    operator: "{{ toleration.operator }}"
+    {% if toleration.value %}
+    value: "{{ toleration.value }}"
+    {% endif %}
+    effect: "{{ toleration.effect }}"
+  {% endfor %}
+  {% endif %}
   nodeName: {{nodename}}
   containers:
   - name: modtools

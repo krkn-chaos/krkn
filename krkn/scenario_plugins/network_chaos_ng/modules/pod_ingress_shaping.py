@@ -84,6 +84,8 @@ class PodIngressShapingModule(AbstractNetworkChaosModule):
                 br_name,
                 self.kubecli.get_lib_kubernetes(),
                 self.config.image,
+                self.config.taints,
+                self.config.service_account,
             )
 
             for mod in mod_lst:
@@ -104,6 +106,9 @@ class PodIngressShapingModule(AbstractNetworkChaosModule):
                             br_name,
                             self.kubecli.get_lib_kubernetes(),
                             self.config.execution,
+                            self.config.image,
+                            self.config.taints,
+                            self.config.service_account,
                         )
                     )
                 if self.config.network_shaping_execution == "serial":
@@ -145,6 +150,8 @@ class PodIngressShapingModule(AbstractNetworkChaosModule):
                 node_keys,
                 pod_module_template,
                 self.config.image,
+                self.config.taints,
+                self.config.service_account,
             )
             log_info("Deleting jobs(if any)")
             delete_jobs(self.kubecli.get_lib_kubernetes(), job_list[:])

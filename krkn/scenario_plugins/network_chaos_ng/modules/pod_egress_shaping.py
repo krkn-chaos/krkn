@@ -85,6 +85,8 @@ class PodEgressShapingModule(AbstractNetworkChaosModule):
                 br_name,
                 self.kubecli.get_lib_kubernetes(),
                 self.config.image,
+                self.config.taints,
+                self.config.service_account,
             )
 
             for mod in mod_lst:
@@ -105,6 +107,9 @@ class PodEgressShapingModule(AbstractNetworkChaosModule):
                             br_name,
                             self.kubecli.get_lib_kubernetes(),
                             self.config.execution,
+                            self.config.image,
+                            self.config.taints,
+                            self.config.service_account,
                         )
                     )
                 if self.config.network_shaping_execution == "serial":

@@ -3,11 +3,12 @@
   wait_duration: <time_duration>      # Default is 300. Ensure that it is at least about twice of test_duration
   test_duration: <time_duration>      # Default is 120
   label_selector: <label_selector>    # When pod_name is not specified, pod with matching label_selector is selected for chaos scenario
-  service_account: ""
   execution: <serial/parallel>        # used to specify wheter you want to apply filters on multiple targets
   namespace: <namespace>              # Required - Namespace of the pod to which traffic shaping need to be applied
   instance_count: <number>            # Number of pods to perform action/select that match the label selector
   target: <pod name>                # When label_selector is not specified, pod matching the name will be selected for the chaos scenario
+  service_account: ""
+  taints: [ ] # example ["node-role.kubernetes.io/master:NoSchedule"]
 
   # latency, loss and bandwidth are the three supported network parameters to alter for the chaos test
   latency: <time>                 # Value is a string. For example : 50ms
