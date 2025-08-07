@@ -5,11 +5,25 @@ metadata:
 spec:
   template:
     spec:
+      {% if service_account %}
+      serviceAccountName: {{ service_account }}
+      {%endif%}
+      {% if taints %}
+      tolerations:
+      {% for toleration in taints %}
+      - key: "{{ toleration.key }}"
+        operator: "{{ toleration.operator }}"
+        {% if toleration.value %}
+        value: "{{ toleration.value }}"
+        {% endif %}
+        effect: "{{ toleration.effect }}"
+      {% endfor %}
+      {% endif %}
       nodeName: {{nodename}}
       hostNetwork: true
       containers:
       - name: networkchaos
-        image: quay.io/krkn-chaos/krkn:tools
+        image: {{workload_image}}
         command: ["chroot", "/host", "/bin/sh",  "-c", "{{cmd}}"]
         securityContext:
           privileged: true

@@ -13,10 +13,12 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn_lib.utils import get_yaml_item_value
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-from krkn.scenario_plugins.native.network import cerberus
+
 
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
+from krkn.utils import cerberus
+
 
 class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
     def run(
@@ -41,10 +43,14 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                     kubecli = lib_telemetry.get_lib_kubernetes()
                     if cloud_type.lower() == "gcp":
                         affected_nodes_status = AffectedNodeStatus()
-                        self.cloud_object = gcp_node_scenarios(kubecli, kube_check, affected_nodes_status)
+                        self.cloud_object = gcp_node_scenarios(
+                            kubecli, kube_check, affected_nodes_status
+                        )
                         self.node_based_zone(scenario_config, kubecli)
                         affected_nodes_status = self.cloud_object.affected_nodes_status
-                        scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
+                        scenario_telemetry.affected_nodes.extend(
+                            affected_nodes_status.affected_nodes
+                        )
                     else:
                         logging.error(
                             "ZoneOutageScenarioPlugin Cloud type %s is not currently supported for "
@@ -61,20 +67,21 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             return 1
         else:
             return 0
-        
-    def node_based_zone(self, scenario_config: dict[str, any], kubecli: KrknKubernetes ):
+
+    def node_based_zone(self, scenario_config: dict[str, any], kubecli: KrknKubernetes):
         zone = scenario_config["zone"]
         duration = get_yaml_item_value(scenario_config, "duration", 60)
         timeout = get_yaml_item_value(scenario_config, "timeout", 180)
         label_selector = f"topology.kubernetes.io/zone={zone}"
-        try: 
+        try:
             # get list of nodes in zone/region
             nodes = kubecli.list_killable_nodes(label_selector)
-            # stop nodes in parallel 
+            # stop nodes in parallel
             pool = ThreadPool(processes=len(nodes))
-    
+
             pool.starmap(
-                self.cloud_object.node_stop_scenario,zip(repeat(1), nodes, repeat(timeout))
+                self.cloud_object.node_stop_scenario,
+                zip(repeat(1), nodes, repeat(timeout)),
             )
 
             pool.close()
@@ -84,16 +91,15 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             )
             time.sleep(duration)
 
-            # start nodes in parallel 
+            # start nodes in parallel
             pool = ThreadPool(processes=len(nodes))
             pool.starmap(
-                self.cloud_object.node_start_scenario,zip(repeat(1), nodes, repeat(timeout))
+                self.cloud_object.node_start_scenario,
+                zip(repeat(1), nodes, repeat(timeout)),
             )
             pool.close()
         except Exception as e:
-            logging.info(
-                f"Node based zone outage scenario failed with exception: {e}"
-            )
+            logging.info(f"Node based zone outage scenario failed with exception: {e}")
             return 1
         else:
             return 0
@@ -115,20 +121,18 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             )
             for entry in associations:
                 if entry["SubnetId"] == subnet_id:
-                    network_association_ids.append(
-                        entry["NetworkAclAssociationId"]
-                    )
+                    network_association_ids.append(entry["NetworkAclAssociationId"])
             logging.info(
                 "Network association ids associated with "
                 "the subnet %s: %s" % (subnet_id, network_association_ids)
             )
-            
+
             # Use provided default ACL if available, otherwise create a new one
             if default_acl_id:
                 acl_id = default_acl_id
                 logging.info(
-                    "Using provided default ACL ID %s - this ACL will not be deleted after the scenario", 
-                    default_acl_id
+                    "Using provided default ACL ID %s - this ACL will not be deleted after the scenario",
+                    default_acl_id,
                 )
                 # Don't add to acl_ids_created since we don't want to delete user-provided ACLs at cleanup
             else:
@@ -155,15 +159,12 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             self.cloud_object.replace_network_acl_association(
                 new_association_id, original_acl_id
             )
-        logging.info(
-            "Wating for 60 seconds to make sure " "the changes are in place"
-        )
+        logging.info("Wating for 60 seconds to make sure " "the changes are in place")
         time.sleep(60)
 
         # delete the network acl created for the run
         for acl_id in acl_ids_created:
             self.cloud_object.delete_network_acl(acl_id)
-
 
     def get_scenario_types(self) -> list[str]:
         return ["zone_outages_scenarios"]
