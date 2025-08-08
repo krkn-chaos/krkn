@@ -1,44 +1,17 @@
 import os
 import logging
-import yaml
-import pyfiglet
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
 from krkn.rollback.config import RollbackConfig
 from krkn.rollback.handler import execute_rollback_version_files, cleanup_rollback_version_files
-from krkn_lib.utils.functions import get_yaml_item_value
 
-def _initialize_config(cfg: str):
-    print(pyfiglet.figlet_format("kraken"))
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[logging.StreamHandler()],
-    )
+
+if TYPE_CHECKING:
+    from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
     
-    # Parse and read the config to initialize RollbackConfig
-    if not os.path.isfile(cfg):
-        logging.error("Cannot find a config at %s, please check" % cfg)
-        return 1
-        
-    with open(cfg, "r") as f:
-        config = yaml.full_load(f)
-    
-    # Initialize RollbackConfig
-    RollbackConfig.register(
-        auto=get_yaml_item_value(
-            config["kraken"],
-            "auto_rollback",
-            False
-        ),
-        versions_directory=get_yaml_item_value(
-            config["kraken"],
-            "rollback_versions_directory",
-            "/tmp/kraken-rollback"
-        ),
-    )
 
-def list_rollback(cfg: str, run_uuid: Optional[str]=None, scenario_type: Optional[str]=None):
+def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=None):
     """
     List rollback version files in a tree-like format.
     
@@ -47,7 +20,6 @@ def list_rollback(cfg: str, run_uuid: Optional[str]=None, scenario_type: Optiona
     :param scenario_type: Optional scenario type to filter by
     :return: Exit code (0 for success, 1 for error)
     """
-    _initialize_config(cfg)
     logging.info("Listing rollback version files")
 
     versions_directory = RollbackConfig().versions_directory
@@ -114,7 +86,7 @@ def list_rollback(cfg: str, run_uuid: Optional[str]=None, scenario_type: Optiona
     return 0
 
 
-def execute_rollback(cfg: str, run_uuid: Optional[str]=None, scenario_type: Optional[str]=None):
+def execute_rollback(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: Optional[str]=None, scenario_type: Optional[str]=None):
     """
     Execute rollback version files and cleanup if successful.
     
@@ -123,7 +95,6 @@ def execute_rollback(cfg: str, run_uuid: Optional[str]=None, scenario_type: Opti
     :param scenario_type: Optional scenario type to filter by
     :return: Exit code (0 for success, 1 for error)
     """
-    _initialize_config(cfg)
     logging.info("Executing rollback version files")
     
     if not run_uuid:
@@ -136,7 +107,7 @@ def execute_rollback(cfg: str, run_uuid: Optional[str]=None, scenario_type: Opti
     try:
         # Execute rollback version files
         logging.info(f"Executing rollback for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
-        execute_rollback_version_files(run_uuid, scenario_type)
+        execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
         
         # If execution was successful, cleanup the version files
         logging.info("Rollback execution completed successfully, cleaning up version files")

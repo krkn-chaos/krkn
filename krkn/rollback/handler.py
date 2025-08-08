@@ -2,19 +2,23 @@ from __future__ import annotations
 
 import logging
 from typing import cast, TYPE_CHECKING
-import sys
-import subprocess
 import os
+import importlib.util
+import inspect
+from typing import TYPE_CHECKING
 
-from krkn.rollback.config import RollbackConfig, RollbackContext, Version
+from krkn.rollback.config import RollbackConfig, RollbackContext, Version, RollbackContent, RollbackCallable
 from krkn.rollback.serialization import Serializer
+
 
 logger = logging.getLogger(__name__)
 
 
 if TYPE_CHECKING:
+    from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
     from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-    from krkn.rollback.config import RollbackContent, RollbackCallable
+    from krkn.rollback.config import RollbackCallable
 
 
 def set_rollback_context_decorator(func):
@@ -66,7 +70,55 @@ def set_rollback_context_decorator(func):
 
     return wrapper
 
-def execute_rollback_version_files(run_uuid: str, scenario_type: str | None = None):
+def _parse_rollback_module(version_file_path: str) -> tuple[RollbackCallable, RollbackContent]:
+    """
+    Parse a rollback module to extract the rollback function and RollbackContent.
+    
+    :param version_file_path: Path to the rollback version file
+    :return: Tuple of (rollback_callable, rollback_content)
+    """
+    
+    # Create a unique module name based on the file path
+    module_name = f"rollback_module_{os.path.basename(version_file_path).replace('.py', '').replace('-', '_')}"
+    
+    # Load the module using importlib
+    spec = importlib.util.spec_from_file_location(module_name, version_file_path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Could not load module from {version_file_path}")
+    
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    
+    # Find the rollback function
+    rollback_callable = None
+    for name, obj in inspect.getmembers(module):
+        if inspect.isfunction(obj) and name.startswith('rollback_'):
+            # Check function signature
+            sig = inspect.signature(obj)
+            params = list(sig.parameters.values())
+            if (len(params) == 2 and 
+                'RollbackContent' in str(params[0].annotation) and 
+                'KrknTelemetryOpenshift' in str(params[1].annotation)):
+                rollback_callable = obj
+                logger.debug(f"Found rollback function: {name}")
+                break
+    
+    if rollback_callable is None:
+        raise ValueError(f"No valid rollback function found in {version_file_path}")
+    
+    # Find the rollback_content variable
+    if not hasattr(module, 'rollback_content'):
+        raise ValueError("Could not find variable named 'rollback_content' in the module")
+    
+    rollback_content = getattr(module, 'rollback_content', None)
+    if rollback_content is None:
+        raise ValueError("Variable 'rollback_content' is None")
+    
+    logger.debug(f"Found rollback_content variable in module: {rollback_content}")
+    return rollback_callable, rollback_content
+
+
+def execute_rollback_version_files(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: str, scenario_type: str | None = None):
     """
     Execute rollback version files for the given run_uuid and scenario_type.
     This function is called when a signal is received to perform rollback operations.
@@ -83,31 +135,19 @@ def execute_rollback_version_files(run_uuid: str, scenario_type: str | None = No
     for version_file in version_files:
         try:
             logger.info(f"Executing rollback version file: {version_file}")
-            # Use subprocess to execute the version file with real-time output
-            logger.info(f"Starting execution of rollback version file: {version_file}")
-            process = subprocess.Popen(
-                [sys.executable, version_file],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True,
-            )
             
-            # Stream output in real-time
-            for line in process.stdout:
-                line = line.rstrip('\n')
-                logger.info(f"[{version_file}] {line}")
-            
-            # Wait for process to complete and check return code
-            return_code = process.wait()
-            if return_code != 0:
-                raise subprocess.CalledProcessError(return_code, [sys.executable, version_file])
+            # Parse the rollback module to get function and content
+            rollback_callable, rollback_content = _parse_rollback_module(version_file)
+            # Execute the rollback function
+            logger.info('Executing rollback callable...')
+            rollback_callable(rollback_content, telemetry_ocp)
+            logger.info('Rollback completed.')
             
             logger.info(f"Executed {version_file} successfully.")
         except Exception as e:
             logger.error(f"Failed to execute rollback version file {version_file}: {e}")
             raise
+
 
 def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
     """
@@ -167,8 +207,8 @@ class RollbackHandler:
 
     def set_rollback_callable(
         self,
-        callable: RollbackCallable,
-        rollback_content: RollbackContent,
+        callable: "RollbackCallable",
+        rollback_content: "RollbackContent",
     ):
         """
         Set the rollback callable to be executed after the scenario is finished.

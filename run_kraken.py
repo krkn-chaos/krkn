@@ -11,6 +11,7 @@ import uuid
 import time
 import queue
 import threading
+from typing import Optional
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
@@ -45,11 +46,12 @@ warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 report_file = ""
 
 # Main function
-def main(cfg) -> int:
+def main(options, command: Optional[str]) -> int:
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
 
+    cfg = options.cfg
     # Parse and read the config
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
@@ -597,17 +599,6 @@ if __name__ == "__main__":
 
     (options, args) = parser.parse_args()
     
-    # Check if command is provided as positional argument
-    command = args[0] if args else None
-    
-    # Handle rollback commands
-    if command == "list-rollback":
-        retval = list_rollback_command(options.cfg, options.run_uuid, options.scenario_type)
-        sys.exit(retval)
-    elif command == "execute-rollback":
-        retval = execute_rollback_command(options.cfg, options.run_uuid, options.scenario_type)
-        sys.exit(retval)
-    
     # If no command or regular execution, continue with existing logic
     report_file = options.output
     tee_handler = TeeLogHandler()
@@ -677,7 +668,9 @@ if __name__ == "__main__":
     if option_error:
         retval = 1
     else:
-        retval = main(options.cfg)
+        # Check if command is provided as positional argument
+        command = args[0] if args else None
+        retval = main(options, command)
 
     junit_endtime = time.time()
 
