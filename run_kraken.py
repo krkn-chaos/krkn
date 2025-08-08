@@ -249,6 +249,19 @@ def main(options, command: Optional[str]) -> int:
 
         logging.info("Server URL: %s" % kubecli.get_host())
 
+        if command == "list-rollback":
+            sys.exit(
+                list_rollback_command(
+                    options.run_uuid, options.scenario_type
+                )
+            )
+        elif command == "execute-rollback":
+            sys.exit(
+                execute_rollback_command(
+                    telemetry_ocp, options.run_uuid, options.scenario_type
+                )
+            )
+
         # Initialize the start iteration to 0
         iteration = 0
 

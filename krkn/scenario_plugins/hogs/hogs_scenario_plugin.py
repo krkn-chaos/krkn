@@ -91,14 +91,6 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                 ),
             )
             lib_k8s.deploy_hog(pod_name, config)
-            self.rollback_handler.set_rollback_callable(
-                self.rollback_hog_pod,
-                RollbackContent(
-                    namespace=config.namespace,
-                    resource_identifier=pod_name,
-                ),
-            )
-            lib_k8s.deploy_hog(pod_name, config)
             start = time.time()
             # waiting 3 seconds before starting sample collection
             time.sleep(3)
