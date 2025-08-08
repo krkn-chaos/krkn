@@ -106,7 +106,7 @@ class RollbackConfig(metaclass=SingletonMeta):
         return f"{cls().versions_directory}/{rollback_context}"
     
     @classmethod
-    def search_rollback_version_files(cls, run_uuid: str, scenario_type: str) -> list[str]:
+    def search_rollback_version_files(cls, run_uuid: str, scenario_type: str | None = None) -> list[str]:
         """
         Search for rollback version files based on run_uuid and scenario_type.
 
@@ -132,7 +132,7 @@ class RollbackConfig(metaclass=SingletonMeta):
         )
         for file in os.listdir(scenario_rollback_versions_directory):
             # assert all files start with scenario_type and end with .py
-            if file.startswith(scenario_type) and file.endswith(".py"):
+            if file.endswith(".py") and (scenario_type is None or file.startswith(scenario_type)):
                 version_files.append(
                     os.path.join(scenario_rollback_versions_directory, file)
                 )

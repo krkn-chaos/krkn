@@ -66,7 +66,7 @@ def set_rollback_context_decorator(func):
 
     return wrapper
 
-def execute_rollback_version_files(run_uuid: str, scenario_type: str):
+def execute_rollback_version_files(run_uuid: str, scenario_type: str | None = None):
     """
     Execute rollback version files for the given run_uuid and scenario_type.
     This function is called when a signal is received to perform rollback operations.
@@ -79,7 +79,7 @@ def execute_rollback_version_files(run_uuid: str, scenario_type: str):
     version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
     
     # Execute all version files in the directory
-    logger.info(f"Executing rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type}")
+    logger.info(f"Executing rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
     for version_file in version_files:
         try:
             logger.info(f"Executing rollback version file: {version_file}")

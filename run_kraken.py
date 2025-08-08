@@ -33,13 +33,16 @@ from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginNotFound,
 )
 from krkn.rollback.config import RollbackConfig
+from krkn.rollback.command import (
+    list_rollback as list_rollback_command,
+    execute_rollback as execute_rollback_command,
+)
 
 # removes TripleDES warning
 import warnings
 warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 
 report_file = ""
-
 
 # Main function
 def main(cfg) -> int:
@@ -532,7 +535,13 @@ def main(cfg) -> int:
 
 if __name__ == "__main__":
     # Initialize the parser to read the config
-    parser = optparse.OptionParser()
+    parser = optparse.OptionParser(
+        usage="%prog [options] [command]\n\n"
+              "Commands:\n"
+              "  list-rollback     List rollback version files in a tree-like format\n"
+              "  execute-rollback  Execute rollback version files and cleanup if successful\n\n"
+              "If no command is specified, kraken will run chaos scenarios.",
+    )
     parser.add_option(
         "-c",
         "--config",
@@ -569,7 +578,37 @@ if __name__ == "__main__":
         default=None,
     )
 
+    # Add rollback command options
+    parser.add_option(
+        "-r",
+        "--run_uuid",
+        dest="run_uuid",
+        help="run UUID to filter rollback operations",
+        default=None,
+    )
+
+    parser.add_option(
+        "-s",
+        "--scenario_type",
+        dest="scenario_type",
+        help="scenario type to filter rollback operations",
+        default=None,
+    )
+
     (options, args) = parser.parse_args()
+    
+    # Check if command is provided as positional argument
+    command = args[0] if args else None
+    
+    # Handle rollback commands
+    if command == "list-rollback":
+        retval = list_rollback_command(options.cfg, options.run_uuid, options.scenario_type)
+        sys.exit(retval)
+    elif command == "execute-rollback":
+        retval = execute_rollback_command(options.cfg, options.run_uuid, options.scenario_type)
+        sys.exit(retval)
+    
+    # If no command or regular execution, continue with existing logic
     report_file = options.output
     tee_handler = TeeLogHandler()
     handlers = [
