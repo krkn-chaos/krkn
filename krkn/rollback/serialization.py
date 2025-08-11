@@ -20,15 +20,15 @@ class Serializer:
         self.template = env.get_template("version_template.j2")
 
     def _parse_rollback_callable_code(
-        self, callable: "RollbackCallable"
+        self, rollback_callable: "RollbackCallable"
     ) -> tuple[str, str]:
         """
         Parse the rollback callable code to extract its implementation.
-        :param callable: The callable function to parse (can be staticmethod or regular function).
+        :param rollback_callable: The callable function to parse (can be staticmethod or regular function).
         :return: A tuple containing (function_name, function_code).
         """
         # Get the implementation code of the rollback_callable
-        rollback_callable_code = inspect.getsource(callable)
+        rollback_callable_code = inspect.getsource(rollback_callable)
 
         # Split into lines for processing
         code_lines = rollback_callable_code.split("\n")
@@ -88,19 +88,19 @@ class Serializer:
 
     def serialize_callable(
         self,
-        callable: "RollbackCallable",
+        rollback_callable: "RollbackCallable",
         rollback_content: "RollbackContent",
         version: "Version",
     ) -> str:
         """
         Serialize a callable function to a file with its arguments and keyword arguments.
-        :param callable: The callable to serialize.
+        :param rollback_callable: The callable to serialize.
         :param rollback_content: The rollback content for the callable.
         :return: Path to the serialized callable file.
         """
 
         rollback_callable_name, rollback_callable_code = (
-            self._parse_rollback_callable_code(callable)
+            self._parse_rollback_callable_code(rollback_callable)
         )
 
         # Render the template with the required variables
