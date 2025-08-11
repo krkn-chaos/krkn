@@ -6,8 +6,7 @@ import os
 import importlib.util
 import inspect
 
-from krkn.rollback.config import RollbackConfig, RollbackContext, Version, RollbackContent, RollbackCallable
-from krkn.rollback.serialization import Serializer
+from krkn.rollback.config import RollbackConfig, RollbackContext, Version
 
 
 logger = logging.getLogger(__name__)
@@ -17,7 +16,8 @@ if TYPE_CHECKING:
     from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
     from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-    from krkn.rollback.config import RollbackCallable
+    from krkn.rollback.config import RollbackContent, RollbackCallable
+    from krkn.rollback.serialization import Serializer
 
 
 def set_rollback_context_decorator(func):
@@ -175,11 +175,10 @@ class RollbackHandler:
     def __init__(
         self,
         scenario_type: str,
+        serializer: "Serializer",
     ):
         self.scenario_type = scenario_type
-        self.serializer = Serializer(
-            scenario_type=scenario_type,
-        )
+        self.serializer = serializer
         self.rollback_context: RollbackContext | None = (
             None  # will be set when `set_context` is called
         )
