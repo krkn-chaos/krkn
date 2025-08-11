@@ -61,8 +61,9 @@ class ScenarioPluginFactory:
                             continue
 
                         cls = getattr(module, name)
-                        # To construct an instance of ScenarioPlugin, we need scenario_type.
-                        # Since we only call get_scenario_types() here, using placeholder values is sufficient.
+                        # The AbstractScenarioPlugin constructor requires a scenario_type.
+                        # However, since we only need to call `get_scenario_types()` here,
+                        # it is acceptable to use a placeholder value.
                         instance = cls("placeholder_scenario_type")
                         get_scenario_type = getattr(instance, "get_scenario_types")
                         scenario_types = get_scenario_type()
