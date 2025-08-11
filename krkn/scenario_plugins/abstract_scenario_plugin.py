@@ -6,6 +6,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn import utils
 from krkn.rollback.handler import RollbackHandler
+from krkn.rollback.serialization import Serializer
 
 class AbstractScenarioPlugin(ABC):
 
@@ -14,7 +15,10 @@ class AbstractScenarioPlugin(ABC):
         
         :param scenario_type: the scenario type defined in the config.yaml
         """
-        self.rollback_handler = RollbackHandler(scenario_type)
+        serializer = Serializer(
+            scenario_type=scenario_type,
+        )
+        self.rollback_handler = RollbackHandler(scenario_type, serializer)
 
     @abstractmethod
     def run(
