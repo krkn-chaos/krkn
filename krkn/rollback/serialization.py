@@ -96,6 +96,7 @@ class Serializer:
         Serialize a callable function to a file with its arguments and keyword arguments.
         :param rollback_callable: The callable to serialize.
         :param rollback_content: The rollback content for the callable.
+        :param version: The version representing the rollback context and file path for the rollback.
         :return: Path to the serialized callable file.
         """
 
