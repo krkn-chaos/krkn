@@ -84,7 +84,7 @@ class abstract_node_scenarios:
                 )
                 logging.error("stop_kubelet_scenario injection failed!")
                 raise e
-            self.add_affected_node(affected_node)
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop and start the kubelet
     def stop_start_kubelet_scenario(self, instance_kill_count, node, timeout):
@@ -106,7 +106,6 @@ class abstract_node_scenarios:
                     + node
                     + " -- chroot /host systemctl restart kubelet &"
                 )
-                nodeaction.wait_for_not_ready_status(node, timeout, self.kubecli, affected_node)
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli,affected_node)
                 logging.info("The kubelet of the node %s has been restarted" % (node))
                 logging.info("restart_kubelet_scenario has been successfuly injected!")
@@ -117,7 +116,7 @@ class abstract_node_scenarios:
                 )
                 logging.error("restart_kubelet_scenario injection failed!")
                 raise e
-            self.add_affected_node(affected_node)
+            self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to crash the node
     def node_crash_scenario(self, instance_kill_count, node, timeout):
@@ -125,7 +124,7 @@ class abstract_node_scenarios:
             try:
                 logging.info("Starting node_crash_scenario injection")
                 logging.info("Crashing the node %s" % (node))
-                runcommand.invoke(
+                runcommand.run(
                     "oc debug node/" + node + " -- chroot /host "
                     "dd if=/dev/urandom of=/proc/sysrq-trigger"
                 )
@@ -136,7 +135,7 @@ class abstract_node_scenarios:
                     "Test Failed" % (e)
                 )
                 logging.error("node_crash_scenario injection failed!")
-                raise e
+                return 1
 
     # Node scenario to check service status on helper node
     def node_service_status(self, node, service, ssh_private_key, timeout):
