@@ -28,6 +28,14 @@ class NetworkScenarioConfig:
         },
     )
 
+    image: typing.Annotated[str, validation.min(1)]= field(
+        default="quay.io/krkn-chaos/krkn:tools",
+        metadata={
+            "name": "Image",
+            "description": "Image of krkn tools to run"
+        }
+    )
+
     label_selector: typing.Annotated[
         typing.Optional[str], validation.required_if_not("node_interface_name")
     ] = field(
@@ -142,7 +150,7 @@ class NetworkScenarioErrorOutput:
     )
 
 
-def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
+def get_default_interface(node: str, pod_template, cli: CoreV1Api, image: str) -> str:
     """
     Function that returns a random interface from a node
 
@@ -161,7 +169,7 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
         Default interface (string) belonging to the node
     """
 
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
     logging.info("Creating pod to query interface on node %s" % node)
     kube_helper.create_pod(cli, pod_body, "default", 300)
 
@@ -189,7 +197,7 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api) -> str:
 
 
 def verify_interface(
-    input_interface_list: typing.List[str], node: str, pod_template, cli: CoreV1Api
+    input_interface_list: typing.List[str], node: str, pod_template, cli: CoreV1Api, image: str
 ) -> typing.List[str]:
     """
     Function that verifies whether a list of interfaces is present in the node.
@@ -212,7 +220,7 @@ def verify_interface(
     Returns:
         The interface list for the node
     """
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
     logging.info("Creating pod to query interface on node %s" % node)
     kube_helper.create_pod(cli, pod_body, "default", 300)
     try:
@@ -268,6 +276,7 @@ def get_node_interfaces(
     instance_count: int,
     pod_template,
     cli: CoreV1Api,
+    image: str
 ) -> typing.Dict[str, typing.List[str]]:
     """
     Function that is used to process the input dictionary with the nodes and
@@ -309,7 +318,7 @@ def get_node_interfaces(
         nodes = kube_helper.get_node(None, label_selector, instance_count, cli)
         node_interface_dict = {}
         for node in nodes:
-            node_interface_dict[node] = get_default_interface(node, pod_template, cli)
+            node_interface_dict[node] = get_default_interface(node, pod_template, cli, image)
     else:
         node_name_list = node_interface_dict.keys()
         filtered_node_list = []
@@ -321,7 +330,7 @@ def get_node_interfaces(
 
         for node in filtered_node_list:
             node_interface_dict[node] = verify_interface(
-                node_interface_dict[node], node, pod_template, cli
+                node_interface_dict[node], node, pod_template, cli, image
             )
 
     return node_interface_dict
@@ -337,6 +346,7 @@ def apply_ingress_filter(
     cli: CoreV1Api,
     create_interfaces: bool = True,
     param_selector: str = "all",
+    image:str = "quay.io/krkn-chaos/krkn:tools",
 ) -> str:
     """
     Function that applies the filters to shape incoming traffic to
@@ -382,14 +392,14 @@ def apply_ingress_filter(
         network_params = {param_selector: cfg.network_params[param_selector]}
 
     if create_interfaces:
-        create_virtual_interfaces(cli, interface_list, node, pod_template)
+        create_virtual_interfaces(cli, interface_list, node, pod_template, image)
 
     exec_cmd = get_ingress_cmd(
         interface_list, network_params, duration=cfg.test_duration
     )
     logging.info("Executing %s on node %s" % (exec_cmd, node))
     job_body = yaml.safe_load(
-        job_template.render(jobname=str(hash(node))[:5], nodename=node, cmd=exec_cmd)
+        job_template.render(jobname=str(hash(node))[:5], nodename=node, image=image, cmd=exec_cmd)
     )
     api_response = kube_helper.create_job(batch_cli, job_body)
 
@@ -400,7 +410,7 @@ def apply_ingress_filter(
 
 
 def create_virtual_interfaces(
-    cli: CoreV1Api, interface_list: typing.List[str], node: str, pod_template
+    cli: CoreV1Api, interface_list: typing.List[str], node: str, pod_template, image: str
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
@@ -421,7 +431,7 @@ def create_virtual_interfaces(
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
     """
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
     kube_helper.create_pod(cli, pod_body, "default", 300)
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(
@@ -434,7 +444,7 @@ def create_virtual_interfaces(
 
 
 def delete_virtual_interfaces(
-    cli: CoreV1Api, node_list: typing.List[str], pod_template
+    cli: CoreV1Api, node_list: typing.List[str], pod_template, image: str
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -457,7 +467,7 @@ def delete_virtual_interfaces(
     """
 
     for node in node_list:
-        pod_body = yaml.safe_load(pod_template.render(nodename=node))
+        pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
         kube_helper.create_pod(cli, pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
         delete_ifb(cli, "modtools")
@@ -700,7 +710,7 @@ def network_chaos(
     pod_interface_template = env.get_template("pod_interface.j2")
     pod_module_template = env.get_template("pod_module.j2")
     cli, batch_cli = kube_helper.setup_kubernetes(cfg.kubeconfig_path)
-
+    test_image = cfg.image
     logging.info("Starting Ingress Network Chaos")
     try:
         node_interface_dict = get_node_interfaces(
@@ -709,6 +719,7 @@ def network_chaos(
             cfg.instance_count,
             pod_interface_template,
             cli,
+            test_image
         )
     except Exception:
         return "error", NetworkScenarioErrorOutput(format_exc())
@@ -726,6 +737,7 @@ def network_chaos(
                         job_template,
                         batch_cli,
                         cli,
+                        test_image
                     )
                 )
             logging.info("Waiting for parallel job to finish")
@@ -746,6 +758,7 @@ def network_chaos(
                             cli,
                             create_interfaces=create_interfaces,
                             param_selector=param,
+                            image=test_image
                         )
                     )
                 logging.info("Waiting for serial job to finish")
@@ -772,6 +785,6 @@ def network_chaos(
         logging.error("Ingress Network Chaos exiting due to Exception - %s" % e)
         return "error", NetworkScenarioErrorOutput(format_exc())
     finally:
-        delete_virtual_interfaces(cli, node_interface_dict.keys(), pod_module_template)
+        delete_virtual_interfaces(cli, node_interface_dict.keys(), pod_module_template, test_image)
         logging.info("Deleting jobs(if any)")
         delete_jobs(cli, batch_cli, job_list[:])

@@ -192,6 +192,7 @@ def apply_outage_policy(
     duration: str,
     bridge_name: str,
     kubecli: KrknKubernetes,
+    image: str
 ) -> typing.List[str]:
     """
     Function that applies filters(ingress or egress) to block traffic.
@@ -223,6 +224,8 @@ def apply_outage_policy(
         batch_cli (BatchV1Api)
             - Object to interact with Kubernetes Python client's BatchV1Api API
 
+        image (string)
+            - Image of network chaos tool
     Returns:
         The name of the job created that executes the commands on a node
         for ingress chaos scenario
@@ -239,7 +242,7 @@ def apply_outage_policy(
         br = "br-int"
         table = 8
     for node, ips in node_dict.items():
-        while len(check_cookie(node, pod_template, br, cookie, kubecli)) > 2 or cookie in cookie_list:
+        while len(check_cookie(node, pod_template, br, cookie, kubecli, image)) > 2 or cookie in cookie_list:
             cookie = random.randint(100, 10000)
         exec_cmd = ""
         for ip in ips:
@@ -257,6 +260,7 @@ def apply_outage_policy(
             job_template.render(
                 jobname=str(hash(node))[:5] + str(random.randint(0, 10000)),
                 nodename=node,
+                image=image,
                 cmd=exec_cmd,
             )
         )
@@ -281,6 +285,7 @@ def apply_ingress_policy(
     bridge_name: str,
     kubecli: KrknKubernetes,
     test_execution: str,
+    image: str,
 ) -> typing.List[str]:
     """
     Function that applies ingress traffic shaping to pod interface.
@@ -327,22 +332,23 @@ def apply_ingress_policy(
     job_list = []
     yml_list = []
 
-    create_virtual_interfaces(kubecli, len(ips), node, pod_template)
+    create_virtual_interfaces(kubecli, len(ips), node, pod_template, image)
 
     for count, pod_ip in enumerate(set(ips)):
-        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli, image)
         exec_cmd = get_ingress_cmd(
             test_execution, pod_inf, mod, count, network_params, duration
         )
         logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
         job_body = yaml.safe_load(
-            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
+            job_template.render(jobname=mod + str(pod_ip), nodename=node, image=image, cmd=exec_cmd)
         )
         yml_list.append(job_body)
         if pod_ip == node:
             break
 
     for job_body in yml_list:
+        print('jbo body' + str(job_body))
         api_response = kubecli.create_job(job_body)
         if api_response is None:
             raise Exception("Error creating job")
@@ -362,6 +368,7 @@ def apply_net_policy(
     bridge_name: str,
     kubecli: KrknKubernetes,
     test_execution: str,
+    image: str, 
 ) -> typing.List[str]:
     """
     Function that applies egress traffic shaping to pod interface.
@@ -415,7 +422,7 @@ def apply_net_policy(
         )
         logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
         job_body = yaml.safe_load(
-            job_template.render(jobname=mod + str(pod_ip), nodename=node, cmd=exec_cmd)
+            job_template.render(jobname=mod + str(pod_ip), nodename=node, image=image, cmd=exec_cmd)
         )
         yml_list.append(job_body)
 
@@ -530,7 +537,7 @@ def get_egress_cmd(
 
 
 def create_virtual_interfaces(
-    kubecli: KrknKubernetes, nummber: int, node: str, pod_template
+    kubecli: KrknKubernetes, nummber: int, node: str, pod_template, image: str, 
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
@@ -550,8 +557,11 @@ def create_virtual_interfaces(
         pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
+
+        image (string)
+            - Image of network chaos tool
     """
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
     kubecli.create_pod(pod_body, "default", 300)
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(nummber, node)
@@ -562,7 +572,7 @@ def create_virtual_interfaces(
 
 
 def delete_virtual_interfaces(
-    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template
+    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template, image: str, 
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -582,10 +592,13 @@ def delete_virtual_interfaces(
         pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to delete
               virtual interfaces on the node
+        
+        image (string)
+            - Image of network chaos tool
     """
 
     for node in node_list:
-        pod_body = yaml.safe_load(pod_template.render(nodename=node))
+        pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
         kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
         delete_ifb(kubecli, "modtools")
@@ -619,7 +632,7 @@ def delete_ifb(kubecli: KrknKubernetes, pod_name: str):
     kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
 
-def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.List[str]:
+def list_bridges(node: str, pod_template, kubecli: KrknKubernetes, image: str) -> typing.List[str]:
     """
     Function that returns a list of bridges on the node
 
@@ -634,11 +647,13 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.Lis
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
+        image (string)
+            - Image of network chaos tool
     Returns:
         List of bridges on the node.
     """
 
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
     logging.info("Creating pod to query bridge on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
 
@@ -662,7 +677,7 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes) -> typing.Lis
 
 
 def check_cookie(
-    node: str, pod_template, br_name, cookie, kubecli: KrknKubernetes
+    node: str, pod_template, br_name, cookie, kubecli: KrknKubernetes, image: str
 ) -> str:
     """
     Function to check for matching flow rules
@@ -684,11 +699,13 @@ def check_cookie(
         cli (CoreV1Api)
             - Object to interact with Kubernetes Python client's CoreV1 API
 
+        image (string)
+            - Image of network chaos tool
     Returns
         Returns the matching flow rules
     """
 
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
     logging.info("Creating pod to query duplicate rules on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
 
@@ -721,7 +738,7 @@ def check_cookie(
 
 
 def get_pod_interface(
-    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes
+    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes, image: str = "quay.io/krkn-chaos/krkn:tools"
 ) -> str:
     """
     Function to query the pod interface on a node
@@ -747,7 +764,7 @@ def get_pod_interface(
         Returns the pod interface name
     """
 
-    pod_body = yaml.safe_load(pod_template.render(nodename=node))
+    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
     logging.info("Creating pod to query pod interface on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
     inf = ""
@@ -788,7 +805,8 @@ def get_pod_interface(
 
 
 def check_bridge_interface(
-    node_name: str, pod_template, bridge_name: str, kubecli: KrknKubernetes
+    node_name: str, pod_template, bridge_name: str, kubecli: KrknKubernetes,
+    image: str = "quay.io/krkn-chaos/krkn:tools"
 ) -> bool:
     """
     Function  is used to check if the required OVS or OVN bridge is found in
@@ -814,7 +832,7 @@ def check_bridge_interface(
     nodes = kubecli.get_node(node_name, None, 1)
     node_bridge = []
     for node in nodes:
-        node_bridge = list_bridges(node, pod_template, kubecli)
+        node_bridge = list_bridges(node, pod_template, kubecli, image=image)
     if bridge_name not in node_bridge:
         raise Exception(f"OVS bridge {bridge_name} not found on the node ")
 
@@ -832,6 +850,14 @@ class InputParams:
             "name": "Namespace",
             "description": "Namespace of the pod to which filter need to be applied"
             "for details.",
+        }
+    )
+
+    image: typing.Annotated[str, validation.min(1)]= field(
+        default="quay.io/krkn-chaos/krkn:tools",
+        metadata={
+            "name": "Image",
+            "description": "Image of krkn tools to run"
         }
     )
 
@@ -1004,6 +1030,7 @@ def pod_outage(
     test_namespace = params.namespace
     test_label_selector = params.label_selector
     test_pod_name = params.pod_name
+    test_image = params.image
     filter_dict = {}
     job_list = []
     publish = False
@@ -1040,7 +1067,7 @@ def pod_outage(
                 label_set.add("%s=%s" % (key, value))
 
         check_bridge_interface(
-            list(node_dict.keys())[0], pod_module_template, br_name, kubecli
+            list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
 
         for direction, ports in filter_dict.items():
@@ -1055,6 +1082,7 @@ def pod_outage(
                     params.test_duration,
                     br_name,
                     kubecli,
+                    test_image
                 )
             )
 
@@ -1095,7 +1123,16 @@ class EgressParams:
         }
     )
 
+    image: typing.Annotated[str, validation.min(1)]= field(
+        default="quay.io/krkn-chaos/krkn:tools",
+        metadata={
+            "name": "Image",
+            "description": "Image of krkn tools to run"
+        }
+    )
+
     network_params: typing.Dict[str, str] = field(
+        default=None,
         metadata={
             "name": "Network Parameters",
             "description": "The network filters that are applied on the interface. "
@@ -1254,6 +1291,7 @@ def pod_egress_shaping(
     test_namespace = params.namespace
     test_label_selector = params.label_selector
     test_pod_name = params.pod_name
+    test_image = params.image
     job_list = []
     publish = False
 
@@ -1287,7 +1325,7 @@ def pod_egress_shaping(
                 label_set.add("%s=%s" % (key, value))
 
         check_bridge_interface(
-            list(node_dict.keys())[0], pod_module_template, br_name, kubecli
+            list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
 
         for mod in mod_lst:
@@ -1304,6 +1342,7 @@ def pod_egress_shaping(
                         br_name,
                         kubecli,
                         params.execution_type,
+                        test_image
                     )
                 )
             if params.execution_type == "serial":
@@ -1357,8 +1396,17 @@ class IngressParams:
             "for details.",
         }
     )
+    
+    image: typing.Annotated[str, validation.min(1)] = field(
+        default="quay.io/krkn-chaos/krkn:tools",
+        metadata={
+            "name": "Image",
+            "description": "Image to use for injecting network chaos",
+        }
+    )
 
     network_params: typing.Dict[str, str] = field(
+        default=None,
         metadata={
             "name": "Network Parameters",
             "description": "The network filters that are applied on the interface. "
@@ -1518,6 +1566,7 @@ def pod_ingress_shaping(
     test_namespace = params.namespace
     test_label_selector = params.label_selector
     test_pod_name = params.pod_name
+    test_image = params.image
     job_list = []
     publish = False
 
@@ -1551,7 +1600,7 @@ def pod_ingress_shaping(
                 label_set.add("%s=%s" % (key, value))
 
         check_bridge_interface(
-            list(node_dict.keys())[0], pod_module_template, br_name, kubecli
+            list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
 
         for mod in mod_lst:
@@ -1568,6 +1617,7 @@ def pod_ingress_shaping(
                         br_name,
                         kubecli,
                         params.execution_type,
+                        image=test_image
                     )
                 )
             if params.execution_type == "serial":
@@ -1604,6 +1654,6 @@ def pod_ingress_shaping(
         logging.error("Pod network Shaping scenario exiting due to Exception - %s" % e)
         return "error", PodIngressNetShapingErrorOutput(format_exc())
     finally:
-        delete_virtual_interfaces(kubecli, node_dict.keys(), pod_module_template)
+        delete_virtual_interfaces(kubecli, node_dict.keys(), pod_module_template, test_image)
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
