@@ -1,6 +1,5 @@
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.native.plugins import PLUGINS
-from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from typing import Any
@@ -28,7 +27,6 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
 
         except Exception as e:
             logging.error("NativeScenarioPlugin exiting due to Exception %s" % e)
-            pool.cancel()
             return 1
         else:
             return 0

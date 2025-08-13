@@ -42,7 +42,9 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                 test_egress = get_yaml_item_value(
                     test_dict, "egress", {"bandwidth": "100mbit"}
                 )
-
+                test_image = get_yaml_item_value(
+                    test_dict, "image", "quay.io/krkn-chaos/krkn:tools"
+                )
                 if test_node:
                     node_name_list = test_node.split(",")
                     nodelst = common_node_functions.get_node_by_name(node_name_list, lib_telemetry.get_lib_kubernetes())
@@ -60,6 +62,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                     nodelst,
                     pod_template,
                     lib_telemetry.get_lib_kubernetes(),
+                    image=test_image
                 )
                 joblst = []
                 egress_lst = [i for i in param_lst if i in test_egress]
@@ -71,6 +74,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                         "execution": test_execution,
                         "instance_count": test_instance_count,
                         "egress": test_egress,
+                        "image": test_image
                     }
                 }
                 logging.info(
@@ -94,6 +98,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                                     jobname=i + str(hash(node))[:5],
                                     nodename=node,
                                     cmd=exec_cmd,
+                                    image=test_image
                                 )
                             )
                             joblst.append(job_body["metadata"]["name"])
@@ -153,10 +158,10 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
             return 0
 
     def verify_interface(
-        self, test_interface, nodelst, template, kubecli: KrknKubernetes
+        self, test_interface, nodelst, template, kubecli: KrknKubernetes, image: str
     ):
         pod_index = random.randint(0, len(nodelst) - 1)
-        pod_body = yaml.safe_load(template.render(nodename=nodelst[pod_index]))
+        pod_body = yaml.safe_load(template.render(nodename=nodelst[pod_index], image=image))
         logging.info("Creating pod to query interface on node %s" % nodelst[pod_index])
         kubecli.create_pod(pod_body, "default", 300)
         try:
@@ -177,7 +182,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                         raise RuntimeError()
             return test_interface
         finally:
-            logging.info("Deleteing pod to query interface on node")
+            logging.info("Deleting pod to query interface on node")
             kubecli.delete_pod("fedtools", "default")
 
     # krkn_lib

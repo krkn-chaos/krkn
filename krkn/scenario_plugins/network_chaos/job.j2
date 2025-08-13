@@ -9,7 +9,7 @@ spec:
       hostNetwork: true
       containers:
       - name: networkchaos
-        image: quay.io/krkn-chaos/krkn:tools
+        image: {{image}}
         command: ["/bin/sh",  "-c", "{{cmd}}"]
         securityContext:
           privileged: true
