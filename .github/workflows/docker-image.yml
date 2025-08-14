@@ -18,7 +18,30 @@ jobs:
         docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn
         docker tag quay.io/krkn-chaos/krkn quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/}
         docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/}
+    - name: Build the Tools Docker images
+      if: startsWith(github.ref, 'refs/tags')
+      run:  |
+        docker pull docker.io/fedora/tools
+        docker tag docker.io/fedora/tools quay.io/krkn-chaos/krkn:tools
 
+    - name: Save the docker image
+      run: | 
+        mkdir krkn-images
+        cd krkn-images
+        IMAGE_IDS=$(docker images -n -a --format "{{.ID}}")
+        for ID in $IMAGE_IDS; do
+            IMAGE_NAME=$(docker images --filter "id=$ID" --format "{{.Repository}}:{{.Tag}}" | head -n 1)
+            # Replace slashes and colons in image name for valid filenames
+            FILENAME=$(echo "$IMAGE_NAME" | sed 's/\//_/g' | sed 's/:/-/g' | sed 's/\.//g')
+            echo "Saving image: $IMAGE_NAME (ID: $ID) to krkn-images/$FILENAME.tar"
+            docker save -o "$FILENAME.tar" "$ID"
+        done
+    - name: Upload Docker saved images
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: krkn-images
+        path: krkn-images
     - name: Test Build the Docker images
       if: ${{ github.event_name == 'pull_request' }}
       run: |
