@@ -28,7 +28,7 @@ jobs:
       run: | 
         mkdir krkn-images
         cd krkn-images
-        IMAGE_IDS=$(docker images -n -a --format "{{.ID}}")
+        IMAGE_IDS=$(docker images -a --format "{{.ID}}")
         for ID in $IMAGE_IDS; do
             IMAGE_NAME=$(docker images --filter "id=$ID" --format "{{.Repository}}:{{.Tag}}" | head -n 1)
             # Replace slashes and colons in image name for valid filenames
