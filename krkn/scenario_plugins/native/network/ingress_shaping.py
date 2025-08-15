@@ -5,6 +5,7 @@ import time
 import sys
 import os
 import re
+import random
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
 from . import kubernetes_functions as kube_helper
@@ -168,14 +169,14 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api, image: str) -
     Returns:
         Default interface (string) belonging to the node
     """
-
-    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+    pod_name_regex = str(random.randint(0, 10000))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
     logging.info("Creating pod to query interface on node %s" % node)
     kube_helper.create_pod(cli, pod_body, "default", 300)
-
+    pod_name = f"fedtools-{pod_name_regex}"
     try:
         cmd = ["ip", "r"]
-        output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+        output = kube_helper.exec_cmd_in_pod(cli, cmd, pod_name, "default")
 
         if not output:
             logging.error("Exception occurred while executing command in pod")
@@ -191,7 +192,7 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api, image: str) -
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kube_helper.delete_pod(cli, "fedtools", "default")
+        kube_helper.delete_pod(cli, pod_name, "default")
 
     return interfaces
 
@@ -220,13 +221,15 @@ def verify_interface(
     Returns:
         The interface list for the node
     """
-    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+    pod_name_regex = str(random.randint(0, 10000))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
     logging.info("Creating pod to query interface on node %s" % node)
     kube_helper.create_pod(cli, pod_body, "default", 300)
+    pod_name = f"fedtools-{pod_name_regex}"
     try:
         if input_interface_list == []:
             cmd = ["ip", "r"]
-            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+            output = kube_helper.exec_cmd_in_pod(cli, cmd, pod_name, "default")
 
             if not output:
                 logging.error("Exception occurred while executing command in pod")
@@ -242,7 +245,7 @@ def verify_interface(
 
         else:
             cmd = ["ip", "-br", "addr", "show"]
-            output = kube_helper.exec_cmd_in_pod(cli, cmd, "fedtools", "default")
+            output = kube_helper.exec_cmd_in_pod(cli, cmd, pod_name, "default")
 
             if not output:
                 logging.error("Exception occurred while executing command in pod")
@@ -265,7 +268,7 @@ def verify_interface(
                     )
     finally:
         logging.info("Deleting pod to query interface on node")
-        kube_helper.delete_pod(cli, "fedtools", "default")
+        kube_helper.delete_pod(cli, pod_name, "default")
 
     return input_interface_list
 
@@ -431,16 +434,18 @@ def create_virtual_interfaces(
             - The YAML template used to instantiate a pod to create
               virtual interfaces on the node
     """
-    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+    pod_name_regex = str(random.randint(0, 10000))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
     kube_helper.create_pod(cli, pod_body, "default", 300)
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(
             len(interface_list), node
         )
     )
-    create_ifb(cli, len(interface_list), "modtools")
+    pod_name = f"modtools-{pod_name_regex}"
+    create_ifb(cli, len(interface_list), pod_name)
     logging.info("Deleting pod used to create virtual interfaces")
-    kube_helper.delete_pod(cli, "modtools", "default")
+    kube_helper.delete_pod(cli, pod_name, "default")
 
 
 def delete_virtual_interfaces(
@@ -467,11 +472,13 @@ def delete_virtual_interfaces(
     """
 
     for node in node_list:
-        pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+        pod_name_regex = str(random.randint(0, 10000))
+        pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
         kube_helper.create_pod(cli, pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
-        delete_ifb(cli, "modtools")
-        kube_helper.delete_pod(cli, "modtools", "default")
+        pod_name = f"modtools-{pod_name_regex}"
+        delete_ifb(cli, pod_name)
+        kube_helper.delete_pod(cli, pod_name, "default")
 
 
 def create_ifb(cli: CoreV1Api, number: int, pod_name: str):

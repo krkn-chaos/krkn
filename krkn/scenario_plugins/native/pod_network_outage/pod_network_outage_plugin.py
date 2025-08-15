@@ -537,7 +537,7 @@ def get_egress_cmd(
 
 
 def create_virtual_interfaces(
-    kubecli: KrknKubernetes, nummber: int, node: str, pod_template, image: str, 
+    kubecli: KrknKubernetes, number: int, node: str, pod_template, image: str, 
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
@@ -561,14 +561,16 @@ def create_virtual_interfaces(
         image (string)
             - Image of network chaos tool
     """
-    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+    pod_name_regex = str(random.randint(0, 10000))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
     kubecli.create_pod(pod_body, "default", 300)
+    pod_name = f"modtools-{pod_name_regex}"
     logging.info(
-        "Creating {0} virtual interfaces on node {1} using a pod".format(nummber, node)
+        "Creating {0} virtual interfaces on node {1} using a pod".format(number, node)
     )
-    create_ifb(kubecli, nummber, "modtools")
+    create_ifb(kubecli, number, pod_name)
     logging.info("Deleting pod used to create virtual interfaces")
-    kubecli.delete_pod("modtools", "default")
+    kubecli.delete_pod(pod_name, "default")
 
 
 def delete_virtual_interfaces(
@@ -598,11 +600,12 @@ def delete_virtual_interfaces(
     """
 
     for node in node_list:
-        pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+        pod_name_regex = str(random.randint(0, 10000))
+        pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
         kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
-        delete_ifb(kubecli, "modtools")
-        kubecli.delete_pod("modtools", "default")
+        delete_ifb(kubecli, "modtools-" + pod_name_regex)
+        kubecli.delete_pod("modtools-" + pod_name_regex, "default")
 
 
 def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
@@ -652,15 +655,15 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes, image: str) -
     Returns:
         List of bridges on the node.
     """
-
-    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+    pod_name_regex = str(random.randint(0, 10000))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
     logging.info("Creating pod to query bridge on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
-
+    pod_name = f"modtools-{pod_name_regex}"
     try:
         cmd = ["/host", "ovs-vsctl", "list-br"]
         output = kubecli.exec_cmd_in_pod(
-            cmd, "modtools", "default", base_command="chroot"
+            cmd, pod_name, "default", base_command="chroot"
         )
 
         if not output:
@@ -671,7 +674,7 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes, image: str) -
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        kubecli.delete_pod(pod_name, "default")
 
     return bridges
 
@@ -704,11 +707,11 @@ def check_cookie(
     Returns
         Returns the matching flow rules
     """
-
-    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+    pod_name_regex = str(random.randint(0, 10000))
+    pod_body = yaml.safe_load(pod_template.render(regex_name = pod_name_regex,nodename=node, image=image))
     logging.info("Creating pod to query duplicate rules on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
-
+    pod_name = f"modtools-{pod_name_regex}"
     try:
         cmd = [
             "chroot",
@@ -721,7 +724,7 @@ def check_cookie(
             f"cookie={cookie}/-1",
         ]
         output = kubecli.exec_cmd_in_pod(
-            cmd, "modtools", "default", base_command="chroot"
+            cmd, pod_name, "default", base_command="chroot"
         )
 
         if not output:
@@ -732,7 +735,7 @@ def check_cookie(
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        kubecli.delete_pod(pod_name, "default")
 
     return flow_list
 
@@ -763,12 +766,12 @@ def get_pod_interface(
     Returns
         Returns the pod interface name
     """
-
-    pod_body = yaml.safe_load(pod_template.render(nodename=node, image=image))
+    pod_name_regex = str(random.randint(0, 10000))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
     logging.info("Creating pod to query pod interface on node %s" % node)
     kubecli.create_pod(pod_body, "default", 300)
     inf = ""
-
+    pod_name = f"modtools-{pod_name_regex}"
     try:
         if br_name == "br-int":
             find_ip = f"external-ids:ip_addresses={ip}/23"
@@ -786,12 +789,12 @@ def get_pod_interface(
         ]
 
         output = kubecli.exec_cmd_in_pod(
-            cmd, "modtools", "default", base_command="chroot"
+            cmd, pod_name, "default", base_command="chroot"
         )
         if not output:
             cmd = ["/host", "ip", "addr", "show"]
             output = kubecli.exec_cmd_in_pod(
-                cmd, "modtools", "default", base_command="chroot"
+                cmd, pod_name, "default", base_command="chroot"
             )
             for if_str in output.split("\n"):
                 if re.search(ip, if_str):
@@ -800,7 +803,7 @@ def get_pod_interface(
             inf = output
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        kubecli.delete_pod(pod_name, "default")
     return inf
 
 
