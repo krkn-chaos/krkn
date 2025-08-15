@@ -161,17 +161,19 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
         self, test_interface, nodelst, template, kubecli: KrknKubernetes, image: str
     ):
         pod_index = random.randint(0, len(nodelst) - 1)
-        pod_body = yaml.safe_load(template.render(nodename=nodelst[pod_index], image=image))
+        pod_name_regex = str(random.randint(0, 10000))
+        pod_body = yaml.safe_load(template.render(regex_name=pod_name_regex,nodename=nodelst[pod_index], image=image))
         logging.info("Creating pod to query interface on node %s" % nodelst[pod_index])
         kubecli.create_pod(pod_body, "default", 300)
+        pod_name = f"fedtools-{pod_name_regex}"
         try:
             if test_interface == []:
                 cmd = "ip r | grep default | awk '/default/ {print $5}'"
-                output = kubecli.exec_cmd_in_pod(cmd, "fedtools", "default")
+                output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
                 test_interface = [output.replace("\n", "")]
             else:
                 cmd = "ip -br addr show|awk -v ORS=',' '{print $1}'"
-                output = kubecli.exec_cmd_in_pod(cmd, "fedtools", "default")
+                output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
                 interface_lst = output[:-1].split(",")
                 for interface in test_interface:
                     if interface not in interface_lst:
@@ -183,7 +185,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
             return test_interface
         finally:
             logging.info("Deleting pod to query interface on node")
-            kubecli.delete_pod("fedtools", "default")
+            kubecli.delete_pod(pod_name, "default")
 
     # krkn_lib
     def get_job_pods(self, api_response, kubecli: KrknKubernetes):
