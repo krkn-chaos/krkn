@@ -32,6 +32,7 @@ from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
 )
+from krkn.rollback.config import RollbackConfig
 
 # removes TripleDES warning
 import warnings
@@ -61,6 +62,18 @@ def main(cfg) -> int:
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
+        RollbackConfig.register(
+            auto=get_yaml_item_value(
+                config["kraken"],
+                "auto_rollback",
+                False
+            ),
+            versions_directory=get_yaml_item_value(
+                config["kraken"],
+                "rollback_versions_directory",
+                "/tmp/kraken-rollback"
+            ),
+        )
         signal_address = get_yaml_item_value(
             config["kraken"], "signal_address", "0.0.0.0"
         )

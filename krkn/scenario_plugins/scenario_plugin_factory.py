@@ -29,11 +29,12 @@ class ScenarioPluginFactory:
         :param scenario_type: the scenario type defined in the config.yaml
             e.g. `arcaflow_scenarios`, `network_scenarios`, `plugin_scenarios`
             etc.
+        :param rollback_config: the configuration for the rollback handler
         :return: an instance of the class that implements this scenario and
             inherits from the AbstractScenarioPlugin abstract class
         """
         if scenario_type in self.loaded_plugins:
-            return self.loaded_plugins[scenario_type]()
+            return self.loaded_plugins[scenario_type](scenario_type)
         else:
             raise ScenarioPluginNotFound(
                 f"Failed to load the {scenario_type} scenario plugin. "
@@ -61,7 +62,10 @@ class ScenarioPluginFactory:
                             continue
 
                         cls = getattr(module, name)
-                        instance = cls()
+                        # The AbstractScenarioPlugin constructor requires a scenario_type.
+                        # However, since we only need to call `get_scenario_types()` here,
+                        # it is acceptable to use a placeholder value.
+                        instance = cls("placeholder_scenario_type")
                         get_scenario_type = getattr(instance, "get_scenario_types")
                         scenario_types = get_scenario_type()
                         has_duplicates = False
