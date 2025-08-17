@@ -30,7 +30,6 @@ class ScenarioPluginFactory:
         :param scenario_type: the scenario type defined in the config.yaml
             e.g. `arcaflow_scenarios`, `network_scenarios`, `plugin_scenarios`
             etc.
-        :param rollback_config: the configuration for the rollback handler
         :return: an instance of the class that implements this scenario and
             inherits from the AbstractScenarioPlugin abstract class
         """

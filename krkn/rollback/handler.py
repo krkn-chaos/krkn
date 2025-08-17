@@ -188,7 +188,6 @@ class RollbackHandler:
     def set_context(self, run_uuid: str):
         """
         Set the context for the rollback handler.
-        :param scenario_types: List of scenario types.
         :param run_uuid: Unique identifier for the run.
         """
         self.rollback_context = RollbackContext(run_uuid)

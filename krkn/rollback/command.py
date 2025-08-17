@@ -90,7 +90,7 @@ def execute_rollback(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: Optional
     """
     Execute rollback version files and cleanup if successful.
     
-    :param cfg: Configuration file path
+    :param telemetry_ocp: Instance of KrknTelemetryOpenshift
     :param run_uuid: Optional run UUID to filter by
     :param scenario_type: Optional scenario type to filter by
     :return: Exit code (0 for success, 1 for error)
