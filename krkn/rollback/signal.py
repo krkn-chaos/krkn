@@ -55,8 +55,8 @@ class SignalHandler:
         
         # Call original handler if it exists
         if signum not in cls._original_handlers:
-            logger.debug(f"Signal {signal_name} has no registered handler, exiting...")
-            sys.exit(1)
+            logger.info(f"Signal {signal_name} has no registered handler, exiting...")
+            return
 
         original_handler = cls._original_handlers[signum]
         if callable(original_handler):
