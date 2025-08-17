@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, TYPE_CHECKING, Optional
+from typing import Callable, TYPE_CHECKING, Optional, Dict
 from typing_extensions import TypeAlias
 import time
 import os
@@ -44,11 +44,12 @@ class RollbackContent:
 
     resource_identifier: str
     namespace: Optional[str] = None
+    extra: Optional[Dict] = None
 
     def __str__(self):
         namespace = f'"{self.namespace}"' if self.namespace else "None"
         resource_identifier = f'"{self.resource_identifier}"'
-        return f"RollbackContent(namespace={namespace}, resource_identifier={resource_identifier})"
+        return f"RollbackContent(namespace={namespace}, resource_identifier={resource_identifier}, extra={self.extra})"
 
 
 class RollbackContext(str):

@@ -14,6 +14,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 class RollbackContent:
     resource_identifier: str
     namespace: Optional[str] = None
+    extra: Optional[dict] = None
 
 # Actual rollback callable
 {{ rollback_callable_code }}
