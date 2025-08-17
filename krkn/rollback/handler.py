@@ -5,7 +5,6 @@ from typing import cast, TYPE_CHECKING
 import os
 import importlib.util
 import inspect
-from typing import TYPE_CHECKING
 
 from krkn.rollback.config import RollbackConfig, RollbackContext, Version, RollbackContent, RollbackCallable
 from krkn.rollback.serialization import Serializer

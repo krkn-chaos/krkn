@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional, cast
+from typing import Dict, Any, Optional
 import threading
 import signal
 import sys

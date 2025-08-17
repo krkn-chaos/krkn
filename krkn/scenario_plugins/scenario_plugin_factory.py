@@ -3,7 +3,6 @@ import inspect
 import pkgutil
 from typing import Type, Tuple, Optional
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-from krkn.rollback.config import RollbackConfig
 
 
 class ScenarioPluginNotFound(Exception):
