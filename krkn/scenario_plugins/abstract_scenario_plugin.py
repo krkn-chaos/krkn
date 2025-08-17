@@ -11,6 +11,7 @@ from krkn.rollback.handler import (
     cleanup_rollback_version_files
 )
 from krkn.rollback.signal import signal_handler
+from krkn.rollback.serialization import Serializer
 
 class AbstractScenarioPlugin(ABC):
 
@@ -19,7 +20,10 @@ class AbstractScenarioPlugin(ABC):
         
         :param scenario_type: the scenario type defined in the config.yaml
         """
-        self.rollback_handler = RollbackHandler(scenario_type)
+        serializer = Serializer(
+            scenario_type=scenario_type,
+        )
+        self.rollback_handler = RollbackHandler(scenario_type, serializer)
 
     @abstractmethod
     def run(
@@ -90,6 +94,7 @@ class AbstractScenarioPlugin(ABC):
             with signal_handler.signal_context(
                 run_uuid=run_uuid,
                 scenario_type=scenario_telemetry.scenario_type,
+                telemetry_ocp=telemetry
             ):
                 try:
                     logging.info(
@@ -113,7 +118,7 @@ class AbstractScenarioPlugin(ABC):
             # execute rollback files based on the return value
             if return_value != 0:
                 execute_rollback_version_files(
-                    run_uuid, scenario_telemetry.scenario_type
+                    telemetry, run_uuid, scenario_telemetry.scenario_type
                 )
             cleanup_rollback_version_files(
                 run_uuid, scenario_telemetry.scenario_type

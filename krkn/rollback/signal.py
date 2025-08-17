@@ -5,6 +5,8 @@ import sys
 import logging
 from contextlib import contextmanager
 
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
 from krkn.rollback.handler import execute_rollback_version_files
 
 logger = logging.getLogger(__name__)
@@ -19,29 +21,37 @@ class SignalHandler:
     _local = threading.local()
 
     @classmethod
-    def _set_context(cls, run_uuid: str, scenario_type: str):
+    def _set_context(cls, run_uuid: str, scenario_type: str, telemetry_ocp: KrknTelemetryOpenshift):
         """Set the current execution context for this thread."""
         cls._local.run_uuid = run_uuid
         cls._local.scenario_type = scenario_type
+        cls._local.telemetry_ocp = telemetry_ocp
         logger.debug(f"Set signal context set for thread {threading.current_thread().name} - run_uuid={run_uuid}, scenario_type={scenario_type}")
 
     @classmethod
-    def _get_context(cls) -> tuple[Optional[str], Optional[str]]:
+    def _get_context(cls) -> tuple[Optional[str], Optional[str], Optional[KrknTelemetryOpenshift]]:
         """Get the current execution context for this thread."""
         run_uuid = getattr(cls._local, 'run_uuid', None)
         scenario_type = getattr(cls._local, 'scenario_type', None)
-        return run_uuid, scenario_type
+        telemetry_ocp = getattr(cls._local, 'telemetry_ocp', None)
+        return run_uuid, scenario_type, telemetry_ocp
 
     @classmethod
     def _signal_handler(cls, signum: int, frame):
         """Handle signals with current thread context information."""
         signal_name = signal.Signals(signum).name
-        run_uuid, scenario_type = cls._get_context()
+        run_uuid, scenario_type, telemetry_ocp = cls._get_context()
+        if not run_uuid or not scenario_type or not telemetry_ocp:
+            logger.warning(f"Signal {signal_name} received without complete context, skipping rollback.")
+            return
+
+        # Clear the context for the next signal, as another signal may arrive before the rollback completes.
+        # This ensures that the rollback is performed only once.
+        cls._set_context(None, None, telemetry_ocp)
         
-        logger.debug(f"Signal {signal_name} received in thread {threading.current_thread().name} with run_uuid={run_uuid}, scenario_type={scenario_type} as context")
-        
-        # Perform cleanup
-        execute_rollback_version_files(run_uuid, scenario_type)
+        # Perform rollback
+        logger.info(f"Performing rollback for signal {signal_name} with run_uuid={run_uuid}, scenario_type={scenario_type}")
+        execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
         
         # Call original handler if it exists
         if signum not in cls._original_handlers:
@@ -82,15 +92,15 @@ class SignalHandler:
 
     @classmethod
     @contextmanager
-    def signal_context(cls, run_uuid: str, scenario_type: str):
+    def signal_context(cls, run_uuid: str, scenario_type: str, telemetry_ocp: KrknTelemetryOpenshift):
         """Context manager to set the signal context for the current thread."""
-        cls._set_context(run_uuid, scenario_type)
+        cls._set_context(run_uuid, scenario_type, telemetry_ocp)
         cls._register_signal_handler()
         try:
             yield
         finally:
             # Clear context after exiting the context manager
-            cls._set_context(None, None)
+            cls._set_context(None, None, telemetry_ocp)
 
 
 signal_handler = SignalHandler()
