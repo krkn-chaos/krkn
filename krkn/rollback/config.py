@@ -7,6 +7,8 @@ import time
 import os
 import logging
 
+from krkn_lib.utils import get_random_string
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -147,9 +149,7 @@ class Version:
     scenario_type: str
     rollback_context: RollbackContext
     timestamp: int = time.time_ns()  # Get current timestamp in nanoseconds
-    hash_suffix: str = os.urandom(
-        4
-    ).hex()  # Generate a random 4-byte hexadecimal string
+    hash_suffix: str = get_random_string(8)  # Generate a random string of 8 characters
 
     @property
     def version_file_name(self) -> str:
