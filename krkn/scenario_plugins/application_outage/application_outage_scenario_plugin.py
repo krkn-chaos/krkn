@@ -70,16 +70,6 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 lib_telemetry.get_lib_kubernetes().create_net_policy(
                     yaml_spec, namespace
                 )
-                self.rollback_handler.set_rollback_callable(
-                    self.rollback_network_policy,
-                    RollbackContent(
-                        namespace=namespace,
-                        resource_identifier=policy_name,
-                    ),
-                )
-                lib_telemetry.get_lib_kubernetes().create_net_policy(
-                    yaml_spec, namespace
-                )
 
                 # wait for the specified duration
                 logging.info(
@@ -108,27 +98,6 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
             return 1
         else:
             return 0
-
-    @staticmethod
-    def rollback_network_policy(
-        rollback_content: RollbackContent,
-        lib_telemetry: KrknTelemetryOpenshift,
-    ):
-        """Rollback function to delete the network policy created during the scenario.
-
-        :param rollback_content: Rollback content containing namespace and resource_identifier.
-        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
-        """
-        try:
-            namespace = rollback_content.namespace
-            policy_name = rollback_content.resource_identifier
-            logging.info(
-                f"Rolling back network policy: {policy_name} in namespace: {namespace}"
-            )
-            lib_telemetry.get_lib_kubernetes().delete_net_policy(policy_name, namespace)
-            logging.info("Network policy rollback completed successfully.")
-        except Exception as e:
-            logging.error(f"Failed to rollback network policy: {e}")
 
     @staticmethod
     def rollback_network_policy(
