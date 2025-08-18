@@ -13,9 +13,13 @@ from krkn_lib.utils import get_yaml_item_value, log_exception
 from krkn import cerberus, utils
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
+
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -97,6 +101,13 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                                 )
                             )
                             joblst.append(job_body["metadata"]["name"])
+                            self.rollback_handler.set_rollback_callable(
+                                self.rollback_network_chaos,
+                                RollbackContent(
+                                    namespace="default",
+                                    resource_identifier=job_body["metadata"]["name"],
+                                )
+                            )
                             api_response = (
                                 lib_telemetry.get_lib_kubernetes().create_job(job_body)
                             )
@@ -229,6 +240,51 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
             except Exception:
                 logging.warning("Exception in getting job status")
             kubecli.delete_job(name=jobname, namespace="default")
+
+    @staticmethod
+    def rollback_network_chaos(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+        """
+        Rollback function to recover network chaos resources.
+
+        :param rollback_content: Rollback content containing namespace and resource_identifier.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations
+        """
+        kube_cli = lib_telemetry.get_lib_kubernetes()
+        namespace = rollback_content.namespace
+        job_name = rollback_content.resource_identifier
+        # try to log pod error
+        try:
+            api_response = kube_cli.get_job_status(job_name, namespace=namespace)
+            if api_response.status.failed is not None:
+                # get pod name
+                controller_uid = api_response.metadata.labels["controller-uid"]
+                pods_list = kube_cli.list_pods(
+                    label_selector=f"controller-uid={controller_uid}", namespace="default"
+                )
+                pod_name = pods_list[0]
+                # get pod status
+                pod_stat = kube_cli.read_pod(name=pod_name, namespace=namespace)
+                logging.error(
+                    f"NetworkChaosScenarioPlugin {pod_stat.status.container_statuses}"
+                )
+                pod_log_response = kube_cli.get_pod_log(
+                    name=pod_name, namespace=namespace
+                )
+                pod_log = pod_log_response.data.decode("utf-8")
+                logging.error(pod_log)
+        except Exception:
+            logging.warning("Exception in getting job status")
+        
+        # try to delete job
+        try:
+            logging.info(
+                f"Trying to delete job: {job_name} in namespace: {namespace}"
+            )
+            kube_cli.delete_job(name=job_name, namespace=namespace)
+            logging.info(f"Successfully deleted job {job_name}")
+        except Exception as e:
+            logging.error(f"Failed to delete job: {e}")
+
 
     def get_egress_cmd(self, execution, test_interface, mod, vallst, duration=30):
         tc_set = tc_unset = tc_ls = ""
