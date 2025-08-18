@@ -1,40 +1,87 @@
+import logging
 import os
 
 import yaml
 from jinja2 import FileSystemLoader, Environment
 from krkn_lib.k8s import KrknKubernetes
 
-from krkn.scenario_plugins.network_chaos_ng.models import NetworkFilterConfig
-from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
+from krkn.scenario_plugins.network_chaos_ng.models import (
+    NetworkFilterConfig,
+    NetworkChaosScenarioType,
+)
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import (
+    log_info,
+    log_warning,
+    log_error,
+    taints_to_tolerations,
+)
 
 
 def generate_rules(
-    interfaces: list[str], config: NetworkFilterConfig
+    interfaces: list[str],
+    config: NetworkFilterConfig,
+    scenario_type: NetworkChaosScenarioType,
+    parallel: bool,
+    target: str,
 ) -> (list[str], list[str]):
     input_rules = []
     output_rules = []
-    for interface in interfaces:
-        for port in config.ports:
-            if config.egress:
-                for protocol in set(config.protocols):
-                    output_rules.append(
-                        f"iptables -I OUTPUT 1 -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
-                    )
+    filter_all_traffic = False
+    if "*" in config.ports:
+        filter_all_traffic = True
+        if scenario_type == NetworkChaosScenarioType.Node:
+            if config.force:
+                log_warning(
+                    "you are about to filter *all* network traffic on the node, which will probably make it unreachable. "
+                    "If you have a local console on the node, run the command `iptables -D OUTPUT 1` or `iptables -D INPUT 1` "
+                    "(depending on the type of traffic you filtered) to restore the node's connectivity.",
+                    parallel,
+                    target,
+                )
+            else:
+                log_error(
+                    "You are not allowed to filter the node's network without setting the `force` parameter to true."
+                )
+                return input_rules, output_rules
 
-            if config.ingress:
-                for protocol in set(config.protocols):
-                    input_rules.append(
-                        f"iptables -I INPUT 1 -i {interface} -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
-                    )
+        if config.egress:
+            for protocol in set(config.protocols):
+                if filter_all_traffic:
+                    output_rules.append(f"iptables -I OUTPUT 1 -p {protocol} -j DROP")
+
+                else:
+                    for port in config.ports:
+                        output_rules.append(
+                            f"iptables -I OUTPUT 1 -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        )
+
+        if config.ingress:
+            for protocol in set(config.protocols):
+                for interface in interfaces:
+                    if filter_all_traffic:
+                        input_rules.append(
+                            f"iptables -I INPUT 1 -i {interface} -p {protocol} -j DROP"
+                        )
+                    else:
+                        for port in config.ports:
+                            input_rules.append(
+                                f"iptables -I INPUT 1 -i {interface} -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                            )
     return input_rules, output_rules
 
 
 def generate_namespaced_rules(
-    interfaces: list[str], config: NetworkFilterConfig, pids: list[str]
+    interfaces: list[str],
+    config: NetworkFilterConfig,
+    pids: list[str],
+    parallel: bool,
+    pod_name: str,
 ) -> (list[str], list[str]):
     namespaced_input_rules: list[str] = []
     namespaced_output_rules: list[str] = []
-    input_rules, output_rules = generate_rules(interfaces, config)
+    input_rules, output_rules = generate_rules(
+        interfaces, config, NetworkChaosScenarioType.Pod, parallel, pod_name
+    )
     for pid in pids:
         ns_input_rules = [
             f"nsenter --target {pid} --net -- {rule}" for rule in input_rules
@@ -58,26 +105,7 @@ def deploy_network_filter_pod(
     file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
     env = Environment(loader=file_loader, autoescape=True)
     pod_template = env.get_template("templates/network-chaos.j2")
-    tolerations = []
-
-    for taint in config.taints:
-        key_value_part, effect = taint.split(":", 1)
-        if "=" in key_value_part:
-            key, value = key_value_part.split("=", 1)
-            operator = "Equal"
-        else:
-            key = key_value_part
-            value = None
-            operator = "Exists"
-        toleration = {
-            "key": key,
-            "operator": operator,
-            "effect": effect,
-        }
-        if value is not None:
-            toleration["value"] = value
-        tolerations.append(toleration)
-
+    tolerations = taints_to_tolerations(config.taints)
 
     pod_body = yaml.safe_load(
         pod_template.render(
@@ -88,7 +116,7 @@ def deploy_network_filter_pod(
             container_name=container_name,
             workload_image=config.image,
             taints=tolerations,
-            service_account=config.service_account
+            service_account=config.service_account,
         )
     )
 
@@ -104,6 +132,8 @@ def apply_network_rules(
     parallel: bool,
     node_name: str,
 ):
+    if len(input_rules) == 0 and len(output_rules) == 0:
+        logging.error("no input or output rules set, the scenario will have no effects")
     for rule in input_rules:
         log_info(f"applying iptables INPUT rule: {rule}", parallel, node_name)
         kubecli.exec_cmd_in_pod([rule], pod_name, namespace)
@@ -129,25 +159,30 @@ def clean_network_rules(
 
 def clean_network_rules_namespaced(
     kubecli: KrknKubernetes,
-    input_rules: list[str],
-    output_rules: list[str],
     pod_name: str,
     namespace: str,
     pids: list[str],
+    protocols: list[str],
 ):
-    for _ in input_rules:
-        for pid in pids:
-            # always deleting the first rule since has been inserted from the top
+
+    for pid in pids:
+        # always deleting the first rule since has been inserted from the top
+        for protocol in protocols:
+            command = f"nsenter --target {pid} --net -- iptables -D INPUT 1"
+            log_info(f"executing clean command [{protocol}]: {command}")
             kubecli.exec_cmd_in_pod(
-                [f"nsenter --target {pid} --net -- iptables -D INPUT 1"],
+                [command],
                 pod_name,
                 namespace,
             )
-    for _ in output_rules:
-        for pid in pids:
+
+    for pid in pids:
+        for protocol in protocols:
             # always deleting the first rule since has been inserted from the top
+            command = f"nsenter --target {pid} --net -- iptables -D OUTPUT 1"
+            log_info(f"executing clean command [{protocol}]: {command}")
             kubecli.exec_cmd_in_pod(
-                [f"nsenter --target {pid} --net -- iptables -D OUTPUT 1"],
+                [command],
                 pod_name,
                 namespace,
             )
