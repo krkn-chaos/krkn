@@ -1,5 +1,5 @@
 kraken:
-    kubeconfig_path: ~/.kube/config                     # Path to kubeconfig
+    kubeconfig_path: ~/Scrap/test-cluster/auth/kubeconfig                     # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
     auto_rollback: True                                    # Enable auto rollback for scenarios.
     rollback_versions_directory: /tmp/kraken-rollback      # Directory to store rollback version files.
@@ -17,9 +17,6 @@ kraken:
             - scenarios/openshift/app_outage.yaml
         - container_scenarios:                             # List of chaos pod scenarios to load
             - scenarios/openshift/container_etcd.yml
-        - pod_network_scenarios:
-              - scenarios/openshift/network_chaos_ingress.yml
-              - scenarios/openshift/pod_network_outage.yml
         - pod_disruption_scenarios:
             - scenarios/openshift/etcd.yml
             - scenarios/openshift/regex_openshift_pod_kill.yml
@@ -48,8 +45,13 @@ kraken:
         - syn_flood_scenarios:
               - scenarios/kube/syn_flood.yaml
         -  network_chaos_ng_scenarios:
-               - scenarios/kube/pod-network-filter.yml
                - scenarios/kube/node-network-filter.yml
+               - scenarios/kube/pod-network-filter.yml
+               - scenarios/kube/pod-ingress-shaping.yml
+               - scenarios/kube/pod-egress-shaping.yml
+        - pod_network_scenarios:
+               - scenarios/openshift/network_chaos_ingress.yml
+               - scenarios/openshift/pod_network_outage.yml
         -  kubevirt_vm_outage:
                - scenarios/kubevirt/kubevirt-vm-outage.yaml
 
