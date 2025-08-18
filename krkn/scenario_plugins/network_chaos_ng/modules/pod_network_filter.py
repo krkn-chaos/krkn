@@ -1,5 +1,6 @@
 import queue
 import time
+from typing import TYPE_CHECKING
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -19,13 +20,17 @@ from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import 
     generate_namespaced_rules,
     apply_network_rules,
     clean_network_rules_namespaced,
+    rollback_network_filter_pod,
 )
+from krkn.rollback.config import RollbackContent
 
+if TYPE_CHECKING:
+    from krkn.rollback.handler import RollbackHandler
 
 class PodNetworkFilterModule(AbstractNetworkChaosModule):
     config: NetworkFilterConfig
 
-    def run(self, target: str, error_queue: queue.Queue = None):
+    def run(self, rollback_handler: "RollbackHandler", target: str, error_queue: queue.Queue = None):
         parallel = False
         if error_queue:
             parallel = True
@@ -50,6 +55,13 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                     f"impossible to retrieve infos for pod {self.config.target} namespace {self.config.namespace}"
                 )
 
+            rollback_handler.set_rollback_callable(
+                rollback_network_filter_pod,
+                RollbackContent(
+                    resource_identifier=pod_name,
+                    namespace=self.config.namespace
+                )
+            )
             deploy_network_filter_pod(
                 self.config,
                 pod_info.nodeName,
