@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: modtools
+spec:
+  {% if service_account %}
+  serviceAccountName: {{ service_account }}
+  {%endif%}
+  {% if taints %}
+  tolerations:
+  {% for toleration in taints %}
+  - key: "{{ toleration.key }}"
+    operator: "{{ toleration.operator }}"
+    {% if toleration.value %}
+    value: "{{ toleration.value }}"
+    {% endif %}
+    effect: "{{ toleration.effect }}"
+  {% endfor %}
+  {% endif %}
+  nodeName: {{nodename}}
+  containers:
+  - name: modtools
+    image: {{workload_image}}
+    imagePullPolicy: IfNotPresent
+    command:
+    - /bin/sh
+    - -c
+    - "trap : TERM INT; sleep infinity & wait"
+    tty: true
+    stdin: true
+    stdinOnce: true
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: host
+      mountPath: /host
+  volumes:
+  - name: host
+    hostPath:
+      path: /
+  hostNetwork: true
+  hostIPC: true
+  hostPID: true
+  restartPolicy: Never

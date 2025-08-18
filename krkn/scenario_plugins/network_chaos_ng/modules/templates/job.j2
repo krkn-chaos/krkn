@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: chaos-{{jobname}}
+spec:
+  template:
+    spec:
+      {% if service_account %}
+      serviceAccountName: {{ service_account }}
+      {%endif%}
+      {% if taints %}
+      tolerations:
+      {% for toleration in taints %}
+      - key: "{{ toleration.key }}"
+        operator: "{{ toleration.operator }}"
+        {% if toleration.value %}
+        value: "{{ toleration.value }}"
+        {% endif %}
+        effect: "{{ toleration.effect }}"
+      {% endfor %}
+      {% endif %}
+      nodeName: {{nodename}}
+      hostNetwork: true
+      containers:
+      - name: networkchaos
+        image: {{workload_image}}
+        command: ["chroot", "/host", "/bin/sh",  "-c", "{{cmd}}"]
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: host
+          mountPath: /host
+      volumes:
+      - name: host
+        hostPath:
+          path: /
+
+      restartPolicy: Never
+  backoffLimit: 0
