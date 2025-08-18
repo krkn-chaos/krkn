@@ -1,4 +1,6 @@
 import os
+import logging
+from typing import TYPE_CHECKING
 
 import yaml
 from jinja2 import FileSystemLoader, Environment
@@ -6,6 +8,10 @@ from krkn_lib.k8s import KrknKubernetes
 
 from krkn.scenario_plugins.network_chaos_ng.models import NetworkFilterConfig
 from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
+
+if TYPE_CHECKING:
+    from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+    from krkn.rollback.config import RollbackContent
 
 
 def generate_rules(
@@ -94,6 +100,26 @@ def deploy_network_filter_pod(
 
     kubecli.create_pod(pod_body, config.namespace, 300)
 
+def rollback_network_filter_pod(rollback_content: "RollbackContent", lib_telemetry: "KrknTelemetryOpenshift"):
+    """
+    Rollback function to delete Network Filter Pod.
+
+    :param rollback_content: Rollback content containing namespace, resource_identifier and extra.
+    :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations
+    """
+    try:
+        namespace = rollback_content.namespace
+        pod_name = rollback_content.resource_identifier
+        logging.info(
+            f"Trying to delete Network Filter Pod: {pod_name} in namespace: {namespace}"
+        )
+        lib_telemetry.get_lib_kubernetes().delete_pod(
+            name=pod_name,
+            namespace=namespace
+        )
+        logging.info(f"Successfully deleted Network Filter Pod {pod_name}")
+    except Exception as e:
+        logging.error(f"Failed to rollback Network Filter Pod: {e}")
 
 def apply_network_rules(
     kubecli: KrknKubernetes,

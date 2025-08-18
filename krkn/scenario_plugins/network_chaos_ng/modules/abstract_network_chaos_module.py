@@ -1,12 +1,16 @@
 import abc
 import logging
 import queue
+from typing import TYPE_CHECKING
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn.scenario_plugins.network_chaos_ng.models import (
     BaseNetworkChaosConfig,
     NetworkChaosScenarioType,
 )
+
+if TYPE_CHECKING:
+    from krkn.rollback.handler import RollbackHandler
 
 
 class AbstractNetworkChaosModule(abc.ABC):
@@ -18,9 +22,10 @@ class AbstractNetworkChaosModule(abc.ABC):
     base_network_config: BaseNetworkChaosConfig
 
     @abc.abstractmethod
-    def run(self, target: str, error_queue: queue.Queue = None):
+    def run(self, rollback_handler: "RollbackHandler", target: str, error_queue: queue.Queue = None):
         """
         the entrypoint method for the Network Chaos Scenario
+        :param rollback_handler: The rollback_handler from AbstractScenarioPlugin
         :param target: The resource name that will be targeted by the scenario (Node Name, Pod Name etc.)
         :param error_queue: A queue that will be used by the plugin to push the errors raised during the execution of parallel modules
         """

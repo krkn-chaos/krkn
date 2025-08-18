@@ -1,5 +1,6 @@
 import queue
 import time
+from typing import TYPE_CHECKING
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -19,14 +20,18 @@ from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import 
     clean_network_rules,
     generate_rules,
     get_default_interface,
+    rollback_network_filter_pod,
 )
+from krkn.rollback.config import RollbackContent
 
+if TYPE_CHECKING:
+    from krkn.rollback.handler import RollbackHandler
 
 class NodeNetworkFilterModule(AbstractNetworkChaosModule):
     config: NetworkFilterConfig
     kubecli: KrknTelemetryOpenshift
 
-    def run(self, target: str, error_queue: queue.Queue = None):
+    def run(self, rollback_handler: "RollbackHandler", target: str, error_queue: queue.Queue = None):
         parallel = False
         if error_queue:
             parallel = True
@@ -41,6 +46,13 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             )
 
             pod_name = f"node-filter-{get_random_string(5)}"
+            rollback_handler.set_rollback_callable(
+                rollback_network_filter_pod,
+                RollbackContent(
+                    resource_identifier=pod_name,
+                    namespace=self.config.namespace
+                )
+            )
             deploy_network_filter_pod(
                 self.config,
                 target,

@@ -15,9 +15,12 @@ from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_modul
 from krkn.scenario_plugins.network_chaos_ng.network_chaos_factory import (
     NetworkChaosFactory,
 )
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
+    
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -80,7 +83,7 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
         threads = []
         errors = []
         for target in targets:
-            thread = threading.Thread(target=module.run, args=[target, error_queue])
+            thread = threading.Thread(target=module.run, args=[self.rollback_handler, target, error_queue])
             thread.start()
             threads.append(thread)
         for thread in threads:
@@ -97,7 +100,7 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
 
     def run_serial(self, targets: list[str], module: AbstractNetworkChaosModule):
         for target in targets:
-            module.run(target)
+            module.run(self.rollback_handler, target)
 
     def get_scenario_types(self) -> list[str]:
         return ["network_chaos_ng_scenarios"]
