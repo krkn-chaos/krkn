@@ -5,3 +5,4 @@
     namespace_pattern: ^default$
     kill: 1
     krkn_pod_recovery_time: 120
+    node_label_selector: node-role.kubernetes.io/worker=  # Target worker nodes only
