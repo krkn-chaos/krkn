@@ -166,8 +166,10 @@ def list_bridges(
         List of bridges on the node.
     """
     tolerations = taints_to_tolerations(taints)
+    pod_name = f"krkn-tools-{get_random_string(5)}"
     pod_body = yaml.safe_load(
         pod_template.render(
+            pod_name=pod_name,
             nodename=node,
             workload_image=workload_image,
             taints=tolerations,
@@ -181,7 +183,7 @@ def list_bridges(
 
         cmd = ["/host", "ovs-vsctl", "list-br"]
         output = kubecli.exec_cmd_in_pod(
-            cmd, "modtools", "default", base_command="chroot"
+            cmd, pod_name, "default", base_command="chroot"
         )
 
         if not output:
@@ -193,7 +195,7 @@ def list_bridges(
         raise e
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        kubecli.delete_pod(pod_name, "default")
     return bridges
 
 
@@ -343,8 +345,10 @@ def check_cookie(
 
     """
     tolerations = taints_to_tolerations(taints)
+    pod_name=f"krkn-tools-{get_random_string(5)}"
     pod_body = yaml.safe_load(
         pod_template.render(
+            pod_name=pod_name,
             nodename=node,
             workload_image=workload_image,
             taints=tolerations,
@@ -366,7 +370,7 @@ def check_cookie(
             f"cookie={cookie}/-1",
         ]
         output = kubecli.exec_cmd_in_pod(
-            cmd, "modtools", "default", base_command="chroot"
+            cmd, pod_name, "default", base_command="chroot"
         )
 
         if not output:
@@ -376,7 +380,7 @@ def check_cookie(
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        kubecli.delete_pod(pod_name, "default")
 
     return flow_list
 
@@ -618,8 +622,10 @@ def get_pod_interface(
     """
 
     tolerations = taints_to_tolerations(taints)
+    pod_name=f"krkn-tools-{get_random_string(5)}"
     pod_body = yaml.safe_load(
         pod_template.render(
+            pod_name=pod_name,
             nodename=node,
             workload_image=workload_image,
             taints=tolerations,
@@ -647,12 +653,12 @@ def get_pod_interface(
         ]
 
         output = kubecli.exec_cmd_in_pod(
-            cmd, "modtools", "default", base_command="chroot"
+            cmd, pod_name, "default", base_command="chroot"
         )
         if not output:
             cmd = ["/host", "ip", "addr", "show"]
             output = kubecli.exec_cmd_in_pod(
-                cmd, "modtools", "default", base_command="chroot"
+                cmd, pod_name, "default", base_command="chroot"
             )
             for if_str in output.split("\n"):
                 if re.search(ip, if_str):
@@ -661,7 +667,7 @@ def get_pod_interface(
             inf = output
     finally:
         logging.info("Deleting pod to query interface on node")
-        kubecli.delete_pod("modtools", "default")
+        kubecli.delete_pod(pod_name, "default")
     return inf
 
 
@@ -854,8 +860,10 @@ def create_virtual_interfaces(
 
     """
     tolerations = taints_to_tolerations(taints)
+    pod_name = f"krkn-tools-{get_random_string(5)}"
     pod_body = yaml.safe_load(
         pod_template.render(
+            pod_name=pod_name,
             nodename=node,
             workload_image=workload_image,
             taints=tolerations,
@@ -866,9 +874,9 @@ def create_virtual_interfaces(
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(number, node)
     )
-    create_ifb(kubecli, number, "modtools")
+    create_ifb(kubecli, number, pod_name)
     logging.info("Deleting pod used to create virtual interfaces")
-    kubecli.delete_pod("modtools", "default")
+    kubecli.delete_pod(pod_name, "default")
 
 
 def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
@@ -976,8 +984,10 @@ def delete_virtual_interfaces(
 
     tolerations = taints_to_tolerations(taints)
     for node in node_list:
+        pod_name = f"krkn-tools-{get_random_string(5)}"
         pod_body = yaml.safe_load(
             pod_template.render(
+                pod_name=pod_name,
                 nodename=node,
                 workload_image=workload_image,
                 taints=tolerations,
@@ -986,8 +996,8 @@ def delete_virtual_interfaces(
         )
         kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
-        delete_ifb(kubecli, "modtools")
-        kubecli.delete_pod("modtools", "default")
+        delete_ifb(kubecli, pod_name)
+        kubecli.delete_pod(pod_name, "default")
 
 
 def delete_ifb(kubecli: KrknKubernetes, pod_name: str):

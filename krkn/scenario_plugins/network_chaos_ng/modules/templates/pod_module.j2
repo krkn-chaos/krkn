@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: modtools
+  name: {{pod_name}}
 spec:
   {% if service_account %}
   serviceAccountName: {{ service_account }}
