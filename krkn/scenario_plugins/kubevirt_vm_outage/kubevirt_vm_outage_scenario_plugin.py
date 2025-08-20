@@ -20,7 +20,8 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
     This plugin simulates a VM crash or outage scenario and supports automated or manual recovery.
     """
 
-    def __init__(self):
+    def __init__(self, scenario_type: str):
+        super().__init__(scenario_type)
         self.k8s_client = None
         self.original_vmi = None
         

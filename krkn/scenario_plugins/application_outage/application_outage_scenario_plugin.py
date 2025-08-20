@@ -7,9 +7,12 @@ from krkn_lib.utils import get_yaml_item_value, get_random_string
 from jinja2 import Template
 from krkn import cerberus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -57,6 +60,13 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 # Block the traffic by creating network policy
                 logging.info("Creating the network policy")
 
+                self.rollback_handler.set_rollback_callable(
+                    self.rollback_network_policy,
+                    RollbackContent(
+                        namespace=namespace,
+                        resource_identifier=policy_name,
+                    ),
+                )
                 lib_telemetry.get_lib_kubernetes().create_net_policy(
                     yaml_spec, namespace
                 )
@@ -88,6 +98,27 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
             return 1
         else:
             return 0
+
+    @staticmethod
+    def rollback_network_policy(
+        rollback_content: RollbackContent,
+        lib_telemetry: KrknTelemetryOpenshift,
+    ):
+        """Rollback function to delete the network policy created during the scenario.
+
+        :param rollback_content: Rollback content containing namespace and resource_identifier.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
+        """
+        try:
+            namespace = rollback_content.namespace
+            policy_name = rollback_content.resource_identifier
+            logging.info(
+                f"Rolling back network policy: {policy_name} in namespace: {namespace}"
+            )
+            lib_telemetry.get_lib_kubernetes().delete_net_policy(policy_name, namespace)
+            logging.info("Network policy rollback completed successfully.")
+        except Exception as e:
+            logging.error(f"Failed to rollback network policy: {e}")
 
     def get_scenario_types(self) -> list[str]:
         return ["application_outages_scenarios"]
