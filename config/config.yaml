@@ -1,6 +1,8 @@
 kraken:
     kubeconfig_path: ~/.kube/config                     # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
+    auto_rollback: True                                    # Enable auto rollback for scenarios.
+    rollback_versions_directory: /tmp/kraken-rollback      # Directory to store rollback version files.
     publish_kraken_status: True                            # Can be accessed at http://0.0.0.0:8081
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address

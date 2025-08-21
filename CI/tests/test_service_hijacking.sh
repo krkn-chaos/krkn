@@ -39,7 +39,7 @@ function functional_test_service_hijacking {
   export scenario_file="scenarios/kube/service_hijacking.yaml"
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/service_hijacking.yaml
-  python3 -m coverage run -a run_kraken.py -c CI/config/service_hijacking.yaml  > /dev/null 2>&1 &
+  python3 -m coverage run -a run_kraken.py -c CI/config/service_hijacking.yaml  > /tmp/krkn.log 2>&1 &
   PID=$!
   #Waiting the hijacking to have effect
   COUNTER=0
@@ -100,7 +100,12 @@ function functional_test_service_hijacking {
   [ "${PAYLOAD_PATCH_2//[$'\t\r\n ']}" == "${OUT_PATCH//[$'\t\r\n ']}" ] && echo "Step 2 PATCH Payload OK" || (echo "Step 2 PATCH Payload did not match. Test failed." && exit 1)
   [ "$OUT_STATUS_CODE" == "$STATUS_CODE_PATCH_2" ] && echo "Step 2 PATCH Status Code OK" || (echo "Step 2 PATCH status code did not match. Test failed." && exit 1)
   [ "$OUT_CONTENT" == "$TEXT_MIME" ] && echo "Step 2 PATCH MIME OK" || (echo " Step 2 PATCH MIME did not match. Test failed." && exit 1)
+
+
+
   wait $PID
+
+  cat /tmp/krkn.log
 
   # now checking  if service has been restore correctly and nginx responds correctly
   curl -s  $SERVICE_URL | grep nginx! && echo "BODY: Service restored!" || (echo "BODY: failed to restore service" && exit 1)
