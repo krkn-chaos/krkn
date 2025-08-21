@@ -119,6 +119,10 @@ class RollbackConfig(metaclass=SingletonMeta):
         :param scenario_type: Type of the scenario.
         :return: List of version file paths.
         """
+
+        if not os.path.exists(cls().versions_directory):
+            return []
+
         rollback_context_directories = [
             dirname for dirname in os.listdir(cls().versions_directory) if run_uuid in dirname
         ]
