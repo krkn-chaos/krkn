@@ -39,6 +39,8 @@ jobs:
         run: |
           es_pod_name=$(kubectl get pods -l "app.kubernetes.io/instance=elasticsearch" -o name)
           kubectl --namespace default port-forward $es_pod_name 9200 &
+          prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
+          kubectl --namespace monitoring port-forward $prom_name 9090 &
           kubectl apply -f CI/templates/outage_pod.yaml
           kubectl wait --for=condition=ready pod -l scenario=outage --timeout=300s
           kubectl apply -f CI/templates/container_scenario_pod.yaml
@@ -66,6 +68,7 @@ jobs:
             yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
             yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
             yq -i '.elastic.enable_elastic=True' CI/config/common_test_config.yaml
+            yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
             echo "test_service_hijacking" > ./CI/tests/functional_tests
             echo "test_app_outages" >> ./CI/tests/functional_tests
             echo "test_container"      >> ./CI/tests/functional_tests
@@ -97,6 +100,7 @@ jobs:
           yq -i '.elastic.enable_elastic=True' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
+          yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
           yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
           yq -i '.telemetry.password="${{secrets.TELEMETRY_PASSWORD}}"' CI/config/common_test_config.yaml
           echo "test_telemetry" > ./CI/tests/functional_tests
@@ -145,12 +149,14 @@ jobs:
           path: htmlcov
           if-no-files-found: error
       - name: Upload json coverage
+        if: ${{ success() || failure() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage.json
           path: coverage.json
           if-no-files-found: error
       - name: Check CI results
+        if: ${{ success() || failure() }}
         run: "! grep Fail CI/results.markdown"
 
   badge:
