@@ -94,6 +94,7 @@ jobs:
           yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
           yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
           yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
+          yq -i '.elastic.enable_elastic=True' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
           yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
