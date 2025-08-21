@@ -128,7 +128,10 @@ def execute_rollback_version_files(telemetry_ocp: "KrknTelemetryOpenshift", run_
     
     # Get the rollback versions directory
     version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
-    
+    if not version_files:
+        logger.warning(f"Skip execution for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
+        return
+
     # Execute all version files in the directory
     logger.info(f"Executing rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
     for version_file in version_files:
@@ -159,6 +162,9 @@ def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
     
     # Get the rollback versions directory
     version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
+    if not version_files:
+        logger.warning(f"Skip cleanup for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
+        return
     
     # Remove all version files in the directory
     logger.info(f"Cleaning up rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type}")
