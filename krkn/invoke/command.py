@@ -18,9 +18,8 @@ def invoke(command, timeout=None):
 def invoke_no_exit(command, timeout=None):
     output = ""
     try:
-        output = subprocess.check_output(command, shell=True, universal_newlines=True, timeout=timeout)
+        output = subprocess.check_output(command, shell=True, universal_newlines=True, timeout=timeout, stderr=subprocess.DEVNULL)
     except Exception as e:
-        logging.error("Failed to run %s, error: %s" % (command, e))
         return str(e)
     return output
 

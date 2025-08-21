@@ -20,7 +20,8 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
     This plugin simulates a VM crash or outage scenario and supports automated or manual recovery.
     """
 
-    def __init__(self, scenario_type: str):
+    def __init__(self, scenario_type: str = None):
+        scenario_type = self.get_scenario_types()[0]
         super().__init__(scenario_type)
         self.k8s_client = None
         self.original_vmi = None
@@ -150,6 +151,9 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 logging.error("vm_name parameter is required")
                 return 1
             vmis_list = self.get_vmis(vm_name,namespace)
+            if len(vmis_list) == 0:
+                logging.error(f"No matching VMs with name {vm_name} in namespace {namespace}")
+                return 1
             rand_int = random.randint(0, len(vmis_list) - 1)
             vmi = vmis_list[rand_int]
                 
