@@ -122,10 +122,15 @@ class RollbackConfig(metaclass=SingletonMeta):
         rollback_context_directories = [
             dirname for dirname in os.listdir(cls().versions_directory) if run_uuid in dirname
         ]
-        if len(rollback_context_directories) != 1:
-            raise ValueError(
+        if not rollback_context_directories:
+            logger.warning(f"No rollback context directories found for run UUID {run_uuid}")
+            return []
+
+        if len(rollback_context_directories) > 1:
+            logger.warning(
                 f"Expected one directory for run UUID {run_uuid}, found: {rollback_context_directories}"
             )
+
         rollback_context_directory = rollback_context_directories[0]
 
         version_files = []

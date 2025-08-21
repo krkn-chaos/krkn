@@ -2,6 +2,8 @@ kraken:
     distribution: kubernetes                                # Distribution can be kubernetes or openshift.
     kubeconfig_path: ~/.kube/config                        # Path to kubeconfig.
     exit_on_failure: False                                 # Exit when a post action scenario fails.
+    auto_rollback: True                                    # Enable auto rollback for scenarios.
+    rollback_versions_directory: /tmp/kraken-rollback      # Directory to store rollback version files.
     chaos_scenarios:                                       # List of policies/chaos scenarios to load.
         -   $scenario_type:                                # List of chaos pod scenarios to load.
             - $scenario_file
