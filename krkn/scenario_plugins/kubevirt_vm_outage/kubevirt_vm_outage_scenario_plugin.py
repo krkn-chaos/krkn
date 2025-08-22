@@ -12,6 +12,8 @@ from krkn_lib.utils import log_exception
 from krkn_lib.models.k8s import AffectedPod, PodsStatus
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
@@ -29,6 +31,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["kubevirt_vm_outage"]
 
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -169,6 +172,14 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 
             self.original_vmi = vmi
             logging.info(f"Captured initial state of VMI: {vm_name}")
+            self.rollback_handler.set_rollback_callable(
+                self.rollback_vmi,
+                RollbackContent(
+                    namespace=namespace,
+                    resource_identifier=vmi_name,
+                    extra=self._get_vmi_dict()
+                ),
+            )
             result = self.delete_vmi(vmi_name, namespace, disable_auto_restart)
             if result != 0:
             
@@ -345,6 +356,22 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             time.sleep(1)
         return 1
     
+    def _get_vmi_dict(self) -> Dict[str, Any]:
+        """
+        Helper function to get the VMI dictionary structure.
+
+        :return: A dictionary representing the VMI
+        """
+        # Clean up server-generated fields
+        vmi_dict = self.original_vmi.copy()
+        if 'metadata' in vmi_dict:
+            metadata = vmi_dict['metadata']
+            for field in ['resourceVersion', 'uid', 'creationTimestamp', 'generation']:
+                if field in metadata:
+                    del metadata[field]
+
+        return vmi_dict
+    
 
     def recover(self, vm_name: str, namespace: str, disable_auto_restart: bool = False) -> int:
         """
@@ -362,13 +389,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
                 
                 try:
-                    # Clean up server-generated fields
-                    vmi_dict = self.original_vmi.copy()
-                    if 'metadata' in vmi_dict:
-                        metadata = vmi_dict['metadata']
-                        for field in ['resourceVersion', 'uid', 'creationTimestamp', 'generation']:
-                            if field in metadata:
-                                del metadata[field]
+                    vmi_dict = self._get_vmi_dict()
                     
                     # Create the VMI
                     self.custom_object_client.create_namespaced_custom_object(
@@ -398,3 +419,29 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             logging.error(f"Unexpected error recovering VMI {vm_name}: {e}")
             log_exception(e)
             return 1
+        
+    @staticmethod
+    def rollback_vmi(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+        """
+        Rollback function to recover VMI.
+
+        :param rollback_content: Rollback content containing namespace, resource_identifier and extra.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations
+        """
+        try:
+            namespace = rollback_content.namespace
+            vmi_name = rollback_content.resource_identifier
+            vmi_dict = rollback_content.extra
+            logging.info(
+                f"Trying to recreate VMI: {vmi_name} in namespace: {namespace}"
+            )
+            lib_telemetry.get_lib_kubernetes().custom_object_client.create_namespaced_custom_object(
+                group="kubevirt.io",
+                version="v1",
+                namespace=namespace,
+                plural="virtualmachineinstances",
+                body=vmi_dict
+            )
+            logging.info(f"Successfully recreated VMI {vmi_name}")
+        except Exception as e:
+            logging.error(f"Failed to rollback VMI: {e}")
