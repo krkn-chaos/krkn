@@ -4,3 +4,4 @@
     namespace_pattern: ^acme-air$
     name_pattern: .*
     krkn_pod_recovery_time: 120
+    node_label_selector: node-role.kubernetes.io/master=              # Target master nodes only
