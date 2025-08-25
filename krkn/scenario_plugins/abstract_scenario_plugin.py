@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn import utils
+from krkn import utils, cerberus
 from krkn.rollback.handler import (
     RollbackHandler,
     execute_rollback_version_files,
