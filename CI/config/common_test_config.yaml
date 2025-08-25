@@ -66,5 +66,5 @@ health_checks:                                              # Utilizing health c
     config:                                                 # Provide list of health check configurations for applications
         - url: https://localhost:9200                                            # Provide application endpoint
           bearer_token:                                     # Bearer token for authentication if any
-          auth: elastic,test                                            # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
+          auth: (elastic , test)                              # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
           exit_on_failure:                                  # If value is True exits when health check failed for application, values can be True/False
