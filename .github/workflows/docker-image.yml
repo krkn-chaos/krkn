@@ -13,18 +13,20 @@ jobs:
     - name: Build the Docker images
       run:  |
         ./containers/compile_dockerfile.sh
-        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/
+        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg TAG=${GITHUB_REF#refs/tags/}
         docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn
+        docker tag quay.io/krkn-chaos/krkn quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/}
+        docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/}
     - name: Build the Tools Docker images
+      if: ${{ always() }} 
       run:  |
-        docker pull docker.io/fedora/tools
-        docker tag docker.io/fedora/tools quay.io/krkn-chaos/krkn:tools
+        docker pull quay.io/krkn-chaos/krkn:tools
 
     - name: Save the docker image
+      if: ${{ success() }}
       run: | 
         mkdir krkn-images
         cd krkn-images
-        IMAGE_IDS=$(docker images -a --format "{{.Repository}}:{{.Tag}}")
         IMAGE_IDS=(quay.io/krkn-chaos/krkn:latest quay.io/krkn-chaos/krkn:tools)
         for ID in ${IMAGE_IDS[@]}; do
             FILENAME=$(echo "$ID" | sed 's/\//_/g' | sed 's/:/-/g' | sed 's/\.//g')
@@ -32,7 +34,7 @@ jobs:
             docker save -o "$FILENAME.tar" "$ID"
         done
     - name: Upload Docker saved images
-      if: ${{ always() }}
+      if: ${{ success() }}
       uses: actions/upload-artifact@v4
       with:
         name: krkn-images
