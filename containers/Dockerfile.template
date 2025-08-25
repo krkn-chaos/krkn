@@ -28,7 +28,7 @@ ENV KUBECONFIG /home/krkn/.kube/config
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
 RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
-    git python39 jq yq gettext wget which &&\
+    git python39 jq yq gettext wget which ipmitool &&\
     dnf clean all
 
 # copy oc client binary from oc-build image
