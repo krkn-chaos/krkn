@@ -15,7 +15,7 @@ from krkn.rollback.serialization import Serializer
 
 class AbstractScenarioPlugin(ABC):
 
-    def __init__(self, scenario_type: str):
+    def __init__(self, scenario_type: str = "placeholder_scenario_type"):
         """Initializes the AbstractScenarioPlugin with the scenario type and rollback configuration.
         
         :param scenario_type: the scenario type defined in the config.yaml
