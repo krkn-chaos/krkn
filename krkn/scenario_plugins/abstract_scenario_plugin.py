@@ -7,7 +7,8 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn import utils
 from krkn.rollback.handler import (
     RollbackHandler,
-    execute_rollback_version_files
+    execute_rollback_version_files,
+    cleanup_rollback_version_files
 )
 from krkn.rollback.signal import signal_handler
 from krkn.rollback.serialization import Serializer
@@ -114,8 +115,12 @@ class AbstractScenarioPlugin(ABC):
                     )
                     return_value = 1
 
-            # execute rollback files based on the return value
-            if return_value != 0:
+            if return_value == 0:
+                cleanup_rollback_version_files(
+                    run_uuid, scenario_telemetry.scenario_type
+                )
+            else:
+                # execute rollback files based on the return value
                 execute_rollback_version_files(
                     telemetry, run_uuid, scenario_telemetry.scenario_type
                 )

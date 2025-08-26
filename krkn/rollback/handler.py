@@ -170,6 +170,30 @@ def execute_rollback_version_files(
                 logger.error(f"Failed to rename rollback version file {version_file}: {e}")
                 raise
 
+def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
+    """
+    Cleanup rollback version files for the given run_uuid and scenario_type.
+    This function is called to remove the rollback version files after successful scenario execution in run_scenarios.
+    
+    :param run_uuid: Unique identifier for the run.
+    :param scenario_type: Type of the scenario being rolled back.
+    """
+
+    # Get the rollback versions directory
+    version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
+    if not version_files:
+        logger.warning(f"Skip cleanup for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
+        return
+
+    # Remove all version files in the directory
+    logger.info(f"Cleaning up rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type}")
+    for version_file in version_files:
+        try:
+            os.remove(version_file)
+            logger.info(f"Removed {version_file} successfully.")
+        except Exception as e:
+            logger.error(f"Failed to remove rollback version file {version_file}: {e}")
+            raise
 
 class RollbackHandler:
     def __init__(

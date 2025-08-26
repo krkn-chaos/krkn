@@ -268,7 +268,8 @@ class TestRollbackAbstractScenarioPlugin:
             patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context') as mock_signal_context,
             patch('krkn.scenario_plugins.abstract_scenario_plugin.time.sleep'),
             patch('os.path.exists', return_value=True),
-            patch('os.rename') as mock_rename
+            patch('os.rename') as mock_rename,
+            patch('os.remove') as mock_remove
         ):
             # Make signal_context a no-op context manager
             mock_signal_context.return_value.__enter__ = Mock(return_value=None)
@@ -291,22 +292,33 @@ class TestRollbackAbstractScenarioPlugin:
             )
             
             # Verify results
-            if scenario_should_fail and auto_rollback:
-                # search_rollback_version_files should always be called when scenario fails
-                mock_search.assert_called_once_with("test-uuid", "test_scenario")
-                # When auto_rollback is True, _parse_rollback_module should be called
-                mock_parse.assert_called_once_with(mock_version_files[0])
-                # And the rollback callable should be executed
-                mock_rollback_callable.assert_called_once_with(mock_rollback_content, mock_telemetry)
-                # File should be renamed after successful execution
-                mock_rename.assert_called_once_with(
-                    mock_version_files[0], 
-                    f"{mock_version_files[0]}.executed"
-                )
+            if scenario_should_fail:
+                if auto_rollback:
+                    # search_rollback_version_files should always be called when scenario fails
+                    mock_search.assert_called_once_with("test-uuid", "test_scenario")
+                    # When auto_rollback is True, _parse_rollback_module should be called
+                    mock_parse.assert_called_once_with(mock_version_files[0])
+                    # And the rollback callable should be executed
+                    mock_rollback_callable.assert_called_once_with(mock_rollback_content, mock_telemetry)
+                    # File should be renamed after successful execution
+                    mock_rename.assert_called_once_with(
+                        mock_version_files[0], 
+                        f"{mock_version_files[0]}.executed"
+                    )
+                else:
+                    # When scenario fail but auto_rollback is False, _parse_rollback_module should NOT be called
+                    mock_search.assert_not_called()
+                    mock_parse.assert_not_called()
+                    mock_rollback_callable.assert_not_called()
+                    mock_rename.assert_not_called()
             else:
-                # When scenario fail but auto_rollback is False, _parse_rollback_module should NOT be called
+                mock_search.assert_called_once_with("test-uuid", "test_scenario")
+                # Will remove the version files instead of renaming them if scenario succeeds
+                mock_remove.assert_called_once_with(
+                    mock_version_files[0]
+                )
+
                 # When scenario succeeds, rollback should not be executed at all
-                mock_search.assert_not_called()
                 mock_parse.assert_not_called()
                 mock_rollback_callable.assert_not_called()
                 mock_rename.assert_not_called()
