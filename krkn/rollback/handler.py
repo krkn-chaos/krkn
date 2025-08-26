@@ -117,15 +117,25 @@ def _parse_rollback_module(version_file_path: str) -> tuple[RollbackCallable, Ro
     return rollback_callable, rollback_content
 
 
-def execute_rollback_version_files(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: str, scenario_type: str | None = None):
+def execute_rollback_version_files(
+    telemetry_ocp: "KrknTelemetryOpenshift",
+    run_uuid: str | None = None,
+    scenario_type: str | None = None,
+    ignore_auto_rollback_config: bool = False
+):
     """
     Execute rollback version files for the given run_uuid and scenario_type.
     This function is called when a signal is received to perform rollback operations.
     
     :param run_uuid: Unique identifier for the run.
     :param scenario_type: Type of the scenario being rolled back.
+    :param ignore_auto_rollback_config: Flag to ignore auto rollback configuration. Will be set to True for manual execute-rollback calls.
     """
-    
+
+    if not ignore_auto_rollback_config and RollbackConfig.auto is False:
+        logger.warning(f"Auto rollback is disabled, skipping execution for run_uuid={run_uuid or '*'}, scenario_type={scenario_type or '*'}")
+        return
+
     # Get the rollback versions directory
     version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
     if not version_files:

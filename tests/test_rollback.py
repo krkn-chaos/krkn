@@ -183,3 +183,130 @@ class TestRollbackConfig:
     ])
     def test_is_rollback_version_file_format(self, file_name, expected):
         assert RollbackConfig.is_rollback_version_file_format(file_name) == expected
+
+class TestRollbackCommand:
+    
+    @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
+    @pytest.mark.parametrize("encounter_exception", [True, False], ids=["no_exception", "with_exception"])
+    def test_execute_rollback_command_ignore_auto_rollback_config(self, auto_rollback, encounter_exception):
+        """Test execute_rollback function with different auto rollback configurations."""
+        from krkn.rollback.command import execute_rollback
+        from krkn.rollback.config import RollbackConfig
+        from unittest.mock import Mock, patch
+        
+        # Create mock telemetry
+        mock_telemetry = Mock()
+
+        # Mock search_rollback_version_files to return some test files
+        mock_version_files = [
+            "/tmp/test_versions/123456789-test-uuid/scenario_123456789_abcdefgh.py",
+            "/tmp/test_versions/123456789-test-uuid/scenario_123456789_ijklmnop.py"
+        ]
+        
+        with (
+            patch.object(RollbackConfig, 'auto', auto_rollback) as _,
+            patch.object(RollbackConfig, 'search_rollback_version_files', return_value=mock_version_files) as mock_search,
+            patch('krkn.rollback.command.execute_rollback_version_files') as mock_execute
+        ):
+            if encounter_exception:
+                mock_execute.side_effect = Exception("Test exception")
+            # Call the function
+            result = execute_rollback(
+                telemetry_ocp=mock_telemetry,
+                run_uuid="test-uuid",
+                scenario_type="scenario"
+            )
+                
+            # Verify return code
+            assert result == 0 if not encounter_exception else 1
+            
+            # Verify that execute_rollback_version_files was called with correct parameters
+            mock_execute.assert_called_once_with(
+                mock_telemetry,
+                "test-uuid",
+                "scenario",
+                ignore_auto_rollback_config=True
+            )
+
+class TestRollbackAbstractScenarioPlugin:
+
+    @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
+    @pytest.mark.parametrize("scenario_should_fail", [True, False], ids=["failing_scenario", "successful_scenario"])
+    def test_run_scenarios_respect_auto_rollback_config(self, auto_rollback, scenario_should_fail):
+        """Test that run_scenarios respects the auto rollback configuration."""
+        from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+        from krkn.rollback.config import RollbackConfig
+        from unittest.mock import Mock, patch
+        
+        # Create a test scenario plugin
+        class TestScenarioPlugin(AbstractScenarioPlugin):
+            def run(self, run_uuid: str, scenario: str, krkn_config: dict, lib_telemetry, scenario_telemetry):
+                return 1 if scenario_should_fail else 0
+            
+            def get_scenario_types(self) -> list[str]:
+                return ["test_scenario"]
+        
+        # Create mock objects
+        mock_telemetry = Mock()
+        mock_telemetry.set_parameters_base64.return_value = "test_scenario.yaml"
+        mock_telemetry.get_telemetry_request_id.return_value = "test_request_id"
+        mock_telemetry.get_lib_kubernetes.return_value = Mock()
+        
+        test_plugin = TestScenarioPlugin("test_scenario")
+        
+        # Mock version files to be returned by search
+        mock_version_files = [
+            "/tmp/test_versions/123456789-test-uuid/test_scenario_123456789_abcdefgh.py"
+        ]
+        
+        with (
+            patch.object(RollbackConfig, 'auto', auto_rollback),
+            patch.object(RollbackConfig, 'versions_directory', "/tmp/test_versions"),
+            patch.object(RollbackConfig, 'search_rollback_version_files', return_value=mock_version_files) as mock_search,
+            patch('krkn.rollback.handler._parse_rollback_module') as mock_parse,
+            patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs'),
+            patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context') as mock_signal_context,
+            patch('krkn.scenario_plugins.abstract_scenario_plugin.time.sleep'),
+            patch('os.path.exists', return_value=True),
+            patch('os.rename') as mock_rename
+        ):
+            # Make signal_context a no-op context manager
+            mock_signal_context.return_value.__enter__ = Mock(return_value=None)
+            mock_signal_context.return_value.__exit__ = Mock(return_value=None)
+            
+            # Mock _parse_rollback_module to return test callable and content
+            mock_rollback_callable = Mock()
+            mock_rollback_content = Mock()
+            mock_parse.return_value = (mock_rollback_callable, mock_rollback_content)
+            
+            # Call run_scenarios
+            test_plugin.run_scenarios(
+                run_uuid="test-uuid",
+                scenarios_list=["test_scenario.yaml"],
+                krkn_config={
+                    "tunings": {"wait_duration": 0},
+                    "telemetry": {"events_backup": False}
+                },
+                telemetry=mock_telemetry
+            )
+            
+            # Verify results
+            if scenario_should_fail and auto_rollback:
+                # search_rollback_version_files should always be called when scenario fails
+                mock_search.assert_called_once_with("test-uuid", "test_scenario")
+                # When auto_rollback is True, _parse_rollback_module should be called
+                mock_parse.assert_called_once_with(mock_version_files[0])
+                # And the rollback callable should be executed
+                mock_rollback_callable.assert_called_once_with(mock_rollback_content, mock_telemetry)
+                # File should be renamed after successful execution
+                mock_rename.assert_called_once_with(
+                    mock_version_files[0], 
+                    f"{mock_version_files[0]}.executed"
+                )
+            else:
+                # When scenario fail but auto_rollback is False, _parse_rollback_module should NOT be called
+                # When scenario succeeds, rollback should not be executed at all
+                mock_search.assert_not_called()
+                mock_parse.assert_not_called()
+                mock_rollback_callable.assert_not_called()
+                mock_rename.assert_not_called()

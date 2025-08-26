@@ -100,7 +100,12 @@ def execute_rollback(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: Optional
 
     try:
         # Execute rollback version files
-        execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
+        execute_rollback_version_files(
+            telemetry_ocp,
+            run_uuid,
+            scenario_type,
+            ignore_auto_rollback_config=True
+        )
         return 0
         
     except Exception as e:
