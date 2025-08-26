@@ -58,25 +58,23 @@ class TestRollbackScenarioPlugin:
             for vf in version_files
         ]
 
-    def execute_version_file(self, version_file: str):
+    def execute_version_file(self, version_file: str, telemetry_ocp: KrknTelemetryOpenshift):
         """
-        Execute a rollback version file using subprocess.
+        Execute a rollback version file using the new importlib approach.
 
         :param version_file: The path to the version file to execute.
         """
         print(f"Executing rollback version file: {version_file}")
-        result = subprocess.run(
-            [sys.executable, version_file],
-            capture_output=True,
-            text=True,
-        )
-        assert result.returncode == 0, (
-            f"Rollback version file {version_file} failed with return code {result.returncode}. "
-            f"Output: {result.stdout}, Error: {result.stderr}"
-        )
-        print(
-            f"Rollback version file executed successfully: {version_file} with output: {result.stdout}"
-        )
+        try:
+            from krkn.rollback.handler import _parse_rollback_module
+
+            rollback_callable, rollback_content = _parse_rollback_module(version_file)
+            rollback_callable(rollback_content, telemetry_ocp)
+            print(f"Rollback version file executed successfully: {version_file}")
+        except Exception as e:
+            raise AssertionError(
+                f"Rollback version file {version_file} failed with error: {e}"
+            )
 
     @pytest.fixture(autouse=True)
     def setup_logging(self):
@@ -130,7 +128,11 @@ class TestRollbackScenarioPlugin:
         )
 
     @pytest.mark.usefixtures("setup_rollback_config")
-    def test_simple_rollback_scenario_plugin(self, lib_telemetry, scenario_telemetry):
+    def test_simple_rollback_scenario_plugin(
+        self,
+        lib_telemetry: KrknTelemetryOpenshift,
+        scenario_telemetry: ScenarioTelemetry,
+    ):
         from tests.rollback_scenario_plugins.simple import SimpleRollbackScenarioPlugin
 
         scenario_type = "simple_rollback_scenario"
@@ -157,4 +159,16 @@ class TestRollbackScenarioPlugin:
         )
         # Execute the rollback version file
         for version_file in version_files:
-            self.execute_version_file(version_file)
+            self.execute_version_file(version_file, lib_telemetry)
+
+class TestRollbackConfig:
+
+    @pytest.mark.parametrize("file_name,expected", [
+        ("simple_rollback_scenario_123456789_abcdefgh.py", True),
+        ("simple_rollback_scenario_123456789_abcdefgh.py.executed", False),
+        ("simple_rollback_scenario_123456789_abc.py", False),
+        ("simple_rollback_scenario_123456789_abcdefgh.txt", False),
+        ("simple_rollback_scenario_123456789_.py", False),
+    ])
+    def test_is_rollback_version_file_format(self, file_name, expected):
+        assert RollbackConfig.is_rollback_version_file_format(file_name) == expected

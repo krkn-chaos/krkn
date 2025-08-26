@@ -108,6 +108,44 @@ class RollbackConfig(metaclass=SingletonMeta):
         return f"{cls().versions_directory}/{rollback_context}"
     
     @classmethod
+    def is_rollback_version_file_format(cls, file_name: str) -> bool:
+        """
+        Validate the format of a rollback version file name.
+
+        Expected format: <scenario_type>_<timestamp>_<hash_suffix>.py
+        where:
+            - scenario_type: string (can include underscores)
+            - timestamp: integer (nanoseconds since epoch)
+            - hash_suffix: alphanumeric string (length 8)
+            - .py: file extension
+
+        :param file_name: The name of the file to validate.
+        :return: True if the file name matches the expected format, False otherwise.
+        """
+        if not file_name.endswith(".py"):
+            return False
+
+        parts = file_name.split("_")
+        if len(parts) < 3:
+            return False
+
+        scenario_type = "_".join(parts[:-2])
+        timestamp_str = parts[-2]
+        hash_suffix_with_ext = parts[-1]
+        hash_suffix = hash_suffix_with_ext[:-3]
+
+        if not scenario_type:
+            return False
+
+        if not timestamp_str.isdigit():
+            return False
+
+        if len(hash_suffix) != 8 or not hash_suffix.isalnum():
+            return False
+
+        return True
+
+    @classmethod
     def search_rollback_version_files(cls, run_uuid: str, scenario_type: str | None = None) -> list[str]:
         """
         Search for rollback version files based on run_uuid and scenario_type.
@@ -142,8 +180,7 @@ class RollbackConfig(metaclass=SingletonMeta):
             cls().versions_directory, rollback_context_directory
         )
         for file in os.listdir(scenario_rollback_versions_directory):
-            # assert all files start with scenario_type and end with .py
-            if file.endswith(".py") and (scenario_type is None or file.startswith(scenario_type)):
+            if cls.is_rollback_version_file_format(file):
                 version_files.append(
                     os.path.join(scenario_rollback_versions_directory, file)
                 )
