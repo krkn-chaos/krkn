@@ -163,6 +163,17 @@ class TestRollbackScenarioPlugin:
 
 class TestRollbackConfig:
 
+    @pytest.mark.parametrize("directory_name,run_uuid,expected", [
+        ("123456789-abcdefgh", "abcdefgh", True),
+        ("123456789-abcdefgh", None, True),
+        ("123456789-abcdefgh", "ijklmnop", False),
+        ("123456789-", "abcdefgh", False),
+        ("-abcdefgh", "abcdefgh", False),
+        ("123456789-abcdefgh-ijklmnop", "abcdefgh", False),
+    ])
+    def test_is_rollback_context_directory_format(self, directory_name, run_uuid, expected):
+        assert RollbackConfig.is_rollback_context_directory_format(directory_name, run_uuid) == expected
+
     @pytest.mark.parametrize("file_name,expected", [
         ("simple_rollback_scenario_123456789_abcdefgh.py", True),
         ("simple_rollback_scenario_123456789_abcdefgh.py.executed", False),

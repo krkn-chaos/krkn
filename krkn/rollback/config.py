@@ -108,7 +108,7 @@ class RollbackConfig(metaclass=SingletonMeta):
         return f"{cls().versions_directory}/{rollback_context}"
     
     @classmethod
-    def is_rollback_version_file_format(cls, file_name: str) -> bool:
+    def is_rollback_version_file_format(cls, file_name: str, expected_scenario_type: str | None = None) -> bool:
         """
         Validate the format of a rollback version file name.
 
@@ -120,6 +120,7 @@ class RollbackConfig(metaclass=SingletonMeta):
             - .py: file extension
 
         :param file_name: The name of the file to validate.
+        :param expected_scenario_type: The expected scenario type (if any) to validate against.
         :return: True if the file name matches the expected format, False otherwise.
         """
         if not file_name.endswith(".py"):
@@ -134,7 +135,7 @@ class RollbackConfig(metaclass=SingletonMeta):
         hash_suffix_with_ext = parts[-1]
         hash_suffix = hash_suffix_with_ext[:-3]
 
-        if not scenario_type:
+        if expected_scenario_type and scenario_type != expected_scenario_type:
             return False
 
         if not timestamp_str.isdigit():
@@ -144,9 +145,39 @@ class RollbackConfig(metaclass=SingletonMeta):
             return False
 
         return True
+    
+    @classmethod
+    def is_rollback_context_directory_format(cls, directory_name: str, expected_run_uuid: str | None = None) -> bool:
+        """
+        Validate the format of a rollback context directory name.
+
+        Expected format: <timestamp>-<run_uuid>
+        where:
+            - timestamp: integer (nanoseconds since epoch)
+            - run_uuid: alphanumeric string
+
+        :param directory_name: The name of the directory to validate.
+        :param expected_run_uuid: The expected run UUID (if any) to validate against.
+        :return: True if the directory name matches the expected format, False otherwise.
+        """
+        parts = directory_name.split("-", 1)
+        if len(parts) != 2:
+            return False
+
+        timestamp_str, run_uuid = parts
+
+        # Validate timestamp is numeric
+        if not timestamp_str.isdigit():
+            return False
+
+        # Validate run_uuid
+        if expected_run_uuid and expected_run_uuid != run_uuid:
+            return False
+
+        return True
 
     @classmethod
-    def search_rollback_version_files(cls, run_uuid: str, scenario_type: str | None = None) -> list[str]:
+    def search_rollback_version_files(cls, run_uuid: str | None = None, scenario_type: str | None = None) -> list[str]:
         """
         Search for rollback version files based on run_uuid and scenario_type.
 
@@ -161,33 +192,31 @@ class RollbackConfig(metaclass=SingletonMeta):
         if not os.path.exists(cls().versions_directory):
             return []
 
-        rollback_context_directories = [
-            dirname for dirname in os.listdir(cls().versions_directory) if run_uuid in dirname
-        ]
+        rollback_context_directories = []
+        for dir in os.listdir(cls().versions_directory):
+            if cls.is_rollback_context_directory_format(dir, run_uuid):
+                rollback_context_directories.append(dir)
+            else:
+                logger.warning(f"Directory {dir} does not match expected pattern of <timestamp>-<run_uuid>")
+
         if not rollback_context_directories:
             logger.warning(f"No rollback context directories found for run UUID {run_uuid}")
             return []
 
-        if len(rollback_context_directories) > 1:
-            logger.warning(
-                f"Expected one directory for run UUID {run_uuid}, found: {rollback_context_directories}"
-            )
-
-        rollback_context_directory = rollback_context_directories[0]
 
         version_files = []
-        scenario_rollback_versions_directory = os.path.join(
-            cls().versions_directory, rollback_context_directory
-        )
-        for file in os.listdir(scenario_rollback_versions_directory):
-            if cls.is_rollback_version_file_format(file):
-                version_files.append(
-                    os.path.join(scenario_rollback_versions_directory, file)
-                )
-            else:
-                logger.warning(
-                    f"File {file} does not match expected pattern for scenario type {scenario_type}"
-                )
+        for rollback_context_dir in rollback_context_directories:
+            rollback_context_dir = os.path.join(cls().versions_directory, rollback_context_dir)
+
+            for file in os.listdir(rollback_context_dir):
+                if cls.is_rollback_version_file_format(file, scenario_type):
+                    version_files.append(
+                        os.path.join(rollback_context_dir, file)
+                    )
+                else:
+                    logger.warning(
+                        f"File {file} does not match expected pattern of <{scenario_type or '*'}>_<timestamp>_<hash_suffix>.py"
+                    )
         return version_files
 
 @dataclass(frozen=True)
