@@ -7,8 +7,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn import utils
 from krkn.rollback.handler import (
     RollbackHandler,
-    execute_rollback_version_files,
-    cleanup_rollback_version_files
+    execute_rollback_version_files
 )
 from krkn.rollback.signal import signal_handler
 from krkn.rollback.serialization import Serializer
@@ -120,9 +119,6 @@ class AbstractScenarioPlugin(ABC):
                 execute_rollback_version_files(
                     telemetry, run_uuid, scenario_telemetry.scenario_type
                 )
-            cleanup_rollback_version_files(
-                run_uuid, scenario_telemetry.scenario_type
-            )
             scenario_telemetry.exit_status = return_value
             scenario_telemetry.end_timestamp = time.time()
             utils.collect_and_put_ocp_logs(
