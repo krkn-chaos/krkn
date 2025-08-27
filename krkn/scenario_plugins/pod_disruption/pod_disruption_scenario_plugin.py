@@ -1,14 +1,16 @@
 import logging
 import random
 import time
+from asyncio import Future
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
+from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and_label, \
+    select_and_monitor_by_name_pattern_and_namespace_pattern
+
 from krkn.scenario_plugins.pod_disruption.models.models import InputParams
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-from krkn_lib.utils import get_yaml_item_value
 from datetime import datetime
 from dataclasses import dataclass
 
@@ -29,31 +31,22 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
-        pool = PodsMonitorPool(lib_telemetry.get_lib_kubernetes())
         try:
             with open(scenario, "r") as f:
                 cont_scenario_config = yaml.full_load(f)
                 for kill_scenario in cont_scenario_config:
                     kill_scenario_config = InputParams(kill_scenario["config"])
-                    self.start_monitoring(
-                        kill_scenario_config, pool
+                    future_snapshot=self.start_monitoring(
+                        kill_scenario_config
                     )
-                    return_status = self.killing_pods(
+                    self.killing_pods(
                         kill_scenario_config, lib_telemetry.get_lib_kubernetes()
                     )
-                    if return_status != 0: 
-                        result = pool.cancel()
-                    else:
-                        result = pool.join()
-                if result.error:
-                    logging.error(
-                        logging.error(
-                            f"PodDisruptionScenariosPlugin pods failed to recovery: {result.error}"
-                        )
-                    )
-                    return 1
-                
-                scenario_telemetry.affected_pods = result
+
+                    snapshot = future_snapshot.result()
+                    result = snapshot.get_pods_status()
+                    scenario_telemetry.affected_pods = result
+
 
         except (RuntimeError, Exception) as e:
             logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
@@ -64,7 +57,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["pod_disruption_scenarios"]
 
-    def start_monitoring(self, kill_scenario: InputParams, pool: PodsMonitorPool):
+    def start_monitoring(self, kill_scenario: InputParams) -> Future:
 
         recovery_time = kill_scenario.krkn_pod_recovery_time
         if (
@@ -73,16 +66,16 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         ):
             namespace_pattern = kill_scenario.namespace_pattern
             label_selector = kill_scenario.label_selector
-            pool.select_and_monitor_by_namespace_pattern_and_label(
+            future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
                 namespace_pattern=namespace_pattern,
                 label_selector=label_selector,
                 max_timeout=recovery_time,
-                field_selector="status.phase=Running"
             )
             logging.info(
                 f"waiting up to {recovery_time} seconds for pod recovery, "
                 f"pod label pattern: {label_selector} namespace pattern: {namespace_pattern}"
             )
+            return future_snapshot
 
         elif (
             kill_scenario.namespace_pattern
@@ -90,16 +83,16 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         ):
             namespace_pattern = kill_scenario.namespace_pattern
             name_pattern = kill_scenario.name_pattern
-            pool.select_and_monitor_by_name_pattern_and_namespace_pattern(
+            future_snapshot = select_and_monitor_by_name_pattern_and_namespace_pattern(
                 pod_name_pattern=name_pattern,
                 namespace_pattern=namespace_pattern,
                 max_timeout=recovery_time,
-                field_selector="status.phase=Running"
             )
             logging.info(
                 f"waiting up to {recovery_time} seconds for pod recovery, "
                 f"pod name pattern: {name_pattern} namespace pattern: {namespace_pattern}"
             )
+            return future_snapshot
         else:
             raise Exception(
                 f"impossible to determine monitor parameters, check {kill_scenario} configuration"
