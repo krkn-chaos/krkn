@@ -31,6 +31,11 @@ RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
     git python39 jq yq gettext wget which ipmitool &&\
     dnf clean all
 
+# Virtctl 
+RUN export VERSION=$(curl https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt) && \
+    wget https://github.com/kubevirt/kubevirt/releases/download/${VERSION}/virtctl-${VERSION}-linux-amd64 && \
+    chmod +x virtctl-${VERSION}-linux-amd64 && sudo mv virtctl-${VERSION}-linux-amd64 /usr/local/bin/virtctl
+
 # copy oc client binary from oc-build image
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
 
