@@ -31,11 +31,10 @@ class VirtChecker:
         try:
             self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=krkn_lib)
-        
+            vmis = self.kube_vm_plugin.get_vmis(vmi_name_match,self.namespace)
         except Exception as e:
             logging.error('Virt Check init exception: ' + str(e))
             return 
-        vmis = self.kube_vm_plugin.get_vmis(vmi_name_match,self.namespace)
         
         for vmi in vmis:
             node_name = vmi.get("status",{}).get("nodeName")
