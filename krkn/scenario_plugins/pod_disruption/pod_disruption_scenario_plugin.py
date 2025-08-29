@@ -37,7 +37,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 for kill_scenario in cont_scenario_config:
                     kill_scenario_config = InputParams(kill_scenario["config"])
                     future_snapshot=self.start_monitoring(
-                        kill_scenario_config
+                        kill_scenario_config,
+                        lib_telemetry
                     )
                     self.killing_pods(
                         kill_scenario_config, lib_telemetry.get_lib_kubernetes()
@@ -57,7 +58,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["pod_disruption_scenarios"]
 
-    def start_monitoring(self, kill_scenario: InputParams) -> Future:
+    def start_monitoring(self, kill_scenario: InputParams, lib_telemetry: KrknTelemetryOpenshift) -> Future:
 
         recovery_time = kill_scenario.krkn_pod_recovery_time
         if (
@@ -70,6 +71,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 namespace_pattern=namespace_pattern,
                 label_selector=label_selector,
                 max_timeout=recovery_time,
+                v1_client=lib_telemetry.get_lib_kubernetes().cli
             )
             logging.info(
                 f"waiting up to {recovery_time} seconds for pod recovery, "
@@ -87,6 +89,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 pod_name_pattern=name_pattern,
                 namespace_pattern=namespace_pattern,
                 max_timeout=recovery_time,
+                v1_client=lib_telemetry.get_lib_kubernetes().cli
             )
             logging.info(
                 f"waiting up to {recovery_time} seconds for pod recovery, "
