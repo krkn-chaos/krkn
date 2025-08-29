@@ -5,3 +5,4 @@
     name_pattern: .*
     kill: 3
     krkn_pod_recovery_time: 120
+    node_label_selector: node-role.kubernetes.io/worker=
