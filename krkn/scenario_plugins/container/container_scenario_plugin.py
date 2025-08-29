@@ -28,7 +28,8 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 
                 for kill_scenario in cont_scenario_config["scenarios"]:
                     future_snapshot = self.start_monitoring(
-                        kill_scenario
+                        kill_scenario,
+                        lib_telemetry
                     )
                     self.container_killing_in_pod(
                         kill_scenario, lib_telemetry.get_lib_kubernetes()
@@ -46,7 +47,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["container_scenarios"]
 
-    def start_monitoring(self, kill_scenario: dict) -> Future:
+    def start_monitoring(self, kill_scenario: dict, lib_telemetry: KrknTelemetryOpenshift) -> Future:
         
         namespace_pattern = f"^{kill_scenario['namespace']}$"
         label_selector = kill_scenario["label_selector"]
@@ -55,6 +56,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             namespace_pattern=namespace_pattern,
             label_selector=label_selector,
             max_timeout=recovery_time,
+            v1_client=lib_telemetry.get_lib_kubernetes().cli
         )
         return future_snapshot
 
