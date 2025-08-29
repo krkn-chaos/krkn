@@ -1,10 +1,10 @@
 import logging
 import random
 import time
-
+from asyncio import Future
 import yaml
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
+from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and_label
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value
@@ -22,27 +22,21 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
-        pool = PodsMonitorPool(lib_telemetry.get_lib_kubernetes())
         try:
             with open(scenario, "r") as f:
                 cont_scenario_config = yaml.full_load(f)
                 
                 for kill_scenario in cont_scenario_config["scenarios"]:
-                    self.start_monitoring(
-                        kill_scenario, pool
+                    future_snapshot = self.start_monitoring(
+                        kill_scenario,
+                        lib_telemetry
                     )
-                    killed_containers = self.container_killing_in_pod(
+                    self.container_killing_in_pod(
                         kill_scenario, lib_telemetry.get_lib_kubernetes()
                     )
-                    result = pool.join()
-                if result.error:
-                    logging.error(
-                        logging.error(
-                            f"ContainerScenarioPlugin pods failed to recovery: {result.error}"
-                        )
-                    )
-                    return 1
-                scenario_telemetry.affected_pods = result
+                    snapshot = future_snapshot.result()
+                    result = snapshot.get_pods_status()
+                    scenario_telemetry.affected_pods = result
 
         except (RuntimeError, Exception):
             logging.error("ContainerScenarioPlugin exiting due to Exception %s")
@@ -53,17 +47,18 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["container_scenarios"]
 
-    def start_monitoring(self, kill_scenario: dict, pool: PodsMonitorPool):
+    def start_monitoring(self, kill_scenario: dict, lib_telemetry: KrknTelemetryOpenshift) -> Future:
         
         namespace_pattern = f"^{kill_scenario['namespace']}$"
         label_selector = kill_scenario["label_selector"]
         recovery_time = kill_scenario["expected_recovery_time"]
-        pool.select_and_monitor_by_namespace_pattern_and_label(
+        future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
             namespace_pattern=namespace_pattern,
             label_selector=label_selector,
             max_timeout=recovery_time,
-            field_selector="status.phase=Running"
+            v1_client=lib_telemetry.get_lib_kubernetes().cli
         )
+        return future_snapshot
 
     def container_killing_in_pod(self, cont_scenario, kubecli: KrknKubernetes):
         scenario_name = get_yaml_item_value(cont_scenario, "name", "")
