@@ -36,7 +36,11 @@ We adhere to [**Semantic Versioning 2.0.0**](https://semver.org/).
 
 #### 3. Roles and Responsibilities
 
-* **Maintainers:** The [core team](https://github.com/krkn-chaos/krkn/blob/main/MAINTAINERS.md) responsible for the project's health. Their duties include:
+* **Members:** The [core team](https://github.com/krkn-chaos/krkn/blob/main/MAINTAINERS.md) responsible for the project's health. Their duties include:
+    * Reviewing pull requests.
+    * Contributing code and documentation via pull requests.
+    * Engaging in discussions and providing feedback.
+* **Maintainers and Owners:** The [core team](https://github.com/krkn-chaos/krkn/blob/main/MAINTAINERS.md) responsible for the project's health. Their duties include:
     * Facilitating community discussions and prioritization.
     * Reviewing and merging pull requests.
     * Cutting and announcing official releases.
