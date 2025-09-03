@@ -104,34 +104,86 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             raise Exception(
                 f"impossible to determine monitor parameters, check {kill_scenario} configuration"
             )
+    
+    def _select_pods_with_field_selector(self, name_pattern, label_selector, namespace, kubecli: KrknKubernetes, field_selector: str, node_name: str = None):
+        """Helper function to select pods using either label_selector or name_pattern with field_selector, optionally filtered by node"""
+        # Combine field selectors if node targeting is specified
+        if node_name:
+            node_field_selector = f"spec.nodeName={node_name}"
+            if field_selector:
+                combined_field_selector = f"{field_selector},{node_field_selector}"
+            else:
+                combined_field_selector = node_field_selector
+        else:
+            combined_field_selector = field_selector
         
+        if label_selector:
+            return kubecli.select_pods_by_namespace_pattern_and_label(
+                label_selector=label_selector, 
+                namespace_pattern=namespace, 
+                field_selector=combined_field_selector
+            )
+        else:  # name_pattern
+            return kubecli.select_pods_by_name_pattern_and_namespace_pattern(
+                pod_name_pattern=name_pattern, 
+                namespace_pattern=namespace, 
+                field_selector=combined_field_selector
+            )
 
-    def get_pods(self, name_pattern, label_selector,namespace, kubecli: KrknKubernetes, field_selector: str =None, node_label_selector: str = None): 
+    def get_pods(self, name_pattern, label_selector, namespace, kubecli: KrknKubernetes, field_selector: str = None, node_label_selector: str = None, node_names: list = None, quiet: bool = False): 
         if label_selector and name_pattern: 
             logging.error('Only, one of name pattern or label pattern can be specified')
-        elif label_selector:
-            pods = kubecli.select_pods_by_namespace_pattern_and_label(label_selector=label_selector,namespace_pattern=namespace, field_selector=field_selector)
-        elif name_pattern:
-            pods = kubecli.select_pods_by_name_pattern_and_namespace_pattern(pod_name_pattern=name_pattern, namespace_pattern=namespace, field_selector=field_selector)
-        else: 
-            logging.error('Name pattern or label pattern must be specified ')
+            return []
         
-        # Filter pods by node label selector if specified
-        if node_label_selector and pods:
-            filtered_pods = []
+        if not label_selector and not name_pattern:
+            logging.error('Name pattern or label pattern must be specified ')
+            return []
+        
+        # If specific node names are provided, make multiple calls with field selector
+        if node_names:
+            if not quiet:
+                logging.info(f"Targeting {len(node_names)} pods on specific nodes")
+            all_pods = []
+            for node_name in node_names:
+                pods = self._select_pods_with_field_selector(
+                    name_pattern, label_selector, namespace, kubecli, field_selector, node_name
+                )
+                
+                if pods:
+                    all_pods.extend(pods)
+            
+            if not quiet:
+                logging.info(f"Found {len(all_pods)} target pods across {len(node_names)} nodes")
+            return all_pods
+        
+        # Optimized node label selector approach - use field selectors
+        if node_label_selector:
+            # Get nodes matching the label selector first
             nodes_with_label = kubecli.list_nodes(label_selector=node_label_selector)
             if not nodes_with_label:
+                logging.info(f"No nodes found with label selector: {node_label_selector}")
                 return []
             
-            for pod_name, pod_namespace in pods:
-                pod_info = kubecli.read_pod(pod_name, pod_namespace)
-                pod_node_name = pod_info.spec.node_name
-                if pod_node_name and pod_node_name in nodes_with_label:
-                    filtered_pods.append((pod_name, pod_namespace))
+            if not quiet:
+                logging.info(f"Targeting {len(nodes_with_label)} pods on node with label: {node_label_selector}")
+            # Use field selector for each node
+            all_pods = []
+            for node_name in nodes_with_label:
+                pods = self._select_pods_with_field_selector(
+                    name_pattern, label_selector, namespace, kubecli, field_selector, node_name
+                )
+                
+                if pods:
+                    all_pods.extend(pods)
             
-            return filtered_pods
+            if not quiet:
+                logging.info(f"Found {len(all_pods)} target pods across {len(nodes_with_label)} nodes")
+            return all_pods
         
-        return pods
+        # Standard pod selection (no node targeting)
+        return self._select_pods_with_field_selector(
+            name_pattern, label_selector, namespace, kubecli, field_selector
+        )
     
     def killing_pods(self, config: InputParams, kubecli: KrknKubernetes):
         # region Select target pods
@@ -140,7 +192,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         if not namespace: 
             logging.error('Namespace pattern must be specified')
 
-        pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector)
+        pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
         pods_count = len(pods)
         if len(pods) < config.kill:
             logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
@@ -154,17 +206,17 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             logging.info(f'Deleting pod {pod[0]}')
             kubecli.delete_pod(pod[0], pod[1])
         
-        self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector)
+        self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         return 0
 
     def wait_for_pods(
-        self, label_selector, pod_name, namespace, pod_count, duration, wait_timeout, kubecli: KrknKubernetes, node_label_selector
+        self, label_selector, pod_name, namespace, pod_count, duration, wait_timeout, kubecli: KrknKubernetes, node_label_selector, node_names
     ):
         timeout = False
         start_time = datetime.now()
 
         while not timeout:
-            pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector)
+            pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector, node_names=node_names, quiet=True)
             if pod_count == len(pods):
                 return
                

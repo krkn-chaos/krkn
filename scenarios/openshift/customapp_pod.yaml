@@ -1,7 +1,14 @@
 # yaml-language-server: $schema=../plugin.schema.json
 - id: kill-pods
   config:
-    namespace_pattern: ^acme-air$
+    namespace_pattern: openshift-ovn-kubernetes
     name_pattern: .*
     krkn_pod_recovery_time: 120
-    node_label_selector: node-role.kubernetes.io/master=              # Target master nodes only
+    kill: 3 # num of pods to kill
+    # Option 1: Target pods on nodes with specific labels [master/worker nodes]
+    node_label_selector: node-role.kubernetes.io/master=              # Target master nodes only 
+    # Option 2: Target pods of specific nodes (testing mixed node types)
+    # node_names: 
+    #   - ip-10-0-31-8.us-east-2.compute.internal      # Worker node 1
+    #   - ip-10-0-48-188.us-east-2.compute.internal    # Worker node 2  
+    #   - ip-10-0-14-59.us-east-2.compute.internal     # Master node 1

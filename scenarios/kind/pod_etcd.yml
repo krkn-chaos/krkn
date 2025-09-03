@@ -2,5 +2,4 @@
   config:
     namespace_pattern: "kube-system"
     label_selector: "component=etcd"
-    node_label_selector: node-role.kubernetes.io/control-plane=  # Target control-plane nodes (kind clusters)
     krkn_pod_recovery_time: 120

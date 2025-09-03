@@ -3,4 +3,3 @@
     namespace_pattern: ^openshift-monitoring$
     label_selector: statefulset.kubernetes.io/pod-name=prometheus-k8s-0
     krkn_pod_recovery_time: 120
-    node_label_selector: node-role.kubernetes.io/worker=              # Target worker nodes only
