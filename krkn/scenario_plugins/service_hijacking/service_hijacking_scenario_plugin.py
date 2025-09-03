@@ -5,7 +5,7 @@ import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-
+from krkn_lib.utils import get_yaml_item_value
 
 class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
     def run(
@@ -25,6 +25,8 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
         image = scenario_config["image"]
         target_port = scenario_config["service_target_port"]
         chaos_duration = scenario_config["chaos_duration"]
+        privileged = get_yaml_item_value(scenario_config,"privileged", True)
+
 
         logging.info(
             f"checking service {service_name} in namespace: {service_namespace}"
@@ -46,14 +48,14 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 logging.info(f"webservice will listen on port {target_port}")
                 webservice = (
                     lib_telemetry.get_lib_kubernetes().deploy_service_hijacking(
-                        service_namespace, plan, image, port_number=target_port
+                        service_namespace, plan, image, port_number=target_port, privileged=privileged
                     )
                 )
             else:
                 logging.info(f"traffic will be redirected to named port: {target_port}")
                 webservice = (
                     lib_telemetry.get_lib_kubernetes().deploy_service_hijacking(
-                        service_namespace, plan, image, port_name=target_port
+                        service_namespace, plan, image, port_name=target_port, privileged=privileged
                     )
                 )
             logging.info(
