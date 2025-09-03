@@ -5,6 +5,7 @@ service_name: nginx-service # name of the service to be hijacked
 service_namespace: default # The namespace where the target service is located
 image: quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3 # Image of the krkn web service to be deployed to receive traffic.
 chaos_duration: 30 # Total duration of the chaos scenario in seconds.
+privileged: True # True or false if need privileged securityContext to run
 plan:
   - resource: "/list/index.php" # Specifies the resource or path to respond to in the scenario. For paths, both the path and query parameters are captured but ignored.
                                 # For resources, only query parameters are captured.
