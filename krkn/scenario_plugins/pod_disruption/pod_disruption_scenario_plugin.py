@@ -156,7 +156,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 logging.info(f"Found {len(all_pods)} target pods across {len(node_names)} nodes")
             return all_pods
         
-        # Optimized node label selector approach - use field selectors
+        #  Node label selector approach - use field selectors
         if node_label_selector:
             # Get nodes matching the label selector first
             nodes_with_label = kubecli.list_nodes(label_selector=node_label_selector)
