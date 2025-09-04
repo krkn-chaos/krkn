@@ -444,7 +444,7 @@
     "required": "false"
   },
   {
-    "name": "kubevirt-namespace",
+    "name": "kubevirt-name",
     "short_description": "KubeVirt regex names to watch",
     "description": "KubeVirt regex names to check VMs",
     "variable": "KUBE_VIRT_NAME",
