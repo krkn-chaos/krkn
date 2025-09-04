@@ -142,7 +142,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         # If specific node names are provided, make multiple calls with field selector
         if node_names:
             if not quiet:
-                logging.info(f"Targeting {len(node_names)} pods on specific nodes")
+                logging.info(f"Targeting pods on {len(node_names)} specific nodes")
             all_pods = []
             for node_name in node_names:
                 pods = self._select_pods_with_field_selector(
@@ -165,7 +165,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 return []
             
             if not quiet:
-                logging.info(f"Targeting {len(nodes_with_label)} pods on node with label: {node_label_selector}")
+                logging.info(f"Targeting pods on {len(nodes_with_label)} nodes with label: {node_label_selector}")
             # Use field selector for each node
             all_pods = []
             for node_name in nodes_with_label:
