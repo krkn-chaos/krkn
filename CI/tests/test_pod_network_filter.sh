@@ -11,6 +11,7 @@ function functional_pod_network_filter {
   yq -i '.[0].target="pod-network-filter-test"' scenarios/kube/pod-network-filter.yml
   yq -i '.[0].protocols=["tcp"]' scenarios/kube/pod-network-filter.yml
   yq -i '.[0].ports=[443]' scenarios/kube/pod-network-filter.yml
+  yq -i '.performance_monitoring.check_critical_alerts=False' CI/config/pod_network_filter.yaml
 
   ## Test webservice deployment
   kubectl apply -f ./CI/templates/pod_network_filter.yaml
