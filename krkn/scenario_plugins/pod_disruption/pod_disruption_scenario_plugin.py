@@ -47,7 +47,9 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
-
+                    if len(result.unrecovered) > 0:
+                        logging.info("PodDisruptionScenarioPlugin failed with unrecovered pods")
+                        return 1
 
         except (RuntimeError, Exception) as e:
             logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
