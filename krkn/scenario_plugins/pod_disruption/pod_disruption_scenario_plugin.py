@@ -188,14 +188,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         if not namespace: 
             logging.error('Namespace pattern must be specified')
 
-        # Handle comma-separated node names
-        node_names = config.node_names
-        if isinstance(node_names, str) and node_names:
-            node_names = node_names.split(",")
-        elif not isinstance(node_names, list):
-            node_names = []
-
-        pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=node_names)
+        pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
         pods_count = len(pods)
         if len(pods) < config.kill:
             logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
@@ -209,7 +202,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             logging.info(f'Deleting pod {pod[0]}')
             kubecli.delete_pod(pod[0], pod[1])
         
-        self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, node_names)
+        self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         return 0
 
     def wait_for_pods(
