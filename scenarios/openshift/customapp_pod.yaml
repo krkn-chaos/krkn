@@ -1,6 +1,15 @@
 # yaml-language-server: $schema=../plugin.schema.json
 - id: kill-pods
   config:
-    namespace_pattern: ^acme-air$
+    namespace_pattern: "kube-system"
     name_pattern: .*
-    krkn_pod_recovery_time: 120
+    krkn_pod_recovery_time: 60
+    kill: 1     # num of pods to kill
+    #Not needed by default, but can be used if you want to target pods on specific nodes
+    # Option 1: Target pods on nodes with specific labels [master/worker nodes]
+    node_label_selector: node-role.kubernetes.io/control-plane=      # Target control-plane nodes (works on both k8s and openshift) 
+    # Option 2: Target pods of specific nodes (testing mixed node types)
+    # node_names: 
+    #   - ip-10-0-31-8.us-east-2.compute.internal      # Worker node 1
+    #   - ip-10-0-48-188.us-east-2.compute.internal    # Worker node 2  
+    #   - ip-10-0-14-59.us-east-2.compute.internal     # Master node 1
