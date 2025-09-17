@@ -37,9 +37,11 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
-
-        except (RuntimeError, Exception):
-            logging.error("ContainerScenarioPlugin exiting due to Exception %s")
+                    if len(result.unrecovered) > 0:
+                        logging.info("ContainerScenarioPlugin failed with unrecovered containers")
+                        return 1
+        except (RuntimeError, Exception) as e:
+            logging.error("ContainerScenarioPlugin exiting due to Exception %s" % e)
             return 1
         else:
             return 0
