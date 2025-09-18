@@ -34,6 +34,7 @@ class AbstractNetworkChaosModule(abc.ABC):
         """
         pass
 
+    @abc.abstractmethod
     def get_targets(self) -> list[str]:
         """
         checks and returns the targets based on the common scenario configuration
@@ -48,3 +49,42 @@ class AbstractNetworkChaosModule(abc.ABC):
     ):
         self.kubecli = kubecli
         self.base_network_config = base_network_config
+
+
+    def get_pod_targets(self) -> list[str]:
+        if not self.base_network_config.namespace:
+            raise Exception("namespace not specified, aborting")
+        if self.base_network_config.label_selector:
+            return self.kubecli.get_lib_kubernetes().list_pods(
+                self.base_network_config.namespace, self.base_network_config.label_selector
+            )
+        else:
+            if not self.base_network_config.target:
+                raise Exception(
+                    "neither pod selector nor pod name (target) specified, aborting."
+                )
+            if not self.kubecli.get_lib_kubernetes().check_if_pod_exists(
+                self.base_network_config.target, self.base_network_config.namespace
+            ):
+                raise Exception(
+                    f"pod {self.base_network_config.target} not found in namespace {self.base_network_config.namespace}"
+                )
+
+            return [self.base_network_config.target]
+
+    def get_node_targets(self) -> list[str]:
+        if self.base_network_config.label_selector:
+            return self.kubecli.get_lib_kubernetes().list_nodes(
+                self.base_network_config.label_selector
+            )
+        else:
+            if not self.base_network_config.target:
+                raise Exception(
+                    "neither node selector nor node_name (target) specified, aborting."
+                )
+            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
+            if self.base_network_config.target not in node_info:
+                raise Exception(f"node {self.base_network_config.target} not found, aborting")
+
+            return [self.base_network_config.target]
+
