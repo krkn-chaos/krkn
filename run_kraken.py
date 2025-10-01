@@ -19,6 +19,7 @@ from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
 import server as server
+from krkn.resiliency.resiliency import Resiliency
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -99,6 +100,17 @@ def main(options, command: Optional[str]) -> int:
         enable_metrics = get_yaml_item_value(
             config["performance_monitoring"], "enable_metrics", False
         )
+
+        # Ensure resiliency scoring can obtain a Prometheus handle even when
+        # metrics/alerts collection is disabled.
+        resiliency_enabled = get_yaml_item_value(
+            config,
+            "resiliency",
+            {"enabled": False},
+        ).get("enabled", False)
+
+        # Default placeholder; will be overridden if a Prometheus URL is available
+        prometheus = None
         # elastic search
         enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
 
@@ -246,8 +258,17 @@ def main(options, command: Optional[str]) -> int:
         else:
             elastic_search = None
         summary = ChaosRunAlertSummary()
-        if enable_metrics or enable_alerts or check_critical_alerts:
+        if enable_metrics or enable_alerts or check_critical_alerts or resiliency_enabled:
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
+            # Quick connectivity probe for Prometheus – disable resiliency if unreachable
+            try:
+                prometheus.process_prom_query_in_range(
+                    "up", datetime.datetime.utcnow() - datetime.timedelta(seconds=60), datetime.datetime.utcnow(), granularity=60
+                )
+            except Exception as prom_exc:  
+                logging.error("Prometheus connectivity test failed: %s. Disabling resiliency scoring." , prom_exc)
+                if resiliency_enabled:
+                    resiliency_enabled = False
 
         logging.info("Server URL: %s" % kubecli.get_host())
 
@@ -427,8 +448,64 @@ def main(options, command: Optional[str]) -> int:
             logging.info("collecting Kubernetes cluster metadata....")
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
 
+        # ---------------- Resiliency Score Evaluation -----------------
+        if resiliency_enabled:
+            try:
+                if prometheus is None:
+                    prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
+                resiliency_obj = Resiliency("config/alerts.yaml")
+                resiliency_obj.evaluate_slos(
+                    prometheus,
+                    datetime.datetime.fromtimestamp(start_time),
+                    datetime.datetime.fromtimestamp(end_time),
+                )
+                resiliency_obj.calculate_score()
+                resiliency_dict = resiliency_obj.to_dict()
+                chaos_telemetry.resiliency_report = resiliency_dict
+
+                try:
+                    import json, dataclasses
+
+                    if not hasattr(ChaosRunTelemetry, "_with_resiliency_patch"):
+
+                        _orig_to_json = ChaosRunTelemetry.to_json 
+
+                        def _to_json_with_resiliency(self):  
+                            """Call the stock serializer and then inject resiliency_report."""
+                            import json 
+
+                            raw_json = _orig_to_json(self)
+                            try:
+                                data = json.loads(raw_json)
+                            except Exception:
+                                # If original serializer didn't return JSON, keep fallback
+                                return raw_json
+                            if hasattr(self, "resiliency_report"):
+                                data["resiliency_report"] = self.resiliency_report  
+                            def _encode(o): 
+                                import dataclasses as _dc
+                                if _dc.is_dataclass(o):
+                                    return _dc.asdict(o)
+                                return str(o)
+
+                            return json.dumps(data, default=_encode)
+
+                        ChaosRunTelemetry.to_json = _to_json_with_resiliency 
+                        ChaosRunTelemetry._with_resiliency_patch = True  
+                except Exception as patch_exc:  
+                    logging.error("Failed to patch ChaosRunTelemetry.to_json: %s", patch_exc)
+                logging.info(
+                    "Resiliency score for run %s: %s%%", run_uuid, resiliency_obj.to_dict().get("score")
+                )
+            except Exception as e:
+                logging.error("Failed to compute resiliency score: %s", e)
+
+
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
+        # Propagate resiliency report attribute after re-instantiation
+        if hasattr(chaos_telemetry, "resiliency_report"):
+            decoded_chaos_run_telemetry.resiliency_report = chaos_telemetry.resiliency_report  
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
