@@ -13,6 +13,7 @@ class InputParams:
             self.name_pattern = config["name_pattern"] if "name_pattern" in config else ""
             self.node_label_selector = config["node_label_selector"] if "node_label_selector" in config else ""
             self.node_names = config["node_names"] if "node_names" in config else []
+            self.exclude_label = config["exclude_label"] if "exclude_label" in config else ""
 
     namespace_pattern: str
     krkn_pod_recovery_time: int
@@ -23,3 +24,4 @@ class InputParams:
     name_pattern: str
     node_label_selector: str
     node_names: list
+    exclude_label: str
