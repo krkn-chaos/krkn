@@ -4,4 +4,5 @@
     namespace_pattern: ^openshift-kube-apiserver$
     label_selector: app=openshift-kube-apiserver
     krkn_pod_recovery_time: 120
+    exclude_label: "" # excludes pods marked with this label from chaos
 
