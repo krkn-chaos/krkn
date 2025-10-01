@@ -252,6 +252,14 @@ def metrics(
                         metric[k] = v
                         metric['timestamp'] = str(datetime.datetime.now())
                     metrics_list.append(metric.copy())
+        if telemetry_json['virt_checks']:
+            for virt_check in telemetry_json["virt_checks"]:
+                    metric_name = "virt_check_recovery"
+                    metric = {"metricName": metric_name}
+                    for k,v in virt_check.items():
+                        metric[k] = v
+                        metric['timestamp'] = str(datetime.datetime.now())
+                    metrics_list.append(metric.copy())
 
         save_metrics = False
         if elastic is not None and elastic_metrics_index is not None:
