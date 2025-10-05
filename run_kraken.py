@@ -454,39 +454,7 @@ def main(options, command: Optional[str]) -> int:
                 if prometheus is None:
                     prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
                 resiliency_obj = Resiliency("config/alerts.yaml")
-                resiliency_obj.evaluate_slos(
-                    prometheus,
-                    datetime.datetime.fromtimestamp(start_time),
-                    datetime.datetime.fromtimestamp(end_time),
-                )
-                resiliency_obj.calculate_score()
-                resiliency_dict = resiliency_obj.to_dict()
-                chaos_telemetry.resiliency_report = resiliency_dict
-
-                try:
-                    import json, dataclasses
-
-                    if not hasattr(ChaosRunTelemetry, "_with_resiliency_patch"):
-
-                        _orig_to_json = ChaosRunTelemetry.to_json 
-
-                        def _to_json_with_resiliency(self):  
-                            """Call the stock serializer and then inject resiliency_report."""
-                            import json 
-
-                            raw_json = _orig_to_json(self)
-                            try:
-                                data = json.loads(raw_json)
-                            except Exception:
-                                # If original serializer didn't return JSON, keep fallback
-                                return raw_json
-                            if hasattr(self, "resiliency_report"):
-                                data["resiliency_report"] = self.resiliency_report  
-                            def _encode(o): 
-                                import dataclasses as _dc
-                                if _dc.is_dataclass(o):
-                                    return _dc.asdict(o)
-                                return str(o)
+                resiliency_obj.health_check_results = health_checker.health_check_results
 
                             return json.dumps(data, default=_encode)
 

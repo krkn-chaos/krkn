@@ -54,17 +54,23 @@ class Resiliency:
             granularity=granularity,
         )
 
-    def calculate_score(self, weights: Dict[str, int] | None = None) -> int:
+    def calculate_score(
+        self,
+        *,
+        weights: Dict[str, int] | None = None,
+        health_check_results: Dict[str, bool] | None = None,
+    ) -> int:
         """Calculate the resiliency score using collected SLO results."""
         slo_defs = {slo["name"]: slo["severity"] for slo in self._slos}
         score, breakdown = calculate_resiliency_score(
             slo_definitions=slo_defs,
             prometheus_results=self._results,
-            health_check_results={},  # health checks not considered here(for now will be added later on)
+            health_check_results=health_check_results or {},
             weights=weights,
         )
         self._score = score
         self._breakdown = breakdown
+        self._health_check_results = health_check_results or {}
         return score
 
     def to_dict(self) -> Dict[str, Any]:
@@ -75,6 +81,7 @@ class Resiliency:
             "score": self._score,
             "breakdown": self._breakdown,
             "slo_results": self._results,
+            "health_check_results": getattr(self, "_health_check_results", {}),
         }
 
     # ------------------------------------------------------------------
