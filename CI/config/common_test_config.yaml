@@ -64,7 +64,7 @@ elastic:
 health_checks:                                              # Utilizing health check endpoints to observe application behavior during chaos injection.
     interval: 2                                              # Interval in seconds to perform health checks, default value is 2 seconds
     config:                                                 # Provide list of health check configurations for applications
-        - url: https://localhost:9200                                            # Provide application endpoint
+        - url: https://krkn-chaos.dev/                                            # Provide application endpoint
           bearer_token:                                     # Bearer token for authentication if any
-          auth: (elastic , test)                              # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
+          auth:                             # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
           exit_on_failure:                                  # If value is True exits when health check failed for application, values can be True/False
