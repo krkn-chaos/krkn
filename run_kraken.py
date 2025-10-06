@@ -375,10 +375,12 @@ def main(options, command: Optional[str]) -> int:
                             prometheus_plugin.critical_alerts(
                                 prometheus,
                                 summary,
+                                elastic_search,
                                 run_uuid,
                                 scenario_type,
                                 start_time,
                                 datetime.datetime.now(),
+                                elastic_alerts_index
                             )
 
                             chaos_output.critical_alerts = summary
