@@ -16,14 +16,19 @@ jobs:
         uses: redhat-chaos/actions/kind@main
       - name: Deploy prometheus & Port Forwarding
         uses: redhat-chaos/actions/prometheus@main
-      
       - name: Deploy Elasticsearch
         with:
-          ELASTIC_URL: ${{ vars.ELASTIC_URL }}
-          ELASTIC_PORT: ${{ vars.ELASTIC_PORT }}
-          ELASTIC_USER: ${{ vars.ELASTIC_USER }}
-          ELASTIC_PASSWORD: ${{ vars.ELASTIC_PASSWORD }}
+          ELASTIC_PORT: ${{ env.ELASTIC_PORT }}
+          RUN_ID: ${{ github.run_id }}
         uses: redhat-chaos/actions/elastic@main
+      - name: Download elastic password
+        uses: actions/download-artifact@v4
+        with:
+          name: elastic_password_${{ github.run_id }}
+      - name: Set elastic password on env
+        run: |
+          ELASTIC_PASSWORD=$(cat elastic_password.txt)
+          echo "ELASTIC_PASSWORD=$ELASTIC_PASSWORD" >> "$GITHUB_ENV"
       - name: Install Python
         uses: actions/setup-python@v4
         with:
