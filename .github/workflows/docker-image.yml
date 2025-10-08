@@ -9,43 +9,81 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Check out code
-      uses: actions/checkout@v3
-    - name: Build the Docker images
+      uses: actions/checkout@v4
+    
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Docker images
       if: startsWith(github.ref, 'refs/tags')
-      run:  |
+      run: |
         ./containers/compile_dockerfile.sh
-        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg TAG=${GITHUB_REF#refs/tags/}
-        docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn
-        docker tag quay.io/krkn-chaos/krkn quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/}
-        docker tag quay.io/krkn-chaos/krkn quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/}
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --no-cache \
+          -t quay.io/krkn-chaos/krkn \
+          -t quay.io/redhat-chaos/krkn \
+          -t quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/} \
+          -t quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/} \
+          --build-arg TAG=${GITHUB_REF#refs/tags/} \
+          --load \
+          containers/
 
-    - name: Test Build the Docker images
+    - name: Test Build Docker images
       if: ${{ github.event_name == 'pull_request' }}
       run: |
         ./containers/compile_dockerfile.sh
-        docker build --no-cache -t quay.io/krkn-chaos/krkn containers/ --build-arg PR_NUMBER=${{ github.event.pull_request.number }}
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --no-cache \
+          -t quay.io/krkn-chaos/krkn \
+          --build-arg PR_NUMBER=${{ github.event.pull_request.number }} \
+          --load \
+          containers/
     - name: Login in quay
       if: startsWith(github.ref, 'refs/tags')
-      run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
-      env:
-        QUAY_USER: ${{ secrets.QUAY_USERNAME }}
-        QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USERNAME }}
+        password: ${{ secrets.QUAY_PASSWORD }}
+
     - name: Push the KrknChaos Docker images
       if: startsWith(github.ref, 'refs/tags')
       run: |
-        docker push quay.io/krkn-chaos/krkn
-        docker push quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/}
+        ./containers/compile_dockerfile.sh
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --no-cache \
+          -t quay.io/krkn-chaos/krkn \
+          -t quay.io/krkn-chaos/krkn:${GITHUB_REF#refs/tags/} \
+          --build-arg TAG=${GITHUB_REF#refs/tags/} \
+          --push \
+          containers/
+
     - name: Login in to redhat-chaos quay
       if: startsWith(github.ref, 'refs/tags/v')
-      run: docker login quay.io -u ${QUAY_USER} -p ${QUAY_TOKEN}
-      env:
-        QUAY_USER: ${{ secrets.QUAY_USER_1 }}
-        QUAY_TOKEN: ${{ secrets.QUAY_TOKEN_1 }}
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USER_1 }}
+        password: ${{ secrets.QUAY_TOKEN_1 }}
+
     - name: Push the RedHat Chaos Docker images
       if: startsWith(github.ref, 'refs/tags')
       run: | 
-        docker push quay.io/redhat-chaos/krkn
-        docker push quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/}
+        ./containers/compile_dockerfile.sh
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --no-cache \
+          -t quay.io/redhat-chaos/krkn \
+          -t quay.io/redhat-chaos/krkn:${GITHUB_REF#refs/tags/} \
+          --build-arg TAG=${GITHUB_REF#refs/tags/} \
+          --push \
+          containers/
     - name: Rebuild krkn-hub
       if: startsWith(github.ref, 'refs/tags')
       uses: redhat-chaos/actions/krkn-hub@main
