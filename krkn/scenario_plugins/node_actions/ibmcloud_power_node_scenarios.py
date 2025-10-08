@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 import time
-import typing
 from os import environ
-from dataclasses import dataclass, field
-from traceback import format_exc
+from dataclasses import dataclass
 import logging
 
 from krkn_lib.k8s import KrknKubernetes
@@ -11,56 +9,82 @@ import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
 )
-from kubernetes import client, watch
-from ibm_vpc import VpcV1
-from ibm_cloud_sdk_core.authenticators import IAMAuthenticator
+import requests
 import sys
+import json
+
+
+#  -o, --operation string   Operation to be done in a PVM server instance. 
+# Valid values are: hard-reboot, immediate-shutdown, soft-reboot, reset-state, start, stop.
 
 from krkn_lib.models.k8s import AffectedNodeStatus, AffectedNode
 
 
-class IbmCloud:
+class IbmCloudPower:
     def __init__(self):
         """
         Initialize the ibm cloud client by using the the env variables:
             'IBMC_APIKEY' 'IBMC_URL'
         """
-        apiKey = environ.get("IBMC_APIKEY")
-        service_url = environ.get("IBMC_URL")
-        if not apiKey:
+        self.api_key = environ.get("IBMC_APIKEY")
+        self.service_url = environ.get("IBMC_POWER_URL")
+        self.CRN = environ.get("IBMC_POWER_CRN")
+        self.cloud_instance_id = self.CRN.split(":")[-3]
+        print(self.cloud_instance_id)
+        self.headers = None
+        self.token = None
+        if not self.api_key:
             raise Exception("Environmental variable 'IBMC_APIKEY' is not set")
-        if not service_url:
-            raise Exception("Environmental variable 'IBMC_URL' is not set")
+        if not self.service_url:
+            raise Exception("Environmental variable 'IBMC_POWER_URL' is not set")
+        if not self.CRN:
+            raise Exception("Environmental variable 'IBMC_POWER_CRN' is not set")
         try:
-            authenticator = IAMAuthenticator(apiKey)
-            self.service = VpcV1(authenticator=authenticator)
-
-            self.service.set_service_url(service_url)
+            self.authenticate()
             
         except Exception as e:
             logging.error("error authenticating" + str(e))
+    
+    def authenticate(self):
+        url = "https://iam.cloud.ibm.com/identity/token"
+        iam_auth_headers = {
+            "content-type": "application/x-www-form-urlencoded",
+            "accept": "application/json",
+        }
+        data = {
+            "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
+            "apikey": self.api_key,
+        }
 
-    def configure_ssl_verification(self, disable_ssl_verification):
-        """
-        Configure SSL verification for IBM Cloud VPC service.
-        
-        Args:
-            disable_ssl_verification: If True, disables SSL verification.
-        """
-        logging.info(f"Configuring SSL verification: disable_ssl_verification={disable_ssl_verification}")
-        if disable_ssl_verification:
-            self.service.set_disable_ssl_verification(True)
-            logging.info("SSL verification disabled for IBM Cloud VPC service")
+        response = self._make_request("POST", url, data=data, headers=iam_auth_headers)
+        if response.status_code == 200:
+            self.token = response.json()
+            self.headers = {
+                "Authorization": f"Bearer {self.token['access_token']}",
+                "Content-Type": "application/json",
+                "CRN": self.CRN,
+            }
         else:
-            self.service.set_disable_ssl_verification(False)
-            logging.info("SSL verification enabled for IBM Cloud VPC service")
+            logging.error(f"Authentication Error: {response.status_code}")
+            return None, None
             
+
+    def _make_request(self,method, url, data=None, headers=None):
+        try:
+            response = requests.request(method, url, data=data, headers=headers)
+            response.raise_for_status()
+            return response
+        except Exception as e:
+            raise Exception(f"API Error: {e}")
+
     # Get the instance ID of the node
     def get_instance_id(self, node_name):
-        node_list = self.list_instances()
-        for node in node_list:
-            if node_name == node["vpc_name"]:
-                return node["vpc_id"]
+
+        url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/"
+        response = self._make_request("GET", url, headers=self.headers)
+        for node in response.json()["pvmInstances"]:
+            if node_name == node["serverName"]:
+                return node["pvmInstanceID"]
         logging.error("Couldn't find node with name " + str(node_name) + ", you could try another region")
         sys.exit(1)
 
@@ -69,23 +93,26 @@ class IbmCloud:
         Deletes the Instance whose name is given by 'instance_id'
         """
         try:
-            self.service.delete_instance(instance_id)
+            url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/{instance_id}/action"
+            self._make_request("POST", url, headers=self.headers, data=json.dumps({"action": "immediate-shutdown"}))
             logging.info("Deleted Instance -- '{}'".format(instance_id))
         except Exception as e:
             logging.info("Instance '{}' could not be deleted. ".format(instance_id))
             return False
 
-    def reboot_instances(self, instance_id):
+    def reboot_instances(self, instance_id, soft=False):
         """
         Reboots the Instance whose name is given by 'instance_id'. Returns True if successful, or
         returns False if the Instance is not powered on
         """
 
         try:
-            self.service.create_instance_action(
-                instance_id,
-                type="reboot",
-            )
+            if soft:
+                action = "soft-reboot"
+            else:
+                action = "hard-reboot"
+            url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/{instance_id}/action"
+            self._make_request("POST", url, headers=self.headers, data=json.dumps({"action": action}))
             logging.info("Reset Instance -- '{}'".format(instance_id))
             return True
         except Exception as e:
@@ -99,10 +126,8 @@ class IbmCloud:
         """
 
         try:
-            self.service.create_instance_action(
-                instance_id,
-                type="stop",
-            )
+            url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/{instance_id}/action"
+            self._make_request("POST", url, headers=self.headers, data=json.dumps({"action": "stop"}))
             logging.info("Stopped Instance -- '{}'".format(instance_id))
             return True
         except Exception as e:
@@ -117,10 +142,8 @@ class IbmCloud:
         """
 
         try:
-            self.service.create_instance_action(
-                instance_id,
-                type="start",
-            )
+            url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/{instance_id}/action"
+            self._make_request("POST", url, headers=self.headers, data=json.dumps({"action": "start"}))
             logging.info("Started Instance -- '{}'".format(instance_id))
             return True
         except Exception as e:
@@ -133,19 +156,10 @@ class IbmCloud:
         """
         instance_names = []
         try:
-            instances_result = self.service.list_instances().get_result()
-            instances_list = instances_result["instances"]
-            for vpc in instances_list:
-                instance_names.append({"vpc_name": vpc["name"], "vpc_id": vpc["id"]})
-            starting_count = instances_result["total_count"]
-            while instances_result["total_count"] == instances_result["limit"]:
-                instances_result = self.service.list_instances(
-                    start=starting_count
-                ).get_result()
-                instances_list = instances_result["instances"]
-                starting_count += instances_result["total_count"]
-                for vpc in instances_list:
-                    instance_names.append({"vpc_name": vpc.name, "vpc_id": vpc.id})
+            url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/"
+            response = self._make_request("GET", url, headers=self.headers)
+            for pvm in response.json()["pvmInstances"]:
+                instance_names.append({"serverName": pvm.serverName, "pvmInstanceID": pvm.pvmInstanceID})
         except Exception as e:
             logging.error("Error listing out instances: " + str(e))
             sys.exit(1)
@@ -162,8 +176,9 @@ class IbmCloud:
         """
 
         try:
-            instance = self.service.get_instance(instance_id).get_result()
-            state = instance["status"]
+            url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/{instance_id}"
+            response = self._make_request("GET", url, headers=self.headers)
+            state = response.json()["status"]
             return state
         except Exception as e:
             logging.error(
@@ -206,7 +221,7 @@ class IbmCloud:
         start_time = time.time()
         time_counter = 0
         status = self.get_instance_status(instance_id)
-        while status != "running":
+        while status != "ACTIVE":
             status = self.get_instance_status(instance_id)
             logging.info(
                 "Instance %s is still not running, sleeping for 5 seconds" % instance_id
@@ -231,7 +246,7 @@ class IbmCloud:
         start_time = time.time()
         time_counter = 0
         status = self.get_instance_status(instance_id)
-        while status != "stopped":
+        while status != "STOPPED":
             status = self.get_instance_status(instance_id)
             logging.info(
                 "Instance %s is still not stopped, sleeping for 5 seconds" % instance_id
@@ -244,6 +259,7 @@ class IbmCloud:
                 )
                 return False
         end_time = time.time()
+        print('affected_node' + str(affected_node))
         if affected_node:
             affected_node.set_affected_node_status("stopped", end_time - start_time)
         return True
@@ -257,7 +273,7 @@ class IbmCloud:
 
         time_counter = 0
         status = self.get_instance_status(instance_id)
-        while status == "starting":
+        while status == "HARD_REBOOT" or status == "SOFT_REBOOT":
             status = self.get_instance_status(instance_id)
             logging.info(
                 "Instance %s is still restarting, sleeping for 5 seconds" % instance_id
@@ -270,32 +286,30 @@ class IbmCloud:
                 )
                 return False
         self.wait_until_running(instance_id, timeout, affected_node)
+        print('affected_node' + str(affected_node))
         return True
 
 
 @dataclass
-class ibm_node_scenarios(abstract_node_scenarios):
+class ibmcloud_power_node_scenarios(abstract_node_scenarios):
     def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus, disable_ssl_verification: bool):
         super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
-        self.ibmcloud = IbmCloud()
-        
-        # Configure SSL verification
-        self.ibmcloud.configure_ssl_verification(disable_ssl_verification)
+        self.ibmcloud_power = IbmCloudPower()
         
         self.node_action_kube_check = node_action_kube_check
 
     def node_start_scenario(self, instance_kill_count, node, timeout):
         try:
-            instance_id = self.ibmcloud.get_instance_id( node)
+            instance_id = self.ibmcloud_power.get_instance_id( node)
             affected_node = AffectedNode(node, node_id=instance_id)
             for _ in range(instance_kill_count):
                 logging.info("Starting node_start_scenario injection")
                 logging.info("Starting the node %s " % (node))
                 
                 if instance_id:
-                    vm_started = self.ibmcloud.start_instances(instance_id)
+                    vm_started = self.ibmcloud_power.start_instances(instance_id)
                     if vm_started:
-                        self.ibmcloud.wait_until_running(instance_id, timeout, affected_node)
+                        self.ibmcloud_power.wait_until_running(instance_id, timeout, affected_node)
                         if self.node_action_kube_check: 
                             nodeaction.wait_for_ready_status(
                                 node, timeout, self.kubecli, affected_node
@@ -319,14 +333,14 @@ class ibm_node_scenarios(abstract_node_scenarios):
 
     def node_stop_scenario(self, instance_kill_count, node, timeout):
         try:
-            instance_id = self.ibmcloud.get_instance_id(node)
+            instance_id = self.ibmcloud_power.get_instance_id(node)
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node, instance_id)
                 logging.info("Starting node_stop_scenario injection")
                 logging.info("Stopping the node %s " % (node))
-                vm_stopped = self.ibmcloud.stop_instances(instance_id)
+                vm_stopped = self.ibmcloud_power.stop_instances(instance_id)
                 if vm_stopped:
-                    self.ibmcloud.wait_until_stopped(instance_id, timeout, affected_node)
+                    self.ibmcloud_power.wait_until_stopped(instance_id, timeout, affected_node)
                 logging.info(
                     "Node with instance ID: %s is in stopped state" % node
                 )
@@ -340,13 +354,13 @@ class ibm_node_scenarios(abstract_node_scenarios):
 
     def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         try:
-            instance_id = self.ibmcloud.get_instance_id(node)
+            instance_id = self.ibmcloud_power.get_instance_id(node)
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node, node_id=instance_id)
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info("Rebooting the node %s " % (node))
-                self.ibmcloud.reboot_instances(instance_id)
-                self.ibmcloud.wait_until_rebooted(instance_id, timeout, affected_node)
+                self.ibmcloud_power.reboot_instances(instance_id, soft_reboot)
+                self.ibmcloud_power.wait_until_rebooted(instance_id, timeout, affected_node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(
                         node, timeout, affected_node
@@ -368,15 +382,15 @@ class ibm_node_scenarios(abstract_node_scenarios):
 
     def node_terminate_scenario(self, instance_kill_count, node, timeout):
         try:
-            instance_id = self.ibmcloud.get_instance_id(node)
+            instance_id = self.ibmcloud_power.get_instance_id(node)
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node, node_id=instance_id)
                 logging.info(
                     "Starting node_termination_scenario injection by first stopping the node"
                 )
                 logging.info("Deleting the node with instance ID: %s " % (node))
-                self.ibmcloud.delete_instance(instance_id)
-                self.ibmcloud.wait_until_deleted(node, timeout, affected_node)
+                self.ibmcloud_power.delete_instance(instance_id)
+                self.ibmcloud_power.wait_until_deleted(node, timeout, affected_node)
                 logging.info(
                     "Node with instance ID: %s has been released" % node
                 )

@@ -29,6 +29,9 @@ from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import (
     ibm_node_scenarios,
 )
 
+from krkn.scenario_plugins.node_actions.ibmcloud_power_node_scenarios import (
+     ibmcloud_power_node_scenarios,
+)
 node_general = False
 
 
@@ -140,15 +143,14 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             node_scenario["cloud_type"].lower() == "ibm"
             or node_scenario["cloud_type"].lower() == "ibmcloud"
         ):
-            disable_ssl_verification = get_yaml_item_value(
-                node_scenario, "disable_ssl_verification", True
-            )
-            return ibm_node_scenarios(
-                kubecli,
-                node_action_kube_check,
-                affected_nodes_status,
-                disable_ssl_verification,
-            )
+            disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
+            return ibm_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
+        elif (
+            node_scenario["cloud_type"].lower() == "ibmpower"
+            or node_scenario["cloud_type"].lower() == "ibmcloudpower"
+        ):
+            disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
+            return ibmcloud_power_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
         else:
             logging.error(
                 "Cloud type "
@@ -237,6 +239,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
 
         timeout = get_yaml_item_value(node_scenario, "timeout", 120)
         service = get_yaml_item_value(node_scenario, "service", "")
+        soft_reboot = get_yaml_item_value(node_scenario, "soft_reboot", False)
         ssh_private_key = get_yaml_item_value(
             node_scenario, "ssh_private_key", "~/.ssh/id_rsa"
         )
@@ -267,7 +270,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 )
             elif action == "node_reboot_scenario":
                 node_scenario_object.node_reboot_scenario(
-                    run_kill_count, single_node, timeout
+                    run_kill_count, single_node, timeout, soft_reboot
                 )
             elif action == "node_disk_detach_attach_scenario":
                 node_scenario_object.node_disk_detach_attach_scenario(
