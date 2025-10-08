@@ -1,4 +1,5 @@
 import datetime
+from datetime import timedelta, timezone
 import logging
 import random
 import re
@@ -11,7 +12,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string, get_yaml_item_value, log_exception
 from kubernetes.client import ApiException
 
-from krkn import cerberus, utils
+from krkn import cerberus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -251,9 +252,8 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
     # From kubectl/oc command get time output
     def parse_string_date(self, obj_datetime):
         try:
-            logging.info("Obj_date time " + str(obj_datetime))
+            
             obj_datetime = re.sub(r"\s\s+", " ", obj_datetime).strip()
-            logging.info("Obj_date sub time " + str(obj_datetime))
             date_line = re.match(
                 r"[\s\S\n]*\w{3} \w{3} \d{1,} \d{2}:\d{2}:\d{2} \w{3} \d{4}[\s\S\n]*",  # noqa
                 obj_datetime,
@@ -269,12 +269,13 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             return ""
 
     # Get date and time from string returned from OC
-    def string_to_date(self, obj_datetime):
+    def string_to_date(self, obj_datetime, time_zone):
         obj_datetime = self.parse_string_date(obj_datetime)
         try:
             date_time_obj = datetime.datetime.strptime(
-                obj_datetime, "%a %b %d %H:%M:%S %Z %Y"
-            )
+                obj_datetime, "%a %b %d %H:%M:%S %Z %Y", 
+            ).replace(tzinfo=time_zone)
+            
             return date_time_obj
         except Exception:
             logging.info("Couldn't parse string to datetime object")
@@ -285,17 +286,22 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         skew_command = "date"
         not_reset = []
         max_retries = 30
+            
         if object_type == "node":
             for node_name in names:
-                first_date_time = datetime.datetime.utcnow()
+                node_timezone_string = kubecli.exec_command_on_node(
+                    node_name, ["date -R"], check_pod_name
+                )
+                time_zone = timezone(timedelta(hours=int(node_timezone_string[-5:])))
+                first_date_time = datetime.datetime.now(time_zone)
                 check_pod_name = f"time-skew-pod-{get_random_string(5)}"
                 node_datetime_string = kubecli.exec_command_on_node(
                     node_name, [skew_command], check_pod_name
                 )
-                node_datetime = self.string_to_date(node_datetime_string)
+                node_datetime = self.string_to_date(node_datetime_string, time_zone)
                 counter = 0
                 while not (
-                    first_date_time < node_datetime < datetime.datetime.utcnow()
+                    first_date_time < node_datetime <= datetime.datetime.now(time_zone)
                 ):
                     time.sleep(10)
                     logging.info(
@@ -306,7 +312,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     node_datetime_string = kubecli.exec_cmd_in_pod(
                         [skew_command], check_pod_name, "default"
                     )
-                    node_datetime = self.string_to_date(node_datetime_string)
+                    node_datetime = self.string_to_date(node_datetime_string, time_zone)
                     counter += 1
                     if counter > max_retries:
                         logging.error(
@@ -320,13 +326,19 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
 
         elif object_type == "pod":
             for pod_name in names:
-                first_date_time = datetime.datetime.utcnow()
+
+                pod_timezone_string = self.pod_exec(
+                    pod_name[0], "date -R", pod_name[1], pod_name[2], kubecli
+                )
+                time_zone = timezone(timedelta(hours=int(pod_timezone_string[-6:])))
+                first_date_time = datetime.datetime.now(time_zone)
                 counter = 0
                 pod_datetime_string = self.pod_exec(
                     pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
                 )
-                pod_datetime = self.string_to_date(pod_datetime_string)
-                while not (first_date_time < pod_datetime < datetime.datetime.utcnow()):
+                pod_datetime = self.string_to_date(pod_datetime_string, time_zone)
+                while not (first_date_time < pod_datetime <= datetime.datetime.now(time_zone)):
+                    
                     time.sleep(10)
                     logging.info(
                         "Date/time on pod %s still not reset, "
@@ -335,7 +347,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     pod_datetime = self.pod_exec(
                         pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
                     )
-                    pod_datetime = self.string_to_date(pod_datetime)
+                    pod_datetime = self.string_to_date(pod_datetime, time_zone)
                     counter += 1
                     if counter > max_retries:
                         logging.error(
@@ -344,6 +356,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                         )
                         not_reset.append(pod_name[0])
                         break
+                    end_date_time = datetime.datetime.now(time_zone)
                 if counter < max_retries:
                     logging.info("Date in pod " + str(pod_name[0]) + " reset properly")
         return not_reset
