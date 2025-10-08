@@ -75,10 +75,12 @@ def alerts(
 def critical_alerts(
     prom_cli: KrknPrometheus,
     summary: ChaosRunAlertSummary,
+    elastic: KrknElastic,
     run_id,
     scenario,
     start_time,
     end_time,
+    elastic_alerts_index
 ):
     summary.scenario = scenario
     summary.run_id = run_id
@@ -113,7 +115,6 @@ def critical_alerts(
             summary.chaos_alerts.append(alert)
 
     post_critical_alerts = prom_cli.process_query(query)
-
     for alert in post_critical_alerts:
         if "metric" in alert:
             alertname = (
@@ -136,6 +137,21 @@ def critical_alerts(
             )
             alert = ChaosRunAlert(alertname, alertstate, namespace, severity)
             summary.post_chaos_alerts.append(alert)
+            if elastic:
+                elastic_alert = ElasticAlert(
+                    run_uuid=run_id,
+                    severity=severity,
+                    alert=alertname,
+                    created_at=end_time,
+                    namespace=namespace,
+                    alertstate=alertstate,
+                    phase="post_chaos"
+                )
+                result = elastic.push_alert(elastic_alert, elastic_alerts_index)
+                if result == -1:
+                    logging.error("failed to save alert on ElasticSearch")
+                pass
+
 
     during_critical_alerts_count = len(during_critical_alerts)
     post_critical_alerts_count = len(post_critical_alerts)
@@ -149,8 +165,8 @@ def critical_alerts(
 
     if not firing_alerts:
         logging.info("No critical alerts are firing!!")
-
-
+    
+   
 def metrics(
     prom_cli: KrknPrometheus,
     elastic: KrknElastic,
@@ -249,6 +265,14 @@ def metrics(
                     metric_name = "health_check_recovery"
                     metric = {"metricName": metric_name}
                     for k,v in health_check.items():
+                        metric[k] = v
+                        metric['timestamp'] = str(datetime.datetime.now())
+                    metrics_list.append(metric.copy())
+        if telemetry_json['virt_checks']:
+            for virt_check in telemetry_json["virt_checks"]:
+                    metric_name = "virt_check_recovery"
+                    metric = {"metricName": metric_name}
+                    for k,v in virt_check.items():
                         metric[k] = v
                         metric['timestamp'] = str(datetime.datetime.now())
                     metrics_list.append(metric.copy())
