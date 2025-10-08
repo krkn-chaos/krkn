@@ -64,7 +64,9 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             else:
                 interfaces = self.config.interfaces
 
-            input_rules, output_rules = generate_rules(interfaces, self.config)
+            input_rules, output_rules = generate_rules(
+                interfaces, self.config, NetworkChaosScenarioType.Node, parallel, target
+            )
 
             apply_network_rules(
                 self.kubecli.get_lib_kubernetes(),
@@ -112,17 +114,4 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
         return NetworkChaosScenarioType.Node, self.config
 
     def get_targets(self) -> list[str]:
-        if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_nodes(
-                self.base_network_config.label_selector
-            )
-        else:
-            if not self.config.target:
-                raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
-                )
-            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
-            if self.config.target not in node_info:
-                raise Exception(f"node {self.config.target} not found, aborting")
-
-            return [self.config.target]
+        return self.get_node_targets()
