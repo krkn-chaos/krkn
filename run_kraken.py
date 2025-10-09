@@ -11,7 +11,7 @@ import uuid
 import time
 import queue
 import threading
-from typing import Optional
+from typing import Optional, Dict
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
@@ -453,18 +453,16 @@ def main(options, command: Optional[str]) -> int:
             try:
                 if prometheus is None:
                     prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
-                resiliency_obj = Resiliency("config/alerts.yaml")
-                resiliency_obj.health_check_results = health_checker.health_check_results
+                from krkn.resiliency.resiliency import compute_resiliency
 
-                            return json.dumps(data, default=_encode)
-
-                        ChaosRunTelemetry.to_json = _to_json_with_resiliency 
-                        ChaosRunTelemetry._with_resiliency_patch = True  
-                except Exception as patch_exc:  
-                    logging.error("Failed to patch ChaosRunTelemetry.to_json: %s", patch_exc)
-                logging.info(
-                    "Resiliency score for run %s: %s%%", run_uuid, resiliency_obj.to_dict().get("score")
+                compute_resiliency(
+                    prometheus=prometheus,
+                    chaos_telemetry=chaos_telemetry,
+                    start_time=datetime.datetime.fromtimestamp(start_time),
+                    end_time=datetime.datetime.fromtimestamp(end_time),
+                    run_uuid=run_uuid,
                 )
+
             except Exception as e:
                 logging.error("Failed to compute resiliency score: %s", e)
 

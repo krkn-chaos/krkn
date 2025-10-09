@@ -112,3 +112,85 @@ class Resiliency:
                 "severity": alert["severity"].lower(),
             })
         return slos
+
+# -----------------------------------------------------------------------------
+# High-level helper for run_kraken.py
+# -----------------------------------------------------------------------------
+
+def compute_resiliency(*,
+    prometheus: KrknPrometheus,
+    chaos_telemetry: "ChaosRunTelemetry",
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
+    run_uuid: str | None = None,
+    alerts_yaml_path: str = "config/alerts.yaml",
+    logger: logging.Logger | None = None,
+) -> Dict[str, Any] | None:
+    """Evaluate SLOs, combine health-check results, attach a resiliency report
+    to *chaos_telemetry* and return the report. Any failure is logged and *None*
+    is returned.
+    """
+
+    log = logger or logging.getLogger(__name__)
+
+    try:
+        resiliency_obj = Resiliency(alerts_yaml_path)
+        resiliency_obj.evaluate_slos(
+            prom_cli=prometheus,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
+        health_results: Dict[str, bool] = {}
+        hc_list = getattr(chaos_telemetry, "health_checks", None)
+        if hc_list:
+            for idx, hc in enumerate(hc_list):
+                # Extract URL/name
+                try:
+                    name = getattr(hc, "url", None)
+                    if name is None and isinstance(hc, dict):
+                        name = hc.get("url", f"hc_{idx}")
+                except Exception:
+                    name = f"hc_{idx}"
+                # Extract status
+                try:
+                    status = getattr(hc, "status", None)
+                    if status is None and isinstance(hc, dict):
+                        status = hc.get("status", True)
+                except Exception:
+                    status = False
+                health_results[str(name)] = bool(status)
+
+        resiliency_obj.calculate_score(health_check_results=health_results)
+        resiliency_report = resiliency_obj.to_dict()
+        chaos_telemetry.resiliency_report = resiliency_report
+
+        from krkn_lib.models.telemetry import ChaosRunTelemetry  # late import to avoid cycle
+
+        if not hasattr(ChaosRunTelemetry, "_with_resiliency_patch"):
+            _orig_to_json = ChaosRunTelemetry.to_json
+
+            def _to_json_with_resiliency(self):  
+                import json  # local import to keep module deps minimal
+                raw_json = _orig_to_json(self)
+                try:
+                    data = json.loads(raw_json)
+                except Exception:
+                    return raw_json
+                if hasattr(self, "resiliency_report"):
+                    data["resiliency_report"] = self.resiliency_report
+                return json.dumps(data)
+
+            ChaosRunTelemetry.to_json = _to_json_with_resiliency  
+            ChaosRunTelemetry._with_resiliency_patch = True
+
+        log.info(
+            "Resiliency score for run %s: %s%%",
+            run_uuid or "<unknown>",
+            resiliency_report.get("score"),
+        )
+        return resiliency_report
+
+    except Exception as exc:
+        log.error("Failed to compute resiliency score: %s", exc)
+        return None
