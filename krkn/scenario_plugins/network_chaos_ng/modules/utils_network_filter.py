@@ -54,6 +54,7 @@ def deploy_network_filter_pod(
     pod_name: str,
     kubecli: KrknKubernetes,
     container_name: str = "fedora",
+    host_network: bool = True,
 ):
     file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
     env = Environment(loader=file_loader, autoescape=True)
@@ -78,17 +79,16 @@ def deploy_network_filter_pod(
             toleration["value"] = value
         tolerations.append(toleration)
 
-
     pod_body = yaml.safe_load(
         pod_template.render(
             pod_name=pod_name,
             namespace=config.namespace,
-            host_network=True,
+            host_network=host_network,
             target=target_node,
             container_name=container_name,
             workload_image=config.image,
             taints=tolerations,
-            service_account=config.service_account
+            service_account=config.service_account,
         )
     )
 

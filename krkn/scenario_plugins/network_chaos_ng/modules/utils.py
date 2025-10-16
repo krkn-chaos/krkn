@@ -11,7 +11,7 @@ def log_info(message: str, parallel: bool = False, node_name: str = ""):
         logging.info(message)
 
 
-def log_error(self, message: str, parallel: bool = False, node_name: str = ""):
+def log_error(message: str, parallel: bool = False, node_name: str = ""):
     """
     log helper method for ERROR severity to be used in the scenarios
     """
@@ -21,7 +21,7 @@ def log_error(self, message: str, parallel: bool = False, node_name: str = ""):
         logging.error(message)
 
 
-def log_warning(self, message: str, parallel: bool = False, node_name: str = ""):
+def log_warning(message: str, parallel: bool = False, node_name: str = ""):
     """
     log helper method for WARNING severity to be used in the scenarios
     """
