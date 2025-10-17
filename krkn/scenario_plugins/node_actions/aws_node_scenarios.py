@@ -358,7 +358,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to reboot the node
-    def node_reboot_scenario(self, instance_kill_count, node, timeout):
+    def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:

@@ -39,7 +39,7 @@ class general_node_scenarios(abstract_node_scenarios):
         )
 
     # Node scenario to reboot the node
-    def node_reboot_scenario(self, instance_kill_count, node, timeout):
+    def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         logging.info(
             "Node reboot is not set up yet for this cloud type,"
             " no action is going to be taken"
