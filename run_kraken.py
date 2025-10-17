@@ -11,7 +11,7 @@ import uuid
 import time
 import queue
 import threading
-from typing import Optional
+from typing import Optional, Dict
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
@@ -19,6 +19,7 @@ from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
 import server as server
+from krkn.resiliency.resiliency import Resiliency
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -99,6 +100,17 @@ def main(options, command: Optional[str]) -> int:
         enable_metrics = get_yaml_item_value(
             config["performance_monitoring"], "enable_metrics", False
         )
+
+        # Ensure resiliency scoring can obtain a Prometheus handle even when
+        # metrics/alerts collection is disabled.
+        resiliency_enabled = get_yaml_item_value(
+            config,
+            "resiliency",
+            {"enabled": False},
+        ).get("enabled", False)
+
+        # Default placeholder; will be overridden if a Prometheus URL is available
+        prometheus = None
         # elastic search
         enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
 
@@ -246,8 +258,17 @@ def main(options, command: Optional[str]) -> int:
         else:
             elastic_search = None
         summary = ChaosRunAlertSummary()
-        if enable_metrics or enable_alerts or check_critical_alerts:
+        if enable_metrics or enable_alerts or check_critical_alerts or resiliency_enabled:
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
+            # Quick connectivity probe for Prometheus – disable resiliency if unreachable
+            try:
+                prometheus.process_prom_query_in_range(
+                    "up", datetime.datetime.utcnow() - datetime.timedelta(seconds=60), datetime.datetime.utcnow(), granularity=60
+                )
+            except Exception as prom_exc:  
+                logging.error("Prometheus connectivity test failed: %s. Disabling resiliency scoring." , prom_exc)
+                if resiliency_enabled:
+                    resiliency_enabled = False
 
         logging.info("Server URL: %s" % kubecli.get_host())
 
@@ -429,8 +450,30 @@ def main(options, command: Optional[str]) -> int:
             logging.info("collecting Kubernetes cluster metadata....")
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
 
+        # ---------------- Resiliency Score Evaluation -----------------
+        if resiliency_enabled:
+            try:
+                if prometheus is None:
+                    prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
+                from krkn.resiliency.resiliency import compute_resiliency
+
+                compute_resiliency(
+                    prometheus=prometheus,
+                    chaos_telemetry=chaos_telemetry,
+                    start_time=datetime.datetime.fromtimestamp(start_time),
+                    end_time=datetime.datetime.fromtimestamp(end_time),
+                    run_uuid=run_uuid,
+                )
+
+            except Exception as e:
+                logging.error("Failed to compute resiliency score: %s", e)
+
+
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
+        # Propagate resiliency report attribute after re-instantiation
+        if hasattr(chaos_telemetry, "resiliency_report"):
+            decoded_chaos_run_telemetry.resiliency_report = chaos_telemetry.resiliency_report  
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
