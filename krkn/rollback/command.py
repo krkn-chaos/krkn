@@ -3,7 +3,7 @@ import logging
 from typing import Optional, TYPE_CHECKING
 
 from krkn.rollback.config import RollbackConfig
-from krkn.rollback.handler import execute_rollback_version_files, cleanup_rollback_version_files
+from krkn.rollback.handler import execute_rollback_version_files
 
 
 
@@ -96,24 +96,16 @@ def execute_rollback(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: Optional
     :return: Exit code (0 for success, 1 for error)
     """
     logging.info("Executing rollback version files")
-    
-    if not run_uuid:
-        logging.error("run_uuid is required for execute-rollback command")
-        return 1
-    
-    if not scenario_type:
-        logging.warning("scenario_type is not specified, executing all scenarios in rollback directory")
-    
+    logging.info(f"Executing rollback for run_uuid={run_uuid  or '*'}, scenario_type={scenario_type or '*'}")
+
     try:
         # Execute rollback version files
-        logging.info(f"Executing rollback for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
-        execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
-        
-        # If execution was successful, cleanup the version files
-        logging.info("Rollback execution completed successfully, cleaning up version files")
-        cleanup_rollback_version_files(run_uuid, scenario_type)
-        
-        logging.info("Rollback execution and cleanup completed successfully")
+        execute_rollback_version_files(
+            telemetry_ocp,
+            run_uuid,
+            scenario_type,
+            ignore_auto_rollback_config=True
+        )
         return 0
         
     except Exception as e:
