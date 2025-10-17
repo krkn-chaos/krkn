@@ -32,7 +32,7 @@ telemetry:
     api_url: https://yvnn4rfoi7.execute-api.us-west-2.amazonaws.com/test #telemetry service endpoint
     username: $TELEMETRY_USERNAME                                      # telemetry service username
     password: $TELEMETRY_PASSWORD                                      # telemetry service password
-    prometheus_namespace: 'prometheus-k8s'                                # prometheus namespace
+    prometheus_namespace: 'monitoring'                                # prometheus namespace
     prometheus_pod_name: 'prometheus-kind-prometheus-kube-prome-prometheus-0'                                 # prometheus pod_name
     prometheus_container_name: 'prometheus'
     prometheus_backup: True                                 # enables/disables prometheus data collection
