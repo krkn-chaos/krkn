@@ -1,3 +1,4 @@
+import logging
 import queue
 import time
 
@@ -12,10 +13,9 @@ from krkn.scenario_plugins.network_chaos_ng.models import (
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
-from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info, log_error
 from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
     deploy_network_filter_pod,
-    get_default_interface,
     generate_namespaced_rules,
     apply_network_rules,
     clean_network_rules_namespaced,
@@ -56,23 +56,28 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                 pod_name,
                 self.kubecli.get_lib_kubernetes(),
                 container_name,
+                host_network=False,
             )
 
             if len(self.config.interfaces) == 0:
-                interfaces = [
-                    get_default_interface(
-                        pod_name,
-                        self.config.namespace,
-                        self.kubecli.get_lib_kubernetes(),
+                interfaces = (
+                    self.kubecli.get_lib_kubernetes().list_pod_network_interfaces(
+                        target, self.config.namespace
                     )
-                ]
+                )
 
+                if len(interfaces) == 0:
+                    log_error(
+                        "no network interface found in pod, impossible to execute the network filter scenario",
+                        parallel,
+                        pod_name,
+                    )
+                    return
                 log_info(
-                    f"detected default interface {interfaces[0]}",
+                    f"detected network interfaces: {','.join(interfaces)}",
                     parallel,
                     pod_name,
                 )
-
             else:
                 interfaces = self.config.interfaces
 
