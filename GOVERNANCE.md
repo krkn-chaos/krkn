@@ -70,12 +70,12 @@ To become a Maintainer you need to demonstrate the following:
   <!-- add any additional Maintainer requirements here -->
 
 A new Maintainer must be proposed by an existing maintainer by sending a message to the
-[developer mailing list](TODO: List Link). A simple majority vote of existing Maintainers
+[developer mailing list](krkn.maintainers@gmail.com). A simple majority vote of existing Maintainers
 approves the application.  Maintainers nominations will be evaluated without prejudice
 to employer or demographics.
 
 Maintainers who are selected will be granted the necessary GitHub rights,
-and invited to the [private maintainer mailing list](TODO).
+and invited to the [maintainer mailing list](krkn.maintainers@gmail.com).
 
 ### Removing a Maintainer
 
@@ -109,8 +109,7 @@ accused of a CoC violation.
 ## CNCF Resources
 
 Any Maintainer may suggest a request for CNCF resources, either in the
-[mailing list](MAINTAINERS.md#current-maintainers), or during a
-meeting.  A simple majority of Maintainers approves the request.  The Maintainers
+[mailing list](MAINTAINERS.md#email), or during an office hours meeting.  A simple majority of Maintainers approves the request.  The Maintainers
 may also choose to delegate working with the CNCF to non-Maintainer community
 members, who will then be added to the [CNCF's Maintainer List](https://github.com/cncf/foundation/blob/main/project-maintainers.csv)
 for that purpose.
@@ -119,7 +118,7 @@ for that purpose.
 
 [Code of Conduct](CODE_OF_CONDUCT.md)
 violations by community members will be discussed and resolved
-on the [private Maintainer mailing list](TODO).  If a Maintainer is directly involved
+on the [private maintainer mailing list](krkn.maintainers@gmail.com).  If a Maintainer is directly involved
 in the report, the Maintainers will instead designate two Maintainers to work
 with the CNCF Code of Conduct Committee in resolving it.
 
@@ -138,10 +137,7 @@ holes and breaches according to the [security policy](TODO:Link to security.md).
 
 While most business in Krkn is conducted by "[lazy consensus](https://community.apache.org/committers/lazyConsensus.html)", 
 periodically the Maintainers may need to vote on specific actions or changes.
-A vote can be taken on [the developer mailing list](TODO) or
-[the private Maintainer mailing list](TODO) for security or conduct matters.  
-Votes may also be taken at [the developer meeting](TODO).  Any Maintainer may
-demand a vote be taken.
+A vote can be taken on [the developer mailing list](krkn.maintainers@gmail.com) for security or conduct matters. Any Maintainer may demand a vote be taken.
 
 Most votes require a simple majority of all Maintainers to succeed, except where
 otherwise noted.  Two-thirds majority votes mean at least two-thirds of all 
@@ -158,58 +154,3 @@ Krkn follows the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/
 Here is an excerpt:
 
 >  As contributors and maintainers of this project, and in the interest of fostering an open and welcoming community, we pledge to respect all people who contribute through reporting issues, posting feature requests, updating documentation, submitting pull requests or patches, and other activities.
-
-## Maintainer Levels
-
-### Contributor
-Contributors contributor to the community. Anyone can become a contributor by participating in discussions, reporting bugs, or contributing code or documentation.
-
-#### Responsibilities:
-
-Be active in the community and adhere to the Code of Conduct.
-
-Report bugs and suggest new features.
-
-Contribute high-quality code and documentation.
-
-
-### Member
-Members are active contributors to the community. Members have demonstrated a strong understanding of the project's codebase and conventions.
-
-#### Responsibilities:
-
-Review pull requests for correctness, quality, and adherence to project standards.
-
-Provide constructive and timely feedback to contributors.
-
-Ensure that all contributions are well-tested and documented.
-
-Work with maintainers to ensure a smooth and efficient release process.
-
-### Maintainer
-Maintainers are responsible for the overall health and direction of the project. They are long-standing contributors who have shown a deep commitment to the project's success.
-
-#### Responsibilities:
-
-Set the technical direction and vision for the project.
-
-Manage releases and ensure the stability of the main branch.
-
-Make decisions on feature inclusion and project priorities.
-
-Mentor other contributors and help grow the community.
-
-Resolve disputes and make final decisions when consensus cannot be reached.
-
-### Owner
-Owners have administrative access to the project and are the final decision-makers.
-
-#### Responsibilities:
-
-Manage the core team of maintainers and approvers.
-
-Set the overall vision and strategy for the project.
-
-Handle administrative tasks, such as managing the project's repository and other resources.
-
-Represent the project in the broader open-source community.
