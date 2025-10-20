@@ -19,7 +19,7 @@ from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
 import server as server
-from krkn.resiliency.resiliency import Resiliency
+from krkn.resiliency.resiliency import Resiliency, compute_resiliency
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -103,11 +103,21 @@ def main(options, command: Optional[str]) -> int:
 
         # Ensure resiliency scoring can obtain a Prometheus handle even when
         # metrics/alerts collection is disabled.
-        resiliency_enabled = get_yaml_item_value(
+        resiliency_cfg = get_yaml_item_value(
             config,
             "resiliency",
             {"enabled": False},
-        ).get("enabled", False)
+        )
+        resiliency_enabled = resiliency_cfg.get("enabled", False)
+
+        # ------------------------------------------------------------------
+        # Prometheus URL fallback logic
+        # ------------------------------------------------------------------
+        if (not prometheus_url or prometheus_url.strip() == "") and resiliency_enabled:
+            alt_url = resiliency_cfg.get("prometheus_url")
+            if alt_url:
+                logging.info("Using Prometheus URL from resiliency config: %s", alt_url)
+                prometheus_url = alt_url
 
         # Default placeholder; will be overridden if a Prometheus URL is available
         prometheus = None
@@ -453,7 +463,6 @@ def main(options, command: Optional[str]) -> int:
             try:
                 if prometheus is None:
                     prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
-                from krkn.resiliency.resiliency import compute_resiliency
 
                 compute_resiliency(
                     prometheus=prometheus,
@@ -471,7 +480,9 @@ def main(options, command: Optional[str]) -> int:
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
         # Propagate resiliency report attribute after re-instantiation
         if hasattr(chaos_telemetry, "resiliency_report"):
-            decoded_chaos_run_telemetry.resiliency_report = chaos_telemetry.resiliency_report  
+            decoded_chaos_run_telemetry.resiliency_report = chaos_telemetry.resiliency_report
+        if hasattr(chaos_telemetry, "resiliency_score"):
+            decoded_chaos_run_telemetry.resiliency_score = chaos_telemetry.resiliency_score
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:

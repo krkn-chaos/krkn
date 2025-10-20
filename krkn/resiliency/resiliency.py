@@ -15,6 +15,8 @@ import os
 from typing import Dict, List, Any
 
 import yaml
+import json
+from krkn_lib.models.telemetry import ChaosRunTelemetry
 
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 from krkn.prometheus.collector import evaluate_slos
@@ -24,11 +26,48 @@ from .score import calculate_resiliency_score
 class Resiliency:  
     """Central orchestrator for resiliency scoring."""
 
-    def __init__(self, alerts_yaml_path: str):
-        if not os.path.exists(alerts_yaml_path):
-            raise FileNotFoundError(f"alerts file not found: {alerts_yaml_path}")
-        self.alerts_yaml_path = alerts_yaml_path
-        self._slos: List[Dict[str, Any]] = self._load_alerts(alerts_yaml_path)
+
+
+
+    ENV_VAR_NAME = "KRKN_ALERTS_YAML_CONTENT"
+
+    def __init__(self, alerts_yaml_path: str = "config/alerts.yaml"):
+        """Load SLO definitions from the default alerts file, unless the
+        *KRKN_ALERTS_YAML_CONTENT* environment variable is set – in which case its
+        raw YAML string is parsed instead. The custom YAML may optionally follow
+        this schema:
+
+        prometheus_url: http://prometheus:9090  # optional, currently unused
+        slos:
+          - expr: <PromQL>
+            severity: critical|warning
+            description: <text>
+
+        For backward-compatibility the legacy list-only format is still accepted.
+        """
+        raw_yaml_data: Any
+        env_yaml = os.getenv(self.ENV_VAR_NAME)
+        if env_yaml:
+            try:
+                raw_yaml_data = yaml.safe_load(env_yaml)
+            except yaml.YAMLError as exc:
+                raise ValueError(
+                    f"Invalid YAML in environment variable {self.ENV_VAR_NAME}: {exc}"
+                ) from exc
+            logging.info("Loaded SLO configuration from environment variable %s", self.ENV_VAR_NAME)
+            # Store optional Prometheus URL if provided
+            if isinstance(raw_yaml_data, dict):
+                self.prometheus_url = raw_yaml_data.get("prometheus_url")  # may be None
+                raw_yaml_data = raw_yaml_data.get("slos", raw_yaml_data.get("alerts", []))
+        else:
+            if not os.path.exists(alerts_yaml_path):
+                raise FileNotFoundError(f"alerts file not found: {alerts_yaml_path}")
+            with open(alerts_yaml_path, "r", encoding="utf-8") as fp:
+                raw_yaml_data = yaml.safe_load(fp)
+            logging.info("Loaded SLO configuration from %s", alerts_yaml_path)
+            self.prometheus_url = None
+
+        self._slos = self._normalise_alerts(raw_yaml_data)
         self._results: Dict[str, bool] = {}
         self._score: int | None = None
         self._breakdown: Dict[str, int] | None = None
@@ -88,29 +127,25 @@ class Resiliency:
     # Internal helpers
     # ------------------------------------------------------------------
     @staticmethod
-    def _load_alerts(path: str) -> List[Dict[str, Any]]:
-        """Load alerts.yaml and normalise it into an internal list structure."""
-        with open(path, "r", encoding="utf-8") as fp:
-            raw_alerts = yaml.safe_load(fp)
-
+    @staticmethod
+    def _normalise_alerts(raw_alerts: Any) -> List[Dict[str, Any]]:
+        """Convert raw YAML alerts data into internal SLO list structure."""
         if not isinstance(raw_alerts, list):
-            raise ValueError("alerts.yaml must contain a top-level list of SLO definitions")
+            raise ValueError("SLO configuration must be a list under key 'slos' or top-level list")
 
         slos: List[Dict[str, Any]] = []
         for idx, alert in enumerate(raw_alerts):
-            if not ("expr" in alert and "severity" in alert):
+            if not (isinstance(alert, dict) and "expr" in alert and "severity" in alert):
                 logging.warning("Skipping invalid alert entry at index %d: %s", idx, alert)
                 continue
-            # Generate a stable name for the SLO. Prefer description, else expr hash.
-            name = (
-                alert.get("description")
-                or f"slo_{idx}"
+            name = alert.get("description") or f"slo_{idx}"
+            slos.append(
+                {
+                    "name": name,
+                    "expr": alert["expr"],
+                    "severity": str(alert["severity"]).lower(),
+                }
             )
-            slos.append({
-                "name": name,
-                "expr": alert["expr"],
-                "severity": alert["severity"].lower(),
-            })
         return slos
 
 # -----------------------------------------------------------------------------
@@ -164,14 +199,13 @@ def compute_resiliency(*,
         resiliency_obj.calculate_score(health_check_results=health_results)
         resiliency_report = resiliency_obj.to_dict()
         chaos_telemetry.resiliency_report = resiliency_report
+        chaos_telemetry.resiliency_score = resiliency_report.get("score")
 
-        from krkn_lib.models.telemetry import ChaosRunTelemetry  # late import to avoid cycle
-
+        
         if not hasattr(ChaosRunTelemetry, "_with_resiliency_patch"):
             _orig_to_json = ChaosRunTelemetry.to_json
 
-            def _to_json_with_resiliency(self):  
-                import json  # local import to keep module deps minimal
+            def _to_json_with_resiliency(self):
                 raw_json = _orig_to_json(self)
                 try:
                     data = json.loads(raw_json)
@@ -179,6 +213,8 @@ def compute_resiliency(*,
                     return raw_json
                 if hasattr(self, "resiliency_report"):
                     data["resiliency_report"] = self.resiliency_report
+                if hasattr(self, "resiliency_score"):
+                    data["resiliency_score"] = self.resiliency_score
                 return json.dumps(data)
 
             ChaosRunTelemetry.to_json = _to_json_with_resiliency  
