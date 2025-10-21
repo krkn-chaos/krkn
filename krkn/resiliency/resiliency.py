@@ -16,6 +16,7 @@ from typing import Dict, List, Any
 
 import yaml
 import json
+import dataclasses
 from krkn_lib.models.telemetry import ChaosRunTelemetry
 
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
@@ -71,6 +72,7 @@ class Resiliency:
         self._results: Dict[str, bool] = {}
         self._score: int | None = None
         self._breakdown: Dict[str, int] | None = None
+        self.scenario_reports: List[Dict[str, Any]] = []
 
     # ---------------------------------------------------------------------
     # Public API
@@ -122,6 +124,177 @@ class Resiliency:
             "slo_results": self._results,
             "health_check_results": getattr(self, "_health_check_results", {}),
         }
+
+    # ------------------------------------------------------------------
+    # Scenario-based resiliency evaluation
+    # ------------------------------------------------------------------
+    def add_scenario_report(
+        self,
+        *,
+        scenario_name: str,
+        prom_cli: KrknPrometheus,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        weight: float | int = 1,
+        health_check_results: Dict[str, bool] | None = None,
+        weights: Dict[str, int] | None = None,
+        granularity: int = 30,
+    ) -> int:
+        """
+        Evaluate SLOs for a single scenario window and store the result.
+
+        Args:
+            scenario_name: Human-friendly scenario identifier.
+            prom_cli: Initialized KrknPrometheus instance.
+            start_time: Window start.
+            end_time: Window end.
+            weight: Weight to use for the final weighted average calculation.
+            health_check_results: Optional mapping of custom health-check name ➡ bool.
+            weights: Optional override of severity weights for SLO calculation.
+            granularity: Prometheus query step in seconds.
+        Returns:
+            The calculated integer resiliency score (0-100) for this scenario.
+        """
+        slo_results = evaluate_slos(
+            prom_cli=prom_cli,
+            slo_list=self._slos,
+            start_time=start_time,
+            end_time=end_time,
+            granularity=granularity,
+        )
+        slo_defs = {slo["name"]: slo["severity"] for slo in self._slos}
+        score, breakdown = calculate_resiliency_score(
+            slo_definitions=slo_defs,
+            prometheus_results=slo_results,
+            health_check_results=health_check_results or {},
+            weights=weights,
+        )
+        self.scenario_reports.append(
+            {
+                "name": scenario_name,
+                "window": {
+                    "start": start_time.isoformat(),
+                    "end": end_time.isoformat(),
+                },
+                "score": score,
+                "weight": weight,
+                "breakdown": breakdown,
+                "slo_results": slo_results,
+                "health_check_results": health_check_results or {},
+            }
+        )
+        return score
+
+    def finalize_report(
+        self,
+        *,
+        prom_cli: KrknPrometheus,
+        total_start_time: datetime.datetime,
+        total_end_time: datetime.datetime,
+        weights: Dict[str, int] | None = None,
+        granularity: int = 30,
+    ) -> None:
+        if not self.scenario_reports:
+            raise RuntimeError("No scenario reports added – nothing to finalize")
+
+        # ---------------- Weighted average (primary resiliency_score) ----------
+        total_weight = sum(rep["weight"] for rep in self.scenario_reports)
+        resiliency_score = int(
+            sum(rep["score"] * rep["weight"] for rep in self.scenario_reports) / total_weight
+        )
+
+        # ---------------- Holistic stability score -----------------------------
+        full_slo_results = evaluate_slos(
+            prom_cli=prom_cli,
+            slo_list=self._slos,
+            start_time=total_start_time,
+            end_time=total_end_time,
+            granularity=granularity,
+        )
+        slo_defs = {slo["name"]: slo["severity"] for slo in self._slos}
+        system_stability_score, full_breakdown = calculate_resiliency_score(
+            slo_definitions=slo_defs,
+            prometheus_results=full_slo_results,
+            health_check_results={},
+            weights=weights,
+        )
+
+        self.summary = {
+            "scenarios": {rep["name"]: rep["score"] for rep in self.scenario_reports},
+            "resiliency_score": resiliency_score,
+            "system_stability_score": system_stability_score,
+            "passed_slos": full_breakdown.get("passed", 0),
+            "total_slos": full_breakdown.get("passed", 0) + full_breakdown.get("failed", 0),
+        }
+
+        self.detailed_report = {
+            "scenarios": self.scenario_reports,
+            "system_stability": {
+                "window": {
+                    "start": total_start_time.isoformat(),
+                    "end": total_end_time.isoformat(),
+                },
+                "score": system_stability_score,
+                "breakdown": full_breakdown,
+                "slo_results": full_slo_results,
+            },
+        }
+
+    def get_summary(self) -> Dict[str, Any]:
+        """Return the concise resiliency_summary structure."""
+        if not hasattr(self, "summary"):
+            raise RuntimeError("finalize_report() must be called first")
+        return self.summary
+
+    def get_detailed_report(self) -> Dict[str, Any]:
+        """Return the full resiliency-report structure."""
+        if not hasattr(self, "detailed_report"):
+            raise RuntimeError("finalize_report() must be called first")
+        return self.detailed_report
+
+    @staticmethod
+    def compact_breakdown(report: Dict[str, Any]) -> Dict[str, int]:
+        """Return a compact summary dict for a single scenario report."""
+        try:
+            passed = report["breakdown"]["passed"]
+            failed = report["breakdown"]["failed"]
+            score_val = report["score"]
+        except Exception:
+            passed = report.get("breakdown", {}).get("passed", 0)
+            failed = report.get("breakdown", {}).get("failed", 0)
+            score_val = report.get("score", 0)
+        return {
+            "resiliency_score": score_val,
+            "passed_slos": passed,
+            "total_slos": passed + failed,
+        }
+
+    def attach_compact_to_telemetry(self, chaos_telemetry: ChaosRunTelemetry) -> None:
+        """Embed per-scenario compact resiliency reports into a ChaosRunTelemetry instance."""
+        score_map = {
+            rep["name"]: self.compact_breakdown(rep) for rep in self.scenario_reports
+        }
+        new_scenarios = []
+        for item in getattr(chaos_telemetry, "scenarios", []):
+            if isinstance(item, dict):
+                name = item.get("scenario")
+                if name in score_map:
+                    item["resiliency_report"] = score_map[name]
+                new_scenarios.append(item)
+            else:
+                name = getattr(item, "scenario", None)
+                try:
+                    item_dict = dataclasses.asdict(item)
+                except Exception:
+                    item_dict = {
+                        k: getattr(item, k)
+                        for k in dir(item)
+                        if not k.startswith("__") and not callable(getattr(item, k))
+                    }
+                if name in score_map:
+                    item_dict["resiliency_report"] = score_map[name]
+                new_scenarios.append(item_dict)
+        chaos_telemetry.scenarios = new_scenarios
 
     # ------------------------------------------------------------------
     # Internal helpers

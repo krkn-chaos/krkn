@@ -93,8 +93,9 @@ def collect_prometheus_metrics(
 
 def slo_passed(prometheus_result: List[Any]) -> bool:  
     """Return True when an SLO passed based on Prometheus query result."""
+    # If query returns no data we cannot assert pass→treat as failure
     if not prometheus_result:
-        return True
+        return False
     for series in prometheus_result:
         if "values" in series:
             for _ts, val in series["values"]:
@@ -142,6 +143,8 @@ def evaluate_slos(
                 end_time=end_time,
                 granularity=granularity,
             )
+            if not response:
+                logging.warning("SLO '%s' query returned no data; treating as failure", name)
             results[name] = slo_passed(response)
         except Exception as exc:  
             logging.error("PromQL query failed for SLO '%s': %s", name, exc)

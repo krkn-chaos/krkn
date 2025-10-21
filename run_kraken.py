@@ -280,6 +280,7 @@ def main(options, command: Optional[str]) -> int:
                 if resiliency_enabled:
                     resiliency_enabled = False
 
+        resiliency_obj = Resiliency() if resiliency_enabled else None # Initialize resiliency orchestrator
         logging.info("Server URL: %s" % kubecli.get_host())
 
         if command == "list-rollback":
@@ -394,12 +395,51 @@ def main(options, command: Optional[str]) -> int:
                             )
                             sys.exit(1)
 
+                        batch_window_start_dt = datetime.datetime.utcnow()
                         failed_post_scenarios, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
                                 run_uuid, scenarios_list, config, telemetry_ocp
                             )
                         )
                         chaos_telemetry.scenarios.extend(scenario_telemetries)
+                        batch_window_end_dt = datetime.datetime.utcnow()
+                        if resiliency_obj:
+                            for tel in scenario_telemetries:
+                                try:
+                                    if isinstance(tel, dict):
+                                        st_ts = tel.get("start_timestamp")
+                                        en_ts = tel.get("end_timestamp")
+                                        scen_name = tel.get("scenario", scenario_type)
+                                    else:
+                                        st_ts = getattr(tel, "start_timestamp", None)
+                                        en_ts = getattr(tel, "end_timestamp", None)
+                                        scen_name = getattr(tel, "scenario", scenario_type)
+
+                                    if st_ts and en_ts:
+                                        st_dt = datetime.datetime.fromtimestamp(int(st_ts))
+                                        en_dt = datetime.datetime.fromtimestamp(int(en_ts))
+                                    else:
+                                        st_dt = batch_window_start_dt
+                                        en_dt = batch_window_end_dt
+
+                                    resiliency_obj.add_scenario_report(
+                                        scenario_name=str(scen_name),
+                                        prom_cli=prometheus,
+                                        start_time=st_dt,
+                                        end_time=en_dt,
+                                        weight=1,
+                                        health_check_results=None,
+                                    )
+
+                                    compact = Resiliency.compact_breakdown(
+                                        resiliency_obj.scenario_reports[-1]
+                                    )
+                                    if isinstance(tel, dict):
+                                        tel["resiliency_report"] = compact
+                                    else:
+                                        setattr(tel, "resiliency_report", compact)
+                                except Exception as e:
+                                    logging.error("Resiliency per-scenario evaluation failed: %s", e)
 
                         post_critical_alerts = 0
                         if check_critical_alerts:
@@ -458,31 +498,39 @@ def main(options, command: Optional[str]) -> int:
             logging.info("collecting Kubernetes cluster metadata....")
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
 
-        # ---------------- Resiliency Score Evaluation -----------------
-        if resiliency_enabled:
+        if resiliency_obj:
             try:
-                if prometheus is None:
-                    prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
+                resiliency_obj.attach_compact_to_telemetry(chaos_telemetry)
+            except Exception as exc:
+                logging.error("Failed to embed per-scenario resiliency in telemetry: %s", exc)
 
-                compute_resiliency(
-                    prometheus=prometheus,
-                    chaos_telemetry=chaos_telemetry,
-                    start_time=datetime.datetime.fromtimestamp(start_time),
-                    end_time=datetime.datetime.fromtimestamp(end_time),
-                    run_uuid=run_uuid,
+        if resiliency_obj:
+            try:
+                resiliency_obj.finalize_report(
+                    prom_cli=prometheus,
+                    total_start_time=datetime.datetime.fromtimestamp(start_time),
+                    total_end_time=datetime.datetime.fromtimestamp(end_time),
                 )
+                resiliency_summary = resiliency_obj.get_summary()
+                resiliency_report = resiliency_obj.get_detailed_report()
+
+                try:
+                    with open("kraken.report", "w", encoding="utf-8") as fp:
+                        json.dump(resiliency_summary, fp, indent=2)
+                    with open("resiliency-report.json", "w", encoding="utf-8") as fp:
+                        json.dump(resiliency_report, fp, indent=2)
+                    logging.info("Resiliency reports written: kraken.report and resiliency-report.json")
+                except Exception as io_exc:
+                    logging.error("Failed to write resiliency report files: %s", io_exc)
 
             except Exception as e:
-                logging.error("Failed to compute resiliency score: %s", e)
+                logging.error("Failed to finalize resiliency scoring: %s", e)
 
 
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
-        # Propagate resiliency report attribute after re-instantiation
-        if hasattr(chaos_telemetry, "resiliency_report"):
-            decoded_chaos_run_telemetry.resiliency_report = chaos_telemetry.resiliency_report
-        if hasattr(chaos_telemetry, "resiliency_score"):
-            decoded_chaos_run_telemetry.resiliency_score = chaos_telemetry.resiliency_score
+        if resiliency_obj and hasattr(resiliency_obj, "summary"):
+            decoded_chaos_run_telemetry.overall_resiliency_report = resiliency_obj.get_summary()
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
