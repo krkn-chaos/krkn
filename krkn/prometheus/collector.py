@@ -4,7 +4,7 @@ import datetime
 import math
 import os
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 import yaml
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
@@ -91,13 +91,13 @@ def collect_prometheus_metrics(
 # -----------------------------------------------------------------------------
 
 
-def slo_passed(prometheus_result: List[Any]) -> bool:  
-    """Return True when an SLO passed based on Prometheus query result."""
-    # If query returns no data we cannot assert pass→treat as failure
+def slo_passed(prometheus_result: List[Any]) -> Optional[bool]:
     if not prometheus_result:
-        return False
+        return None
+    has_samples = False
     for series in prometheus_result:
         if "values" in series:
+            has_samples = True
             for _ts, val in series["values"]:
                 try:
                     if float(val) > 0:
@@ -105,11 +105,14 @@ def slo_passed(prometheus_result: List[Any]) -> bool:
                 except (TypeError, ValueError):
                     continue
         elif "value" in series:
+            has_samples = True
             try:
                 return float(series["value"][1]) == 0
             except (TypeError, ValueError):
                 return False
-    return True
+
+    # If we reached here and never saw any samples, skip
+    return None if not has_samples else True
 
 
 def evaluate_slos(
@@ -143,9 +146,12 @@ def evaluate_slos(
                 end_time=end_time,
                 granularity=granularity,
             )
-            if not response:
-                logging.warning("SLO '%s' query returned no data; treating as failure", name)
-            results[name] = slo_passed(response)
+
+            passed = slo_passed(response)
+            if passed is None:
+                logging.warning("SLO '%s' query returned no data; excluding from score.", name)
+            else:
+                results[name] = passed
         except Exception as exc:  
             logging.error("PromQL query failed for SLO '%s': %s", name, exc)
             results[name] = False  
