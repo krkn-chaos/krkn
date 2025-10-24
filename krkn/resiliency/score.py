@@ -43,7 +43,10 @@ def calculate_resiliency_score(
 
     slo_objects: List[SLOResult] = []
     for slo_name, severity in slo_definitions.items():
-        passed = bool(prometheus_results.get(slo_name, False))
+        # Exclude SLOs that were not evaluated (query returned no data)
+        if slo_name not in prometheus_results:
+            continue
+        passed = bool(prometheus_results[slo_name])
         slo_objects.append(SLOResult(slo_name, severity, passed))
 
     # Health-check SLOs (by default keeping them critical)
