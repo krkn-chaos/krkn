@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import datetime
-import math
-import os
 import logging
 from typing import Dict, Any, List, Optional
 
 import yaml
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
+from krkn.prometheus.client import metrics as client_metrics
 
 
 def collect_prometheus_metrics(
@@ -16,7 +15,7 @@ def collect_prometheus_metrics(
     start_time: datetime.datetime,
     end_time: datetime.datetime,
     granularity: int = 30,
-) -> Dict[str, Any]:
+) -> list[dict[str, Any]]:
     """Collect Prometheus metrics described by a metrics profile for a given time window.
 
     Args:
@@ -29,61 +28,21 @@ def collect_prometheus_metrics(
         granularity: Step in seconds used for range queries (default: 30).
 
     Returns:
-        A dictionary keyed by ``metricName`` containing the original query, whether it
-        was an instant query and the raw Prometheus response returned by the client.
+        List of metric dictionaries as produced by `krkn.prometheus.client.metrics`.
     """
 
-    # Load YAML profile from disk when a string path is provided
-    if isinstance(metrics_profile, str):
-        if not os.path.exists(metrics_profile):
-            raise FileNotFoundError(f"Metrics profile {metrics_profile} does not exist")
-        with open(metrics_profile, "r", encoding="utf-8") as f:
-            profile_data = yaml.safe_load(f)
-    else:
-        profile_data = metrics_profile
+    # Reuse implementation from krkn.prometheus.client.metrics to avoid code duplication
+    return client_metrics(
+        prom_cli=prom_cli,
+        elastic=None,
+        run_uuid="",
+        start_time=int(start_time.timestamp()),
+        end_time=int(end_time.timestamp()),
+        metrics_profile=metrics_profile,
+        elastic_metrics_index=None,
+        telemetry_json="{}",
+    )
 
-    if not profile_data or "metrics" not in profile_data or not isinstance(profile_data["metrics"], list):
-        raise ValueError("metrics_profile must define a top-level 'metrics' list")
-
-    elapsed_minutes = math.ceil((end_time.timestamp() - start_time.timestamp()) / 60)
-    elapsed_token = f"{elapsed_minutes}m"
-
-    results: Dict[str, Any] = {}
-
-    for metric in profile_data["metrics"]:
-        if "query" not in metric or "metricName" not in metric:
-            logging.warning("Skipping invalid metric entry: %s", metric)
-            continue
-
-        query = metric["query"].replace(".elapsed", elapsed_token)
-        metric_name = metric["metricName"]
-        is_instant = bool(metric.get("instant", False))
-
-        try:
-            if is_instant:
-                response = prom_cli.process_query(query)
-            else:
-                response = prom_cli.process_prom_query_in_range(
-                    query,
-                    start_time=start_time,
-                    end_time=end_time,
-                    granularity=granularity,
-                )
-            results[metric_name] = {
-                "query": query,
-                "instant": is_instant,
-                "data": response,
-            }
-        except Exception as exc:  # Broad check to avoid aborting the entire collection
-            logging.error("Failed to execute Prometheus query '%s': %s", query, exc)
-            results[metric_name] = {
-                "query": query,
-                "instant": is_instant,
-                "data": [],
-                "error": str(exc),
-            }
-
-    return results
 
 
 # -----------------------------------------------------------------------------
