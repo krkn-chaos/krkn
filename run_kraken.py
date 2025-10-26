@@ -514,14 +514,29 @@ def main(options, command: Optional[str]) -> int:
                 resiliency_summary = resiliency_obj.get_summary()
                 resiliency_report = resiliency_obj.get_detailed_report()
 
-                try:
-                    with open("kraken.report", "w", encoding="utf-8") as fp:
-                        json.dump(resiliency_summary, fp, indent=2)
-                    with open("resiliency-report.json", "w", encoding="utf-8") as fp:
-                        json.dump(resiliency_report, fp, indent=2)
-                    logging.info("Resiliency reports written: kraken.report and resiliency-report.json")
-                except Exception as io_exc:
-                    logging.error("Failed to write resiliency report files: %s", io_exc)
+                run_mode = os.getenv("KRKN_RUN_MODE", "standalone")
+
+                summary_report = resiliency_summary
+                detailed_report = resiliency_report
+
+                if run_mode == "controller":
+                    # --- KRKNCTL MODE ---
+                    try:
+                        detailed_report_json = json.dumps(detailed_report)
+                        print(f"KRKN_RESILIENCY_REPORT_JSON:{detailed_report_json}")
+                        logging.info("Resiliency report logged to stdout for krknctl.")
+                    except Exception as e:
+                        logging.error(f"Failed to serialize and log detailed resiliency report: {e}")
+                else:
+                    # --- STANDALONE MODE (default behaviour) ---
+                    try:
+                        with open("kraken.report", "w", encoding="utf-8") as fp:
+                            json.dump(summary_report, fp, indent=2)
+                        with open("resiliency-report.json", "w", encoding="utf-8") as fp:
+                            json.dump(detailed_report, fp, indent=2)
+                        logging.info("Resiliency reports written: kraken.report and resiliency-report.json")
+                    except Exception as io_exc:
+                        logging.error("Failed to write resiliency report files: %s", io_exc)
 
             except Exception as e:
                 logging.error("Failed to finalize resiliency scoring: %s", e)
