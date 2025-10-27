@@ -185,12 +185,14 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
         return ["cluster_shut_down_scenarios"]
 
     @staticmethod
-    def rollback_shutdown_nodes(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+    def rollback_shutdown_nodes(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift = None):
         """
         Rollback function to restore powered-off nodes back to running state.
+        This function works independently of the Kubernetes API server to ensure
+        rollback can function even when all nodes are down (including control plane).
         
         :param rollback_content: Rollback content containing node information and cloud provider details.
-        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift (optional, not used to avoid API server dependency).
         """
         try:
             # Parse the rollback content to extract node and cloud information
@@ -212,15 +214,21 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
             logging.info(f"Node IDs: {node_ids}")
             
             # Initialize cloud provider
+            # Import at function level to ensure they're available during serialization
             if cloud_type.lower() == "aws":
+                from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
                 cloud_object = AWS()
             elif cloud_type.lower() == "gcp":
+                from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
                 cloud_object = GCP()
             elif cloud_type.lower() == "openstack":
+                from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
                 cloud_object = OPENSTACKCLOUD()
             elif cloud_type.lower() in ["azure", "az"]:
+                from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
                 cloud_object = Azure()
             elif cloud_type.lower() in ["ibm", "ibmcloud"]:
+                from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import IbmCloud
                 cloud_object = IbmCloud()
             else:
                 logging.error(f"Unsupported cloud type for rollback: {cloud_type}")

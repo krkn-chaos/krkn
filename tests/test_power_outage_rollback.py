@@ -43,8 +43,8 @@ class TestPowerOutageRollback:
         # Mock telemetry
         mock_telemetry = Mock()
         
-        # Mock cloud provider
-        with patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS') as mock_aws_class:
+        # Mock cloud provider - patch at the import location inside the rollback function
+        with patch('krkn.scenario_plugins.node_actions.aws_node_scenarios.AWS') as mock_aws_class:
             mock_aws = Mock()
             mock_aws_class.return_value = mock_aws
             mock_aws.start_instances.return_value = None
@@ -67,8 +67,8 @@ class TestPowerOutageRollback:
         # Mock telemetry
         mock_telemetry = Mock()
         
-        # Mock cloud provider with partial failure
-        with patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS') as mock_aws_class:
+        # Mock cloud provider with partial failure - patch at the import location
+        with patch('krkn.scenario_plugins.node_actions.aws_node_scenarios.AWS') as mock_aws_class:
             mock_aws = Mock()
             mock_aws_class.return_value = mock_aws
             mock_aws.start_instances.return_value = None
@@ -102,8 +102,8 @@ class TestPowerOutageRollback:
         # Execute rollback - should handle gracefully
         ShutDownScenarioPlugin.rollback_shutdown_nodes(rollback_content, mock_telemetry)
         
-        # No cloud provider should be instantiated
-        with patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS') as mock_aws_class:
+        # No cloud provider should be instantiated - patch at the import location
+        with patch('krkn.scenario_plugins.node_actions.aws_node_scenarios.AWS') as mock_aws_class:
             assert not mock_aws_class.called
 
     def test_rollback_shutdown_nodes_unsupported_cloud(self):
@@ -119,8 +119,8 @@ class TestPowerOutageRollback:
         # Execute rollback - should handle gracefully
         ShutDownScenarioPlugin.rollback_shutdown_nodes(rollback_content, mock_telemetry)
         
-        # No cloud provider should be instantiated
-        with patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS') as mock_aws_class:
+        # No cloud provider should be instantiated - patch at the import location
+        with patch('krkn.scenario_plugins.node_actions.aws_node_scenarios.AWS') as mock_aws_class:
             assert not mock_aws_class.called
 
     def test_rollback_shutdown_nodes_empty_node_list(self):
@@ -136,8 +136,8 @@ class TestPowerOutageRollback:
         # Execute rollback - should handle gracefully
         ShutDownScenarioPlugin.rollback_shutdown_nodes(rollback_content, mock_telemetry)
         
-        # No cloud provider should be instantiated
-        with patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS') as mock_aws_class:
+        # No cloud provider should be instantiated - patch at the import location
+        with patch('krkn.scenario_plugins.node_actions.aws_node_scenarios.AWS') as mock_aws_class:
             assert not mock_aws_class.called
 
     def test_rollback_shutdown_nodes_cloud_provider_exception(self):
@@ -150,8 +150,8 @@ class TestPowerOutageRollback:
         # Mock telemetry
         mock_telemetry = Mock()
         
-        # Mock cloud provider that raises exception
-        with patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS') as mock_aws_class:
+        # Mock cloud provider that raises exception - patch at the import location
+        with patch('krkn.scenario_plugins.node_actions.aws_node_scenarios.AWS') as mock_aws_class:
             mock_aws = Mock()
             mock_aws_class.return_value = mock_aws
             mock_aws.start_instances.side_effect = Exception("Cloud API error")
@@ -166,10 +166,10 @@ class TestPowerOutageRollback:
         mock_telemetry = Mock()
         
         cloud_providers = [
-            ("gcp", "krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.GCP"),
-            ("azure", "krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.Azure"),
-            ("openstack", "krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.OPENSTACKCLOUD"),
-            ("ibm", "krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.IbmCloud")
+            ("gcp", "krkn.scenario_plugins.node_actions.gcp_node_scenarios.GCP"),
+            ("azure", "krkn.scenario_plugins.node_actions.az_node_scenarios.Azure"),
+            ("openstack", "krkn.scenario_plugins.node_actions.openstack_node_scenarios.OPENSTACKCLOUD"),
+            ("ibm", "krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios.IbmCloud")
         ]
         
         for cloud_type, provider_path in cloud_providers:
