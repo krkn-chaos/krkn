@@ -22,8 +22,13 @@ from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scena
 from krkn.scenario_plugins.node_actions.general_cloud_node_scenarios import (
     general_node_scenarios,
 )
-from krkn.scenario_plugins.node_actions.vmware_node_scenarios import vmware_node_scenarios
-from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import ibm_node_scenarios
+from krkn.scenario_plugins.node_actions.vmware_node_scenarios import (
+    vmware_node_scenarios,
+)
+from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import (
+    ibm_node_scenarios,
+)
+
 node_general = False
 
 
@@ -63,29 +68,39 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
     def get_node_scenario_object(self, node_scenario, kubecli: KrknKubernetes):
         affected_nodes_status = AffectedNodeStatus()
 
-        node_action_kube_check = get_yaml_item_value(node_scenario,"kube_check",True)
+        node_action_kube_check = get_yaml_item_value(node_scenario, "kube_check", True)
         if (
             "cloud_type" not in node_scenario.keys()
             or node_scenario["cloud_type"] == "generic"
         ):
             global node_general
             node_general = True
-            return general_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
+            return general_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         if node_scenario["cloud_type"].lower() == "aws":
-            return aws_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
+            return aws_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         elif node_scenario["cloud_type"].lower() == "gcp":
-            return gcp_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
+            return gcp_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         elif node_scenario["cloud_type"].lower() == "openstack":
             from krkn.scenario_plugins.node_actions.openstack_node_scenarios import (
                 openstack_node_scenarios,
             )
 
-            return openstack_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
+            return openstack_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         elif (
             node_scenario["cloud_type"].lower() == "azure"
             or node_scenario["cloud_type"].lower() == "az"
         ):
-            return azure_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
+            return azure_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         elif (
             node_scenario["cloud_type"].lower() == "alibaba"
             or node_scenario["cloud_type"].lower() == "alicloud"
@@ -94,7 +109,9 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 alibaba_node_scenarios,
             )
 
-            return alibaba_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status)
+            return alibaba_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         elif node_scenario["cloud_type"].lower() == "bm":
             from krkn.scenario_plugins.node_actions.bm_node_scenarios import (
                 bm_node_scenarios,
@@ -106,22 +123,32 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_scenario.get("bmc_password", None),
                 kubecli,
                 node_action_kube_check,
-                affected_nodes_status
+                affected_nodes_status,
             )
         elif node_scenario["cloud_type"].lower() == "docker":
-            return docker_node_scenarios(kubecli,node_action_kube_check,
-                affected_nodes_status)
+            return docker_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         elif (
             node_scenario["cloud_type"].lower() == "vsphere"
             or node_scenario["cloud_type"].lower() == "vmware"
         ):
-            return vmware_node_scenarios(kubecli, node_action_kube_check,affected_nodes_status)
+            return vmware_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status
+            )
         elif (
             node_scenario["cloud_type"].lower() == "ibm"
             or node_scenario["cloud_type"].lower() == "ibmcloud"
         ):
-            disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
-            return ibm_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
+            disable_ssl_verification = get_yaml_item_value(
+                node_scenario, "disable_ssl_verification", True
+            )
+            return ibm_node_scenarios(
+                kubecli,
+                node_action_kube_check,
+                affected_nodes_status,
+                disable_ssl_verification,
+            )
         else:
             logging.error(
                 "Cloud type "
@@ -139,16 +166,22 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             )
 
     def inject_node_scenario(
-        self, action, node_scenario, node_scenario_object, kubecli: KrknKubernetes, scenario_telemetry: ScenarioTelemetry
+        self,
+        action,
+        node_scenario,
+        node_scenario_object,
+        kubecli: KrknKubernetes,
+        scenario_telemetry: ScenarioTelemetry,
     ):
-        
+
         # Get the node scenario configurations for setting nodes
-       
+
         instance_kill_count = get_yaml_item_value(node_scenario, "instance_count", 1)
         node_name = get_yaml_item_value(node_scenario, "node_name", "")
         label_selector = get_yaml_item_value(node_scenario, "label_selector", "")
+        exclude_label = get_yaml_item_value(node_scenario, "exclude_label", "")
         parallel_nodes = get_yaml_item_value(node_scenario, "parallel", False)
-        
+
         # Get the node to apply the scenario
         if node_name:
             node_name_list = node_name.split(",")
@@ -157,11 +190,22 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             nodes = common_node_functions.get_node(
                 label_selector, instance_kill_count, kubecli
             )
-        
-        # GCP api doesn't support multiprocessing calls, will only actually run 1 
+            if exclude_label:
+                exclude_nodes = common_node_functions.get_node(
+                    exclude_label, 0, kubecli
+                )
+
+                for node in nodes:
+                    if node in exclude_nodes:
+                        logging.info(
+                            f"excluding node {node} with exclude label {exclude_nodes}"
+                        )
+                        nodes.remove(node)
+
+        # GCP api doesn't support multiprocessing calls, will only actually run 1
         if parallel_nodes:
             self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
-        else: 
+        else:
             for single_node in nodes:
                 self.run_node(single_node, node_scenario_object, action, node_scenario)
         affected_nodes_status = node_scenario_object.affected_nodes_status
@@ -171,13 +215,20 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         try:
             # pool object with number of element
             pool = ThreadPool(processes=len(nodes))
-    
-            pool.starmap(self.run_node,zip(nodes, repeat(node_scenario_object), repeat(action), repeat(node_scenario)))
+
+            pool.starmap(
+                self.run_node,
+                zip(
+                    nodes,
+                    repeat(node_scenario_object),
+                    repeat(action),
+                    repeat(node_scenario),
+                ),
+            )
 
             pool.close()
         except Exception as e:
             logging.info("Error on pool multiprocessing: " + str(e))
-
 
     def run_node(self, single_node, node_scenario_object, action, node_scenario):
         # Get the scenario specifics for running action nodes
@@ -220,7 +271,8 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 )
             elif action == "node_disk_detach_attach_scenario":
                 node_scenario_object.node_disk_detach_attach_scenario(
-                    run_kill_count, single_node, timeout, duration)
+                    run_kill_count, single_node, timeout, duration
+                )
             elif action == "stop_start_kubelet_scenario":
                 node_scenario_object.stop_start_kubelet_scenario(
                     run_kill_count, single_node, timeout
@@ -248,9 +300,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 else:
                     if not node_scenario["helper_node_ip"]:
                         logging.error("Helper node IP address is not provided")
-                        raise Exception(
-                            "Helper node IP address is not provided"
-                        )
+                        raise Exception("Helper node IP address is not provided")
                     node_scenario_object.helper_node_stop_start_scenario(
                         run_kill_count, node_scenario["helper_node_ip"], timeout
                     )
@@ -269,7 +319,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     "There is no node action that matches %s, skipping scenario"
                     % action
                 )
-
 
     def get_scenario_types(self) -> list[str]:
         return ["node_scenarios"]
