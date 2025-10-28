@@ -60,7 +60,7 @@ class abstract_node_scenarios:
         pass
 
     # Node scenario to reboot the node
-    def node_reboot_scenario(self, instance_kill_count, node, timeout):
+    def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         pass
 
     # Node scenario to stop the kubelet
