@@ -16,20 +16,22 @@ def get_node_by_name(node_name_list, kubecli: KrknKubernetes):
             )
             return
     return node_name_list
-        
+
 
 # Pick a random node with specified label selector
 def get_node(label_selector, instance_kill_count, kubecli: KrknKubernetes):
 
-    label_selector_list  = label_selector.split(",")
+    label_selector_list = label_selector.split(",")
     nodes = []
-    for label_selector in label_selector_list: 
+    for label_selector in label_selector_list:
         nodes.extend(kubecli.list_killable_nodes(label_selector))
     if not nodes:
         raise Exception("Ready nodes with the provided label selector do not exist")
-    logging.info("Ready nodes with the label selector %s: %s" % (label_selector_list, nodes))
+    logging.info(
+        "Ready nodes with the label selector %s: %s" % (label_selector_list, nodes)
+    )
     number_of_nodes = len(nodes)
-    if instance_kill_count == number_of_nodes:
+    if instance_kill_count == number_of_nodes or instance_kill_count == 0:
         return nodes
     nodes_to_return = []
     for i in range(instance_kill_count):
@@ -38,23 +40,30 @@ def get_node(label_selector, instance_kill_count, kubecli: KrknKubernetes):
         nodes.remove(node_to_add)
     return nodes_to_return
 
+
 # krkn_lib
 # Wait until the node status becomes Ready
-def wait_for_ready_status(node, timeout, kubecli: KrknKubernetes, affected_node: AffectedNode = None):
-    affected_node =  kubecli.watch_node_status(node, "True", timeout, affected_node)
+def wait_for_ready_status(
+    node, timeout, kubecli: KrknKubernetes, affected_node: AffectedNode = None
+):
+    affected_node = kubecli.watch_node_status(node, "True", timeout, affected_node)
     return affected_node
-   
+
 
 # krkn_lib
 # Wait until the node status becomes Not Ready
-def wait_for_not_ready_status(node, timeout, kubecli: KrknKubernetes, affected_node: AffectedNode = None):
+def wait_for_not_ready_status(
+    node, timeout, kubecli: KrknKubernetes, affected_node: AffectedNode = None
+):
     affected_node = kubecli.watch_node_status(node, "False", timeout, affected_node)
     return affected_node
-    
+
 
 # krkn_lib
 # Wait until the node status becomes Unknown
-def wait_for_unknown_status(node, timeout, kubecli: KrknKubernetes, affected_node: AffectedNode = None):
+def wait_for_unknown_status(
+    node, timeout, kubecli: KrknKubernetes, affected_node: AffectedNode = None
+):
     affected_node = kubecli.watch_node_status(node, "Unknown", timeout, affected_node)
     return affected_node
 
