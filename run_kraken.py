@@ -53,6 +53,10 @@ def main(options, command: Optional[str]) -> int:
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
 
+    # Determine execution mode (standalone vs controller)
+    run_mode = os.getenv("KRKN_RUN_MODE", "standalone").lower()
+    logging.info(f"Execution mode set to: {run_mode}")
+
     cfg = options.cfg
     # Parse and read the config
     if os.path.isfile(cfg):
@@ -514,8 +518,6 @@ def main(options, command: Optional[str]) -> int:
                 resiliency_summary = resiliency_obj.get_summary()
                 resiliency_report = resiliency_obj.get_detailed_report()
 
-                run_mode = os.getenv("KRKN_RUN_MODE", "standalone")
-
                 summary_report = resiliency_summary
                 detailed_report = resiliency_report
 
@@ -549,7 +551,7 @@ def main(options, command: Optional[str]) -> int:
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
-            elastic_telemetry = ElasticChaosRunTelemetry(
+            elastic_telemetry = ElasticChaosRunTelemetry( 
                 chaos_run_telemetry=decoded_chaos_run_telemetry
             )
             result = elastic_search.push_telemetry(
