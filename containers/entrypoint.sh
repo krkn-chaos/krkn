@@ -2,7 +2,7 @@
 # Run SSH setup
 ls
 pwd
-./setup-ssh.sh
+./containers/setup-ssh.sh
 # Change to kraken directory
 
 # Execute the main command
