@@ -49,10 +49,19 @@ class VirtChecker:
         output = invoke_no_exit(virtctl_vm_cmd)
         if 'True' in output:
             logging.debug(f"Disconnected access for {ip_address} on {worker_name} is successful: {output}")
-            return True
+            return True, None
         else:
             logging.debug(f"Disconnected access for {ip_address} on {worker_name} is failed: {output}")
-            return False
+            vmi = self.kube_vm_plugin.get_vmi(vmi_name,self.namespace)
+            new_ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
+            if new_ip_address != ip_address:
+                virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} with command: {virtctl_vm_cmd}")
+                new_output = invoke_no_exit(virtctl_vm_cmd)
+                logging.debug(f"Disconnected access for {ip_address} on {worker_name}: {new_output}")
+                if 'True' in new_output:
+                    return True, new_ip_address
+            return False, None
 
     def get_vm_access(self, vm_name: str = '', namespace: str = ''):
         """
@@ -95,7 +104,14 @@ class VirtChecker:
                     if not self.disconnected: 
                         vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
                     else:
-                        vm_status = self.check_disconnected_access(vm.ip_address, vm.node_name)
+                        # if new ip address exists use it 
+                        if vm.new_ip_address: 
+                            vm_status, new_ip_address = self.check_disconnected_access(vm.new_ip_address, vm.node_name)
+                            # since we already set the new ip address, we don't want to reset to none each time
+                        else: 
+                            vm_status, new_ip_address = self.check_disconnected_access(vm.ip_address, vm.node_name, vm.vm_name)
+                            vm.new_ip_address = new_ip_address
+                    print('status ' + str(vm_status))
                 except Exception:
                     vm_status = False
                 
