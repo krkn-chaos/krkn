@@ -630,6 +630,14 @@ if __name__ == "__main__":
         default=None,
     )
 
+    parser.add_option(
+        "-d",
+        "--debug",
+        dest="debug",
+        help="enable debug logging",
+        default=False,
+    )
+
     (options, args) = parser.parse_args()
     
     # If no command or regular execution, continue with existing logic
@@ -642,7 +650,7 @@ if __name__ == "__main__":
     ]
 
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if options.debug else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=handlers,
     )
