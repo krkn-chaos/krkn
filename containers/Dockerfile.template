@@ -64,18 +64,13 @@ LABEL krknctl.description.global="This is the krkn base image."
 LABEL krknctl.input_fields.global='$KRKNCTL_INPUT'
 
 # SSH setup script
-RUN ls && pwd && ls containers && chmod +x /home/krkn/kraken/containers/setup-ssh.sh
-
-RUN ls
+RUN chmod +x /home/krkn/kraken/containers/setup-ssh.sh
 
 # Main entrypoint script
 RUN chmod +x /home/krkn/kraken/containers/entrypoint.sh
 
 RUN chown -R krkn:krkn /home/krkn && chmod 755 /home/krkn
 USER krkn
-
-RUN cat /home/krkn/kraken/containers/entrypoint.sh
-
 
 ENTRYPOINT ["/bin/bash", "/home/krkn/kraken/containers/entrypoint.sh"]
 CMD ["--config=config/config.yaml"]
