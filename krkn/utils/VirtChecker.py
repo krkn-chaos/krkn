@@ -43,7 +43,11 @@ class VirtChecker:
             self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name}))
 
     def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
-
+        
+        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 "
+        
+        all_out = invoke_no_exit(virtctl_vm_cmd)
+        logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} output: {all_out}")
         virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
         logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} with command: {virtctl_vm_cmd}")
         output = invoke_no_exit(virtctl_vm_cmd)
