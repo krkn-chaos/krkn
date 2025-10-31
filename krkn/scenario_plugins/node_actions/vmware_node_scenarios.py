@@ -73,7 +73,7 @@ class vSphere:
         vms = self.client.vcenter.VM.list(VM.FilterSpec(names=names))
 
         if len(vms) == 0:
-            logging.info("VM with name ({}) not found", instance_id)
+            logging.info("VM with name ({}) not found".format(instance_id))
             return None
         vm = vms[0].vm
 
@@ -97,7 +97,7 @@ class vSphere:
             self.client.vcenter.vm.Power.start(vm)
             self.client.vcenter.vm.Power.stop(vm)
         self.client.vcenter.VM.delete(vm)
-        logging.info("Deleted VM -- '{}-({})'", instance_id, vm)
+        logging.info("Deleted VM -- '{}-({})'".format(instance_id, vm))
 
     def reboot_instances(self, instance_id):
         """
@@ -108,11 +108,11 @@ class vSphere:
         vm = self.get_vm(instance_id)
         try:
             self.client.vcenter.vm.Power.reset(vm)
-            logging.info("Reset VM -- '{}-({})'", instance_id, vm)
+            logging.info("Reset VM -- '{}-({})'".format(instance_id, vm))
             return True
         except NotAllowedInCurrentState:
             logging.info(
-                "VM '{}'-'({})' is not Powered On. Cannot reset it", instance_id, vm
+                "VM '{}'-'({})' is not Powered On. Cannot reset it".format(instance_id, vm)
             )
             return False
 
@@ -158,7 +158,7 @@ class vSphere:
         try:
             datacenter_id = datacenter_summaries[0].datacenter
         except IndexError:
-            logging.error("Datacenter '{}' doesn't exist", datacenter)
+            logging.error("Datacenter '{}' doesn't exist".format(datacenter))
             sys.exit(1)
 
         vm_filter = self.client.vcenter.VM.FilterSpec(datacenters={datacenter_id})
