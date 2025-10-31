@@ -1,6 +1,8 @@
 #!/bin/bash
 # Run SSH setup
-setup-ssh.sh
+ls
+pwd
+./setup-ssh.sh
 # Change to kraken directory
 
 # Execute the main command
