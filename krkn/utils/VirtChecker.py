@@ -44,7 +44,7 @@ class VirtChecker:
 
     def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
         
-        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{ip_address}"
+        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{ip_address}'"
         
         all_out = invoke_no_exit(virtctl_vm_cmd)
         logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} output: {all_out}")
