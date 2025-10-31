@@ -42,7 +42,7 @@ class VirtChecker:
             ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
             self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name}))
 
-    def check_disconnected_access(self, ip_address: str, worker_name:str = ''):
+    def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
 
         virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
         logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} with command: {virtctl_vm_cmd}")
@@ -106,7 +106,7 @@ class VirtChecker:
                     else:
                         # if new ip address exists use it 
                         if vm.new_ip_address: 
-                            vm_status, new_ip_address = self.check_disconnected_access(vm.new_ip_address, vm.node_name)
+                            vm_status, new_ip_address = self.check_disconnected_access(vm.new_ip_address, vm.node_name, vm.vm_name)
                             # since we already set the new ip address, we don't want to reset to none each time
                         else: 
                             vm_status, new_ip_address = self.check_disconnected_access(vm.ip_address, vm.node_name, vm.vm_name)
