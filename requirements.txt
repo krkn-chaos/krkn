@@ -18,7 +18,6 @@ ibm_vpc==0.20.0
 jinja2==3.1.6
 #krkn-lib==5.1.9
 lxml==5.1.0
-kubernetes==28.1.0
 numpy==1.26.4
 pandas==2.2.0
 openshift-client==1.0.21
