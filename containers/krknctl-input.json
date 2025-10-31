@@ -32,6 +32,24 @@
     "required": "false"
   },
   {
+    "name": "ssh-public-key",
+    "short_description": "Krkn ssh public key path",
+    "description": "Sets the path where krkn will search for ssh public key (in container)",
+    "variable": "KRKN_SSH_PUBLIC",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "ssh-private-key",
+    "short_description": "Krkn ssh private key path",
+    "description": "Sets the path where krkn will search for ssh private key (in container)",
+    "variable": "KRKN_SSH_PRIVATE",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
     "name": "krkn-kubeconfig",
     "short_description": "Krkn kubeconfig path",
     "description": "Sets the path where krkn will search for kubeconfig (in container)",
@@ -472,6 +490,15 @@
     "allowed_values": "True,False,true,false",
     "separator": ",",
     "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-ssh-node",
+    "short_description": "KubeVirt node to ssh from",
+    "description": "KubeVirt node to ssh from, should be available whole chaos run",
+    "variable": "KUBE_VIRT_SSH_NODE",
+    "type": "string",
+    "default": "",
     "required": "false"
   },
   {

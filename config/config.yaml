@@ -126,3 +126,4 @@ kubevirt_checks:                                            # Utilizing virt che
     name:                                                   # Regex Name style of VMI's to watch, optional, will watch all VMI names in the namespace if left blank
     only_failures: False                                    # Boolean of whether to show all VMI's failures and successful ssh connection (False), or only failure status' (True) 
     disconnected: False                                     # Boolean of how to try to connect to the VMIs; if True will use the ip_address to try ssh from within a node, if false will use the name and uses virtctl to try to connect; Default is False
+    ssh_node: ""                                            # If set, will be a backup way to ssh to a node. Will want to set to a node that isn't targeted in chaos
