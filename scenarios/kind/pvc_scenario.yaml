@@ -2,6 +2,6 @@ pvc_scenario:
   pvc_name: kraken-test-pvc         # Name of the target PVC
   pod_name: kraken-test-pod      # Name of the pod where the PVC is mounted, it will be ignored if the pvc_name is defined
   namespace: kraken  # Namespace where the PVC is
-  fill_percentage: 38           # Target percentage to fill up the cluster, value must be higher than current percentage, valid values are between 0 and 99
+  fill_percentage: 98           # Target percentage to fill up the cluster, value must be higher than current percentage, valid values are between 0 and 99
   duration: 10                  # Duration in seconds for the fault
   block_size: 102400            # used only by dd if fallocate not present in the container

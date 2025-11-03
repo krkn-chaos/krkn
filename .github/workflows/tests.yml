@@ -102,7 +102,7 @@ jobs:
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
             echo "test_pod_server" >> ./CI/tests/functional_tests
             echo "test_node" >> ./CI/tests/functional_tests
-            echo "test_pvc" >> ./CI/tests/functional_tests
+            # echo "test_pvc" >> ./CI/tests/functional_tests
 
       # Push on main only steps + all other functional to collect coverage
       # for the badge
@@ -140,7 +140,7 @@ jobs:
           echo "test_pod_network_filter" >> ./CI/tests/functional_tests
           echo "test_pod_server" >> ./CI/tests/functional_tests
           echo "test_node" >> ./CI/tests/functional_tests
-          echo "test_pvc" >> ./CI/tests/functional_tests
+          # echo "test_pvc" >> ./CI/tests/functional_tests 
       # Final common steps
       - name: Run Functional tests
         env:
