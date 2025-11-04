@@ -2,7 +2,7 @@ import logging
 import random
 import time
 from asyncio import Future
-
+import traceback
 import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and_label, \
@@ -74,6 +74,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         return 1
                     
         except (RuntimeError, Exception) as e:
+            logging.error("Stack trace:\n%s", traceback.format_exc())
             logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
             return 1
         else:
@@ -245,7 +246,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             start_time = datetime.now()
 
             while not timeout:
-                pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector, node_names=node_names, quiet=True)
+                pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector, node_names=node_names)
                 if pod_count == len(pods):
                     return
                 
