@@ -12,7 +12,7 @@ from __future__ import annotations
 import datetime
 import logging
 import os
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
 
 import yaml
 import json
@@ -70,9 +70,12 @@ class Resiliency:
 
         self._slos = self._normalise_alerts(raw_yaml_data)
         self._results: Dict[str, bool] = {}
-        self._score: int | None = None
-        self._breakdown: Dict[str, int] | None = None
+        self._score: Optional[int] = None
+        self._breakdown: Optional[Dict[str, int]] = None
+        self._health_check_results: Dict[str, bool] = {}
         self.scenario_reports: List[Dict[str, Any]] = []
+        self.summary: Optional[Dict[str, Any]] = None
+        self.detailed_report: Optional[Dict[str, Any]] = None
 
     # ---------------------------------------------------------------------
     # Public API
@@ -98,8 +101,8 @@ class Resiliency:
     def calculate_score(
         self,
         *,
-        weights: Dict[str, int] | None = None,
-        health_check_results: Dict[str, bool] | None = None,
+        weights: Optional[Dict[str, int]] = None,
+        health_check_results: Optional[Dict[str, bool]] = None,
     ) -> int:
         """Calculate the resiliency score using collected SLO results."""
         slo_defs = {slo["name"]: slo["severity"] for slo in self._slos}
@@ -136,8 +139,8 @@ class Resiliency:
         start_time: datetime.datetime,
         end_time: datetime.datetime,
         weight: float | int = 1,
-        health_check_results: Dict[str, bool] | None = None,
-        weights: Dict[str, int] | None = None,
+        health_check_results: Optional[Dict[str, bool]] = None,
+        weights: Optional[Dict[str, int]] = None,
         granularity: int = 30,
     ) -> int:
         """
@@ -191,7 +194,7 @@ class Resiliency:
         prom_cli: KrknPrometheus,
         total_start_time: datetime.datetime,
         total_end_time: datetime.datetime,
-        weights: Dict[str, int] | None = None,
+        weights: Optional[Dict[str, int]] = None,
         granularity: int = 30,
     ) -> None:
         if not self.scenario_reports:
@@ -300,7 +303,6 @@ class Resiliency:
     # Internal helpers
     # ------------------------------------------------------------------
     @staticmethod
-    @staticmethod
     def _normalise_alerts(raw_alerts: Any) -> List[Dict[str, Any]]:
         """Convert raw YAML alerts data into internal SLO list structure."""
         if not isinstance(raw_alerts, list):
@@ -330,10 +332,10 @@ def compute_resiliency(*,
     chaos_telemetry: "ChaosRunTelemetry",
     start_time: datetime.datetime,
     end_time: datetime.datetime,
-    run_uuid: str | None = None,
+    run_uuid: Optional[str] = None,
     alerts_yaml_path: str = "config/alerts.yaml",
-    logger: logging.Logger | None = None,
-) -> Dict[str, Any] | None:
+    logger: Optional[logging.Logger] = None,
+) -> Optional[Dict[str, Any]]:
     """Evaluate SLOs, combine health-check results, attach a resiliency report
     to *chaos_telemetry* and return the report. Any failure is logged and *None*
     is returned.
