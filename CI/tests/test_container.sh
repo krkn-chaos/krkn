@@ -18,6 +18,8 @@ function functional_test_container_crash {
 
   python3 -m coverage run -a run_kraken.py -c CI/config/container_config.yaml -d True
   echo "Container scenario test: Success"
+
+  kubectl get pods -n kube-system -l component=etcd
 }
 
 functional_test_container_crash

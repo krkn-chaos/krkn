@@ -11,8 +11,10 @@ function functional_test_pod_crash {
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/pod_config.yaml
 
-  python3 -m coverage run -a run_kraken.py -c CI/config/pod_config.yaml -d True
+  python3 -m coverage run -a run_kraken.py -c CI/config/pod_config.yaml
   echo "Pod disruption scenario test: Success"
+  date
+  kubectl get pods -n kube-system -l component=etcd -o yaml
 }
 
 functional_test_pod_crash
