@@ -416,7 +416,8 @@ def main(options, command: Optional[str]) -> int:
                 break
             i+= 1
         chaos_telemetry.virt_checks = kubevirt_check_telem
-
+        post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
+        chaos_telemetry.post_virt_checks = post_kubevirt_check
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
