@@ -21,7 +21,7 @@ from krkn_lib.models.telemetry import ChaosRunTelemetry
 
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 from krkn.prometheus.collector import evaluate_slos
-from .score import calculate_resiliency_score
+from krkn.resiliency.score import calculate_resiliency_score
 
 
 class Resiliency:  
