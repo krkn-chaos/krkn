@@ -14,12 +14,12 @@ from krkn_lib.utils.functions import get_yaml_item_value
 class VirtChecker:
     current_iterations: int = 0
     ret_value = 0
-    def __init__(self, kubevirt_check_config, iterations, krkn_lib: KrknKubernetes, threads_limt=20):
+    def __init__(self, kubevirt_check_config, iterations, krkn_lib: KrknKubernetes, threads_limit=20):
         self.iterations = iterations
         self.namespace = get_yaml_item_value(kubevirt_check_config, "namespace", "")
         self.vm_list = []
         self.threads = []
-        self.threads_limit = threads_limt
+        self.threads_limit = threads_limit
         if self.namespace == "":
             logging.info("kube virt checks config is not defined, skipping them")
             return
@@ -28,6 +28,7 @@ class VirtChecker:
         self.disconnected =  get_yaml_item_value(kubevirt_check_config, "disconnected", False)
         self.only_failures =  get_yaml_item_value(kubevirt_check_config, "only_failures", False)
         self.interval = get_yaml_item_value(kubevirt_check_config, "interval", 2)
+        self.ssh_node = get_yaml_item_value(kubevirt_check_config, "ssh_node", "")
         try:
             self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=krkn_lib)
@@ -40,15 +41,51 @@ class VirtChecker:
             node_name = vmi.get("status",{}).get("nodeName")
             vmi_name = vmi.get("metadata",{}).get("name")
             ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
-            self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name}))
+            self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name, "new_ip_address":""}))
 
-    def check_disconnected_access(self, ip_address: str, worker_name:str = ''):
-
-        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=2 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
-        if 'True' in invoke_no_exit(virtctl_vm_cmd):
-            return True
+    def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
+        
+        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address}'"
+        
+        all_out = invoke_no_exit(virtctl_vm_cmd)
+        logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} output: {all_out}")
+        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+        logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} with command: {virtctl_vm_cmd}")
+        output = invoke_no_exit(virtctl_vm_cmd)
+        if 'True' in output:
+            logging.debug(f"Disconnected access for {ip_address} on {worker_name} is successful: {output}")
+            return True, None, None
         else:
-            return False
+            logging.debug(f"Disconnected access for {ip_address} on {worker_name} is failed: {output}")
+            vmi = self.kube_vm_plugin.get_vmi(vmi_name,self.namespace)
+            new_ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
+            new_node_name = vmi.get("status",{}).get("nodeName")
+            # if vm gets deleted, it'll start up with a new ip address
+            if new_ip_address != ip_address:
+                virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                logging.debug(f"Checking disconnected access for {new_ip_address} on {worker_name} with command: {virtctl_vm_cmd}")
+                new_output = invoke_no_exit(virtctl_vm_cmd)
+                logging.debug(f"Disconnected access for {ip_address} on {worker_name}: {new_output}")
+                if 'True' in new_output:
+                    return True, new_ip_address, None
+            # if node gets stopped, vmis will start up with a new node (and with new ip)
+            if new_node_name != worker_name:
+                virtctl_vm_cmd = f"ssh core@{new_node_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                logging.debug(f"Checking disconnected access for {new_ip_address} on {new_node_name} with command: {virtctl_vm_cmd}")
+                new_output = invoke_no_exit(virtctl_vm_cmd)
+                logging.debug(f"Disconnected access for {ip_address} on {new_node_name}: {new_output}")
+                if 'True' in new_output:
+                    return True, new_ip_address, new_node_name
+            # try to connect with a common "up" node as last resort
+            if self.ssh_node:
+                # using new_ip_address here since if it hasn't changed it'll match ip_address
+                virtctl_vm_cmd = f"ssh core@{self.ssh_node} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                logging.debug(f"Checking disconnected access for {new_ip_address} on {self.ssh_node} with command: {virtctl_vm_cmd}")
+                new_output = invoke_no_exit(virtctl_vm_cmd)
+                logging.debug(f"Disconnected access for {new_ip_address} on {self.ssh_node}: {new_output}")
+                if 'True' in new_output:
+                    return True, new_ip_address, None
+        return False, None, None
 
     def get_vm_access(self, vm_name: str = '', namespace: str = ''):
         """
@@ -57,8 +94,8 @@ class VirtChecker:
         :param namespace:
         :return: virtctl_status 'True' if successful, or an error message if it fails.
         """
-        virtctl_vm_cmd = f"virtctl ssh --local-ssh-opts='-o BatchMode=yes' --local-ssh-opts='-o PasswordAuthentication=no' --local-ssh-opts='-o ConnectTimeout=2' root@vmi/{vm_name} -n {namespace} 2>&1 |egrep 'denied|verification failed'  && echo 'True' || echo 'False'"
-        check_virtctl_vm_cmd = f"virtctl ssh --local-ssh-opts='-o BatchMode=yes' --local-ssh-opts='-o PasswordAuthentication=no' --local-ssh-opts='-o ConnectTimeout=2' root@{vm_name} -n {namespace} 2>&1 |egrep 'denied|verification failed'  && echo 'True' || echo 'False'"
+        virtctl_vm_cmd = f"virtctl ssh --local-ssh-opts='-o BatchMode=yes' --local-ssh-opts='-o PasswordAuthentication=no' --local-ssh-opts='-o ConnectTimeout=5' root@vmi/{vm_name} -n {namespace} 2>&1 |egrep 'denied|verification failed'  && echo 'True' || echo 'False'"
+        check_virtctl_vm_cmd = f"virtctl ssh --local-ssh-opts='-o BatchMode=yes' --local-ssh-opts='-o PasswordAuthentication=no' --local-ssh-opts='-o ConnectTimeout=5' root@{vm_name} -n {namespace} 2>&1 |egrep 'denied|verification failed'  && echo 'True' || echo 'False'"
         if 'True' in invoke_no_exit(check_virtctl_vm_cmd):
             return True
         else:
@@ -91,7 +128,16 @@ class VirtChecker:
                     if not self.disconnected: 
                         vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
                     else:
-                        vm_status = self.check_disconnected_access(vm.ip_address, vm.node_name)
+                        # if new ip address exists use it 
+                        if vm.new_ip_address: 
+                            vm_status, new_ip_address, new_node_name = self.check_disconnected_access(vm.new_ip_address, vm.node_name, vm.vm_name)
+                            # since we already set the new ip address, we don't want to reset to none each time
+                        else: 
+                            vm_status, new_ip_address, new_node_name = self.check_disconnected_access(vm.ip_address, vm.node_name, vm.vm_name)
+                            if new_ip_address and vm.ip_address != new_ip_address:
+                                vm.new_ip_address = new_ip_address
+                            if new_node_name and vm.node_name != new_node_name:
+                                vm.node_name = new_node_name
                 except Exception:
                     vm_status = False
                 
@@ -103,7 +149,8 @@ class VirtChecker:
                         "namespace": vm.namespace,
                         "node_name": vm.node_name,
                         "status": vm_status,
-                        "start_timestamp": start_timestamp
+                        "start_timestamp": start_timestamp,
+                        "new_ip_address": vm.new_ip_address
                     }
                 else:
                     if vm_status != virt_check_tracker[vm.vm_name]["status"]:
@@ -113,6 +160,8 @@ class VirtChecker:
                         virt_check_tracker[vm.vm_name]["end_timestamp"] = end_timestamp.isoformat()
                         virt_check_tracker[vm.vm_name]["duration"] = duration
                         virt_check_tracker[vm.vm_name]["start_timestamp"] = start_timestamp.isoformat()
+                        if vm.new_ip_address:
+                            virt_check_tracker[vm.vm_name]["new_ip_address"] = vm.new_ip_address
                         if self.only_failures: 
                             if not virt_check_tracker[vm.vm_name]["status"]:
                                 virt_check_telemetry.append(VirtCheck(virt_check_tracker[vm.vm_name]))

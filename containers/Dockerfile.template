@@ -43,6 +43,9 @@ COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
 RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken && \
     mkdir -p /home/krkn/.kube
 
+RUN mkdir -p /home/krkn/.ssh && \
+    chmod 700 /home/krkn/.ssh
+
 WORKDIR /home/krkn/kraken
 
 # default behaviour will be to build main
@@ -60,8 +63,14 @@ LABEL krknctl.title.global="Krkn Base Image"
 LABEL krknctl.description.global="This is the krkn base image."
 LABEL krknctl.input_fields.global='$KRKNCTL_INPUT'
 
+# SSH setup script
+RUN chmod +x /home/krkn/kraken/containers/setup-ssh.sh
+
+# Main entrypoint script
+RUN chmod +x /home/krkn/kraken/containers/entrypoint.sh
 
 RUN chown -R krkn:krkn /home/krkn && chmod 755 /home/krkn
 USER krkn
-ENTRYPOINT ["python3.9", "run_kraken.py"]
+
+ENTRYPOINT ["/bin/bash", "/home/krkn/kraken/containers/entrypoint.sh"]
 CMD ["--config=config/config.yaml"]
