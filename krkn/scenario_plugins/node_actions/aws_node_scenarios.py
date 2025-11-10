@@ -80,6 +80,8 @@ class AWS:
     def wait_until_running(self, instance_id, timeout=600, affected_node=None):
         try:
             start_time = time.time()
+            poll_interval = 15
+
             self.boto_instance.wait_until_running(InstanceIds=[instance_id])
             end_time = time.time()
             if affected_node:
@@ -96,7 +98,19 @@ class AWS:
     def wait_until_stopped(self, instance_id, timeout=600, affected_node= None):
         try:
             start_time = time.time()
-            self.boto_instance.wait_until_stopped(InstanceIds=[instance_id])
+            poll_interval = 15
+            if timeout > 0:
+                max_attempts = max(1, int(timeout / poll_interval))
+            else:
+                max_attempts = 40
+
+            self.boto_instance.wait_until_stopped(
+                InstanceIds=[instance_id],
+                WaiterConfig={
+                    'Delay': poll_interval,
+                    'MaxAttempts': max_attempts
+                }
+            )
             end_time = time.time()
             if affected_node:
                 affected_node.set_affected_node_status("stopped", end_time - start_time)
