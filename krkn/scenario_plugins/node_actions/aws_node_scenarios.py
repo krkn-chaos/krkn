@@ -80,8 +80,6 @@ class AWS:
     def wait_until_running(self, instance_id, timeout=600, affected_node=None):
         try:
             start_time = time.time()
-            poll_interval = 15
-
             self.boto_instance.wait_until_running(InstanceIds=[instance_id])
             end_time = time.time()
             if affected_node:
@@ -321,7 +319,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Stopping the node %s with instance ID: %s " % (node, instance_id)
                 )
                 self.aws.stop_instances(instance_id)
-                self.aws.wait_until_stopped(instance_id, affected_node=affected_node)
+                self.aws.wait_until_stopped(instance_id, timeout=timeout, affected_node=affected_node)
                 logging.info(
                     "Node with instance ID: %s is in stopped state" % (instance_id)
                 )
