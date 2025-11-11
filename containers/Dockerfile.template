@@ -2,6 +2,7 @@
 FROM golang:1.24.9 AS oc-build
 RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
 WORKDIR /tmp
+# oc build
 RUN git clone --branch release-4.18 https://github.com/openshift/oc.git
 WORKDIR /tmp/oc
 RUN go mod edit -go 1.24.9 &&\
@@ -21,6 +22,14 @@ RUN go mod edit -go 1.24.9 &&\
 
 RUN make GO_REQUIRED_MIN_VERSION:= oc
 
+# virtctl build
+WORKDIR /tmp
+RUN git clone https://github.com/kubevirt/kubevirt.git
+WORKDIR /tmp/kubevirt
+RUN go mod edit -go 1.24.9 &&\
+    go work use &&\
+    go build -o virtctl ./cmd/virtctl/
+
 FROM fedora:40
 ARG PR_NUMBER
 ARG TAG
@@ -35,13 +44,9 @@ RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
     git python39 jq yq gettext wget which ipmitool openssh-server &&\
     dnf clean all
 
-# Virtctl 
-RUN export VERSION=$(curl https://storage.googleapis.com/kubevirt-prow/release/kubevirt/kubevirt/stable.txt) && \
-    wget https://github.com/kubevirt/kubevirt/releases/download/${VERSION}/virtctl-${VERSION}-linux-amd64 && \
-    chmod +x virtctl-${VERSION}-linux-amd64 && sudo mv virtctl-${VERSION}-linux-amd64 /usr/local/bin/virtctl
-
 # copy oc client binary from oc-build image
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
+COPY --from=oc-build /tmp/kubevirt/virtctl /usr/bin/virtctl
 
 # krkn build
 RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken && \
@@ -60,7 +65,10 @@ RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 
 RUN python3.9 -m ensurepip --upgrade --default-pip
 RUN python3.9 -m pip install --upgrade pip setuptools==78.1.1
-# removes the the vulnerable versions of setuptools
+
+# removes the the vulnerable versions of setuptools and pip
+RUN rm -rf "$(pip cache dir)"
+RUN rm -rf /tmp/*
 RUN rm -rf /usr/local/lib/python3.9/ensurepip/_bundled
 RUN pip3.9 install -r requirements.txt
 RUN pip3.9 install jsonschema
