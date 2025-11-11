@@ -73,7 +73,7 @@ jobs:
             yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
             yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
             yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
-            yq -i '.elastic.enable_elastic=True' CI/config/common_test_config.yaml
+            yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
             yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
             yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
             echo "test_service_hijacking" > ./CI/tests/functional_tests
@@ -105,7 +105,7 @@ jobs:
           yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
           yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
           yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
-          yq -i '.elastic.enable_elastic=True' CI/config/common_test_config.yaml
+          yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
           yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
