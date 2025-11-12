@@ -86,6 +86,24 @@
     "required": "false"
   },
   {
+    "name": "prometheus-url",
+    "short_description": "Prometheus url",
+    "description": "Prometheus url for when running on kuberenetes",
+    "variable": "PROMETHEUS_URL",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "prometheus-token",
+    "short_description": "Prometheus bearer token",
+    "description": "Prometheus bearer token for prometheus url authentication",
+    "variable": "PROMETHEUS_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
     "name": "uuid",
     "short_description": "Sets krkn run uuid",
     "description": "sets krkn run uuid instead of generating it",

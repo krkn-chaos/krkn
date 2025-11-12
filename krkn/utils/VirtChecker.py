@@ -1,6 +1,7 @@
 
 import time
 import logging
+import math
 import queue
 from datetime import datetime
 from krkn_lib.models.telemetry.models import VirtCheck
@@ -20,6 +21,8 @@ class VirtChecker:
         self.vm_list = []
         self.threads = []
         self.threads_limit = threads_limit
+        # setting to 0 in case no variables are set, so no threads later get made
+        self.batch_size = 0
         if self.namespace == "":
             logging.info("kube virt checks config is not defined, skipping them")
             return
@@ -29,19 +32,32 @@ class VirtChecker:
         self.only_failures =  get_yaml_item_value(kubevirt_check_config, "only_failures", False)
         self.interval = get_yaml_item_value(kubevirt_check_config, "interval", 2)
         self.ssh_node = get_yaml_item_value(kubevirt_check_config, "ssh_node", "")
+        self.node_names = get_yaml_item_value(kubevirt_check_config, "node_names", "")
         try:
             self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=krkn_lib)
             vmis = self.kube_vm_plugin.get_vmis(vmi_name_match,self.namespace)
         except Exception as e:
             logging.error('Virt Check init exception: ' + str(e))
-            return 
-        
+            return
+        # See if multiple node names exist
+        node_name_list = self.node_names.split(',')
+
         for vmi in vmis:
             node_name = vmi.get("status",{}).get("nodeName")
             vmi_name = vmi.get("metadata",{}).get("name")
             ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
-            self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name, "new_ip_address":""}))
+            # If node_name_list exists, only add if node name is in list
+
+            if len(node_name_list) > 0 and node_name in node_name_list:
+                self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name, "new_ip_address":""}))
+            elif len(node_name_list) == 0:
+
+                # If node_name_list is blank, add all vms
+                self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name, "new_ip_address":""}))
+
+        self.batch_size = math.ceil(len(self.vm_list)/self.threads_limit)
+        
 
     def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
         
@@ -50,7 +66,6 @@ class VirtChecker:
         all_out = invoke_no_exit(virtctl_vm_cmd)
         logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} output: {all_out}")
         virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
-        logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} with command: {virtctl_vm_cmd}")
         output = invoke_no_exit(virtctl_vm_cmd)
         if 'True' in output:
             logging.debug(f"Disconnected access for {ip_address} on {worker_name} is successful: {output}")
@@ -63,7 +78,6 @@ class VirtChecker:
             # if vm gets deleted, it'll start up with a new ip address
             if new_ip_address != ip_address:
                 virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
-                logging.debug(f"Checking disconnected access for {new_ip_address} on {worker_name} with command: {virtctl_vm_cmd}")
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {ip_address} on {worker_name}: {new_output}")
                 if 'True' in new_output:
@@ -71,7 +85,6 @@ class VirtChecker:
             # if node gets stopped, vmis will start up with a new node (and with new ip)
             if new_node_name != worker_name:
                 virtctl_vm_cmd = f"ssh core@{new_node_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
-                logging.debug(f"Checking disconnected access for {new_ip_address} on {new_node_name} with command: {virtctl_vm_cmd}")
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {ip_address} on {new_node_name}: {new_output}")
                 if 'True' in new_output:
@@ -80,7 +93,6 @@ class VirtChecker:
             if self.ssh_node:
                 # using new_ip_address here since if it hasn't changed it'll match ip_address
                 virtctl_vm_cmd = f"ssh core@{self.ssh_node} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
-                logging.debug(f"Checking disconnected access for {new_ip_address} on {self.ssh_node} with command: {virtctl_vm_cmd}")
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {new_ip_address} on {self.ssh_node}: {new_output}")
                 if 'True' in new_output:
@@ -108,14 +120,19 @@ class VirtChecker:
         for thread in self.threads:
             thread.join()
 
-    def batch_list(self,  queue: queue.Queue, batch_size=20):
-        # Provided prints to easily visualize how the threads are processed.    
-        for i in range (0, len(self.vm_list),batch_size):
-            sub_list = self.vm_list[i: i+batch_size]
-            index = i
-            t = threading.Thread(target=self.run_virt_check,name=str(index), args=(sub_list,queue))
-            self.threads.append(t)
-            t.start()
+    def batch_list(self, queue: queue.Queue = None):
+        logging.info("batch size" + str(self.batch_size))
+        if self.batch_size > 0:
+            # Provided prints to easily visualize how the threads are processed.    
+            for i in range (0, len(self.vm_list),self.batch_size):
+                if i+self.batch_size > len(self.vm_list):
+                    sub_list = self.vm_list[i:  len(self.vm_list)-1]
+                else:
+                    sub_list = self.vm_list[i: i+self.batch_size]
+                index = i
+                t = threading.Thread(target=self.run_virt_check,name=str(index), args=(sub_list,queue))
+                self.threads.append(t)
+                t.start()
 
     
     def run_virt_check(self, vm_list_batch, virt_check_telemetry_queue: queue.Queue):
@@ -182,3 +199,60 @@ class VirtChecker:
             else:
                 virt_check_telemetry.append(VirtCheck(virt_check_tracker[vm]))
         virt_check_telemetry_queue.put(virt_check_telemetry)
+    
+    def run_post_virt_check(self, vm_list_batch, virt_check_telemetry, post_virt_check_queue: queue.Queue):
+        
+        virt_check_telemetry = []
+        virt_check_tracker = {}
+        start_timestamp = datetime.now()
+        for vm in vm_list_batch:
+            
+            try: 
+                if not self.disconnected: 
+                    vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
+                else:
+                    vm_status, new_ip_address, new_node_name = self.check_disconnected_access(vm.ip_address, vm.node_name, vm.vm_name)
+                    if new_ip_address and vm.ip_address != new_ip_address:
+                        vm.new_ip_address = new_ip_address
+                    if new_node_name and vm.node_name != new_node_name:
+                        vm.node_name = new_node_name
+            except Exception:
+                vm_status = False
+            
+            if not vm_status:
+
+                virt_check_tracker= {
+                    "vm_name": vm.vm_name,
+                    "ip_address": vm.ip_address,
+                    "namespace": vm.namespace,
+                    "node_name": vm.node_name,
+                    "status": vm_status,
+                    "start_timestamp": start_timestamp.isoformat(),
+                    "new_ip_address": vm.new_ip_address,
+                    "duration": 0,
+                    "end_timestamp": start_timestamp.isoformat()
+                }
+                
+                virt_check_telemetry.append(VirtCheck(virt_check_tracker))
+        post_virt_check_queue.put(virt_check_telemetry)
+    
+
+    def gather_post_virt_checks(self, kubevirt_check_telem):
+
+        post_kubevirt_check_queue = queue.Queue()
+        post_threads = []
+
+        if self.batch_size > 0:
+            for i in range (0, len(self.vm_list),self.batch_size):
+                sub_list = self.vm_list[i: i+self.batch_size]
+                index = i
+                t = threading.Thread(target=self.run_post_virt_check,name=str(index), args=(sub_list,kubevirt_check_telem, post_kubevirt_check_queue))
+                post_threads.append(t)
+                t.start()
+
+            kubevirt_check_telem = []
+            for thread in post_threads:
+                thread.join()
+                if not post_kubevirt_check_queue.empty():
+                    kubevirt_check_telem.extend(post_kubevirt_check_queue.get_nowait())
+        return kubevirt_check_telem

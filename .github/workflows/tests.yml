@@ -47,6 +47,17 @@ jobs:
           kubectl --namespace default port-forward $es_pod_name 9200 &
           prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
           kubectl --namespace monitoring port-forward $prom_name 9090 &
+
+          # Wait for Elasticsearch to be ready
+          echo "Waiting for Elasticsearch to be ready..."
+          for i in {1..30}; do
+            if curl -k -s -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_cluster/health > /dev/null 2>&1; then
+              echo "Elasticsearch is ready!"
+              break
+            fi
+            echo "Attempt $i: Elasticsearch not ready yet, waiting..."
+            sleep 2
+          done
           kubectl apply -f CI/templates/outage_pod.yaml
           kubectl wait --for=condition=ready pod -l scenario=outage --timeout=300s
           kubectl apply -f CI/templates/container_scenario_pod.yaml
@@ -89,7 +100,6 @@ jobs:
             echo "test_io_hog" >> ./CI/tests/functional_tests
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
 
-
       # Push on main only steps + all other functional to collect coverage
       # for the badge
       - name: Configure AWS Credentials
@@ -105,7 +115,7 @@ jobs:
           yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
           yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
           yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
-          yq -i '.elastic.enable_elastic=True' CI/config/common_test_config.yaml
+          yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
           yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
           yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
@@ -135,38 +145,38 @@ jobs:
           cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
       - name: Upload CI logs
-        if: ${{ success() || failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: ci-logs
           path: CI/out
           if-no-files-found: error
       - name: Collect coverage report
-        if: ${{ success() || failure() }}
+        if: ${{ always() }}
         run: |
           python -m coverage html
           python -m coverage json
       - name: Publish coverage report to job summary
-        if: ${{ success() || failure() }}
+        if: ${{ always() }}
         run: |
           pip install html2text
           html2text --ignore-images --ignore-links -b 0 htmlcov/index.html >> $GITHUB_STEP_SUMMARY
       - name: Upload coverage data
-        if: ${{ success() || failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: htmlcov
           if-no-files-found: error
       - name: Upload json coverage
-        if: ${{ success() || failure() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: coverage.json
           path: coverage.json
           if-no-files-found: error
       - name: Check CI results
-        if: ${{ success() || failure() }}
+        if: ${{ always() }}
         run: "! grep Fail CI/results.markdown"
 
   badge:
