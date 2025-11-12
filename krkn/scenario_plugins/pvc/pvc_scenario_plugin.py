@@ -1,3 +1,4 @@
+import json
 import logging
 import random
 import re
@@ -11,9 +12,12 @@ from krkn_lib.utils import get_yaml_item_value, log_exception
 
 from krkn import cerberus, utils
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class PvcScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -229,6 +233,22 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 logging.info("\n" + str(response))
                 if str(file_name).lower() in str(response).lower():
                     logging.info("%s file successfully created" % (str(full_path)))
+                    
+                    # Set rollback callable to ensure temp file cleanup on failure or interruption
+                    rollback_data = {
+                        "pod_name": pod_name,
+                        "container_name": container_name,
+                        "mount_path": mount_path,
+                        "file_name": file_name,
+                        "full_path": full_path,
+                    }
+                    self.rollback_handler.set_rollback_callable(
+                        self.rollback_temp_file,
+                        RollbackContent(
+                            namespace=namespace,
+                            resource_identifier=json.dumps(rollback_data),
+                        ),
+                    )
                 else:
                     logging.error(
                         "PvcScenarioPlugin Failed to create tmp file with %s size"
@@ -312,6 +332,57 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         exp = unit[value[-2:-1]]
         res = int(value[:-2]) * (base**exp)
         return res
+
+    @staticmethod
+    def rollback_temp_file(
+        rollback_content: RollbackContent,
+        lib_telemetry: KrknTelemetryOpenshift,
+    ):
+        """Rollback function to remove temporary file created during the PVC scenario.
+
+        :param rollback_content: Rollback content containing namespace and encoded rollback data in resource_identifier.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
+        """
+        try:
+            namespace = rollback_content.namespace
+            
+            # Decode rollback data from resource_identifier
+            rollback_data = json.loads(rollback_content.resource_identifier)
+            pod_name = rollback_data["pod_name"]
+            container_name = rollback_data["container_name"]
+            full_path = rollback_data["full_path"]
+            file_name = rollback_data["file_name"]
+            mount_path = rollback_data["mount_path"]
+            
+            logging.info(
+                f"Rolling back PVC scenario: removing temp file {full_path} from pod {pod_name} in namespace {namespace}"
+            )
+            
+            # Remove the temp file
+            command = "rm -f %s" % (str(full_path))
+            logging.debug("Remove temp file from the PVC command:\n %s" % command)
+            lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
+                [command], pod_name, namespace, container_name
+            )
+            
+            # Verify removal
+            command = "ls -lh %s" % (str(mount_path))
+            logging.debug("Check temp file is removed command:\n %s" % command)
+            response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
+                [command], pod_name, namespace, container_name
+            )
+            logging.info("\n" + str(response))
+            
+            if not (str(file_name).lower() in str(response).lower()):
+                logging.info("Temp file successfully removed during rollback")
+            else:
+                logging.warning(
+                    f"Temp file {file_name} may still exist after rollback attempt"
+                )
+            
+            logging.info("PVC scenario rollback completed successfully.")
+        except Exception as e:
+            logging.error(f"Failed to rollback PVC scenario temp file: {e}")
 
     def get_scenario_types(self) -> list[str]:
         return ["pvc_scenarios"]
