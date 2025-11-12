@@ -23,9 +23,7 @@ class VirtChecker:
         self.threads_limit = threads_limit
         # setting to 0 in case no variables are set, so no threads later get made
         self.batch_size = 0
-        if self.namespace == "":
-            logging.info("kube virt checks config is not defined, skipping them")
-            return
+        self.ret_value = 0
         vmi_name_match = get_yaml_item_value(kubevirt_check_config, "name", ".*")
         self.krkn_lib = krkn_lib
         self.disconnected =  get_yaml_item_value(kubevirt_check_config, "disconnected", False)
@@ -33,6 +31,10 @@ class VirtChecker:
         self.interval = get_yaml_item_value(kubevirt_check_config, "interval", 2)
         self.ssh_node = get_yaml_item_value(kubevirt_check_config, "ssh_node", "")
         self.node_names = get_yaml_item_value(kubevirt_check_config, "node_names", "")
+        self.exit_on_failure = get_yaml_item_value(kubevirt_check_config, "exit_on_failure", False)
+        if self.namespace == "":
+            logging.info("kube virt checks config is not defined, skipping them")
+            return
         try:
             self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=krkn_lib)
@@ -254,4 +256,7 @@ class VirtChecker:
                 thread.join()
                 if not post_kubevirt_check_queue.empty():
                     kubevirt_check_telem.extend(post_kubevirt_check_queue.get_nowait())
+        
+        if self.exit_on_failure and len(kubevirt_check_telem) > 0:
+            self.ret_value = 2
         return kubevirt_check_telem
