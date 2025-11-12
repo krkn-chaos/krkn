@@ -3,10 +3,11 @@ Enhancing Chaos Engineering with AI-assisted fault injection for better resilien
 
 ## Generate python package wheel file
 ```
+$ rm -rf build/ constraints.egg-info
 $ python3.9 generate_wheel_package.py sdist bdist_wheel
 $ cp dist/aichaos-0.0.1-py3-none-any.whl docker/
 ```
-This creates a python package file aichaos-0.0.1-py3-none-any.whl in the dist folder. 
+This creates a python package file aichaos-0.0.1-py3-none-any.whl in the dist folder.
 
 ## Build Image
 ```
