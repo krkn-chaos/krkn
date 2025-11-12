@@ -80,7 +80,19 @@ class AWS:
     def wait_until_running(self, instance_id, timeout=600, affected_node=None):
         try:
             start_time = time.time()
-            self.boto_instance.wait_until_running(InstanceIds=[instance_id])
+            poll_interval = 15
+            if timeout > 0:
+                max_attempts = max(1, int(timeout / poll_interval))
+            else:
+                max_attempts = 40
+
+            self.boto_instance.wait_until_running(
+                InstanceIds=[instance_id],
+                WaiterConfig={
+                    'Delay': poll_interval,
+                    'MaxAttempts': max_attempts
+                }
+            )
             end_time = time.time()
             if affected_node:
                 affected_node.set_affected_node_status("running", end_time - start_time)
@@ -124,7 +136,19 @@ class AWS:
     def wait_until_terminated(self, instance_id, timeout=600, affected_node= None):
         try:
             start_time = time.time()
-            self.boto_instance.wait_until_terminated(InstanceIds=[instance_id])
+            poll_interval = 15
+            if timeout > 0:
+                max_attempts = max(1, int(timeout / poll_interval))
+            else:
+                max_attempts = 40
+
+            self.boto_instance.wait_until_terminated(
+                InstanceIds=[instance_id],
+                WaiterConfig={
+                    'Delay': poll_interval,
+                    'MaxAttempts': max_attempts
+                }
+            )
             end_time = time.time()
             if affected_node:
                 affected_node.set_affected_node_status("terminated", end_time - start_time)
@@ -290,7 +314,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Starting the node %s with instance ID: %s " % (node, instance_id)
                 )
                 self.aws.start_instances(instance_id)
-                self.aws.wait_until_running(instance_id, affected_node=affected_node)
+                self.aws.wait_until_running(instance_id, timeout=timeout, affected_node=affected_node)
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
@@ -348,7 +372,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                     % (node, instance_id)
                 )
                 self.aws.terminate_instances(instance_id)
-                self.aws.wait_until_terminated(instance_id, affected_node=affected_node)
+                self.aws.wait_until_terminated(instance_id, timeout=timeout, affected_node=affected_node)
                 for _ in range(timeout):
                     if node not in self.kubecli.list_nodes():
                         break
