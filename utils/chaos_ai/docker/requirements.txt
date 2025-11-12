@@ -2,5 +2,5 @@ numpy
 pandas
 requests
 Flask==2.2.5
-Werkzeug==3.0.3
+Werkzeug==3.0.6
 flasgger==0.9.5
