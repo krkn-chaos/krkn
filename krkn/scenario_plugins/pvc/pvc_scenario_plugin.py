@@ -246,7 +246,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         self.rollback_temp_file,
                         RollbackContent(
                             namespace=namespace,
-                            resource_identifier=json.dumps(rollback_data),
+                            resource_identifier=str(rollback_data),
                         ),
                     )
                 else:
