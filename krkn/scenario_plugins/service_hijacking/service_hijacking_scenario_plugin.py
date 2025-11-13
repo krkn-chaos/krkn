@@ -94,7 +94,7 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 self.rollback_service_hijacking,
                 RollbackContent(
                     namespace=service_namespace,
-                    resource_identifier=json.dumps(rollback_data),
+                    resource_identifier=str(rollback_data),
                 ),
             )
             
@@ -140,7 +140,7 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             namespace = rollback_content.namespace
             
             # Decode rollback data from resource_identifier
-            rollback_data = json.loads(rollback_content.resource_identifier)
+            rollback_data = json.loads(rollback_content.resource_identifier.decode("utf-8"))
             service_name = rollback_data["service_name"]
             service_namespace = rollback_data["service_namespace"]
             original_selectors = rollback_data["original_selectors"]
