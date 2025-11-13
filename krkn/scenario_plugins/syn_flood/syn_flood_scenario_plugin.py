@@ -60,7 +60,7 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                     self.rollback_pod,
                     RollbackContent(
                         namespace=config["namespace"],
-                        resource_identifier=",".join(pod_names),
+                        resource_identifier=str(pod_names),
                     ),
                 )
 
@@ -160,7 +160,7 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
-            pod_names = rollback_content.resource_identifier.split(",")
+            pod_names = list(rollback_content.resource_identifier)
             logging.info(f"Rolling back syn flood pods: {pod_names} in namespace: {namespace}")
             for pod_name in pod_names:
                 lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
