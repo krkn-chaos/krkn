@@ -49,7 +49,7 @@ class VirtChecker:
             node_name = vmi.get("status",{}).get("nodeName")
             vmi_name = vmi.get("metadata",{}).get("name")
             ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
-            namespace = vmi.get("metadata",{}).get("namesapce")
+            namespace = vmi.get("metadata",{}).get("namespace")
             # If node_name_list exists, only add if node name is in list
 
             if len(node_name_list) > 0 and node_name in node_name_list:
