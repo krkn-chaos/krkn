@@ -146,7 +146,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_names = kubecli.list_nodes(scenario["label_selector"])
                 # going to filter out nodes with the exclude_label if it is provided
                 if "exclude_label" in scenario.keys() and scenario["exclude_label"]:
-                    excluded_nodes = kubleci.list_nodes(scenario["exclude_label"])
+                    excluded_nodes = kubecli.list_nodes(scenario["exclude_label"])
                     node_names = [node for node in node_names if node not in excluded_nodes]
             for node in node_names:
                 self.skew_node(node, scenario["action"], kubecli)
@@ -195,7 +195,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 pod_names = kubecli.get_all_pods(scenario["label_selector"])
                 # and here filter out the pods with exclude_label if it is provided
                 if "exclude_label" in scenario.keys() and scenario["exclude_label"]:
-                    excluded_pods = kubleci.get_all_pods(scenario["exclude_label"])
+                    excluded_pods = kubecli.get_all_pods(scenario["exclude_label"])
                     pod_names = [pod for pod in pod_names if pod not in excluded_pods]
 
             if len(pod_names) == 0:
