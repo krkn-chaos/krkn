@@ -25,6 +25,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         super().__init__(scenario_type)
         self.k8s_client = None
         self.original_vmi = None
+        self.vmis_list = []
         
     # Scenario type is handled directly in execute_scenario
     def get_scenario_types(self) -> list[str]:
@@ -106,20 +107,20 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         :return: The VMI object if found, None otherwise
         """
         try:
-            vmis = self.custom_object_client.list_namespaced_custom_object(
-                group="kubevirt.io",
-                version="v1",
-                namespace=namespace,
-                plural="virtualmachineinstances",
-            )
+            namespaces = self.k8s_client.list_namespaces_by_regex(namespace)
+            for namespace in namespaces:
+                vmis = self.custom_object_client.list_namespaced_custom_object(
+                    group="kubevirt.io",
+                    version="v1",
+                    namespace=namespace,
+                    plural="virtualmachineinstances",
+                )
 
-            vmi_list = []
-            for vmi in vmis.get("items"):
-                vmi_name = vmi.get("metadata",{}).get("name")
-                match = re.match(regex_name, vmi_name)
-                if match:
-                    vmi_list.append(vmi)
-            return vmi_list
+                for vmi in vmis.get("items"):
+                    vmi_name = vmi.get("metadata",{}).get("name")
+                    match = re.match(regex_name, vmi_name)
+                    if match:
+                        self.vmis_list.append(vmi)
         except ApiException as e:
             if e.status == 404:
                 logging.warning(f"VMI {regex_name} not found in namespace {namespace}")
@@ -152,21 +153,22 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 logging.error("vm_name parameter is required")
                 return 1
             self.pods_status = PodsStatus()
-            vmis_list = self.get_vmis(vm_name,namespace)
+            self.get_vmis(vm_name,namespace)
             for _ in range(kill_count):
                 
-                rand_int = random.randint(0, len(vmis_list) - 1)
-                vmi = vmis_list[rand_int]
+                rand_int = random.randint(0, len(self.vmis_list) - 1)
+                vmi = self.vmis_list[rand_int]
                     
                 logging.info(f"Starting KubeVirt VM outage scenario for VM: {vm_name} in namespace: {namespace}")
                 vmi_name = vmi.get("metadata").get("name")
-                if not self.validate_environment(vmi_name, namespace):
+                vmi_namespace = vmi.get("metadata").get("namespace")
+                if not self.validate_environment(vmi_name, vmi_namespace):
                     return 1
                     
-                vmi = self.get_vmi(vmi_name, namespace)
+                vmi = self.get_vmi(vmi_name, vmi_namespace)
                 self.affected_pod = AffectedPod(
                     pod_name=vmi_name,
-                    namespace=namespace,
+                    namespace=vmi_namespace,
                 )
                 if not vmi:
                     logging.error(f"VMI {vm_name} not found in namespace {namespace}")
@@ -174,12 +176,12 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                     
                 self.original_vmi = vmi
                 logging.info(f"Captured initial state of VMI: {vm_name}")
-                result = self.delete_vmi(vmi_name, namespace, disable_auto_restart)
+                result = self.delete_vmi(vmi_name, vmi_namespace, disable_auto_restart)
                 if result != 0:
                     self.pods_status.unrecovered.append(self.affected_pod)
                     continue
 
-                result = self.wait_for_running(vmi_name,namespace, timeout)
+                result = self.wait_for_running(vmi_name,vmi_namespace, timeout)
                 if result != 0:
                     self.pods_status.unrecovered.append(self.affected_pod)
                     continue
