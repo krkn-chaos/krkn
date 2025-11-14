@@ -77,7 +77,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                         self.rollback_node_action,
                         RollbackContent(
                             namespace=None,
-                            resource_identifier=json.dumps(node_details[idx]),
+                            resource_identifier=str(node_details[idx]),
                         ),
                     )
                     return 1
