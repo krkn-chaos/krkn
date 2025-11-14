@@ -57,7 +57,7 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                 
                 # Set rollback callable to ensure pod cleanup on failure or interruption
                 self.rollback_handler.set_rollback_callable(
-                    self.rollback_pod,
+                    self.rollback_syn_flood_pods,
                     RollbackContent(
                         namespace=config["namespace"],
                         resource_identifier=str(pod_names),
@@ -151,7 +151,8 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["syn_flood_scenarios"]
 
-    def rollback_pod(self, rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+    @staticmethod
+    def rollback_syn_flood_pods(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
         """
         Rollback function to delete syn flood pods.
 
