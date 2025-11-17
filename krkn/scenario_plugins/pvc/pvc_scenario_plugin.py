@@ -364,14 +364,14 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
             
             # Remove the temp file
             command = "rm -f %s" % (str(full_path))
-            logging.debug("Remove temp file from the PVC command:\n %s" % command)
-            lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
+            logging.info("Remove temp file from the PVC command:\n %s" % command)
+            response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                 [command], pod_name, namespace, container_name
             )
-            
+            logging.info("\n" + str(response))
             # Verify removal
             command = "ls -lh %s" % (str(mount_path))
-            logging.debug("Check temp file is removed command:\n %s" % command)
+            logging.info("Check temp file is removed command:\n %s" % command)
             response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                 [command], pod_name, namespace, container_name
             )
