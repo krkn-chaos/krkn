@@ -1,7 +1,7 @@
 import json
 import logging
 import time
-
+import base64
 import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -90,11 +90,13 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 "original_selectors": original_service["spec"]["selector"],
                 "webservice_pod_name": webservice.pod_name,
             }
+            json_str = json.dumps(rollback_data)
+            encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
             self.rollback_handler.set_rollback_callable(
                 self.rollback_service_hijacking,
                 RollbackContent(
                     namespace=service_namespace,
-                    resource_identifier=str(rollback_data),
+                    resource_identifier=encoded_data,
                 ),
             )
             
@@ -139,8 +141,10 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
         try:
             namespace = rollback_content.namespace
             import json # noqa
+            import base64 # noqa
             # Decode rollback data from resource_identifier
-            rollback_data = json.loads(rollback_content.resource_identifier)
+            decoded_data = base64.b64decode(rollback_content.resource_identifier.encode("utf-8")).decode("utf-8")
+            rollback_data = json.loads(decoded_data)
             service_name = rollback_data["service_name"]
             service_namespace = rollback_data["service_namespace"]
             original_selectors = rollback_data["original_selectors"]
