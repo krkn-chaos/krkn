@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import random
@@ -242,11 +243,13 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         "file_name": file_name,
                         "full_path": full_path,
                     }
+                    json_str = json.dumps(rollback_data)
+                    encoded_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
                     self.rollback_handler.set_rollback_callable(
                         self.rollback_temp_file,
                         RollbackContent(
                             namespace=namespace,
-                            resource_identifier=str(rollback_data),
+                            resource_identifier=encoded_data,
                         ),
                     )
                 else:
@@ -345,9 +348,10 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
+            import base64 # noqa
             import json # noqa
-            # Decode rollback data from resource_identifier
-            rollback_data = json.loads(rollback_content.resource_identifier)
+            decoded_data = base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8')
+            rollback_data = json.loads(decoded_data)
             pod_name = rollback_data["pod_name"]
             container_name = rollback_data["container_name"]
             full_path = rollback_data["full_path"]
