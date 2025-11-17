@@ -5,6 +5,32 @@ on:
     branches:
       - main
 jobs:
+  unit-tests:
+    # Common steps
+    name: Functional & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+  
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          architecture: 'x64'
+      - name: Install environment
+        run: |
+          sudo apt-get install build-essential python3-dev
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      # Pull request only steps
+      - name: Run unit tests
+        if: github.event_name == 'pull_request'
+        run:  | 
+          python -m coverage run -a -m unittest discover -s tests -v
+          python -m coverage run -a -m unittest discover -s krkn/tests -v
+      
+      
   tests:
     # Common steps
     name: Functional & Unit Tests
@@ -70,10 +96,6 @@ jobs:
       - name: Get Kind nodes
         run: |
           kubectl get nodes --show-labels=true
-      # Pull request only steps
-      - name: Run unit tests
-        if: github.event_name == 'pull_request'
-        run: python -m coverage run -a -m unittest discover -s tests -v
 
       - name: Setup Pull Request Functional Tests
         if: |
@@ -144,6 +166,7 @@ jobs:
           ./CI/run.sh
           cat ./CI/results.markdown >> $GITHUB_STEP_SUMMARY
           echo >> $GITHUB_STEP_SUMMARY
+      
       - name: Upload CI logs
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
@@ -151,41 +174,51 @@ jobs:
           name: ci-logs
           path: CI/out
           if-no-files-found: error
-      - name: Collect coverage report
-        if: ${{ always() }}
-        run: |
-          python -m coverage html
-          python -m coverage json
-      - name: Publish coverage report to job summary
-        if: ${{ always() }}
-        run: |
-          pip install html2text
-          html2text --ignore-images --ignore-links -b 0 htmlcov/index.html >> $GITHUB_STEP_SUMMARY
-      - name: Upload coverage data
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: htmlcov
-          if-no-files-found: error
-      - name: Upload json coverage
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage.json
-          path: coverage.json
-          if-no-files-found: error
+
       - name: Check CI results
         if: ${{ always() }}
         run: "! grep Fail CI/results.markdown"
-
+  
+  summary:
+    permissions:
+      contents: write
+    name: Generate Coverage Badge
+    runs-on: ubuntu-latest
+    needs:
+      - unit-tests
+      - tests
+    steps:
+    - name: Collect coverage report
+      if: ${{ always() }}
+      run: |
+        python -m coverage html
+        python -m coverage json
+    - name: Publish coverage report to job summary
+      if: ${{ always() }}
+      run: |
+        pip install html2text
+        html2text --ignore-images --ignore-links -b 0 htmlcov/index.html >> $GITHUB_STEP_SUMMARY
+    - name: Upload coverage data
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: htmlcov
+        if-no-files-found: error
+    - name: Upload json coverage
+      if: ${{ always() }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage.json
+        path: coverage.json
+        if-no-files-found: error
   badge:
     permissions:
       contents: write
     name: Generate Coverage Badge
     runs-on: ubuntu-latest
     needs:
-      - tests
+      - unit-tests
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
         - name: Check out doc repo
