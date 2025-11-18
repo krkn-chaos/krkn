@@ -23,9 +23,7 @@ class VirtChecker:
         self.threads_limit = threads_limit
         # setting to 0 in case no variables are set, so no threads later get made
         self.batch_size = 0
-        if self.namespace == "":
-            logging.info("kube virt checks config is not defined, skipping them")
-            return
+        self.ret_value = 0
         vmi_name_match = get_yaml_item_value(kubevirt_check_config, "name", ".*")
         self.krkn_lib = krkn_lib
         self.disconnected =  get_yaml_item_value(kubevirt_check_config, "disconnected", False)
@@ -33,31 +31,34 @@ class VirtChecker:
         self.interval = get_yaml_item_value(kubevirt_check_config, "interval", 2)
         self.ssh_node = get_yaml_item_value(kubevirt_check_config, "ssh_node", "")
         self.node_names = get_yaml_item_value(kubevirt_check_config, "node_names", "")
+        self.exit_on_failure = get_yaml_item_value(kubevirt_check_config, "exit_on_failure", False)
+        if self.namespace == "":
+            logging.info("kube virt checks config is not defined, skipping them")
+            return
         try:
             self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=krkn_lib)
-            vmis = self.kube_vm_plugin.get_vmis(vmi_name_match,self.namespace)
+
+            self.kube_vm_plugin.get_vmis(vmi_name_match,self.namespace)
         except Exception as e:
             logging.error('Virt Check init exception: ' + str(e))
             return
         # See if multiple node names exist
-        node_name_list = self.node_names.split(',')
-
-        for vmi in vmis:
+        node_name_list = [node_name for node_name in self.node_names.split(',') if node_name]
+        for vmi in self.kube_vm_plugin.vmis_list:
             node_name = vmi.get("status",{}).get("nodeName")
             vmi_name = vmi.get("metadata",{}).get("name")
             ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
+            namespace = vmi.get("metadata",{}).get("namespace")
             # If node_name_list exists, only add if node name is in list
 
             if len(node_name_list) > 0 and node_name in node_name_list:
-                self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name, "new_ip_address":""}))
+                self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':namespace, 'node_name':node_name, "new_ip_address":""}))
             elif len(node_name_list) == 0:
-
                 # If node_name_list is blank, add all vms
-                self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':self.namespace, 'node_name':node_name, "new_ip_address":""}))
+                self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':namespace, 'node_name':node_name, "new_ip_address":""}))
 
         self.batch_size = math.ceil(len(self.vm_list)/self.threads_limit)
-        
 
     def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
         
@@ -255,4 +256,7 @@ class VirtChecker:
                 thread.join()
                 if not post_kubevirt_check_queue.empty():
                     kubevirt_check_telem.extend(post_kubevirt_check_queue.get_nowait())
+        
+        if self.exit_on_failure and len(kubevirt_check_telem) > 0:
+            self.ret_value = 2
         return kubevirt_check_telem
