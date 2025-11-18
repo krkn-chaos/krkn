@@ -3,6 +3,7 @@ import logging
 import time
 from multiprocessing.pool import ThreadPool
 from itertools import repeat
+import base64
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -77,7 +78,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                         self.rollback_node_action,
                         RollbackContent(
                             namespace=None,
-                            resource_identifier=str(node_details[idx]),
+                            resource_identifier=str(base64.b64encode(json.dumps(node_details[idx]).encode('utf-8')).decode('utf-8')),
                         ),
                     )
                     return 1
@@ -353,7 +354,8 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         try:
             logging.info("Starting node action rollback...")
             import json # noqa
-            rollback_data = json.loads(rollback_content.resource_identifier)
+            import base64 # noqa
+            rollback_data = json.loads(base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8'))
             node_scenario = rollback_data["node_details"]
             failed_action = rollback_data["rollback_action"]
             
