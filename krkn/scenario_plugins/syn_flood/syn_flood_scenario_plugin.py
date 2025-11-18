@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import os
@@ -56,11 +57,12 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                     pod_names.append(pod_name)
                 
                 # Set rollback callable to ensure pod cleanup on failure or interruption
+                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
                 self.rollback_handler.set_rollback_callable(
                     self.rollback_syn_flood_pods,
                     RollbackContent(
                         namespace=config["namespace"],
-                        resource_identifier=str(pod_names),
+                        resource_identifier=rollback_data,
                     ),
                 )
 
@@ -161,7 +163,9 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
-            pod_names = list(rollback_content.resource_identifier)
+            import base64 # noqa
+            import json # noqa
+            pod_names = json.loads(base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8'))
             logging.info(f"Rolling back syn flood pods: {pod_names} in namespace: {namespace}")
             for pod_name in pod_names:
                 lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
