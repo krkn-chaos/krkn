@@ -338,7 +338,7 @@ class ibm_node_scenarios(abstract_node_scenarios):
             logging.error("node_stop_scenario injection failed!")
 
 
-    def node_reboot_scenario(self, instance_kill_count, node, timeout):
+    def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         try:
             instance_id = self.ibmcloud.get_instance_id(node)
             for _ in range(instance_kill_count):

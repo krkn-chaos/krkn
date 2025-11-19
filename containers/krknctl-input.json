@@ -32,6 +32,24 @@
     "required": "false"
   },
   {
+    "name": "ssh-public-key",
+    "short_description": "Krkn ssh public key path",
+    "description": "Sets the path where krkn will search for ssh public key (in container)",
+    "variable": "KRKN_SSH_PUBLIC",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "ssh-private-key",
+    "short_description": "Krkn ssh private key path",
+    "description": "Sets the path where krkn will search for ssh private key (in container)",
+    "variable": "KRKN_SSH_PRIVATE",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
     "name": "krkn-kubeconfig",
     "short_description": "Krkn kubeconfig path",
     "description": "Sets the path where krkn will search for kubeconfig (in container)",
@@ -65,6 +83,24 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "prometheus-url",
+    "short_description": "Prometheus url",
+    "description": "Prometheus url for when running on kuberenetes",
+    "variable": "PROMETHEUS_URL",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "prometheus-token",
+    "short_description": "Prometheus bearer token",
+    "description": "Prometheus bearer token for prometheus url authentication",
+    "variable": "PROMETHEUS_TOKEN",
+    "type": "string",
+    "default": "",
     "required": "false"
   },
   {
@@ -423,6 +459,64 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-check-interval",
+    "short_description": "Kube Virt check interval",
+    "description": "How often to check the kube virt check Vms ssh status",
+    "variable": "KUBE_VIRT_CHECK_INTERVAL",
+    "type": "number",
+    "default": "2",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-namespace",
+    "short_description": "KubeVirt namespace to check",
+    "description": "KubeVirt namespace to check the health of",
+    "variable": "KUBE_VIRT_NAMESPACE",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-name",
+    "short_description": "KubeVirt regex names to watch",
+    "description": "KubeVirt regex names to check VMs",
+    "variable": "KUBE_VIRT_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-only-failures",
+    "short_description": "KubeVirt checks only report if failure occurs",
+    "description": "KubeVirt checks only report if failure occurs",
+    "variable": "KUBE_VIRT_FAILURES",
+    "type": "enum",
+    "allowed_values": "True,False,true,false",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-disconnected",
+    "short_description": "KubeVirt checks in disconnected mode",
+    "description": "KubeVirt checks in disconnected mode, bypassing the clusters Api",
+    "variable": "KUBE_VIRT_DISCONNECTED",
+    "type": "enum",
+    "allowed_values": "True,False,true,false",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-ssh-node",
+    "short_description": "KubeVirt node to ssh from",
+    "description": "KubeVirt node to ssh from, should be available whole chaos run",
+    "variable": "KUBE_VIRT_SSH_NODE",
+    "type": "string",
+    "default": "",
     "required": "false"
   },
   {

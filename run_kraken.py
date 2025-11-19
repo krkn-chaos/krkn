@@ -29,6 +29,7 @@ from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
 from krkn.utils import TeeLogHandler
 from krkn.utils.HealthChecker import HealthChecker
+from krkn.utils.VirtChecker import VirtChecker
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
@@ -130,8 +131,9 @@ def main(options, command: Optional[str]) -> int:
             config["performance_monitoring"], "check_critical_alerts", False
         )
         telemetry_api_url = config["telemetry"].get("api_url")
-        health_check_config = config["health_checks"]
-
+        health_check_config = get_yaml_item_value(config, "health_checks",{})
+        kubevirt_check_config = get_yaml_item_value(config, "kubevirt_checks", {})
+        
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
                 "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -324,6 +326,10 @@ def main(options, command: Optional[str]) -> int:
                                                args=(health_check_config, health_check_telemetry_queue))
         health_check_worker.start()
 
+        kubevirt_check_telemetry_queue = queue.Queue()
+        kubevirt_checker = VirtChecker(kubevirt_check_config, iterations=iterations, krkn_lib=kubecli)
+        kubevirt_checker.batch_list(kubevirt_check_telemetry_queue)
+
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -369,10 +375,12 @@ def main(options, command: Optional[str]) -> int:
                             prometheus_plugin.critical_alerts(
                                 prometheus,
                                 summary,
+                                elastic_search,
                                 run_uuid,
                                 scenario_type,
                                 start_time,
                                 datetime.datetime.now(),
+                                elastic_alerts_index
                             )
 
                             chaos_output.critical_alerts = summary
@@ -385,6 +393,7 @@ def main(options, command: Optional[str]) -> int:
 
             iteration += 1
             health_checker.current_iterations += 1
+            kubevirt_checker.current_iterations += 1
 
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
@@ -396,7 +405,19 @@ def main(options, command: Optional[str]) -> int:
             chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
         except queue.Empty:
             chaos_telemetry.health_checks = None
-
+        
+        kubevirt_checker.thread_join()
+        kubevirt_check_telem = []
+        i =0
+        while i <= kubevirt_checker.threads_limit:
+            if not kubevirt_check_telemetry_queue.empty():
+                kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
+            else:
+                break
+            i+= 1
+        chaos_telemetry.virt_checks = kubevirt_check_telem
+        post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
+        chaos_telemetry.post_virt_checks = post_kubevirt_check
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
@@ -536,6 +557,10 @@ def main(options, command: Optional[str]) -> int:
             logging.error("Health check failed for the applications, Please check; exiting")
             return health_checker.ret_value
 
+        if kubevirt_checker.ret_value != 0:
+            logging.error("Kubevirt check still had failed VMIs at end of run, Please check; exiting")
+            return kubevirt_checker.ret_value
+
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
             "%s. Report generated at %s. Exiting" % (run_uuid, report_file)
@@ -610,6 +635,14 @@ if __name__ == "__main__":
         default=None,
     )
 
+    parser.add_option(
+        "-d",
+        "--debug",
+        dest="debug",
+        help="enable debug logging",
+        default=False,
+    )
+
     (options, args) = parser.parse_args()
     
     # If no command or regular execution, continue with existing logic
@@ -622,7 +655,7 @@ if __name__ == "__main__":
     ]
 
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if options.debug else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=handlers,
     )
