@@ -77,10 +77,9 @@ class AWS:
     # until a successful state is reached. An error is returned after 40 failed checks
     # Setting timeout for consistency with other cloud functions
     # Wait until the node instance is running
-    def wait_until_running(self, instance_id, timeout=600, affected_node=None):
+    def wait_until_running(self, instance_id, timeout=600, affected_node=None, poll_interval=15):
         try:
             start_time = time.time()
-            poll_interval = 15
             if timeout > 0:
                 max_attempts = max(1, int(timeout / poll_interval))
             else:
@@ -105,10 +104,9 @@ class AWS:
             return False
 
     # Wait until the node instance is stopped
-    def wait_until_stopped(self, instance_id, timeout=600, affected_node= None):
+    def wait_until_stopped(self, instance_id, timeout=600, affected_node= None, poll_interval=15):
         try:
             start_time = time.time()
-            poll_interval = 15
             if timeout > 0:
                 max_attempts = max(1, int(timeout / poll_interval))
             else:
@@ -133,10 +131,9 @@ class AWS:
             return False
 
     # Wait until the node instance is terminated
-    def wait_until_terminated(self, instance_id, timeout=600, affected_node= None):
+    def wait_until_terminated(self, instance_id, timeout=600, affected_node= None, poll_interval=15):
         try:
             start_time = time.time()
-            poll_interval = 15
             if timeout > 0:
                 max_attempts = max(1, int(timeout / poll_interval))
             else:
@@ -303,7 +300,7 @@ class aws_node_scenarios(abstract_node_scenarios):
         self.node_action_kube_check = node_action_kube_check
 
     # Node scenario to start the node
-    def node_start_scenario(self, instance_kill_count, node, timeout):
+    def node_start_scenario(self, instance_kill_count, node, timeout, poll_interval):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:
@@ -314,7 +311,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Starting the node %s with instance ID: %s " % (node, instance_id)
                 )
                 self.aws.start_instances(instance_id)
-                self.aws.wait_until_running(instance_id, timeout=timeout, affected_node=affected_node)
+                self.aws.wait_until_running(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
@@ -332,7 +329,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
-    def node_stop_scenario(self, instance_kill_count, node, timeout):
+    def node_stop_scenario(self, instance_kill_count, node, timeout, poll_interval):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:
@@ -343,7 +340,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Stopping the node %s with instance ID: %s " % (node, instance_id)
                 )
                 self.aws.stop_instances(instance_id)
-                self.aws.wait_until_stopped(instance_id, timeout=timeout, affected_node=affected_node)
+                self.aws.wait_until_stopped(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
                 logging.info(
                     "Node with instance ID: %s is in stopped state" % (instance_id)
                 )
@@ -360,7 +357,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to terminate the node
-    def node_termination_scenario(self, instance_kill_count, node, timeout):
+    def node_termination_scenario(self, instance_kill_count, node, timeout, poll_interval):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:
@@ -372,7 +369,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                     % (node, instance_id)
                 )
                 self.aws.terminate_instances(instance_id)
-                self.aws.wait_until_terminated(instance_id, timeout=timeout, affected_node=affected_node)
+                self.aws.wait_until_terminated(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
                 for _ in range(timeout):
                     if node not in self.kubecli.list_nodes():
                         break
