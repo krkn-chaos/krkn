@@ -1,3 +1,5 @@
+import base64
+import json
 import logging
 import os
 import time
@@ -7,9 +9,12 @@ from krkn_lib import utils as krkn_lib_utils
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class SynFloodScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -50,6 +55,16 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                         config["attacker-nodes"],
                     )
                     pod_names.append(pod_name)
+                
+                # Set rollback callable to ensure pod cleanup on failure or interruption
+                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
+                self.rollback_handler.set_rollback_callable(
+                    self.rollback_syn_flood_pods,
+                    RollbackContent(
+                        namespace=config["namespace"],
+                        resource_identifier=rollback_data,
+                    ),
+                )
 
             logging.info("waiting all the attackers to finish:")
             did_finish = False
@@ -137,3 +152,23 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
 
     def get_scenario_types(self) -> list[str]:
         return ["syn_flood_scenarios"]
+
+    @staticmethod
+    def rollback_syn_flood_pods(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+        """
+        Rollback function to delete syn flood pods.
+
+        :param rollback_content: Rollback content containing namespace and resource_identifier.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations
+        """
+        try:
+            namespace = rollback_content.namespace
+            import base64 # noqa
+            import json # noqa
+            pod_names = json.loads(base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8'))
+            logging.info(f"Rolling back syn flood pods: {pod_names} in namespace: {namespace}")
+            for pod_name in pod_names:
+                lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
+            logging.info("Rollback of syn flood pods completed successfully.")
+        except Exception as e:
+            logging.error(f"Failed to rollback syn flood pods: {e}")
