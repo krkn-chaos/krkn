@@ -133,7 +133,7 @@ def main(options, command: Optional[str]) -> int:
         telemetry_api_url = config["telemetry"].get("api_url")
         health_check_config = get_yaml_item_value(config, "health_checks",{})
         kubevirt_check_config = get_yaml_item_value(config, "kubevirt_checks", {})
-
+        
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
                 "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -416,7 +416,8 @@ def main(options, command: Optional[str]) -> int:
                 break
             i+= 1
         chaos_telemetry.virt_checks = kubevirt_check_telem
-
+        post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
+        chaos_telemetry.post_virt_checks = post_kubevirt_check
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
@@ -555,6 +556,10 @@ def main(options, command: Optional[str]) -> int:
         if health_checker.ret_value != 0:
             logging.error("Health check failed for the applications, Please check; exiting")
             return health_checker.ret_value
+
+        if kubevirt_checker.ret_value != 0:
+            logging.error("Kubevirt check still had failed VMIs at end of run, Please check; exiting")
+            return kubevirt_checker.ret_value
 
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
