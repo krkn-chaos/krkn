@@ -326,7 +326,7 @@ def main(options, command: Optional[str]) -> int:
                                                args=(health_check_config, health_check_telemetry_queue))
         health_check_worker.start()
 
-        kubevirt_check_telemetry_queue = queue.Queue()
+        kubevirt_check_telemetry_queue = queue.SimpleQueue()
         kubevirt_checker = VirtChecker(kubevirt_check_config, iterations=iterations, krkn_lib=kubecli)
         kubevirt_checker.batch_list(kubevirt_check_telemetry_queue)
 
@@ -393,8 +393,7 @@ def main(options, command: Optional[str]) -> int:
 
             iteration += 1
             health_checker.current_iterations += 1
-            kubevirt_checker.current_iterations += 1
-
+            kubevirt_checker.increment_iterations()
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
         # is disabled, it's necessary to serialize the ChaosRunTelemetry object
@@ -411,6 +410,7 @@ def main(options, command: Optional[str]) -> int:
         while not kubevirt_check_telemetry_queue.empty():
             kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
         chaos_telemetry.virt_checks = kubevirt_check_telem
+        
         post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
         chaos_telemetry.post_virt_checks = post_kubevirt_check
         # if platform is openshift will be collected
