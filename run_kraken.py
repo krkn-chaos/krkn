@@ -408,13 +408,8 @@ def main(options, command: Optional[str]) -> int:
         
         kubevirt_checker.thread_join()
         kubevirt_check_telem = []
-        i =0
-        while i <= kubevirt_checker.threads_limit:
-            if not kubevirt_check_telemetry_queue.empty():
-                kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
-            else:
-                break
-            i+= 1
+        while not kubevirt_check_telemetry_queue.empty():
+            kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
         chaos_telemetry.virt_checks = kubevirt_check_telem
         post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
         chaos_telemetry.post_virt_checks = post_kubevirt_check

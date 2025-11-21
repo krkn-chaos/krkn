@@ -506,6 +506,85 @@ class TestVirtChecker(unittest.TestCase):
         # 25 VMs / 10 threads = 3 VMs per batch (ceiling)
         self.assertEqual(checker.batch_size, 3)
 
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.threading.Thread')
+    def test_batch_list_includes_last_item(self, mock_thread_class, mock_plugin_class, mock_yaml):
+        """Test that batch_list includes the last item when batches don't divide evenly"""
+        mock_plugin = MagicMock()
+
+        # Create 21 mock VMIs (the specific case mentioned in the bug report)
+        mock_vmis = []
+        for i in range(21):
+            vmi = {
+                "metadata": {"name": f"vm-{i}", "namespace": "test-ns"},
+                "status": {
+                    "nodeName": "worker-1",
+                    "interfaces": [{"ipAddress": f"192.168.1.{i}"}]
+                }
+            }
+            mock_vmis.append(vmi)
+
+        mock_plugin.vmis_list = mock_vmis
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "node_names":
+                return ""
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        config = {"namespace": "test-ns"}
+        checker = VirtChecker(
+            config,
+            iterations=5,
+            krkn_lib=self.mock_krkn_lib,
+            threads_limit=5  # This gives batch_size=5 (ceiling of 21/5=4.2)
+        )
+
+        # 21 VMs / 5 threads = 5 VMs per batch (ceiling)
+        self.assertEqual(checker.batch_size, 5)
+        self.assertEqual(len(checker.vm_list), 21)
+
+        # Track the sublists passed to each thread
+        captured_sublists = []
+        def capture_args(*args, **kwargs):
+            # threading.Thread is called with target=..., name=..., args=(sublist, queue)
+            if 'args' in kwargs:
+                sublist, queue = kwargs['args']
+                captured_sublists.append(sublist)
+            mock_thread = MagicMock()
+            if 'name' in kwargs:
+                mock_thread.name = kwargs['name']
+            return mock_thread
+
+        mock_thread_class.side_effect = capture_args
+
+        # Create a mock queue
+        mock_queue = MagicMock()
+
+        # Call batch_list
+        checker.batch_list(mock_queue)
+
+        # Verify all 21 items are included across all batches
+        all_items_in_batches = []
+        for sublist in captured_sublists:
+            all_items_in_batches.extend(sublist)
+
+        # Check that we have exactly 21 items
+        self.assertEqual(len(all_items_in_batches), 21)
+
+        # Verify the last batch includes the last item (vm-20)
+        last_batch = captured_sublists[-1]
+        self.assertGreater(len(last_batch), 0, "Last batch should not be empty")
+        
+        # Verify no duplicate items across batches
+        all_vm_names = [vm.vm_name for vm in all_items_in_batches]
+        self.assertEqual(len(all_vm_names), len(set(all_vm_names)), "No duplicate items should be in batches")
+
 
 if __name__ == "__main__":
     unittest.main()
