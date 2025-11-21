@@ -68,6 +68,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         label_selector = get_yaml_item_value(cont_scenario, "label_selector", None)
         pod_names = get_yaml_item_value(cont_scenario, "pod_names", [])
         container_name = get_yaml_item_value(cont_scenario, "container_name", "")
+        exclude_label = get_yaml_item_value(cont_scenario, "exclude_label", "")
         kill_action = get_yaml_item_value(cont_scenario, "action", 1)
         kill_count = get_yaml_item_value(cont_scenario, "count", 1)
         if not isinstance(kill_action, int):
@@ -102,10 +103,26 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 # sys.exit(1)
                 raise RuntimeError()
             pods = pod_names
+        
+        # Get excluded pods if exclude_label is specified
+        exclude_pods = set()
+        if exclude_label and container_name == "":
+            if namespace == "*":
+                _exclude_pods = kubecli.get_all_pods(exclude_label)
+                for pod in _exclude_pods:
+                    exclude_pods.add(pod[0])
+            else:
+                _exclude_pods = kubecli.list_pods(namespace, exclude_label)
+                for pod in _exclude_pods:
+                    exclude_pods.add(pod)
         # get container and pod name
         container_pod_list = []
         for pod in pods:
             if type(pod) == list:
+                # Skip excluded pods
+                if pod[0] in exclude_pods:
+                    logging.info(f"Excluding pod {pod[0]} from chaos (matches exclude_label: {exclude_label})")
+                    continue
                 pod_output = kubecli.get_pod_info(pod[0], pod[1])
                 container_names = [
                     container.name for container in pod_output.containers
@@ -113,6 +130,10 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
 
                 container_pod_list.append([pod[0], pod[1], container_names])
             else:
+                # Skip excluded pods
+                if pod in exclude_pods:
+                    logging.info(f"Excluding pod {pod} from chaos (matches exclude_label: {exclude_label})")
+                    continue
                 pod_output = kubecli.get_pod_info(pod, namespace)
                 container_names = [
                     container.name for container in pod_output.containers
