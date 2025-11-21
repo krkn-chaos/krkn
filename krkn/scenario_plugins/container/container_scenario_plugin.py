@@ -92,7 +92,19 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 pods = kubecli.get_all_pods(label_selector)
             else:
                 # Only returns pod names
-                pods = kubecli.list_pods(namespace, label_selector)
+                # Use list_pods with exclude_label parameter to exclude pods
+                if exclude_label:
+                    logging.info(
+                        "Using exclude_label '%s' to exclude pods from container scenario %s in namespace %s",
+                        exclude_label,
+                        scenario_name,
+                        namespace,
+                    )
+                pods = kubecli.list_pods(
+                    namespace=namespace,
+                    label_selector=label_selector,
+                    exclude_label=exclude_label if exclude_label else None
+                )
         else:
             if namespace == "*":
                 logging.error(
@@ -103,33 +115,11 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 # sys.exit(1)
                 raise RuntimeError()
             pods = pod_names
-        exclude_pods = set()
-        if exclude_label:
-            if namespace == "*":
-                exclude_candidates = kubecli.get_all_pods(exclude_label)
-            else:
-                exclude_candidates = kubecli.list_pods(namespace, exclude_label)
-            for pod in exclude_candidates:
-                if isinstance(pod, list):
-                    exclude_pods.add(f"{pod[1]}/{pod[0]}")
-                else:
-                    exclude_pods.add(f"{namespace}/{pod}")
-            if exclude_pods:
-                logging.info(
-                    "Excluding %s pods from container scenario %s using label '%s'",
-                    len(exclude_pods),
-                    scenario_name,
-                    exclude_label,
-                )
 
         # get container and pod name
         container_pod_list = []
         for pod in pods:
             if type(pod) == list:
-                pod_identifier = f"{pod[1]}/{pod[0]}"
-                if pod_identifier in exclude_pods:
-                    logging.info("Excluding pod %s from scenario %s", pod_identifier, scenario_name)
-                    continue
                 pod_output = kubecli.get_pod_info(pod[0], pod[1])
                 container_names = [
                     container.name for container in pod_output.containers
@@ -137,10 +127,6 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
 
                 container_pod_list.append([pod[0], pod[1], container_names])
             else:
-                pod_identifier = f"{namespace}/{pod}"
-                if pod_identifier in exclude_pods:
-                    logging.info("Excluding pod %s from scenario %s", pod_identifier, scenario_name)
-                    continue
                 pod_output = kubecli.get_pod_info(pod, namespace)
                 container_names = [
                     container.name for container in pod_output.containers
