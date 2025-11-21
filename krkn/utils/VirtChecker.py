@@ -127,7 +127,7 @@ class VirtChecker:
             # Provided prints to easily visualize how the threads are processed.    
             for i in range (0, len(self.vm_list),self.batch_size):
                 if i+self.batch_size > len(self.vm_list):
-                    sub_list = self.vm_list[i:  len(self.vm_list)-1]
+                    sub_list = self.vm_list[i:]
                 else:
                     sub_list = self.vm_list[i: i+self.batch_size]
                 index = i
