@@ -389,7 +389,7 @@ class vmware_node_scenarios(abstract_node_scenarios):
         self.vsphere = vSphere()
         self.node_action_kube_check = node_action_kube_check
 
-    def node_start_scenario(self, instance_kill_count, node, timeout):
+    def node_start_scenario(self, instance_kill_count, node, timeout, poll_interval):
         try:
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
@@ -409,7 +409,7 @@ class vmware_node_scenarios(abstract_node_scenarios):
                 f"node_start_scenario injection failed! " f"Error was: {str(e)}"
             )
 
-    def node_stop_scenario(self, instance_kill_count, node, timeout):
+    def node_stop_scenario(self, instance_kill_count, node, timeout, poll_interval):
         try:
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
@@ -456,7 +456,7 @@ class vmware_node_scenarios(abstract_node_scenarios):
             )
 
 
-    def node_terminate_scenario(self, instance_kill_count, node, timeout):
+    def node_terminate_scenario(self, instance_kill_count, node, timeout, poll_interval):
         try:
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
