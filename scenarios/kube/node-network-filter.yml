@@ -10,7 +10,7 @@
   execution: parallel
   ingress: false
   egress: true
-  target: '<node_name>'
+  target: '<node_name>' # Supports single value, CSV string, list, '*', 'regex:pattern'
   interfaces: []
   ports:
     - 2309
