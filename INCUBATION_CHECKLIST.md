@@ -1,41 +1,41 @@
----
-name: Project Incubation Application
-about: This template provides the project with a framework to inform the TOC of their conformance to the Incubation Level Criteria.
-title: "[Incubation] $PROJECT Incubation Application"
-labels:
-- dd/triage/needs-triage
-- level/incubation
-- kind/dd
-- toc
----
-
 # Review Project Moving Level Evaluation
-[ ] I have reviewed the TOC's [moving level readiness triage guide](https://github.com/cncf/toc/blob/main/operations/dd-toc-guide.md#initial-triageevaluation-prior-to-assignment), ensured the criteria for my project are met before opening this issue, and understand that unmet criteria will result in the project's application being closed.
+[x] I have reviewed the TOC's [moving level readiness triage guide](https://github.com/cncf/toc/blob/main/operations/dd-toc-guide.md#initial-triageevaluation-prior-to-assignment), ensured the criteria for my project are met before opening this issue, and understand that unmet criteria will result in the project's application being closed.
 
-# $PROJECT Incubation Application
+# Krkn Incubation Application
 v1.6
 This template provides the project with a framework to inform the TOC of their conformance to the Incubation Level Criteria. 
 
-Project Repo(s): $URL
-Project Site:  $URL
-Sub-Projects: $LIST
-Communication: $SLACK
+Project Repo(s): https://github.com/krkn-chaos/krkn
+Project Site:  https://www.krkn-chaos.dev 
+Sub-Projects: 
+ - https://github.com/krkn-chaos/krknctl
+ - https://github.com/krkn-chaos/krkn-hub
+Communication: [Slack](https://kubernetes.slack.com/archives/C05SFMHRWK1)
 
-Project points of contacts: $NAME, $EMAIL
+
+Project points of contacts: 
+ - [Naga Ravi Elluri](mailto:nelluri@redhat.com)
+ - [Paige Patton](mailto:ppatton@redhat.com)
+ - [Tullio Sebastiani](mailto:tsebasti@redhat.com)
 
 - [ ] (Post Incubation only) [Book a meeting with CNCF staff](http://project-meetings.cncf.io) to understand project benefits and event resources. 
 
-## Incubation Criteria Summary for $PROJECT
+## Incubation Criteria Summary for Krkn
 
 ### Application Level Assertion
 
-- [ ] This project is currently Sandbox, accepted on YYYYMMDD, and applying to Incubation.
-- [ ] This project is applying to join the CNCF at the Incubation level.
+- [x] This project is currently Sandbox, accepted on 2023/12/19, and applying to Incubation.
+- [x] This project is applying to join the CNCF at the Incubation level.
 
 ### Adoption Assertion
 
 _The project has been adopted by the following organizations in a testing and integration or production capacity:_
-* 
+
+| Organization | Since | Website | Use-Case |
+|:-|:-|:-|:-|
+| MarketAxess | 2024 | https://www.marketaxess.com/ | Kraken enables us to achieve our goal of increasing the reliability of our cloud products on Kubernetes. The tool allows us to automatically run various chaos scenarios, identify resilience and performance bottlenecks, and seamlessly restore the system to its original state once scenarios finish. These chaos scenarios include pod disruptions, node (EC2) outages, simulating availability zone (AZ) outages, and filling up storage spaces like EBS and EFS. The community is highly responsive to requests and works on expanding the tool's capabilities. MarketAxess actively contributes to the project, adding features such as the ability to leverage existing network ACLs and proposing several feature improvements to enhance test coverage. |
+| Red Hat Openshift | 2020 | https://www.redhat.com/ | Kraken is a highly reliable chaos testing tool used to ensure the quality and resiliency of Red Hat Openshift. The engineering team runs all the test scenarios under Kraken on different cloud platforms on both self-managed and cloud services environments prior to the release of a new version of the product. The team also contributes to the Kraken project consistently which helps the test scenarios to keep up with the new features introduced to the product. Inclusion of this test coverage has contributed to gaining the trust of new and existing customers of the product.   |
+| IBM | 2023 | https://www.ibm.com/ | While working on AI for Chaos Testing at IBM Research, we closely collaborated with the Kraken (Krkn) team to advance intelligent chaos engineering. Our contributions included developing AI-enabled chaos injection strategies and integrating reinforcement learning (RL)-based fault search techniques into the Krkn tool, enabling it to identify and explore system vulnerabilities more efficiently. Kraken stands out as one of the most user-friendly and effective tools for chaos engineering, and the Kraken team’s deep technical involvement played a crucial role in the success of this collaboration—helping bridge cutting-edge AI research with practical, real-world system reliability testing.   |
 
 ## Application Process Principles
 
@@ -50,7 +50,7 @@ N/A
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **All project metadata and resources are [vendor-neutral](https://contribute.cncf.io/maintainers/community/vendor-neutrality/).**
+- [x] **All project metadata and resources are [vendor-neutral](https://contribute.cncf.io/maintainers/community/vendor-neutrality/).**
 
 <!-- (Project assertion goes here) --> 
 
@@ -111,27 +111,27 @@ Note: this section may be augmented by the completion of a Governance Review fro
 
 ### Required
 
-- [ ] **Document complete list of current maintainers, including names, contact information, domain of responsibility, and affiliation.**
+- [x] **Document complete list of current maintainers, including names, contact information, domain of responsibility, and affiliation.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **A number of active maintainers which is appropriate to the size and scope of the project.**
+- [x] **A number of active maintainers which is appropriate to the size and scope of the project.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Code and Doc ownership in Github and elsewhere matches documented governance roles.**
+- [x] **Code and Doc ownership in Github and elsewhere matches documented governance roles.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Document adoption and adherence to the CNCF Code of Conduct or the project's CoC which is based off the CNCF CoC and not in conflict with it.**
+- [x] **Document adoption and adherence to the CNCF Code of Conduct or the project's CoC which is based off the CNCF CoC and not in conflict with it.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **CNCF Code of Conduct is cross-linked from other governance documents.**
+- [x] **CNCF Code of Conduct is cross-linked from other governance documents.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **All subprojects, if any, are listed.**
+- [x] **All subprojects, if any, are listed.**
 
 <!-- (Project assertion goes here) --> 
 
@@ -147,11 +147,11 @@ Note: this section may be augmented by the completion of a Governance Review fro
 
 ### Required
 
-- [ ] **Clearly defined and discoverable process to submit issues or changes.**
+- [x] **Clearly defined and discoverable process to submit issues or changes.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Project must have, and document, at least one public communications channel for users and/or contributors.**
+- [x] **Project must have, and document, at least one public communications channel for users and/or contributors.**
 
 <!-- (Project assertion goes here) --> 
 
@@ -159,7 +159,7 @@ Note: this section may be augmented by the completion of a Governance Review fro
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Up-to-date public meeting schedulers and/or integration with CNCF calendar.**
+- [x] **Up-to-date public meeting schedulers and/or integration with CNCF calendar.**
 
 <!-- (Project assertion goes here) --> 
 
@@ -167,7 +167,7 @@ Note: this section may be augmented by the completion of a Governance Review fro
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Demonstrate contributor activity and recruitment.**
+- [x] **Demonstrate contributor activity and recruitment.**
 
 <!-- (Project assertion goes here) --> 
 
@@ -203,7 +203,7 @@ Note: this section may be augmented by the completion of a Governance Review fro
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Document the project's release process.**
+- [x] **Document the project's release process.**
 
 <!-- (Project assertion goes here) --> 
 
@@ -217,19 +217,19 @@ N/A
 
 Note: this section may be augmented by a joint-assessment performed by TAG Security and Compliance.
 
-- [ ] **Clearly defined and discoverable process to report security issues.**
+- [x] **Clearly defined and discoverable process to report security issues.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Enforcing Access Control Rules to secure the code base against attacks (Example: two factor authentication enforcement, and/or use of ACL tools.)**
+- [x] **Enforcing Access Control Rules to secure the code base against attacks (Example: two factor authentication enforcement, and/or use of ACL tools.)**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Document assignment of security response roles and how reports are handled.**
+- [x] **Document assignment of security response roles and how reports are handled.**
 
 <!-- (Project assertion goes here) --> 
 
-- [ ] **Document [Security Self-Assessment](https://tag-security.cncf.io/community/assessments/guide/self-assessment/).**
+- [x] **Document [Security Self-Assessment](https://tag-security.cncf.io/community/assessments/guide/self-assessment/).**
 
 <!-- (Project assertion goes here) --> 
 
