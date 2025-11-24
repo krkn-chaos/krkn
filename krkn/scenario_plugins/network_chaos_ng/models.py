@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import List, Optional, Union
 
 
 class NetworkChaosScenarioType(Enum):
@@ -19,6 +20,7 @@ class BaseNetworkChaosConfig:
     execution: str
     namespace: str
     taints: list[str]
+    exclude_label: Optional[Union[str, List[str]]]
 
     def validate(self) -> list[str]:
         errors = []
@@ -44,7 +46,7 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     ingress: bool
     egress: bool
     interfaces: list[str]
-    target: str | list[str] | None
+    target: Union[str, List[str], None]
     ports: list[int]
     image: str
     protocols: list[str]

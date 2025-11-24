@@ -2,6 +2,7 @@ import queue
 import re
 import time
 from fnmatch import fnmatch
+from typing import List, Union
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -115,27 +116,38 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
 
     def get_targets(self) -> list[str]:
         kube = self.kubecli.get_lib_kubernetes()
+        candidates: list[str] = []
+
         if self.base_network_config.label_selector:
             candidates = kube.list_nodes(self.base_network_config.label_selector)
             if not candidates:
                 raise Exception(
                     f"no nodes found for selector {self.base_network_config.label_selector}"
                 )
-            return candidates
 
-        node_info = kube.list_nodes()
-        if not node_info:
-            raise Exception("no nodes found in the cluster, aborting")
+        else:
+            node_info = kube.list_nodes()
+            if not node_info:
+                raise Exception("no nodes found in the cluster, aborting")
 
-        parsed_targets = self._parse_target_spec(node_info)
-        if not parsed_targets:
-            raise Exception("target specification produced an empty node set")
+            parsed_targets = self._parse_target_spec(node_info)
+            if not parsed_targets:
+                raise Exception("target specification produced an empty node set")
 
-        missing = [node for node in parsed_targets if node not in node_info]
-        if missing:
-            raise Exception(f"nodes {','.join(missing)} not found, aborting")
+            missing = [node for node in parsed_targets if node not in node_info]
+            if missing:
+                raise Exception(f"nodes {','.join(missing)} not found, aborting")
 
-        return parsed_targets
+            candidates = parsed_targets
+
+        exclude_label = getattr(self.base_network_config, "exclude_label", None)
+        if exclude_label:
+            excluded_nodes = self._resolve_exclude_nodes(kube, exclude_label)
+            candidates = [node for node in candidates if node not in excluded_nodes]
+            if not candidates:
+                raise Exception("all nodes excluded by exclude_label, aborting")
+
+        return candidates
 
     def _parse_target_spec(self, available_nodes: list[str]) -> list[str]:
         raw_target = self.config.target
@@ -166,3 +178,26 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             return [node for node in available_nodes if fnmatch(node, target_text)]
 
         return [target_text]
+
+    def _resolve_exclude_nodes(
+        self, kube, exclude_spec: Union[str, List[str]]
+    ) -> set[str]:
+        selectors: List[str] = []
+        if isinstance(exclude_spec, str):
+            selectors = self._split_selectors(exclude_spec)
+        elif isinstance(exclude_spec, list):
+            for entry in exclude_spec:
+                if not isinstance(entry, str):
+                    raise Exception("exclude_label list entries must be strings")
+                selectors.extend(self._split_selectors(entry))
+        else:
+            raise Exception("exclude_label must be a string or list of strings")
+
+        excluded = set()
+        for selector in selectors:
+            excluded.update(kube.list_nodes(selector))
+        return excluded
+
+    @staticmethod
+    def _split_selectors(selector_text: str) -> List[str]:
+        return [item.strip() for item in selector_text.split(",") if item.strip()]

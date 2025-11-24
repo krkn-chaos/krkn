@@ -20,6 +20,7 @@ def build_config(**overrides):
         execution="serial",
         namespace="default",
         taints=[],
+        exclude_label=None,
         ingress=False,
         egress=True,
         interfaces=[],
@@ -77,6 +78,43 @@ class TestNodeNetworkFilterModule(unittest.TestCase):
 
         with self.assertRaises(Exception):
             module.get_targets()
+
+    def test_exclude_label_string(self):
+        config = build_config(
+            target="*",
+            exclude_label="node-role.kubernetes.io/master,env=qa",
+        )
+        self.lib_kubernetes.list_nodes.side_effect = [
+            ["node-a", "node-b", "node-c"],
+            ["node-b"],
+            ["node-c"],
+        ]
+
+        module = NodeNetworkFilterModule(config, self.kubecli)
+        targets = module.get_targets()
+
+        self.assertEqual(targets, ["node-a"])
+        self.lib_kubernetes.list_nodes.side_effect = None
+
+    def test_exclude_label_list(self):
+        config = build_config(
+            target="*",
+            exclude_label=[
+                "node-role.kubernetes.io/master",
+                "env=qa",
+            ],
+        )
+        self.lib_kubernetes.list_nodes.side_effect = [
+            ["node-a", "node-b", "node-c"],
+            ["node-b"],
+            ["node-c"],
+        ]
+
+        module = NodeNetworkFilterModule(config, self.kubecli)
+        targets = module.get_targets()
+
+        self.assertEqual(targets, ["node-a"])
+        self.lib_kubernetes.list_nodes.side_effect = None
 
 
 if __name__ == "__main__":

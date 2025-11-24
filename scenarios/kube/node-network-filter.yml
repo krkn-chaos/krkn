@@ -5,6 +5,7 @@
   label_selector: "<node_selector>"
   service_account: ""
   taints: [] # example ["node-role.kubernetes.io/master:NoSchedule"]
+  exclude_label: "" # optional: string or list of selectors for nodes to exclude
   namespace: 'default'
   instance_count: 1
   execution: parallel
