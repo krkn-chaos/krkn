@@ -34,6 +34,21 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 )
                 namespace = get_yaml_item_value(scenario_config, "namespace", "")
                 duration = get_yaml_item_value(scenario_config, "duration", 60)
+                exclude_label = get_yaml_item_value(
+                    scenario_config, "exclude_label", None
+                )
+                match_expressions = self._build_exclude_expressions(exclude_label)
+                if match_expressions:
+                    # Log the format being used for better clarity
+                    format_type = "dict" if isinstance(exclude_label, dict) else "string"
+                    logging.info(
+                        "Excluding pods with labels (%s format): %s",
+                        format_type,
+                        ", ".join(
+                            f"{expr['key']} NOT IN {expr['values']}"
+                            for expr in match_expressions
+                        ),
+                    )
 
                 start_time = int(time.time())
                 policy_name = f"krkn-deny-{get_random_string(5)}"
@@ -43,18 +58,30 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
         apiVersion: networking.k8s.io/v1
         kind: NetworkPolicy
         metadata:
-          name: """
-                    + policy_name
-                    + """
+          name: {{ policy_name }}
         spec:
           podSelector:
             matchLabels: {{ pod_selector }}
+{% if match_expressions %}
+            matchExpressions:
+{% for expression in match_expressions %}
+              - key: {{ expression["key"] }}
+                operator: NotIn
+                values:
+{% for value in expression["values"] %}
+                  - {{ value }}
+{% endfor %}
+{% endfor %}
+{% endif %}
           policyTypes: {{ traffic_type }}
         """
                 )
                 t = Template(network_policy_template)
                 rendered_spec = t.render(
-                    pod_selector=pod_selector, traffic_type=traffic_type
+                    pod_selector=pod_selector,
+                    traffic_type=traffic_type,
+                    match_expressions=match_expressions,
+                    policy_name=policy_name,
                 )
                 yaml_spec = yaml.safe_load(rendered_spec)
                 # Block the traffic by creating network policy
@@ -122,3 +149,63 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
 
     def get_scenario_types(self) -> list[str]:
         return ["application_outages_scenarios"]
+
+    @staticmethod
+    def _build_exclude_expressions(exclude_label) -> list[dict]:
+        """
+        Build match expressions for NetworkPolicy from exclude_label.
+        
+        Supports multiple formats:
+        - Dict format (preferred, similar to pod_selector): {key1: value1, key2: [value2, value3]}
+          Example: {tier: "gold", env: ["prod", "staging"]}
+        - String format: "key1=value1,key2=value2" or "key1=value1|value2"
+          Example: "tier=gold,env=prod" or "tier=gold|platinum"
+        - List format (list of strings): ["key1=value1", "key2=value2"]
+          Example: ["tier=gold", "env=prod"]
+          Note: List elements must be strings in "key=value" format.
+        
+        :param exclude_label: Can be dict, string, list of strings, or None
+        :return: List of match expression dictionaries
+        """
+        expressions: list[dict] = []
+
+        if not exclude_label:
+            return expressions
+
+        def _append_expr(key: str, values):
+            if not key or values is None:
+                return
+            if not isinstance(values, list):
+                values = [values]
+            cleaned_values = [str(v).strip() for v in values if str(v).strip()]
+            if cleaned_values:
+                expressions.append({"key": key.strip(), "values": cleaned_values})
+
+        if isinstance(exclude_label, dict):
+            for k, v in exclude_label.items():
+                _append_expr(str(k), v)
+            return expressions
+
+        if isinstance(exclude_label, list):
+            selectors = exclude_label
+        else:
+            selectors = [sel.strip() for sel in str(exclude_label).split(",")]
+
+        for selector in selectors:
+            if not selector:
+                continue
+            if "=" not in selector:
+                logging.warning(
+                    "exclude_label entry '%s' is invalid, expected key=value format",
+                    selector,
+                )
+                continue
+            key, value = selector.split("=", 1)
+            value_items = (
+                [item.strip() for item in value.split("|") if item.strip()]
+                if value
+                else []
+            )
+            _append_expr(key, value_items or value)
+
+        return expressions
