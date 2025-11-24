@@ -20,7 +20,6 @@ class BaseNetworkChaosConfig:
     execution: str
     namespace: str
     taints: list[str]
-    exclude_label: Optional[Union[str, List[str]]]
 
     def validate(self) -> list[str]:
         errors = []
@@ -50,6 +49,7 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     ports: list[int]
     image: str
     protocols: list[str]
+    exclude_label: Optional[Union[str, List[str]]] = None
 
     def validate(self) -> list[str]:
         errors = super().validate()

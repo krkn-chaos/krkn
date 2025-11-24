@@ -140,9 +140,8 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
 
             candidates = parsed_targets
 
-        exclude_label = getattr(self.base_network_config, "exclude_label", None)
-        if exclude_label:
-            excluded_nodes = self._resolve_exclude_nodes(kube, exclude_label)
+        if self.config.exclude_label:
+            excluded_nodes = self._resolve_exclude_nodes(kube, self.config.exclude_label)
             candidates = [node for node in candidates if node not in excluded_nodes]
             if not candidates:
                 raise Exception("all nodes excluded by exclude_label, aborting")
