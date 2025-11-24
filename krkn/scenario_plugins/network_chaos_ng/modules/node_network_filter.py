@@ -1,5 +1,7 @@
 import queue
+import re
 import time
+from fnmatch import fnmatch
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -112,17 +114,55 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
         return NetworkChaosScenarioType.Node, self.config
 
     def get_targets(self) -> list[str]:
+        kube = self.kubecli.get_lib_kubernetes()
         if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_nodes(
-                self.base_network_config.label_selector
-            )
-        else:
-            if not self.config.target:
+            candidates = kube.list_nodes(self.base_network_config.label_selector)
+            if not candidates:
                 raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
+                    f"no nodes found for selector {self.base_network_config.label_selector}"
                 )
-            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
-            if self.config.target not in node_info:
-                raise Exception(f"node {self.config.target} not found, aborting")
+            return candidates
 
-            return [self.config.target]
+        node_info = kube.list_nodes()
+        if not node_info:
+            raise Exception("no nodes found in the cluster, aborting")
+
+        parsed_targets = self._parse_target_spec(node_info)
+        if not parsed_targets:
+            raise Exception("target specification produced an empty node set")
+
+        missing = [node for node in parsed_targets if node not in node_info]
+        if missing:
+            raise Exception(f"nodes {','.join(missing)} not found, aborting")
+
+        return parsed_targets
+
+    def _parse_target_spec(self, available_nodes: list[str]) -> list[str]:
+        raw_target = self.config.target
+        if raw_target is None:
+            return []
+
+        if isinstance(raw_target, list):
+            return raw_target
+
+        target_text = raw_target.strip()
+        if target_text == "*":
+            return available_nodes
+
+        if "," in target_text:
+            return [item.strip() for item in target_text.split(",") if item.strip()]
+
+        if target_text.startswith("regex:"):
+            pattern_text = target_text[len("regex:") :].strip()
+            if not pattern_text:
+                raise Exception("regex pattern cannot be empty")
+            try:
+                pattern = re.compile(pattern_text)
+            except re.error as exc:
+                raise Exception(f"invalid regex pattern {pattern_text}: {exc}") from exc
+            return [node for node in available_nodes if pattern.search(node)]
+
+        if "*" in target_text or "?" in target_text:
+            return [node for node in available_nodes if fnmatch(node, target_text)]
+
+        return [target_text]
