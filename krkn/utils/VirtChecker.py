@@ -62,11 +62,11 @@ class VirtChecker:
 
     def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
         
-        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address}'"
+        virtctl_vm_cmd = f"ssh core@{worker_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address}'"
         
         all_out = invoke_no_exit(virtctl_vm_cmd)
         logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} output: {all_out}")
-        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+        virtctl_vm_cmd = f"ssh core@{worker_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
         output = invoke_no_exit(virtctl_vm_cmd)
         if 'True' in output:
             logging.debug(f"Disconnected access for {ip_address} on {worker_name} is successful: {output}")
@@ -78,14 +78,14 @@ class VirtChecker:
             new_node_name = vmi.get("status",{}).get("nodeName")
             # if vm gets deleted, it'll start up with a new ip address
             if new_ip_address != ip_address:
-                virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                virtctl_vm_cmd = f"ssh core@{worker_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {ip_address} on {worker_name}: {new_output}")
                 if 'True' in new_output:
                     return True, new_ip_address, None
             # if node gets stopped, vmis will start up with a new node (and with new ip)
             if new_node_name != worker_name:
-                virtctl_vm_cmd = f"ssh core@{new_node_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                virtctl_vm_cmd = f"ssh core@{new_node_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {ip_address} on {new_node_name}: {new_output}")
                 if 'True' in new_output:
@@ -93,7 +93,7 @@ class VirtChecker:
             # try to connect with a common "up" node as last resort
             if self.ssh_node:
                 # using new_ip_address here since if it hasn't changed it'll match ip_address
-                virtctl_vm_cmd = f"ssh core@{self.ssh_node} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                virtctl_vm_cmd = f"ssh core@{self.ssh_node} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {new_ip_address} on {self.ssh_node}: {new_output}")
                 if 'True' in new_output:
@@ -127,7 +127,7 @@ class VirtChecker:
             # Provided prints to easily visualize how the threads are processed.    
             for i in range (0, len(self.vm_list),self.batch_size):
                 if i+self.batch_size > len(self.vm_list):
-                    sub_list = self.vm_list[i:  len(self.vm_list)-1]
+                    sub_list = self.vm_list[i:]
                 else:
                     sub_list = self.vm_list[i: i+self.batch_size]
                 index = i
