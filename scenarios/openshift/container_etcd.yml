@@ -6,3 +6,4 @@ scenarios:
   action: 1
   count: 1
   expected_recovery_time: 120
+  exclude_label: ""
