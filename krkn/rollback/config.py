@@ -209,6 +209,10 @@ class RollbackConfig(metaclass=SingletonMeta):
             rollback_context_dir = os.path.join(cls().versions_directory, rollback_context_dir)
 
             for file in os.listdir(rollback_context_dir):
+                # Skip known non-rollback files/directories
+                if file == "__pycache__" or file.endswith(".executed"):
+                    continue
+
                 if cls.is_rollback_version_file_format(file, scenario_type):
                     version_files.append(
                         os.path.join(rollback_context_dir, file)
