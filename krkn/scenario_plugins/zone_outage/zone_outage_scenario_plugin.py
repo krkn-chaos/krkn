@@ -32,6 +32,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 zone_outage_config_yaml = yaml.full_load(f)
                 scenario_config = zone_outage_config_yaml["zone_outage"]
                 cloud_type = scenario_config["cloud_type"]
+                kube_check = get_yaml_item_value(scenario_config, "kube_check", True)
                 start_time = int(time.time())
                 if cloud_type.lower() == "aws":
                     self.cloud_object = AWS()
@@ -40,7 +41,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                     kubecli = lib_telemetry.get_lib_kubernetes()
                     if cloud_type.lower() == "gcp":
                         affected_nodes_status = AffectedNodeStatus()
-                        self.cloud_object = gcp_node_scenarios(kubecli, affected_nodes_status)
+                        self.cloud_object = gcp_node_scenarios(kubecli, kube_check, affected_nodes_status)
                         self.node_based_zone(scenario_config, kubecli)
                         affected_nodes_status = self.cloud_object.affected_nodes_status
                         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)

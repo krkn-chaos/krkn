@@ -227,9 +227,10 @@ class Alibaba:
 
 # krkn_lib
 class alibaba_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
-        super().__init__(kubecli, affected_nodes_status)
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         self.alibaba = Alibaba()
+        self.node_action_kube_check = node_action_kube_check
         
 
     # Node scenario to start the node
@@ -245,7 +246,8 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 )
                 self.alibaba.start_instances(vm_id)
                 self.alibaba.wait_until_running(vm_id, timeout, affected_node)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with instance ID: %s is in running state" % node)
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
@@ -271,7 +273,8 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 self.alibaba.stop_instances(vm_id)
                 self.alibaba.wait_until_stopped(vm_id, timeout, affected_node)
                 logging.info("Node with instance ID: %s is in stopped state" % vm_id)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
@@ -313,7 +316,7 @@ class alibaba_node_scenarios(abstract_node_scenarios):
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to reboot the node
-    def node_reboot_scenario(self, instance_kill_count, node, timeout):
+    def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:
@@ -322,8 +325,9 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = instance_id
                 logging.info("Rebooting the node with instance ID: %s " % (instance_id))
                 self.alibaba.reboot_instances(instance_id)
-                nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
-                nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
+                    nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
                     "Node with instance ID: %s has been rebooted" % (instance_id)
                 )

@@ -1,10 +1,5 @@
-import os
 import queue
 import time
-
-import yaml
-from jinja2 import Environment, FileSystemLoader
-
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -16,87 +11,92 @@ from krkn.scenario_plugins.network_chaos_ng.models import (
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
+
+from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
+    deploy_network_filter_pod,
+    apply_network_rules,
+    clean_network_rules,
+    generate_rules,
+    get_default_interface,
+)
 
 
 class NodeNetworkFilterModule(AbstractNetworkChaosModule):
     config: NetworkFilterConfig
+    kubecli: KrknTelemetryOpenshift
 
-    def run(
-        self,
-        target: str,
-        kubecli: KrknTelemetryOpenshift,
-        error_queue: queue.Queue = None,
-    ):
+    def run(self, target: str, error_queue: queue.Queue = None):
         parallel = False
         if error_queue:
             parallel = True
         try:
-            file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
-            env = Environment(loader=file_loader, autoescape=True)
-            pod_name = f"node-filter-{get_random_string(5)}"
-            pod_template = env.get_template("templates/network-chaos.j2")
-            pod_body = yaml.safe_load(
-                pod_template.render(
-                    pod_name=pod_name,
-                    namespace=self.config.namespace,
-                    host_network=True,
-                    target=target,
-                )
-            )
-            self.log_info(
-                f"creating pod to filter "
+            log_info(
+                f"creating workload to filter node {target} network"
                 f"ports {','.join([str(port) for port in self.config.ports])}, "
                 f"ingress:{str(self.config.ingress)}, "
                 f"egress:{str(self.config.egress)}",
                 parallel,
                 target,
             )
-            kubecli.get_lib_kubernetes().create_pod(
-                pod_body, self.config.namespace, 300
+
+            pod_name = f"node-filter-{get_random_string(5)}"
+            deploy_network_filter_pod(
+                self.config,
+                target,
+                pod_name,
+                self.kubecli.get_lib_kubernetes(),
             )
 
             if len(self.config.interfaces) == 0:
                 interfaces = [
-                    self.get_default_interface(pod_name, self.config.namespace, kubecli)
+                    get_default_interface(
+                        pod_name,
+                        self.config.namespace,
+                        self.kubecli.get_lib_kubernetes(),
+                    )
                 ]
-                self.log_info(f"detected default interface {interfaces[0]}")
+
+                log_info(
+                    f"detected default interface {interfaces[0]}", parallel, target
+                )
+
             else:
                 interfaces = self.config.interfaces
 
-            input_rules, output_rules = self.generate_rules(interfaces)
+            input_rules, output_rules = generate_rules(interfaces, self.config)
 
-            for rule in input_rules:
-                self.log_info(f"applying iptables INPUT rule: {rule}", parallel, target)
-                kubecli.get_lib_kubernetes().exec_cmd_in_pod(
-                    [rule], pod_name, self.config.namespace
-                )
-            for rule in output_rules:
-                self.log_info(
-                    f"applying iptables OUTPUT rule: {rule}", parallel, target
-                )
-                kubecli.get_lib_kubernetes().exec_cmd_in_pod(
-                    [rule], pod_name, self.config.namespace
-                )
-            self.log_info(
-                f"waiting {self.config.test_duration} seconds before removing the iptables rules"
+            apply_network_rules(
+                self.kubecli.get_lib_kubernetes(),
+                input_rules,
+                output_rules,
+                pod_name,
+                self.config.namespace,
+                parallel,
+                target,
             )
+
+            log_info(
+                f"waiting {self.config.test_duration} seconds before removing the iptables rules",
+                parallel,
+                target,
+            )
+
             time.sleep(self.config.test_duration)
-            self.log_info("removing iptables rules")
-            for _ in input_rules:
-                # always deleting the first rule since has been inserted from the top
-                kubecli.get_lib_kubernetes().exec_cmd_in_pod(
-                    [f"iptables -D INPUT 1"], pod_name, self.config.namespace
-                )
-            for _ in output_rules:
-                # always deleting the first rule since has been inserted from the top
-                kubecli.get_lib_kubernetes().exec_cmd_in_pod(
-                    [f"iptables -D OUTPUT 1"], pod_name, self.config.namespace
-                )
-            self.log_info(
-                f"deleting network chaos pod {pod_name} from {self.config.namespace}"
+
+            log_info("removing iptables rules", parallel, target)
+
+            clean_network_rules(
+                self.kubecli.get_lib_kubernetes(),
+                input_rules,
+                output_rules,
+                pod_name,
+                self.config.namespace,
             )
 
-            kubecli.get_lib_kubernetes().delete_pod(pod_name, self.config.namespace)
+            self.kubecli.get_lib_kubernetes().delete_pod(
+                pod_name, self.config.namespace
+            )
 
         except Exception as e:
             if error_queue is None:
@@ -104,33 +104,25 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             else:
                 error_queue.put(str(e))
 
-    def __init__(self, config: NetworkFilterConfig):
+    def __init__(self, config: NetworkFilterConfig, kubecli: KrknTelemetryOpenshift):
+        super().__init__(config, kubecli)
         self.config = config
 
     def get_config(self) -> (NetworkChaosScenarioType, BaseNetworkChaosConfig):
         return NetworkChaosScenarioType.Node, self.config
 
-    def get_default_interface(
-        self, pod_name: str, namespace: str, kubecli: KrknTelemetryOpenshift
-    ) -> str:
-        cmd = "ip r | grep default | awk '/default/ {print $5}'"
-        output = kubecli.get_lib_kubernetes().exec_cmd_in_pod(
-            [cmd], pod_name, namespace
-        )
-        return output.replace("\n", "")
+    def get_targets(self) -> list[str]:
+        if self.base_network_config.label_selector:
+            return self.kubecli.get_lib_kubernetes().list_nodes(
+                self.base_network_config.label_selector
+            )
+        else:
+            if not self.config.target:
+                raise Exception(
+                    "neither node selector nor node_name (target) specified, aborting."
+                )
+            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
+            if self.config.target not in node_info:
+                raise Exception(f"node {self.config.target} not found, aborting")
 
-    def generate_rules(self, interfaces: list[str]) -> (list[str], list[str]):
-        input_rules = []
-        output_rules = []
-        for interface in interfaces:
-            for port in self.config.ports:
-                if self.config.egress:
-                    output_rules.append(
-                        f"iptables -I OUTPUT 1 -p tcp --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
-                    )
-
-                if self.config.ingress:
-                    input_rules.append(
-                        f"iptables -I INPUT 1 -i {interface} -p tcp --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
-                    )
-        return input_rules, output_rules
+            return [self.config.target]

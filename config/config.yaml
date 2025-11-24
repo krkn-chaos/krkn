@@ -1,52 +1,57 @@
 kraken:
     kubeconfig_path: ~/.kube/config                     # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
+    auto_rollback: True                                    # Enable auto rollback for scenarios.
+    rollback_versions_directory: /tmp/kraken-rollback      # Directory to store rollback version files.
     publish_kraken_status: True                            # Can be accessed at http://0.0.0.0:8081
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address
     port: 8081                                             # Signal port
     chaos_scenarios:
-        # List of policies/chaos scenarios to load
-        - hog_scenarios:
-            - scenarios/kube/cpu-hog.yml
-            - scenarios/kube/memory-hog.yml
-            - scenarios/kube/io-hog.yml
-        - application_outages_scenarios:
-            - scenarios/openshift/app_outage.yaml
-        - container_scenarios:                             # List of chaos pod scenarios to load
-            - scenarios/openshift/container_etcd.yml
-        - pod_network_scenarios:
-              - scenarios/openshift/network_chaos_ingress.yml
-              - scenarios/openshift/pod_network_outage.yml
-        - pod_disruption_scenarios:
-            - scenarios/openshift/etcd.yml
-            - scenarios/openshift/regex_openshift_pod_kill.yml
-            - scenarios/openshift/prom_kill.yml
-            - scenarios/openshift/openshift-apiserver.yml
-            - scenarios/openshift/openshift-kube-apiserver.yml
-        - node_scenarios:                                  # List of chaos node scenarios to load
-            - scenarios/openshift/aws_node_scenarios.yml
-            - scenarios/openshift/vmware_node_scenarios.yml
-            - scenarios/openshift/ibmcloud_node_scenarios.yml
-        - time_scenarios:                                  # List of chaos time scenarios to load
-            - scenarios/openshift/time_scenarios_example.yml
-        - cluster_shut_down_scenarios:
-            - scenarios/openshift/cluster_shut_down_scenario.yml
-        - service_disruption_scenarios:
-             - scenarios/openshift/regex_namespace.yaml
-             - scenarios/openshift/ingress_namespace.yaml
-        - zone_outages_scenarios:
-            - scenarios/openshift/zone_outage.yaml
-        - pvc_scenarios:
-            - scenarios/openshift/pvc_scenario.yaml
-        - network_chaos_scenarios:
-            - scenarios/openshift/network_chaos.yaml
-        - service_hijacking_scenarios:
-              - scenarios/kube/service_hijacking.yaml
-        - syn_flood_scenarios:
-              - scenarios/kube/syn_flood.yaml
-        -  network_chaos_ng_scenarios:
-               - scenarios/kube/network-filter.yml
+       # List of policies/chaos scenarios to load
+       - hog_scenarios:
+           - scenarios/kube/cpu-hog.yml
+           - scenarios/kube/memory-hog.yml
+           - scenarios/kube/io-hog.yml
+       - application_outages_scenarios:
+           - scenarios/openshift/app_outage.yaml
+       - container_scenarios:                             # List of chaos pod scenarios to load
+           - scenarios/openshift/container_etcd.yml
+       - pod_network_scenarios:
+             - scenarios/openshift/network_chaos_ingress.yml
+             - scenarios/openshift/pod_network_outage.yml
+       - pod_disruption_scenarios:
+           - scenarios/openshift/etcd.yml
+           - scenarios/openshift/regex_openshift_pod_kill.yml
+           - scenarios/openshift/prom_kill.yml
+           - scenarios/openshift/openshift-apiserver.yml
+           - scenarios/openshift/openshift-kube-apiserver.yml
+       - node_scenarios:                                  # List of chaos node scenarios to load
+           - scenarios/openshift/aws_node_scenarios.yml
+           - scenarios/openshift/vmware_node_scenarios.yml
+           - scenarios/openshift/ibmcloud_node_scenarios.yml
+       - time_scenarios:                                  # List of chaos time scenarios to load
+           - scenarios/openshift/time_scenarios_example.yml
+       - cluster_shut_down_scenarios:
+           - scenarios/openshift/cluster_shut_down_scenario.yml
+       - service_disruption_scenarios:
+            - scenarios/openshift/regex_namespace.yaml
+            - scenarios/openshift/ingress_namespace.yaml
+       - zone_outages_scenarios:
+           - scenarios/openshift/zone_outage.yaml
+       - pvc_scenarios:
+           - scenarios/openshift/pvc_scenario.yaml
+       - network_chaos_scenarios:
+           - scenarios/openshift/network_chaos.yaml
+       - service_hijacking_scenarios:
+             - scenarios/kube/service_hijacking.yaml
+       - syn_flood_scenarios:
+             - scenarios/kube/syn_flood.yaml
+       - network_chaos_ng_scenarios:
+               - scenarios/kube/pod-network-filter.yml
+               - scenarios/kube/node-network-filter.yml
+       -  kubevirt_vm_outage:
+              - scenarios/kubevirt/kubevirt-vm-outage.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
@@ -54,9 +59,7 @@ cerberus:
     check_applicaton_routes: False                         # When enabled will look for application unavailability using the routes specified in the cerberus config and fails the run
 
 performance_monitoring:
-    deploy_dashboards: False                              # Install a mutable grafana and load the performance dashboards. Enable this only when running on OpenShift
-    repo: "https://github.com/cloud-bulldozer/performance-dashboards.git"
-    prometheus_url: ''                                      # The prometheus url/route is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.
+    prometheus_url: ''                                    # The prometheus url/route is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.
     prometheus_bearer_token:                              # The bearer token is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes. This is needed to authenticate with prometheus.
     uuid:                                                 # uuid for the run is generated by default if not set
     enable_alerts: False                                  # Runs the queries specified in the alert profile and displays the info or exits 1 when severity=error
@@ -76,7 +79,7 @@ elastic:
     telemetry_index: "krkn-telemetry"
 
 tunings:
-    wait_duration: 60                                      # Duration to wait between each chaos scenario
+    wait_duration: 1                                      # Duration to wait between each chaos scenario
     iterations: 1                                          # Number of times to execute the scenarios
     daemon_mode: False                                     # Iterations are set to infinity which means that the kraken will cause chaos forever
 telemetry:
@@ -116,3 +119,13 @@ health_checks:                                              # Utilizing health c
           bearer_token:                                     # Bearer token for authentication if any
           auth:                                             # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
           exit_on_failure:                                  # If value is True exits when health check failed for application, values can be True/False
+
+kubevirt_checks:                                            # Utilizing virt check endpoints to observe ssh ability to VMI's during chaos injection.
+    interval: 2                                             # Interval in seconds to perform virt checks, default value is 2 seconds
+    namespace:                                              # Namespace where to find VMI's
+    name:                                                   # Regex Name style of VMI's to watch, optional, will watch all VMI names in the namespace if left blank
+    only_failures: False                                    # Boolean of whether to show all VMI's failures and successful ssh connection (False), or only failure status' (True) 
+    disconnected: False                                     # Boolean of how to try to connect to the VMIs; if True will use the ip_address to try ssh from within a node, if false will use the name and uses virtctl to try to connect; Default is False
+    ssh_node: ""                                            # If set, will be a backup way to ssh to a node. Will want to set to a node that isn't targeted in chaos
+    node_names: ""
+    exit_on_failure:                                        # If value is True and VMI's are failing post chaos returns failure, values can be True/False

@@ -11,12 +11,12 @@ import uuid
 import time
 import queue
 import threading
+from typing import Optional
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
-import krkn.performance_dashboards.setup as performance_dashboards
 import krkn.prometheus as prometheus_plugin
 import server as server
 from krkn_lib.k8s import KrknKubernetes
@@ -29,9 +29,15 @@ from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
 from krkn.utils import TeeLogHandler
 from krkn.utils.HealthChecker import HealthChecker
+from krkn.utils.VirtChecker import VirtChecker
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
+)
+from krkn.rollback.config import RollbackConfig
+from krkn.rollback.command import (
+    list_rollback as list_rollback_command,
+    execute_rollback as execute_rollback_command,
 )
 
 # removes TripleDES warning
@@ -40,13 +46,13 @@ warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 
 report_file = ""
 
-
 # Main function
-def main(cfg) -> int:
+def main(options, command: Optional[str]) -> int:
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
 
+    cfg = options.cfg
     # Parse and read the config
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
@@ -62,6 +68,18 @@ def main(cfg) -> int:
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
+        RollbackConfig.register(
+            auto=get_yaml_item_value(
+                config["kraken"],
+                "auto_rollback",
+                False
+            ),
+            versions_directory=get_yaml_item_value(
+                config["kraken"],
+                "rollback_versions_directory",
+                "/tmp/kraken-rollback"
+            ),
+        )
         signal_address = get_yaml_item_value(
             config["kraken"], "signal_address", "0.0.0.0"
         )
@@ -69,14 +87,6 @@ def main(cfg) -> int:
         wait_duration = get_yaml_item_value(config["tunings"], "wait_duration", 60)
         iterations = get_yaml_item_value(config["tunings"], "iterations", 1)
         daemon_mode = get_yaml_item_value(config["tunings"], "daemon_mode", False)
-        deploy_performance_dashboards = get_yaml_item_value(
-            config["performance_monitoring"], "deploy_dashboards", False
-        )
-        dashboard_repo = get_yaml_item_value(
-            config["performance_monitoring"],
-            "repo",
-            "https://github.com/cloud-bulldozer/performance-dashboards.git",
-        )
 
         prometheus_url = config["performance_monitoring"].get("prometheus_url")
         prometheus_bearer_token = config["performance_monitoring"].get(
@@ -121,8 +131,9 @@ def main(cfg) -> int:
             config["performance_monitoring"], "check_critical_alerts", False
         )
         telemetry_api_url = config["telemetry"].get("api_url")
-        health_check_config = config["health_checks"]
-
+        health_check_config = get_yaml_item_value(config, "health_checks",{})
+        kubevirt_check_config = get_yaml_item_value(config, "kubevirt_checks", {})
+        
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
                 "/var/run/secrets/kubernetes.io/serviceaccount/token"
@@ -240,9 +251,18 @@ def main(cfg) -> int:
 
         logging.info("Server URL: %s" % kubecli.get_host())
 
-        # Deploy performance dashboards
-        if deploy_performance_dashboards:
-            performance_dashboards.setup(dashboard_repo, distribution)
+        if command == "list-rollback":
+            sys.exit(
+                list_rollback_command(
+                    options.run_uuid, options.scenario_type
+                )
+            )
+        elif command == "execute-rollback":
+            sys.exit(
+                execute_rollback_command(
+                    telemetry_ocp, options.run_uuid, options.scenario_type
+                )
+            )
 
         # Initialize the start iteration to 0
         iteration = 0
@@ -306,6 +326,10 @@ def main(cfg) -> int:
                                                args=(health_check_config, health_check_telemetry_queue))
         health_check_worker.start()
 
+        kubevirt_check_telemetry_queue = queue.Queue()
+        kubevirt_checker = VirtChecker(kubevirt_check_config, iterations=iterations, krkn_lib=kubecli)
+        kubevirt_checker.batch_list(kubevirt_check_telemetry_queue)
+
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
             # Inject chaos scenarios specified in the config
@@ -351,10 +375,12 @@ def main(cfg) -> int:
                             prometheus_plugin.critical_alerts(
                                 prometheus,
                                 summary,
+                                elastic_search,
                                 run_uuid,
                                 scenario_type,
                                 start_time,
                                 datetime.datetime.now(),
+                                elastic_alerts_index
                             )
 
                             chaos_output.critical_alerts = summary
@@ -367,6 +393,7 @@ def main(cfg) -> int:
 
             iteration += 1
             health_checker.current_iterations += 1
+            kubevirt_checker.current_iterations += 1
 
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
@@ -378,7 +405,14 @@ def main(cfg) -> int:
             chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
         except queue.Empty:
             chaos_telemetry.health_checks = None
-
+        
+        kubevirt_checker.thread_join()
+        kubevirt_check_telem = []
+        while not kubevirt_check_telemetry_queue.empty():
+            kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
+        chaos_telemetry.virt_checks = kubevirt_check_telem
+        post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
+        chaos_telemetry.post_virt_checks = post_kubevirt_check
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
@@ -499,7 +533,8 @@ def main(cfg) -> int:
                 start_time,
                 end_time,
                 metrics_profile,
-                elastic_metrics_index
+                elastic_metrics_index,
+                telemetry_json
             )
 
         if post_critical_alerts > 0:
@@ -517,6 +552,10 @@ def main(cfg) -> int:
             logging.error("Health check failed for the applications, Please check; exiting")
             return health_checker.ret_value
 
+        if kubevirt_checker.ret_value != 0:
+            logging.error("Kubevirt check still had failed VMIs at end of run, Please check; exiting")
+            return kubevirt_checker.ret_value
+
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
             "%s. Report generated at %s. Exiting" % (run_uuid, report_file)
@@ -531,7 +570,13 @@ def main(cfg) -> int:
 
 if __name__ == "__main__":
     # Initialize the parser to read the config
-    parser = optparse.OptionParser()
+    parser = optparse.OptionParser(
+        usage="%prog [options] [command]\n\n"
+              "Commands:\n"
+              "  list-rollback     List rollback version files in a tree-like format\n"
+              "  execute-rollback  Execute rollback version files and cleanup if successful\n\n"
+              "If no command is specified, kraken will run chaos scenarios.",
+    )
     parser.add_option(
         "-c",
         "--config",
@@ -568,7 +613,34 @@ if __name__ == "__main__":
         default=None,
     )
 
+    # Add rollback command options
+    parser.add_option(
+        "-r",
+        "--run_uuid",
+        dest="run_uuid",
+        help="run UUID to filter rollback operations",
+        default=None,
+    )
+
+    parser.add_option(
+        "-s",
+        "--scenario_type",
+        dest="scenario_type",
+        help="scenario type to filter rollback operations",
+        default=None,
+    )
+
+    parser.add_option(
+        "-d",
+        "--debug",
+        dest="debug",
+        help="enable debug logging",
+        default=False,
+    )
+
     (options, args) = parser.parse_args()
+    
+    # If no command or regular execution, continue with existing logic
     report_file = options.output
     tee_handler = TeeLogHandler()
     handlers = [
@@ -578,7 +650,7 @@ if __name__ == "__main__":
     ]
 
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG if options.debug else logging.INFO,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=handlers,
     )
@@ -637,7 +709,9 @@ if __name__ == "__main__":
     if option_error:
         retval = 1
     else:
-        retval = main(options.cfg)
+        # Check if command is provided as positional argument
+        command = args[0] if args else None
+        retval = main(options, command)
 
     junit_endtime = time.time()
 

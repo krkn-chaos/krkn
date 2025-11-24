@@ -36,10 +36,25 @@ class IbmCloud:
             self.service = VpcV1(authenticator=authenticator)
 
             self.service.set_service_url(service_url)
+            
         except Exception as e:
             logging.error("error authenticating" + str(e))
 
-
+    def configure_ssl_verification(self, disable_ssl_verification):
+        """
+        Configure SSL verification for IBM Cloud VPC service.
+        
+        Args:
+            disable_ssl_verification: If True, disables SSL verification.
+        """
+        logging.info(f"Configuring SSL verification: disable_ssl_verification={disable_ssl_verification}")
+        if disable_ssl_verification:
+            self.service.set_disable_ssl_verification(True)
+            logging.info("SSL verification disabled for IBM Cloud VPC service")
+        else:
+            self.service.set_disable_ssl_verification(False)
+            logging.info("SSL verification enabled for IBM Cloud VPC service")
+            
     # Get the instance ID of the node
     def get_instance_id(self, node_name):
         node_list = self.list_instances()
@@ -260,9 +275,14 @@ class IbmCloud:
 
 @dataclass
 class ibm_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
-        super().__init__(kubecli, affected_nodes_status)
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus, disable_ssl_verification: bool):
+        super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         self.ibmcloud = IbmCloud()
+        
+        # Configure SSL verification
+        self.ibmcloud.configure_ssl_verification(disable_ssl_verification)
+        
+        self.node_action_kube_check = node_action_kube_check
 
     def node_start_scenario(self, instance_kill_count, node, timeout):
         try:
@@ -276,9 +296,10 @@ class ibm_node_scenarios(abstract_node_scenarios):
                     vm_started = self.ibmcloud.start_instances(instance_id)
                     if vm_started:
                         self.ibmcloud.wait_until_running(instance_id, timeout, affected_node)
-                        nodeaction.wait_for_ready_status(
-                            node, timeout, self.kubecli, affected_node
-                        )
+                        if self.node_action_kube_check: 
+                            nodeaction.wait_for_ready_status(
+                                node, timeout, self.kubecli, affected_node
+                            )
                     logging.info(
                         "Node with instance ID: %s is in running state" % node
                     )
@@ -317,7 +338,7 @@ class ibm_node_scenarios(abstract_node_scenarios):
             logging.error("node_stop_scenario injection failed!")
 
 
-    def node_reboot_scenario(self, instance_kill_count, node, timeout):
+    def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         try:
             instance_id = self.ibmcloud.get_instance_id(node)
             for _ in range(instance_kill_count):
@@ -325,13 +346,14 @@ class ibm_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info("Rebooting the node %s " % (node))
                 self.ibmcloud.reboot_instances(instance_id)
-                self.ibmcloud.wait_until_rebooted(instance_id, timeout)
-                nodeaction.wait_for_unknown_status(
-                    node, timeout, affected_node
-                )
-                nodeaction.wait_for_ready_status(
-                    node, timeout, affected_node
-                )
+                self.ibmcloud.wait_until_rebooted(instance_id, timeout, affected_node)
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_unknown_status(
+                        node, timeout, affected_node
+                    )
+                    nodeaction.wait_for_ready_status(
+                        node, timeout, affected_node
+                    )
                 logging.info(
                     "Node with instance ID: %s has rebooted successfully" % node
                 )

@@ -8,6 +8,8 @@ from typing import Optional, List, Dict, Any
 import logging
 import urllib3
 import sys
+import json
+import tempfile
 
 import yaml
 from krkn_lib.elastic.krkn_elastic import KrknElastic
@@ -73,10 +75,12 @@ def alerts(
 def critical_alerts(
     prom_cli: KrknPrometheus,
     summary: ChaosRunAlertSummary,
+    elastic: KrknElastic,
     run_id,
     scenario,
     start_time,
     end_time,
+    elastic_alerts_index
 ):
     summary.scenario = scenario
     summary.run_id = run_id
@@ -111,7 +115,6 @@ def critical_alerts(
             summary.chaos_alerts.append(alert)
 
     post_critical_alerts = prom_cli.process_query(query)
-
     for alert in post_critical_alerts:
         if "metric" in alert:
             alertname = (
@@ -134,6 +137,21 @@ def critical_alerts(
             )
             alert = ChaosRunAlert(alertname, alertstate, namespace, severity)
             summary.post_chaos_alerts.append(alert)
+            if elastic:
+                elastic_alert = ElasticAlert(
+                    run_uuid=run_id,
+                    severity=severity,
+                    alert=alertname,
+                    created_at=end_time,
+                    namespace=namespace,
+                    alertstate=alertstate,
+                    phase="post_chaos"
+                )
+                result = elastic.push_alert(elastic_alert, elastic_alerts_index)
+                if result == -1:
+                    logging.error("failed to save alert on ElasticSearch")
+                pass
+
 
     during_critical_alerts_count = len(during_critical_alerts)
     post_critical_alerts_count = len(post_critical_alerts)
@@ -147,8 +165,8 @@ def critical_alerts(
 
     if not firing_alerts:
         logging.info("No critical alerts are firing!!")
-
-
+    
+   
 def metrics(
     prom_cli: KrknPrometheus,
     elastic: KrknElastic,
@@ -156,7 +174,8 @@ def metrics(
     start_time,
     end_time,
     metrics_profile,
-    elastic_metrics_index
+    elastic_metrics_index,
+    telemetry_json
 ) -> list[dict[str, list[(int, float)] | str]]:
    
     if metrics_profile is None or os.path.exists(metrics_profile) is False:
@@ -222,12 +241,64 @@ def metrics(
                         metrics_list.append(metric.copy())
                     except ValueError:
                         pass
+        telemetry_json = json.loads(telemetry_json)
+        for scenario in telemetry_json['scenarios']:
+            for k,v in scenario["affected_pods"].items():
+                metric_name = "affected_pods_recovery"
+                metric = {"metricName": metric_name, "type": k}
+                if type(v) is list:
+                    for pod in v:
+                        for k,v in pod.items():
+                            metric[k] = v
+                            metric['timestamp'] = str(datetime.datetime.now())
+                        print('adding pod' + str(metric))
+                        metrics_list.append(metric.copy())
+            for affected_node in scenario["affected_nodes"]:
+                metric_name = "affected_nodes_recovery"
+                metric = {"metricName": metric_name}
+                for k,v in affected_node.items():
+                    metric[k] = v
+                    metric['timestamp'] = str(datetime.datetime.now())
+                metrics_list.append(metric.copy())
+        if telemetry_json['health_checks']:
+            for health_check in telemetry_json["health_checks"]:
+                    metric_name = "health_check_recovery"
+                    metric = {"metricName": metric_name}
+                    for k,v in health_check.items():
+                        metric[k] = v
+                        metric['timestamp'] = str(datetime.datetime.now())
+                    metrics_list.append(metric.copy())
+        if telemetry_json['virt_checks']:
+            for virt_check in telemetry_json["virt_checks"]:
+                    metric_name = "virt_check_recovery"
+                    metric = {"metricName": metric_name}
+                    for k,v in virt_check.items():
+                        metric[k] = v
+                        metric['timestamp'] = str(datetime.datetime.now())
+                    metrics_list.append(metric.copy())
 
-        if elastic:
+        save_metrics = False
+        if elastic is not None and elastic_metrics_index is not None:
             result = elastic.upload_metrics_to_elasticsearch(
                 run_uuid=run_uuid, index=elastic_metrics_index, raw_data=metrics_list
             )
             if result == -1:
                 logging.error("failed to save metrics on ElasticSearch")
+                save_metrics = True
+        else:
+            save_metrics = True
+        if save_metrics:
+            local_dir = os.path.join(tempfile.gettempdir(), "krkn_metrics")
+            os.makedirs(local_dir, exist_ok=True)
+            local_file = os.path.join(local_dir, f"{elastic_metrics_index}_{run_uuid}.json")
 
+            try:
+                with open(local_file, "w") as f:
+                    json.dump({
+                        "run_uuid": run_uuid,
+                        "metrics": metrics_list
+                }, f, indent=2)
+                logging.info(f"Metrics saved to {local_file}")
+            except Exception as e:
+                logging.error(f"Failed to save metrics to {local_file}: {e}")
     return metrics_list

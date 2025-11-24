@@ -3,19 +3,25 @@ import logging
 import queue
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-from krkn.scenario_plugins.network_chaos_ng.models import BaseNetworkChaosConfig, NetworkChaosScenarioType
+from krkn.scenario_plugins.network_chaos_ng.models import (
+    BaseNetworkChaosConfig,
+    NetworkChaosScenarioType,
+)
 
 
 class AbstractNetworkChaosModule(abc.ABC):
     """
     The abstract class that needs to be implemented by each Network Chaos Scenario
     """
+
+    kubecli: KrknTelemetryOpenshift
+    base_network_config: BaseNetworkChaosConfig
+
     @abc.abstractmethod
-    def run(self, target: str, kubecli: KrknTelemetryOpenshift, error_queue: queue.Queue = None):
+    def run(self, target: str, error_queue: queue.Queue = None):
         """
         the entrypoint method for the Network Chaos Scenario
         :param target: The resource name that will be targeted by the scenario (Node Name, Pod Name etc.)
-        :param kubecli: The `KrknTelemetryOpenshift` needed by the scenario to access to the krkn-lib methods
         :param error_queue: A queue that will be used by the plugin to push the errors raised during the execution of parallel modules
         """
         pass
@@ -28,31 +34,17 @@ class AbstractNetworkChaosModule(abc.ABC):
         """
         pass
 
+    def get_targets(self) -> list[str]:
+        """
+        checks and returns the targets based on the common scenario configuration
+        """
 
-    def log_info(self, message: str, parallel: bool = False, node_name: str = ""):
-        """
-        log helper method for INFO severity to be used in the scenarios
-        """
-        if parallel:
-            logging.info(f"[{node_name}]: {message}")
-        else:
-            logging.info(message)
+        pass
 
-    def log_warning(self, message: str, parallel: bool = False, node_name: str = ""):
-        """
-        log helper method for WARNING severity to be used in the scenarios
-        """
-        if parallel:
-            logging.warning(f"[{node_name}]: {message}")
-        else:
-            logging.warning(message)
-
-
-    def log_error(self, message: str, parallel: bool = False, node_name: str = ""):
-        """
-        log helper method for ERROR severity to be used in the scenarios
-        """
-        if parallel:
-            logging.error(f"[{node_name}]: {message}")
-        else:
-            logging.error(message)
+    def __init__(
+        self,
+        base_network_config: BaseNetworkChaosConfig,
+        kubecli: KrknTelemetryOpenshift,
+    ):
+        self.kubecli = kubecli
+        self.base_network_config = base_network_config

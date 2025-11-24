@@ -73,7 +73,7 @@ class vSphere:
         vms = self.client.vcenter.VM.list(VM.FilterSpec(names=names))
 
         if len(vms) == 0:
-            logging.info("VM with name ({}) not found", instance_id)
+            logging.info("VM with name ({}) not found".format(instance_id))
             return None
         vm = vms[0].vm
 
@@ -97,7 +97,7 @@ class vSphere:
             self.client.vcenter.vm.Power.start(vm)
             self.client.vcenter.vm.Power.stop(vm)
         self.client.vcenter.VM.delete(vm)
-        logging.info("Deleted VM -- '{}-({})'", instance_id, vm)
+        logging.info("Deleted VM -- '{}-({})'".format(instance_id, vm))
 
     def reboot_instances(self, instance_id):
         """
@@ -108,11 +108,11 @@ class vSphere:
         vm = self.get_vm(instance_id)
         try:
             self.client.vcenter.vm.Power.reset(vm)
-            logging.info("Reset VM -- '{}-({})'", instance_id, vm)
+            logging.info("Reset VM -- '{}-({})'".format(instance_id, vm))
             return True
         except NotAllowedInCurrentState:
             logging.info(
-                "VM '{}'-'({})' is not Powered On. Cannot reset it", instance_id, vm
+                "VM '{}'-'({})' is not Powered On. Cannot reset it".format(instance_id, vm)
             )
             return False
 
@@ -158,7 +158,7 @@ class vSphere:
         try:
             datacenter_id = datacenter_summaries[0].datacenter
         except IndexError:
-            logging.error("Datacenter '{}' doesn't exist", datacenter)
+            logging.error("Datacenter '{}' doesn't exist".format(datacenter))
             sys.exit(1)
 
         vm_filter = self.client.vcenter.VM.FilterSpec(datacenters={datacenter_id})
@@ -384,9 +384,10 @@ class vSphere:
 
 @dataclass
 class vmware_node_scenarios(abstract_node_scenarios):
-    def __init__(self, kubecli: KrknKubernetes, affected_nodes_status: AffectedNodeStatus):
-        super().__init__(kubecli, affected_nodes_status)
+    def __init__(self, kubecli: KrknKubernetes, node_action_kube_check: bool, affected_nodes_status: AffectedNodeStatus):
+        super().__init__(kubecli, node_action_kube_check, affected_nodes_status)
         self.vsphere = vSphere()
+        self.node_action_kube_check = node_action_kube_check
 
     def node_start_scenario(self, instance_kill_count, node, timeout):
         try:
@@ -397,7 +398,8 @@ class vmware_node_scenarios(abstract_node_scenarios):
                 vm_started = self.vsphere.start_instances(node)
                 if vm_started:
                     self.vsphere.wait_until_running(node, timeout, affected_node)
-                    nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
+                    if self.node_action_kube_check:
+                        nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(f"Node with instance ID: {node} is in running state")
                 logging.info("node_start_scenario has been successfully injected!")
                 self.affected_nodes_status.affected_nodes.append(affected_node)
@@ -416,9 +418,10 @@ class vmware_node_scenarios(abstract_node_scenarios):
                 vm_stopped = self.vsphere.stop_instances(node)
                 if vm_stopped:
                     self.vsphere.wait_until_stopped(node, timeout, affected_node)
-                    nodeaction.wait_for_ready_status(
-                        node, timeout, self.kubecli, affected_node
-                    )
+                    if self.node_action_kube_check:
+                        nodeaction.wait_for_ready_status(
+                            node, timeout, self.kubecli, affected_node
+                        )
                 logging.info(f"Node with instance ID: {node} is in stopped state")
                 logging.info("node_stop_scenario has been successfully injected!")
                 self.affected_nodes_status.affected_nodes.append(affected_node)
@@ -429,17 +432,17 @@ class vmware_node_scenarios(abstract_node_scenarios):
             )
                 
 
-    def node_reboot_scenario(self, instance_kill_count, node, timeout):
+    def node_reboot_scenario(self, instance_kill_count, node, timeout, soft_reboot=False):
         try:
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info(f"Rebooting the node {node} ")
                 self.vsphere.reboot_instances(node)
-
-                nodeaction.wait_for_unknown_status(
-                    node, timeout, self.kubecli, affected_node
-                )
+                if self.node_action_kube_check:
+                    nodeaction.wait_for_unknown_status(
+                        node, timeout, self.kubecli, affected_node
+                    )
                    
                 logging.info(
                     f"Node with instance ID: {node} has rebooted " "successfully"

@@ -1,0 +1,18 @@
+- id: node_network_filter
+  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  wait_duration: 1
+  test_duration: 10
+  label_selector: "<node_selector>"
+  service_account: ""
+  taints: [] # example ["node-role.kubernetes.io/master:NoSchedule"]
+  namespace: 'default'
+  instance_count: 1
+  execution: parallel
+  ingress: false
+  egress: true
+  target: '<node_name>'
+  interfaces: []
+  ports:
+    - 2309
+  protocols:
+    - tcp

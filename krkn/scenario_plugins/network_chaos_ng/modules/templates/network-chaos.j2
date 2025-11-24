@@ -4,14 +4,29 @@ metadata:
   name: {{pod_name}}
   namespace: {{namespace}}
 spec:
+  {% if service_account %}
+  serviceAccountName: {{ service_account }}
+  {%endif%}
   {% if host_network %}
   hostNetwork: true
   {%endif%}
+  {% if taints %}
+  tolerations:
+  {% for toleration in taints %}
+  - key: "{{ toleration.key }}"
+    operator: "{{ toleration.operator }}"
+    {% if toleration.value %}
+    value: "{{ toleration.value }}"
+    {% endif %}
+    effect: "{{ toleration.effect }}"
+  {% endfor %}
+  {% endif %}
+  hostPID: true
   nodeSelector:
     kubernetes.io/hostname: {{target}}
   containers:
-  - name: fedora
+  - name: {{container_name}}
     imagePullPolicy: Always
-    image: quay.io/krkn-chaos/krkn-network-chaos:latest
+    image: {{workload_image}}
     securityContext:
       privileged: true

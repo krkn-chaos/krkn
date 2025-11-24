@@ -16,6 +16,7 @@ jobs:
           PREVIOUS_TAG=$(git tag --sort=-creatordate | sed -n '2 p')
           echo $PREVIOUS_TAG 
           echo "PREVIOUS_TAG=$PREVIOUS_TAG" >> "$GITHUB_ENV"
+
       - name: generate release notes from template
         id: release-notes
         env:
@@ -45,3 +46,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release create ${{ github.ref_name }} --title "${{ github.ref_name }}"  -F release-notes.md
+
+      - name: Install Syft
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Generate SBOM
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          syft . --scope all-layers --output cyclonedx-json > sbom.json
+          echo "SBOM generated successfully!"
+          gh release upload ${{ github.ref_name }} sbom.json

@@ -5,9 +5,26 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn import utils
-
+from krkn.rollback.handler import (
+    RollbackHandler,
+    execute_rollback_version_files,
+    cleanup_rollback_version_files
+)
+from krkn.rollback.signal import signal_handler
+from krkn.rollback.serialization import Serializer
 
 class AbstractScenarioPlugin(ABC):
+
+    def __init__(self, scenario_type: str = "placeholder_scenario_type"):
+        """Initializes the AbstractScenarioPlugin with the scenario type and rollback configuration.
+        
+        :param scenario_type: the scenario type defined in the config.yaml
+        """
+        serializer = Serializer(
+            scenario_type=scenario_type,
+        )
+        self.rollback_handler = RollbackHandler(scenario_type, serializer)
+
     @abstractmethod
     def run(
         self,
@@ -74,24 +91,39 @@ class AbstractScenarioPlugin(ABC):
                 scenario_telemetry, scenario_config
             )
 
-            try:
-                logging.info(
-                    f"Running {self.__class__.__name__}: {self.get_scenario_types()} -> {scenario_config}"
-                )
-                return_value = self.run(
-                    run_uuid,
-                    scenario_config,
-                    krkn_config,
-                    telemetry,
-                    scenario_telemetry,
-                )
-            except Exception as e:
-                logging.error(
-                    f"uncaught exception on scenario `run()` method: {e} "
-                    f"please report an issue on https://github.com/krkn-chaos/krkn"
-                )
-                return_value = 1
+            with signal_handler.signal_context(
+                run_uuid=run_uuid,
+                scenario_type=scenario_telemetry.scenario_type,
+                telemetry_ocp=telemetry
+            ):
+                try:
+                    logging.info(
+                        f"Running {self.__class__.__name__}: {self.get_scenario_types()} -> {scenario_config}"
+                    )
+                    # pass all the parameters by kwargs to make `set_rollback_context_decorator` get the `run_uuid` and `scenario_type`
+                    return_value = self.run(
+                        run_uuid=run_uuid,
+                        scenario=scenario_config,
+                        krkn_config=krkn_config,
+                        lib_telemetry=telemetry,
+                        scenario_telemetry=scenario_telemetry,
+                    )
+                except Exception as e:
+                    logging.error(
+                        f"uncaught exception on scenario `run()` method: {e} "
+                        f"please report an issue on https://github.com/krkn-chaos/krkn"
+                    )
+                    return_value = 1
 
+            if return_value == 0:
+                cleanup_rollback_version_files(
+                    run_uuid, scenario_telemetry.scenario_type
+                )
+            else:
+                # execute rollback files based on the return value
+                execute_rollback_version_files(
+                    telemetry, run_uuid, scenario_telemetry.scenario_type
+                )
             scenario_telemetry.exit_status = return_value
             scenario_telemetry.end_timestamp = time.time()
             utils.collect_and_put_ocp_logs(
@@ -117,3 +149,5 @@ class AbstractScenarioPlugin(ABC):
             logging.info(f"wating {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
         return failed_scenarios, scenario_telemetries
+
+    

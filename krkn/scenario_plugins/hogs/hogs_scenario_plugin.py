@@ -16,15 +16,23 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.utils import get_random_string
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 
 class HogsScenarioPlugin(AbstractScenarioPlugin):
+    
+    @set_rollback_context_decorator
     def run(self, run_uuid: str, scenario: str, krkn_config: dict[str, any], lib_telemetry: KrknTelemetryOpenshift,
             scenario_telemetry: ScenarioTelemetry) -> int:
         try:
             with open(scenario, "r") as f:
                 scenario = yaml.full_load(f)
             scenario_config = HogConfig.from_yaml_dict(scenario)
+            
+            # Get node-name if provided
+            node_name = scenario.get('node-name')
+            
             has_selector = True
             if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
                 if scenario_config.node_selector:
@@ -33,13 +41,19 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             else:
                 node_selector = scenario_config.node_selector
 
-            available_nodes = lib_telemetry.get_lib_kubernetes().list_nodes(node_selector)
-            if len(available_nodes) == 0:
-                raise Exception("no available nodes to schedule workload")
+            if node_name:
+                logging.info(f"Using specific node: {node_name}")
+                all_nodes = lib_telemetry.get_lib_kubernetes().list_nodes("")
+                if node_name not in all_nodes:
+                    raise Exception(f"Specified node {node_name} not found or not available")
+                available_nodes = [node_name]
+            else:
+                available_nodes = lib_telemetry.get_lib_kubernetes().list_nodes(node_selector)
+                if len(available_nodes) == 0:
+                    raise Exception("no available nodes to schedule workload")
 
-            if not has_selector:
-                # if selector not specified picks a random node between the available
-                available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
+                if not has_selector:
+                    available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
 
             if scenario_config.number_of_nodes and len(available_nodes) > scenario_config.number_of_nodes:
                 available_nodes = random.sample(available_nodes, scenario_config.number_of_nodes)
@@ -69,6 +83,13 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             config.node_selector = f"kubernetes.io/hostname={node}"
             pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
             node_resources_start = lib_k8s.get_node_resources_info(node)
+            self.rollback_handler.set_rollback_callable(
+                self.rollback_hog_pod,
+                RollbackContent(
+                    namespace=config.namespace,
+                    resource_identifier=pod_name,
+                ),
+            )
             lib_k8s.deploy_hog(pod_name, config)
             start = time.time()
             # waiting 3 seconds before starting sample collection
@@ -140,3 +161,22 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                 raise exception
         except queue.Empty:
             pass
+
+    @staticmethod
+    def rollback_hog_pod(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+        """
+        Rollback function to delete hog pod.
+
+        :param rollback_content: Rollback content containing namespace and resource_identifier.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations
+        """
+        try:
+            namespace = rollback_content.namespace
+            pod_name = rollback_content.resource_identifier
+            logging.info(
+                f"Rolling back hog pod: {pod_name} in namespace: {namespace}"
+            )
+            lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
+            logging.info("Rollback of hog pod completed successfully.")
+        except Exception as e:
+            logging.error(f"Failed to rollback hog pod: {e}")

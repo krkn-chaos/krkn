@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: modtools
+  name: modtools-{{regex_name}}
 spec:
   nodeName: {{nodename}}
   containers:
   - name: modtools
-    image: docker.io/fedora/tools
+    image: {{image}}
     imagePullPolicy: IfNotPresent
     command:
     - /bin/sh

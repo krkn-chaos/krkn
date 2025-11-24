@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: fedtools
+  name: fedtools-{{regex_name}}
 spec:
   hostNetwork: true
   nodeName: {{nodename}}
   containers:
   - name: fedtools
-    image: docker.io/fedora/tools
+    image: {{image}}
     command:
     - /bin/sh
     - -c

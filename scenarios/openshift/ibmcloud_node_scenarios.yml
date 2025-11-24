@@ -7,6 +7,7 @@ node_scenarios:
     timeout: 360
     duration: 120
     cloud_type: ibm
+    disable_ssl_verification: true  # Set to true for CI environments with certificate issues
   - actions:
     - node_reboot_scenario
     node_name:
@@ -14,3 +15,4 @@ node_scenarios:
     instance_count: 1
     timeout: 120
     cloud_type: ibm
+    disable_ssl_verification: true  # Set to true for CI environments with certificate issues

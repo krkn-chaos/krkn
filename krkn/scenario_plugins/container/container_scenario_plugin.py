@@ -1,15 +1,15 @@
 import logging
 import random
 import time
-
+from asyncio import Future
 import yaml
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.k8s.pods_monitor_pool import PodsMonitorPool
+from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and_label
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value
 
-from krkn import cerberus
+
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -22,31 +22,26 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
-        pool = PodsMonitorPool(lib_telemetry.get_lib_kubernetes())
         try:
             with open(scenario, "r") as f:
                 cont_scenario_config = yaml.full_load(f)
                 
                 for kill_scenario in cont_scenario_config["scenarios"]:
-                    self.start_monitoring(
-                        kill_scenario, pool
+                    future_snapshot = self.start_monitoring(
+                        kill_scenario,
+                        lib_telemetry
                     )
-                    killed_containers = self.container_killing_in_pod(
+                    self.container_killing_in_pod(
                         kill_scenario, lib_telemetry.get_lib_kubernetes()
                     )
-                    result = pool.join()
-                if result.error:
-                    logging.error(
-                        logging.error(
-                            f"ContainerScenarioPlugin pods failed to recovery: {result.error}"
-                        )
-                    )
-                    return 1
-                scenario_telemetry.affected_pods = result
-
-                # publish cerberus status
-        except (RuntimeError, Exception):
-            logging.error("ContainerScenarioPlugin exiting due to Exception %s")
+                    snapshot = future_snapshot.result()
+                    result = snapshot.get_pods_status()
+                    scenario_telemetry.affected_pods = result
+                    if len(result.unrecovered) > 0:
+                        logging.info("ContainerScenarioPlugin failed with unrecovered containers")
+                        return 1
+        except (RuntimeError, Exception) as e:
+            logging.error("ContainerScenarioPlugin exiting due to Exception %s" % e)
             return 1
         else:
             return 0
@@ -54,16 +49,18 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["container_scenarios"]
 
-    def start_monitoring(self, kill_scenario: dict, pool: PodsMonitorPool):
+    def start_monitoring(self, kill_scenario: dict, lib_telemetry: KrknTelemetryOpenshift) -> Future:
         
         namespace_pattern = f"^{kill_scenario['namespace']}$"
         label_selector = kill_scenario["label_selector"]
         recovery_time = kill_scenario["expected_recovery_time"]
-        pool.select_and_monitor_by_namespace_pattern_and_label(
+        future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
             namespace_pattern=namespace_pattern,
             label_selector=label_selector,
             max_timeout=recovery_time,
+            v1_client=lib_telemetry.get_lib_kubernetes().cli
         )
+        return future_snapshot
 
     def container_killing_in_pod(self, cont_scenario, kubecli: KrknKubernetes):
         scenario_name = get_yaml_item_value(cont_scenario, "name", "")
@@ -73,6 +70,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         container_name = get_yaml_item_value(cont_scenario, "container_name", "")
         kill_action = get_yaml_item_value(cont_scenario, "action", 1)
         kill_count = get_yaml_item_value(cont_scenario, "count", 1)
+        exclude_label = get_yaml_item_value(cont_scenario, "exclude_label", "")
         if not isinstance(kill_action, int):
             logging.error(
                 "Please make sure the action parameter defined in the "
@@ -94,7 +92,19 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 pods = kubecli.get_all_pods(label_selector)
             else:
                 # Only returns pod names
-                pods = kubecli.list_pods(namespace, label_selector)
+                # Use list_pods with exclude_label parameter to exclude pods
+                if exclude_label:
+                    logging.info(
+                        "Using exclude_label '%s' to exclude pods from container scenario %s in namespace %s",
+                        exclude_label,
+                        scenario_name,
+                        namespace,
+                    )
+                pods = kubecli.list_pods(
+                    namespace=namespace,
+                    label_selector=label_selector,
+                    exclude_label=exclude_label if exclude_label else None
+                )
         else:
             if namespace == "*":
                 logging.error(
@@ -105,6 +115,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 # sys.exit(1)
                 raise RuntimeError()
             pods = pod_names
+
         # get container and pod name
         container_pod_list = []
         for pod in pods:
