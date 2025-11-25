@@ -298,7 +298,7 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
         
         self.node_action_kube_check = node_action_kube_check
 
-    def node_start_scenario(self, instance_kill_count, node, timeout):
+    def node_start_scenario(self, instance_kill_count, node, timeout, poll_interval):
         try:
             instance_id = self.ibmcloud_power.get_instance_id( node)
             affected_node = AffectedNode(node, node_id=instance_id)
@@ -331,7 +331,7 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
         self.affected_nodes_status.affected_nodes.append(affected_node)
 
 
-    def node_stop_scenario(self, instance_kill_count, node, timeout):
+    def node_stop_scenario(self, instance_kill_count, node, timeout, poll_interval):
         try:
             instance_id = self.ibmcloud_power.get_instance_id(node)
             for _ in range(instance_kill_count):
@@ -380,7 +380,7 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
             logging.error("node_reboot_scenario injection failed!")
 
 
-    def node_terminate_scenario(self, instance_kill_count, node, timeout):
+    def node_terminate_scenario(self, instance_kill_count, node, timeout, poll_interval):
         try:
             instance_id = self.ibmcloud_power.get_instance_id(node)
             for _ in range(instance_kill_count):

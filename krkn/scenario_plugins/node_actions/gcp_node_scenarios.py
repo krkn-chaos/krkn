@@ -227,7 +227,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
         self.node_action_kube_check = node_action_kube_check
 
     # Node scenario to start the node
-    def node_start_scenario(self, instance_kill_count, node, timeout):
+    def node_start_scenario(self, instance_kill_count, node, timeout, poll_interval):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:
@@ -257,7 +257,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
-    def node_stop_scenario(self, instance_kill_count, node, timeout):
+    def node_stop_scenario(self, instance_kill_count, node, timeout, poll_interval):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:
@@ -286,7 +286,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to terminate the node
-    def node_termination_scenario(self, instance_kill_count, node, timeout):
+    def node_termination_scenario(self, instance_kill_count, node, timeout, poll_interval):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:

@@ -10,6 +10,7 @@ node_scenarios:
     cloud_type: aws                                               # cloud type on which Kubernetes/OpenShift runs  
     parallel: true                                                # Run action on label or node name in parallel or sequential, defaults to sequential
     kube_check: true                                              # Run the kubernetes api calls to see if the node gets to a certain state during the node scenario
+    poll_interval: 15                                             # Time interval(in seconds) to periodically check the node's status
   - actions:
     - node_reboot_scenario
     node_name:

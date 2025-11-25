@@ -18,20 +18,20 @@ class abstract_node_scenarios:
         self.node_action_kube_check = node_action_kube_check
 
     # Node scenario to start the node
-    def node_start_scenario(self, instance_kill_count, node, timeout):
+    def node_start_scenario(self, instance_kill_count, node, timeout, poll_interval):
         pass
 
     # Node scenario to stop the node
-    def node_stop_scenario(self, instance_kill_count, node, timeout):
+    def node_stop_scenario(self, instance_kill_count, node, timeout, poll_interval):
         pass
 
     # Node scenario to stop and then start the node
-    def node_stop_start_scenario(self, instance_kill_count, node, timeout, duration):
+    def node_stop_start_scenario(self, instance_kill_count, node, timeout, duration, poll_interval):
         logging.info("Starting node_stop_start_scenario injection")
-        self.node_stop_scenario(instance_kill_count, node, timeout)
+        self.node_stop_scenario(instance_kill_count, node, timeout, poll_interval)
         logging.info("Waiting for %s seconds before starting the node" % (duration))
         time.sleep(duration)
-        self.node_start_scenario(instance_kill_count, node, timeout)
+        self.node_start_scenario(instance_kill_count, node, timeout, poll_interval)
         self.affected_nodes_status.merge_affected_nodes()
         logging.info("node_stop_start_scenario has been successfully injected!")
 
@@ -56,7 +56,7 @@ class abstract_node_scenarios:
             logging.error("node_disk_detach_attach_scenario failed!")
 
     # Node scenario to terminate the node
-    def node_termination_scenario(self, instance_kill_count, node, timeout):
+    def node_termination_scenario(self, instance_kill_count, node, timeout, poll_interval):
         pass
 
     # Node scenario to reboot the node

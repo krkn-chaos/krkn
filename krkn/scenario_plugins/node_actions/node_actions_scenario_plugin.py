@@ -236,7 +236,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         # Get the scenario specifics for running action nodes
         run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
         duration = get_yaml_item_value(node_scenario, "duration", 120)
-
+        poll_interval = get_yaml_item_value(node_scenario, "poll_interval", 15)
         timeout = get_yaml_item_value(node_scenario, "timeout", 120)
         service = get_yaml_item_value(node_scenario, "service", "")
         soft_reboot = get_yaml_item_value(node_scenario, "soft_reboot", False)
@@ -254,19 +254,19 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         else:
             if action == "node_start_scenario":
                 node_scenario_object.node_start_scenario(
-                    run_kill_count, single_node, timeout
+                    run_kill_count, single_node, timeout, poll_interval
                 )
             elif action == "node_stop_scenario":
                 node_scenario_object.node_stop_scenario(
-                    run_kill_count, single_node, timeout
+                    run_kill_count, single_node, timeout, poll_interval
                 )
             elif action == "node_stop_start_scenario":
                 node_scenario_object.node_stop_start_scenario(
-                    run_kill_count, single_node, timeout, duration
+                    run_kill_count, single_node, timeout, duration, poll_interval
                 )
             elif action == "node_termination_scenario":
                 node_scenario_object.node_termination_scenario(
-                    run_kill_count, single_node, timeout
+                    run_kill_count, single_node, timeout, poll_interval
                 )
             elif action == "node_reboot_scenario":
                 node_scenario_object.node_reboot_scenario(
