@@ -3,3 +3,4 @@
     namespace_pattern: "kube-system"
     label_selector: "component=etcd"
     krkn_pod_recovery_time: 120
+    kill: 1
