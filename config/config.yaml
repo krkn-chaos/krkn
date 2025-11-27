@@ -129,3 +129,7 @@ kubevirt_checks:                                            # Utilizing virt che
     ssh_node: ""                                            # If set, will be a backup way to ssh to a node. Will want to set to a node that isn't targeted in chaos
     node_names: ""
     exit_on_failure:                                        # If value is True and VMI's are failing post chaos returns failure, values can be True/False
+    disconnected: False     
+    
+resiliency:
+    enabled: true
