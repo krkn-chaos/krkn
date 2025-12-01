@@ -11,6 +11,7 @@ from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and
 from krkn.scenario_plugins.pod_disruption.models.models import InputParams
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+from krkn_lib.models.pod_monitor.models import PodsSnapshot
 from datetime import datetime
 from dataclasses import dataclass
 
@@ -40,10 +41,27 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         kill_scenario_config,
                         lib_telemetry
                     )
-                    self.killing_pods(
+                    ret = self.killing_pods(
                         kill_scenario_config, lib_telemetry.get_lib_kubernetes()
                     )
+                    # returning 2 if configuration issue and exiting immediately
+                    if ret > 1:
+                        # Cancel the monitoring future since killing_pods already failed
+                        logging.info("Cancelling pod monitoring future")
+                        future_snapshot.cancel()
+                        # Wait for the future to finish (monitoring will stop when stop_event is set)
+                        while not future_snapshot.done():
+                            logging.info("waiting for future to finish")
+                            time.sleep(1)
+                        logging.info("future snapshot cancelled and finished")
+                        # Get the snapshot result (even if cancelled, it will have partial data)
+                        snapshot = future_snapshot.result()
+                        result = snapshot.get_pods_status()
+                        scenario_telemetry.affected_pods = result
 
+                        logging.error("PodDisruptionScenarioPlugin failed during setup" + str(result))
+                        return 1
+                    
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
@@ -51,6 +69,10 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         logging.info("PodDisruptionScenarioPlugin failed with unrecovered pods")
                         return 1
 
+                    if ret > 0:
+                        logging.info("PodDisruptionScenarioPlugin failed")
+                        return 1
+                    
         except (RuntimeError, Exception) as e:
             logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
             return 1
@@ -189,6 +211,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         namespace = config.namespace_pattern
         if not namespace: 
             logging.error('Namespace pattern must be specified')
+            return 2
 
         pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
         exclude_pods = set()
@@ -197,12 +220,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             for pod in _exclude_pods:
                 exclude_pods.add(pod[0])
 
-
         pods_count = len(pods)
         if len(pods) < config.kill:
             logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
                     config.kill, len(pods)))
-            return 1
+            return 2
         
         random.shuffle(pods)
         for i in range(config.kill):
@@ -214,8 +236,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 logging.info(f'Deleting pod {pod[0]}')
                 kubecli.delete_pod(pod[0], pod[1])
         
-        self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
-        return 0
+        ret = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+        return ret
 
     def wait_for_pods(
         self, label_selector, pod_name, namespace, pod_count, duration, wait_timeout, kubecli: KrknKubernetes, node_label_selector, node_names
@@ -226,7 +248,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         while not timeout:
             pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector, node_names=node_names, quiet=True)
             if pod_count == len(pods):
-                return
+                return 0
                
             time.sleep(duration)
 
@@ -236,4 +258,6 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             if time_diff.seconds > wait_timeout:
                 logging.error("timeout while waiting for pods to come up")
                 return 1
+        
+        # should never get to this return
         return 0
