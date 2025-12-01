@@ -79,8 +79,6 @@ jobs:
         if: |
           github.event_name == 'pull_request'
         run: |
-            yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
-            yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
             yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
             yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
             yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
@@ -100,6 +98,7 @@ jobs:
             echo "test_memory_hog" >> ./CI/tests/functional_tests
             echo "test_io_hog" >> ./CI/tests/functional_tests
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
+            echo "test_pod_server" >> ./CI/tests/functional_tests
 
       # Push on main only steps + all other functional to collect coverage
       # for the badge
@@ -113,8 +112,6 @@ jobs:
       - name: Setup Post Merge Request Functional Tests
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          yq -i '.kraken.port="8081"' CI/config/common_test_config.yaml
-          yq -i '.kraken.signal_address="0.0.0.0"' CI/config/common_test_config.yaml
           yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
           yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
           yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
@@ -137,6 +134,7 @@ jobs:
           echo "test_memory_hog" >> ./CI/tests/functional_tests
           echo "test_io_hog" >> ./CI/tests/functional_tests
           echo "test_pod_network_filter" >> ./CI/tests/functional_tests
+          echo "test_pod_server" >> ./CI/tests/functional_tests
 
       # Final common steps
       - name: Run Functional tests
