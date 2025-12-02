@@ -12,14 +12,16 @@ from krkn.scenario_plugins.network_chaos_ng.models import (
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
-from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import (
+    log_info,
+    deploy_network_chaos_ng_pod,
+    get_pod_default_interface,
+)
 
 from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
-    deploy_network_filter_pod,
     apply_network_rules,
     clean_network_rules,
     generate_rules,
-    get_default_interface,
 )
 
 
@@ -42,7 +44,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             )
 
             pod_name = f"node-filter-{get_random_string(5)}"
-            deploy_network_filter_pod(
+            deploy_network_chaos_ng_pod(
                 self.config,
                 target,
                 pod_name,
@@ -51,7 +53,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
 
             if len(self.config.interfaces) == 0:
                 interfaces = [
-                    get_default_interface(
+                    get_pod_default_interface(
                         pod_name,
                         self.config.namespace,
                         self.kubecli.get_lib_kubernetes(),
