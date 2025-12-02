@@ -1,4 +1,3 @@
-import logging
 import queue
 import time
 from typing import Tuple
@@ -14,10 +13,14 @@ from krkn.scenario_plugins.network_chaos_ng.models import (
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
-from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info, log_error
-from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
-    deploy_network_filter_pod,
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import (
+    log_info,
+    log_error,
     generate_namespaced_rules,
+    deploy_network_chaos_ng_pod,
+    get_pod_default_interface,
+)
+from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
     apply_network_rules,
     clean_network_rules_namespaced,
 )
@@ -51,7 +54,7 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                     f"impossible to retrieve infos for pod {self.config.target} namespace {self.config.namespace}"
                 )
 
-            deploy_network_filter_pod(
+            deploy_network_chaos_ng_pod(
                 self.config,
                 pod_info.nodeName,
                 pod_name,
@@ -61,10 +64,16 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
             )
 
             if len(self.config.interfaces) == 0:
-                interfaces = (
-                    self.kubecli.get_lib_kubernetes().list_pod_network_interfaces(
-                        target, self.config.namespace
+                interfaces = [
+                    get_pod_default_interface(
+                        pod_name,
+                        self.config.namespace,
+                        self.kubecli.get_lib_kubernetes(),
                     )
+                ]
+
+                log_info(
+                    f"detected default interface {interfaces[0]}", parallel, target
                 )
 
                 if len(interfaces) == 0:

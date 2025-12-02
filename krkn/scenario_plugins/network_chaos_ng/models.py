@@ -58,3 +58,11 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
                 f"{self.protocols} contains not allowed protocols only tcp and udp is allowed"
             )
         return errors
+
+
+@dataclass
+class NetworkChaosConfig(BaseNetworkChaosConfig):
+    pass
+
+    def validate(self) -> list[str]:
+        pass
