@@ -1,4 +1,5 @@
 import os
+from typing import Tuple
 
 import yaml
 from jinja2 import FileSystemLoader, Environment
@@ -10,7 +11,7 @@ from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
 
 def generate_rules(
     interfaces: list[str], config: NetworkFilterConfig
-) -> (list[str], list[str]):
+) -> Tuple[list[str], list[str]]:
     input_rules = []
     output_rules = []
     for interface in interfaces:
@@ -31,7 +32,7 @@ def generate_rules(
 
 def generate_namespaced_rules(
     interfaces: list[str], config: NetworkFilterConfig, pids: list[str]
-) -> (list[str], list[str]):
+) -> Tuple[list[str], list[str]]:
     namespaced_input_rules: list[str] = []
     namespaced_output_rules: list[str] = []
     input_rules, output_rules = generate_rules(interfaces, config)
