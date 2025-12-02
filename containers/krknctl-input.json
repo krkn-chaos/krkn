@@ -549,5 +549,16 @@
     "separator": ",",
     "default": "False",
     "required": "false"
+  },
+  {
+    "name": "krkn-run-mode",
+    "short_description": "Krkn Run Mode",
+    "description": "Sets the execution mode for krkn",
+    "variable": "KRKN_RUN_MODE",
+    "type": "enum",
+    "default": "controller",
+    "allowed_values": "controller,standalone",
+    "separator": ",",
+    "required": "true"
   }
 ]
