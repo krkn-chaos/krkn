@@ -1,5 +1,6 @@
 import queue
 import time
+from typing import Tuple
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -108,7 +109,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
         super().__init__(config, kubecli)
         self.config = config
 
-    def get_config(self) -> (NetworkChaosScenarioType, BaseNetworkChaosConfig):
+    def get_config(self) -> Tuple[NetworkChaosScenarioType, BaseNetworkChaosConfig]:
         return NetworkChaosScenarioType.Node, self.config
 
     def get_targets(self) -> list[str]:
