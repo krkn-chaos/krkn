@@ -7,6 +7,9 @@ from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_modul
 from krkn.scenario_plugins.network_chaos_ng.modules.node_network_filter import (
     NodeNetworkFilterModule,
 )
+from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos import (
+    PodNetworkChaos,
+)
 from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_filter import (
     PodNetworkFilterModule,
 )
@@ -37,3 +40,11 @@ class NetworkChaosFactory:
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
             return PodNetworkFilterModule(config, kubecli)
+        if config["id"] == "pod_network_chaos":
+            config = PodNetworkChaos(**config)
+            errors = config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return PodNetworkFilterModule(config, kubecli)
+        else:
+            raise Exception(f"invalid network chaos id {config['id']}")
