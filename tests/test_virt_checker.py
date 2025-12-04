@@ -48,6 +48,10 @@ class TestVirtChecker(unittest.TestCase):
         """Set up test fixtures before each test method"""
         self.mock_krkn_lib = MagicMock()
 
+        # Mock k8s_client for krkn-lib methods
+        self.mock_k8s_client = MagicMock()
+        self.mock_krkn_lib.custom_object_client = MagicMock()
+
         # Mock VMI data
         self.mock_vmi_1 = {
             "metadata": {"name": "test-vm-1", "namespace": "test-namespace"},
@@ -91,9 +95,10 @@ class TestVirtChecker(unittest.TestCase):
     @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
     def test_regex_namespace(self, mock_plugin_class, mock_yaml):
         """Test VirtChecker initialization with regex namespace pattern"""
-        # Setup mock plugin with VMI data
+        # Setup mock plugin with k8s_client
         mock_plugin = MagicMock()
-        mock_plugin.vmis_list = [self.mock_vmi_1, self.mock_vmi_2]
+        mock_plugin.k8s_client = self.mock_k8s_client
+        self.mock_k8s_client.get_vmis.return_value = [self.mock_vmi_1, self.mock_vmi_2]
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
@@ -114,9 +119,10 @@ class TestVirtChecker(unittest.TestCase):
     @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
     def test_with_node_name(self, mock_plugin_class, mock_yaml):
         """Test VirtChecker initialization with specific VM names"""
-        # Setup mock plugin with VMI data
+        # Setup mock plugin with k8s_client
         mock_plugin = MagicMock()
-        mock_plugin.vmis_list = [self.mock_vmi_1, self.mock_vmi_2]
+        mock_plugin.k8s_client = self.mock_k8s_client
+        self.mock_k8s_client.get_vmis.return_value = [self.mock_vmi_1, self.mock_vmi_2]
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
@@ -134,10 +140,12 @@ class TestVirtChecker(unittest.TestCase):
         self.assertEqual(len(checker.vm_list), 2)
 
         # Test with specific VM name
+        mock_plugin2 = MagicMock()
+        mock_k8s_client2 = MagicMock()
+        mock_plugin2.k8s_client = mock_k8s_client2
+        mock_k8s_client2.get_vmis.return_value = [self.mock_vmi_2]
+        mock_plugin_class.return_value = mock_plugin2
 
-        mock_plugin = MagicMock()
-        mock_plugin.vmis_list = [self.mock_vmi_2]
-        mock_plugin_class.return_value = mock_plugin
         checker2 = VirtChecker(
             {"namespace": "test-namespace", "name": "test-vm-1"},
             iterations=5,
@@ -152,9 +160,10 @@ class TestVirtChecker(unittest.TestCase):
     @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
     def test_with_regex_name(self, mock_plugin_class, mock_yaml):
         """Test VirtChecker initialization filtering by node names"""
-        # Setup mock plugin with VMI data
+        # Setup mock plugin with k8s_client
         mock_plugin = MagicMock()
-        mock_plugin.vmis_list = [self.mock_vmi_1, self.mock_vmi_2]
+        mock_plugin.k8s_client = self.mock_k8s_client
+        self.mock_k8s_client.get_vmis.return_value = [self.mock_vmi_1, self.mock_vmi_2]
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
@@ -277,7 +286,6 @@ class TestVirtChecker(unittest.TestCase):
     def test_check_disconnected_access_with_new_ip(self, mock_invoke, mock_plugin_class, mock_yaml):
         """Test check_disconnected_access when VM has new IP address"""
         mock_plugin = MagicMock()
-        mock_plugin.vmis_list = []
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
@@ -321,7 +329,6 @@ class TestVirtChecker(unittest.TestCase):
     def test_check_disconnected_access_with_new_node(self, mock_invoke, mock_plugin_class, mock_yaml):
         """Test check_disconnected_access when VM moved to new node"""
         mock_plugin = MagicMock()
-        mock_plugin.vmis_list = []
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
@@ -366,7 +373,6 @@ class TestVirtChecker(unittest.TestCase):
     def test_check_disconnected_access_with_ssh_node_fallback(self, mock_invoke, mock_plugin_class, mock_yaml):
         """Test check_disconnected_access falls back to ssh_node"""
         mock_plugin = MagicMock()
-        mock_plugin.vmis_list = []
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
@@ -471,6 +477,7 @@ class TestVirtChecker(unittest.TestCase):
     def test_batch_size_calculation(self, mock_plugin_class, mock_yaml):
         """Test batch size calculation based on VM count and thread limit"""
         mock_plugin = MagicMock()
+        mock_plugin.k8s_client = self.mock_k8s_client
 
         # Create 25 mock VMIs
         mock_vmis = []
@@ -484,7 +491,7 @@ class TestVirtChecker(unittest.TestCase):
             }
             mock_vmis.append(vmi)
 
-        mock_plugin.vmis_list = mock_vmis
+        self.mock_k8s_client.get_vmis.return_value = mock_vmis
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
@@ -513,6 +520,7 @@ class TestVirtChecker(unittest.TestCase):
     def test_batch_list_includes_last_item(self, mock_thread_class, mock_plugin_class, mock_yaml):
         """Test that batch_list includes the last item when batches don't divide evenly"""
         mock_plugin = MagicMock()
+        mock_plugin.k8s_client = self.mock_k8s_client
 
         # Create 21 mock VMIs (the specific case mentioned in the bug report)
         mock_vmis = []
@@ -526,7 +534,7 @@ class TestVirtChecker(unittest.TestCase):
             }
             mock_vmis.append(vmi)
 
-        mock_plugin.vmis_list = mock_vmis
+        self.mock_k8s_client.get_vmis.return_value = mock_vmis
         mock_plugin_class.return_value = mock_plugin
 
         def yaml_getter(config, key, default):
