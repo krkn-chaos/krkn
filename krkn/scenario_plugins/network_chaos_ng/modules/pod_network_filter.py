@@ -16,13 +16,14 @@ from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_modul
 from krkn.scenario_plugins.network_chaos_ng.modules.utils import (
     log_info,
     log_error,
-    generate_namespaced_rules,
     deploy_network_chaos_ng_pod,
     get_pod_default_interface,
+    setup_network_chaos_ng_scenario,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
     apply_network_rules,
     clean_network_rules_namespaced,
+    generate_namespaced_rules,
 )
 
 
@@ -54,28 +55,16 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                     f"impossible to retrieve infos for pod {self.config.target} namespace {self.config.namespace}"
                 )
 
-            deploy_network_chaos_ng_pod(
+            container_ids, interfaces = setup_network_chaos_ng_scenario(
                 self.config,
-                pod_info.nodeName,
+                pod_info,
                 pod_name,
-                self.kubecli.get_lib_kubernetes(),
                 container_name,
-                host_network=False,
+                self.kubecli.get_lib_kubernetes(),
+                target,
             )
 
             if len(self.config.interfaces) == 0:
-                interfaces = [
-                    get_pod_default_interface(
-                        pod_name,
-                        self.config.namespace,
-                        self.kubecli.get_lib_kubernetes(),
-                    )
-                ]
-
-                log_info(
-                    f"detected default interface {interfaces[0]}", parallel, target
-                )
-
                 if len(interfaces) == 0:
                     log_error(
                         "no network interface found in pod, impossible to execute the network filter scenario",

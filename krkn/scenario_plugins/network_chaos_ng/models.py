@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import TypeVar
 
 
 class NetworkChaosScenarioType(Enum):
@@ -9,16 +10,21 @@ class NetworkChaosScenarioType(Enum):
 
 @dataclass
 class BaseNetworkChaosConfig:
-    supported_execution = ["serial", "parallel"]
     id: str
+    image: str
     wait_duration: int
     test_duration: int
     label_selector: str
     service_account: str
+    taints: list[str]
+    namespace: str
     instance_count: int
     execution: str
-    namespace: str
-    taints: list[str]
+    supported_execution = ["serial", "parallel"]
+    interfaces: list[str]
+    target: str
+    ingress: bool
+    egress: bool
 
     def validate(self) -> list[str]:
         errors = []
@@ -41,12 +47,7 @@ class BaseNetworkChaosConfig:
 
 @dataclass
 class NetworkFilterConfig(BaseNetworkChaosConfig):
-    ingress: bool
-    egress: bool
-    interfaces: list[str]
-    target: str
     ports: list[int]
-    image: str
     protocols: list[str]
 
     def validate(self) -> list[str]:
@@ -62,7 +63,10 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
 
 @dataclass
 class NetworkChaosConfig(BaseNetworkChaosConfig):
-    pass
+    latency: str
+    loss: str
+    bandwidth: str
 
     def validate(self) -> list[str]:
-        pass
+        errors = super().validate()
+        return errors
