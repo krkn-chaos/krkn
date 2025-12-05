@@ -146,7 +146,7 @@ class AbstractScenarioPlugin(ABC):
                 failed_scenarios.append(scenario_config)
             scenario_telemetries.append(scenario_telemetry)
             end_time = int(time.time())
-            cerberus.publish_kraken_status(start_time, end_time)
+            cerberus.publish_kraken_status(int(scenario_telemetry.start_timestamp), end_time)
             logging.info(f"wating {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
             
