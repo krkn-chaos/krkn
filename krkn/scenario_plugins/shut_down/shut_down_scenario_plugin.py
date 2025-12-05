@@ -7,7 +7,6 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn import cerberus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
@@ -24,7 +23,6 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -34,15 +32,12 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                 shut_down_config_scenario = shut_down_config_yaml[
                     "cluster_shut_down_scenario"
                 ]
-                start_time = int(time.time())
                 affected_nodes_status = AffectedNodeStatus()
                 self.cluster_shut_down(
                     shut_down_config_scenario, lib_telemetry.get_lib_kubernetes(), affected_nodes_status
                 )
 
                 scenario_telemetry.affected_nodes = affected_nodes_status.affected_nodes
-                end_time = int(time.time())
-                cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
                 return 0
         except Exception as e:
             logging.error(
