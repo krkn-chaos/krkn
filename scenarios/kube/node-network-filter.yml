@@ -4,7 +4,7 @@
   test_duration: 10
   label_selector: "<node_selector>"
   service_account: ""
-  taints: [] # example ["node-role.kubernetes.io/master:NoSchedule"]
+  taints: []
   namespace: 'default'
   instance_count: 1
   execution: parallel

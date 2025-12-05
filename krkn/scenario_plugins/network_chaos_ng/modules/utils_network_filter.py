@@ -3,7 +3,6 @@ from typing import Tuple
 from krkn_lib.k8s import KrknKubernetes
 
 from krkn.scenario_plugins.network_chaos_ng.models import NetworkFilterConfig
-from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
 
 
 def generate_rules(
@@ -83,3 +82,22 @@ def clean_network_rules_namespaced(
                 pod_name,
                 namespace,
             )
+
+
+def generate_namespaced_rules(
+    interfaces: list[str], config: NetworkFilterConfig, pids: list[str]
+) -> Tuple[list[str], list[str]]:
+    namespaced_input_rules: list[str] = []
+    namespaced_output_rules: list[str] = []
+    input_rules, output_rules = generate_rules(interfaces, config)
+    for pid in pids:
+        ns_input_rules = [
+            f"nsenter --target {pid} --net -- {rule}" for rule in input_rules
+        ]
+        ns_output_rules = [
+            f"nsenter --target {pid} --net -- {rule}" for rule in output_rules
+        ]
+        namespaced_input_rules.extend(ns_input_rules)
+        namespaced_output_rules.extend(ns_output_rules)
+
+    return namespaced_input_rules, namespaced_output_rules
