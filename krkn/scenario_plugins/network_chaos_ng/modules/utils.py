@@ -5,10 +5,10 @@ from typing import Tuple
 import yaml
 from jinja2 import FileSystemLoader, Environment
 from krkn_lib.k8s import KrknKubernetes
+from krkn_lib.models.k8s import Pod
 
-from krkn.scenario_plugins.network_chaos_ng.models import NetworkFilterConfig
-from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
-    generate_rules,
+from krkn.scenario_plugins.network_chaos_ng.models import (
+    BaseNetworkChaosConfig,
 )
 
 
@@ -42,27 +42,8 @@ def log_warning(message: str, parallel: bool = False, node_name: str = ""):
         logging.warning(message)
 
 
-def generate_namespaced_rules(
-    interfaces: list[str], config: NetworkFilterConfig, pids: list[str]
-) -> Tuple[list[str], list[str]]:
-    namespaced_input_rules: list[str] = []
-    namespaced_output_rules: list[str] = []
-    input_rules, output_rules = generate_rules(interfaces, config)
-    for pid in pids:
-        ns_input_rules = [
-            f"nsenter --target {pid} --net -- {rule}" for rule in input_rules
-        ]
-        ns_output_rules = [
-            f"nsenter --target {pid} --net -- {rule}" for rule in output_rules
-        ]
-        namespaced_input_rules.extend(ns_input_rules)
-        namespaced_output_rules.extend(ns_output_rules)
-
-    return namespaced_input_rules, namespaced_output_rules
-
-
 def deploy_network_chaos_ng_pod(
-    config: NetworkFilterConfig,
+    config: BaseNetworkChaosConfig,
     target_node: str,
     pod_name: str,
     kubecli: KrknKubernetes,
@@ -114,3 +95,41 @@ def get_pod_default_interface(
     cmd = "ip r | grep default | awk '/default/ {print $5}'"
     output = kubecli.exec_cmd_in_pod([cmd], pod_name, namespace)
     return output.replace("\n", "")
+
+
+def setup_network_chaos_ng_scenario(
+    config: BaseNetworkChaosConfig,
+    pod_info: Pod,
+    pod_name: str,
+    container_name: str,
+    kubecli: KrknKubernetes,
+    target: str,
+    parallel: bool,
+) -> Tuple[list[str], list[str]]:
+
+    deploy_network_chaos_ng_pod(
+        config,
+        pod_info.nodeName,
+        pod_name,
+        kubecli,
+        container_name,
+        host_network=False,
+    )
+
+    if len(config.interfaces) == 0:
+        interfaces = [
+            get_pod_default_interface(
+                pod_name,
+                config.namespace,
+                kubecli,
+            )
+        ]
+
+        log_info(f"detected default interface {interfaces[0]}", parallel, target)
+
+    else:
+        interfaces = config.interfaces
+
+    container_ids = kubecli.get_container_ids(target, config.namespace)
+
+    return container_ids, interfaces
