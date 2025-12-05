@@ -1,6 +1,9 @@
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn.scenario_plugins.network_chaos_ng.models import NetworkFilterConfig
+from krkn.scenario_plugins.network_chaos_ng.models import (
+    NetworkFilterConfig,
+    NetworkChaosConfig,
+)
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
@@ -14,7 +17,7 @@ from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_filter import (
     PodNetworkFilterModule,
 )
 
-supported_modules = ["node_network_filter", "pod_network_filter"]
+supported_modules = ["node_network_filter", "pod_network_filter", "pod_network_chaos"]
 
 
 class NetworkChaosFactory:
@@ -29,22 +32,22 @@ class NetworkChaosFactory:
             raise Exception(f"{config['id']} is not a supported network chaos module")
 
         if config["id"] == "node_network_filter":
-            config = NetworkFilterConfig(**config)
-            errors = config.validate()
+            scenario_config = NetworkFilterConfig(**config)
+            errors = scenario_config.validate()
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
-            return NodeNetworkFilterModule(config, kubecli)
+            return NodeNetworkFilterModule(scenario_config, kubecli)
         if config["id"] == "pod_network_filter":
-            config = NetworkFilterConfig(**config)
-            errors = config.validate()
+            scenario_config = NetworkFilterConfig(**config)
+            errors = scenario_config.validate()
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
-            return PodNetworkFilterModule(config, kubecli)
+            return PodNetworkFilterModule(scenario_config, kubecli)
         if config["id"] == "pod_network_chaos":
-            config = PodNetworkChaos(**config)
-            errors = config.validate()
+            scenario_config = NetworkChaosConfig(**config)
+            errors = scenario_config.validate()
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
-            return PodNetworkFilterModule(config, kubecli)
+            return PodNetworkChaos(scenario_config, kubecli)
         else:
             raise Exception(f"invalid network chaos id {config['id']}")
