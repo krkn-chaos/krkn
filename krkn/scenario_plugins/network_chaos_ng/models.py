@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import List, Optional, Union
 
 
 class NetworkChaosScenarioType(Enum):
@@ -44,10 +45,11 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
     ingress: bool
     egress: bool
     interfaces: list[str]
-    target: str
+    target: Union[str, List[str], None]
     ports: list[int]
     image: str
     protocols: list[str]
+    exclude_label: Optional[Union[str, List[str]]] = None
 
     def validate(self) -> list[str]:
         errors = super().validate()
@@ -57,4 +59,13 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
             errors.append(
                 f"{self.protocols} contains not allowed protocols only tcp and udp is allowed"
             )
+        if self.label_selector in ("", None):
+            if isinstance(self.target, list) and len(self.target) == 0:
+                errors.append("target list cannot be empty")
+            if self.target is None or (
+                isinstance(self.target, str) and len(self.target.strip()) == 0
+            ):
+                errors.append("target cannot be None or empty string")
+        if self.target is not None and not isinstance(self.target, (str, list)):
+            errors.append("target must be a string, list, or wildcard identifier")
         return errors
