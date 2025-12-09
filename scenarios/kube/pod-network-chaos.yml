@@ -1,10 +1,17 @@
-- id: pod_network_chaos
+- id: node_network_chaos
   image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
   wait_duration: 1
   test_duration: 60
-  label_selector: "<pod_selector>"
+  label_selector: ""
   service_account: ""
   taints: []
   namespace: 'default'
   instance_count: 1
+  target: "<pod_name>"
   execution: parallel
+  interfaces: []
+  ingress: true
+  egress: true
+  latency: 0s # supported units are us (microseconds), ms, s
+  loss: 10 # percentage
+  bandwidth: 1gbit #supported units are bit kbit mbit gbit tbit
