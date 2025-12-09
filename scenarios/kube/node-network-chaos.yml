@@ -1,4 +1,4 @@
-- id: pod_network_chaos
+- id: node_network_chaos
   image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
   wait_duration: 1
   test_duration: 60
@@ -7,11 +7,12 @@
   taints: []
   namespace: 'default'
   instance_count: 1
-  target: "nginx-pod-prova-bis"
+  target: "<node_name>"
   execution: parallel
   interfaces: []
   ingress: true
   egress: true
-  latency: 0
-  loss: 80
-  bandwidth: 1
+  latency: 0s # supported units are us (microseconds), ms, s
+  loss: 10 # percentage
+  bandwidth: 1gbit #supported units are bit kbit mbit gbit tbit
+  force: false
