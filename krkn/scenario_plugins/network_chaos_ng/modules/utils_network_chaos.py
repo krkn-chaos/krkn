@@ -16,17 +16,14 @@ NETEM_HANDLE = "101:"
 
 
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    """Esegue un comando e ritorna CompletedProcess."""
     return subprocess.run(cmd, check=check, text=True, capture_output=True)
 
 
 def tc_node(args: list[str]) -> subprocess.CompletedProcess:
-    """Esegue tc nel namespace del nodo (host)."""
     return run(["tc"] + args)
 
 
 def get_build_tc_tree_commands(devs: list[str]) -> list[str]:
-    """Crea la struttura HTB/NETEM nel namespace del pod, se non esiste."""
     tree = []
     for dev in devs:
         tree.append(f"tc qdisc add dev {dev} root handle {ROOT_HANDLE} htb default 1")
@@ -52,7 +49,7 @@ def get_egress_shaping_comand(
     delay_ms: Optional[str],
     loss_pct: Optional[str],
 ) -> list[str]:
-    """Applica rate/delay/loss nel pod."""
+
     rate_commands = []
     rate = f"{rate_mbit}mbit" if rate_mbit is not None else "1gbit"
     d = delay_ms if delay_ms is not None else 0
@@ -98,11 +95,11 @@ def get_ingress_shaping_commands(
     )
     rate_commands.append(
         f"tc class add dev {ifb_dev} parent {ROOT_HANDLE} classid {CLASS_ID} "
-        f"htb rate {rate_mbit if rate_mbit else '1gbit'}mbit || true"
+        f"htb rate {rate_mbit if rate_mbit else '1gbit'} || true"
     )
     rate_commands.append(
         f"tc qdisc add dev {ifb_dev} parent {CLASS_ID} handle {NETEM_HANDLE} "
-        f"netem delay {delay_ms if delay_ms else '0'}ms "
+        f"netem delay {delay_ms if delay_ms else '0'} "
         f"loss {loss_pct if loss_pct else '0'}% || true"
     )
 
@@ -126,14 +123,14 @@ def get_clear_ingress_shaping_commands(
     return cmds
 
 
-def node_qdisc_is_simple(dev: str) -> bool:
-    """
-    Ritorna True se la qdisc del nodo per dev ha solo la qdisc root di default
-    (pfifo_fast, fq_codel, mq...).
-    Ritorna False se già contiene htb/netem/clsact o strutture complesse.
-    """
-    res = tc_node(["qdisc", "show", "dev", dev])
-    lines = [l for l in res.stdout.splitlines() if l.strip()]
+def node_qdisc_is_simple(
+    kubecli: KrknKubernetes, pod_name, namespace: str, interface: str
+) -> bool:
+
+    result = kubecli.exec_cmd_in_pod(
+        [f"tc qdisc show dev {interface}"], pod_name, namespace
+    )
+    lines = [l for l in result.splitlines() if l.strip()]
     if len(lines) != 1:
         return False
 
@@ -142,87 +139,6 @@ def node_qdisc_is_simple(dev: str) -> bool:
         return False
 
     return True
-
-
-def ensure_tree_node(dev: str, force: bool = False) -> list[str]:
-    """
-    Crea la struttura HTB/NETEM sul nodo.
-    Se la qdisc è complessa:
-        force=False -> RuntimeError
-        force=True  -> warning e procedi comunque
-    """
-    is_simple = node_qdisc_is_simple(dev)
-
-    if not is_simple and not force:
-        raise RuntimeError(
-            f"L'interfaccia {dev} ha già una configurazione tc complessa; "
-            "usa force=True per sovrascriverla comunque."
-        )
-
-    if not is_simple and force:
-        logging.warning(
-            "FORCE ENABLED: Sostituendo la qdisc root su %s anche se è complessa. "
-            "Questo può rompere la rete del nodo!",
-            dev,
-        )
-    return [
-        f"tc qdisc replace dev {dev} root handle {ROOT_HANDLE} htb default 1",
-        f"tc class add dev {dev} parent {ROOT_HANDLE} classid {CLASS_ID} htb rate 1gbit",
-        f"tc qdisc add dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay 0ms loss 0%",
-    ]
-
-
-def set_limits_node(
-    dev: str,
-    rate_mbit: Optional[int],
-    delay_ms: Optional[int],
-    loss_pct: Optional[float],
-    force: bool = False,
-):
-    """Applica rate/delay/loss sul nodo."""
-    ensure_tree_node(dev, force=force)
-
-    rate = f"{rate_mbit}mbit" if rate_mbit is not None else "1gbit"
-    tc_node(
-        [
-            "class",
-            "change",
-            "dev",
-            dev,
-            "parent",
-            ROOT_HANDLE,
-            "classid",
-            CLASS_ID,
-            "htb",
-            "rate",
-            rate,
-        ]
-    )
-
-    d = delay_ms if delay_ms is not None else 0
-    l = loss_pct if loss_pct is not None else 0
-    tc_node(
-        [
-            "qdisc",
-            "change",
-            "dev",
-            dev,
-            "parent",
-            CLASS_ID,
-            "handle",
-            NETEM_HANDLE,
-            "netem",
-            "delay",
-            f"{d}ms",
-            "loss",
-            f"{l}%",
-        ]
-    )
-
-
-def clear_limits_node(dev: str):
-    """Rimuove la nostra qdisc root HTB dal nodo."""
-    tc_node(["qdisc", "del", "dev", dev, "root", "handle", ROOT_HANDLE], check=False)
 
 
 def common_set_limit_rules(

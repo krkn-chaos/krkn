@@ -42,6 +42,42 @@ class AbstractNetworkChaosModule(abc.ABC):
 
         pass
 
+    def get_node_targets(self, config: BaseNetworkChaosConfig):
+        if self.base_network_config.label_selector:
+            return self.kubecli.get_lib_kubernetes().list_nodes(
+                self.base_network_config.label_selector
+            )
+        else:
+            if not config.target:
+                raise Exception(
+                    "neither node selector nor node_name (target) specified, aborting."
+                )
+            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
+            if config.target not in node_info:
+                raise Exception(f"node {config.target} not found, aborting")
+
+            return [config.target]
+
+    def get_pod_targets(self, config: BaseNetworkChaosConfig):
+        if not config.namespace:
+            raise Exception("namespace not specified, aborting")
+        if self.base_network_config.label_selector:
+            return self.kubecli.get_lib_kubernetes().list_pods(
+                config.namespace, config.label_selector
+            )
+        else:
+            if not config.target:
+                raise Exception(
+                    "neither node selector nor node_name (target) specified, aborting."
+                )
+            if not self.kubecli.get_lib_kubernetes().check_if_pod_exists(
+                config.target, config.namespace
+            ):
+                raise Exception(
+                    f"pod {config.target} not found in namespace {config.namespace}"
+                )
+            return [config.target]
+
     def __init__(
         self,
         base_network_config: BaseNetworkChaosConfig,
