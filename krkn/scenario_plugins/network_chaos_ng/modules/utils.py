@@ -99,21 +99,22 @@ def get_pod_default_interface(
 
 def setup_network_chaos_ng_scenario(
     config: BaseNetworkChaosConfig,
-    pod_info: Pod,
+    node_name: str,
     pod_name: str,
     container_name: str,
     kubecli: KrknKubernetes,
     target: str,
     parallel: bool,
+    host_network: bool,
 ) -> Tuple[list[str], list[str]]:
 
     deploy_network_chaos_ng_pod(
         config,
-        pod_info.nodeName,
+        node_name,
         pod_name,
         kubecli,
         container_name,
-        host_network=False,
+        host_network=host_network,
     )
 
     if len(config.interfaces) == 0:
@@ -129,7 +130,11 @@ def setup_network_chaos_ng_scenario(
 
     else:
         interfaces = config.interfaces
-
-    container_ids = kubecli.get_container_ids(target, config.namespace)
+    # if not host_network means that the target is a pod so container_ids need to be resolved
+    # otherwise it's not needed
+    if not host_network:
+        container_ids = kubecli.get_container_ids(target, config.namespace)
+    else:
+        container_ids = []
 
     return container_ids, interfaces

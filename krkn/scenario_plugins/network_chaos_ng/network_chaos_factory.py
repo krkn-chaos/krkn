@@ -7,17 +7,25 @@ from krkn.scenario_plugins.network_chaos_ng.models import (
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
+from krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos import (
+    NodeNetworkChaosModule,
+)
 from krkn.scenario_plugins.network_chaos_ng.modules.node_network_filter import (
     NodeNetworkFilterModule,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos import (
-    PodNetworkChaos,
+    PodNetworkChaosModule,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_filter import (
     PodNetworkFilterModule,
 )
 
-supported_modules = ["node_network_filter", "pod_network_filter", "pod_network_chaos"]
+supported_modules = [
+    "node_network_filter",
+    "pod_network_filter",
+    "pod_network_chaos",
+    "node_network_chaos",
+]
 
 
 class NetworkChaosFactory:
@@ -48,6 +56,12 @@ class NetworkChaosFactory:
             errors = scenario_config.validate()
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
-            return PodNetworkChaos(scenario_config, kubecli)
+            return PodNetworkChaosModule(scenario_config, kubecli)
+        if config["id"] == "node_network_chaos":
+            scenario_config = NetworkChaosConfig(**config)
+            errors = scenario_config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return NodeNetworkChaosModule(scenario_config, kubecli)
         else:
             raise Exception(f"invalid network chaos id {config['id']}")

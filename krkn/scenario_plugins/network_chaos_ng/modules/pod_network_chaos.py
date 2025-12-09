@@ -24,7 +24,7 @@ from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_chaos import (
 )
 
 
-class PodNetworkChaos(AbstractNetworkChaosModule):
+class PodNetworkChaosModule(AbstractNetworkChaosModule):
 
     def __init__(self, config: NetworkChaosConfig, kubecli: KrknTelemetryOpenshift):
         super().__init__(config, kubecli)
@@ -42,7 +42,7 @@ class PodNetworkChaos(AbstractNetworkChaosModule):
             )
 
             log_info(
-                f"creating workload to inject network chaos in pod {self.config.target} network"
+                f"creating workload to inject network chaos in pod {target} network"
                 f"latency:{str(self.config.latency) if self.config.latency else '0'}, "
                 f"packet drop:{str(self.config.loss) if self.config.loss else '0'} "
                 f"bandwidth restriction:{str(self.config.bandwidth) if self.config.bandwidth else '0'} ",
@@ -52,17 +52,18 @@ class PodNetworkChaos(AbstractNetworkChaosModule):
 
             if not pod_info:
                 raise Exception(
-                    f"impossible to retrieve infos for pod {self.config.target} namespace {self.config.namespace}"
+                    f"impossible to retrieve infos for pod {target} namespace {self.config.namespace}"
                 )
 
             container_ids, interfaces = setup_network_chaos_ng_scenario(
                 self.config,
-                pod_info,
+                pod_info.nodeName,
                 network_chaos_pod_name,
                 container_name,
                 self.kubecli.get_lib_kubernetes(),
                 target,
                 parallel,
+                False,
             )
 
             if len(self.config.interfaces) == 0:
@@ -159,22 +160,4 @@ class PodNetworkChaos(AbstractNetworkChaosModule):
         return NetworkChaosScenarioType.Pod, self.config
 
     def get_targets(self) -> list[str]:
-        if not self.config.namespace:
-            raise Exception("namespace not specified, aborting")
-        if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_pods(
-                self.config.namespace, self.config.label_selector
-            )
-        else:
-            if not self.config.target:
-                raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
-                )
-            if not self.kubecli.get_lib_kubernetes().check_if_pod_exists(
-                self.config.target, self.config.namespace
-            ):
-                raise Exception(
-                    f"pod {self.config.target} not found in namespace {self.config.namespace}"
-                )
-
-            return [self.config.target]
+        return self.get_pod_targets(self.config)
