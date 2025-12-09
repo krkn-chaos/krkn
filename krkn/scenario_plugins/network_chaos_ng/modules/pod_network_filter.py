@@ -57,11 +57,13 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
 
             container_ids, interfaces = setup_network_chaos_ng_scenario(
                 self.config,
-                pod_info,
+                pod_info.nodeName,
                 pod_name,
                 container_name,
                 self.kubecli.get_lib_kubernetes(),
                 target,
+                parallel,
+                False,
             )
 
             if len(self.config.interfaces) == 0:
@@ -160,22 +162,4 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
         return NetworkChaosScenarioType.Pod, self.config
 
     def get_targets(self) -> list[str]:
-        if not self.config.namespace:
-            raise Exception("namespace not specified, aborting")
-        if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_pods(
-                self.config.namespace, self.config.label_selector
-            )
-        else:
-            if not self.config.target:
-                raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
-                )
-            if not self.kubecli.get_lib_kubernetes().check_if_pod_exists(
-                self.config.target, self.config.namespace
-            ):
-                raise Exception(
-                    f"pod {self.config.target} not found in namespace {self.config.namespace}"
-                )
-
-            return [self.config.target]
+        return self.get_pod_targets(self.config)
