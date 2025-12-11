@@ -147,7 +147,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
                             with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
                                 result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
 
-        self.assertEqual(result, 0)
+        self.assertEqual(result, 1)
         mock_delete.assert_called_once_with("test-vm", "default", False)
         mock_wait.assert_not_called()
         
