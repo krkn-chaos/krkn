@@ -522,7 +522,7 @@ def main(options, command: Optional[str]) -> int:
 
             else:
                 logging.error("Alert profile is not defined")
-                return 1
+                return 2
                 # sys.exit(1)
         if enable_metrics:
             logging.info(f'Capturing metrics using file {metrics_profile}')
@@ -537,17 +537,19 @@ def main(options, command: Optional[str]) -> int:
                 telemetry_json
             )
 
-        if post_critical_alerts > 0:
-            logging.error("Critical alerts are firing, please check; exiting")
-            # sys.exit(2)
-            return 2
-
         if failed_post_scenarios:
             logging.error(
                 "Post scenarios are still failing at the end of all iterations"
             )
             # sys.exit(2)
+            return 1
+        
+        if post_critical_alerts > 0:
+            logging.error("Critical alerts are firing, please check; exiting")
+            # sys.exit(2)
             return 2
+
+        
         if health_checker.ret_value != 0:
             logging.error("Health check failed for the applications, Please check; exiting")
             return health_checker.ret_value
