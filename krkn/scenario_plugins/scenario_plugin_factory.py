@@ -47,7 +47,11 @@ class ScenarioPluginFactory:
         ):
 
             if not is_pkg:
-                module = importlib.import_module(module_name)
+                try:
+                    module = importlib.import_module(module_name)
+                except Exception as imp_exc:  
+                    self.failed_plugins.append((module_name, "<module>", f"Import failed: {imp_exc}"))
+                    continue
 
                 for name, obj in inspect.getmembers(module, inspect.isclass):
                     if issubclass(obj, base_class) and obj is not base_class:
