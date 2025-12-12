@@ -14,21 +14,21 @@ jobs:
         uses: actions/checkout@v3
       - name: Create multi-node KinD cluster
         uses: redhat-chaos/actions/kind@main
-      # - name: Deploy prometheus & Port Forwarding
-      #   uses: redhat-chaos/actions/prometheus@main
-      # - name: Deploy Elasticsearch
-      #   with:
-      #     ELASTIC_PORT: ${{ env.ELASTIC_PORT }}
-      #     RUN_ID: ${{ github.run_id }}
-      #   uses: redhat-chaos/actions/elastic@main
-      # - name: Download elastic password
-      #   uses: actions/download-artifact@v4
-      #   with:
-      #     name: elastic_password_${{ github.run_id }}
-      # - name: Set elastic password on env
-      #   run: |
-      #     ELASTIC_PASSWORD=$(cat elastic_password.txt)
-      #     echo "ELASTIC_PASSWORD=$ELASTIC_PASSWORD" >> "$GITHUB_ENV"
+      - name: Deploy prometheus & Port Forwarding
+        uses: redhat-chaos/actions/prometheus@main
+      - name: Deploy Elasticsearch
+        with:
+          ELASTIC_PORT: ${{ env.ELASTIC_PORT }}
+          RUN_ID: ${{ github.run_id }}
+        uses: redhat-chaos/actions/elastic@main
+      - name: Download elastic password
+        uses: actions/download-artifact@v4
+        with:
+          name: elastic_password_${{ github.run_id }}
+      - name: Set elastic password on env
+        run: |
+          ELASTIC_PASSWORD=$(cat elastic_password.txt)
+          echo "ELASTIC_PASSWORD=$ELASTIC_PASSWORD" >> "$GITHUB_ENV"
       - name: Install Python
         uses: actions/setup-python@v4
         with:
@@ -42,22 +42,22 @@ jobs:
 
       - name: Deploy test workloads
         run: |
-          # es_pod_name=$(kubectl get pods -l "app=elasticsearch-master" -o name)
-          # echo "POD_NAME: $es_pod_name"
-          # kubectl --namespace default port-forward $es_pod_name 9200 &
-          # prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
-          # kubectl --namespace monitoring port-forward $prom_name 9090 &
+          es_pod_name=$(kubectl get pods -l "app=elasticsearch-master" -o name)
+          echo "POD_NAME: $es_pod_name"
+          kubectl --namespace default port-forward $es_pod_name 9200 &
+          prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
+          kubectl --namespace monitoring port-forward $prom_name 9090 &
 
-          # # Wait for Elasticsearch to be ready
-          # echo "Waiting for Elasticsearch to be ready..."
-          # for i in {1..30}; do
-          #   if curl -k -s -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_cluster/health > /dev/null 2>&1; then
-          #     echo "Elasticsearch is ready!"
-          #     break
-          #   fi
-          #   echo "Attempt $i: Elasticsearch not ready yet, waiting..."
-          #   sleep 2
-          # done
+          # Wait for Elasticsearch to be ready
+          echo "Waiting for Elasticsearch to be ready..."
+          for i in {1..30}; do
+            if curl -k -s -u elastic:$ELASTIC_PASSWORD https://localhost:9200/_cluster/health > /dev/null 2>&1; then
+              echo "Elasticsearch is ready!"
+              break
+            fi
+            echo "Attempt $i: Elasticsearch not ready yet, waiting..."
+            sleep 2
+          done
           kubectl apply -f CI/templates/outage_pod.yaml
           kubectl wait --for=condition=ready pod -l scenario=outage --timeout=300s
           kubectl apply -f CI/templates/container_scenario_pod.yaml
@@ -79,26 +79,26 @@ jobs:
         if: |
           github.event_name == 'pull_request'
         run: |
-            # yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
-            # yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
-            # yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
-            # yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
-            # yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
-            # yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
-            # echo "test_service_hijacking" > ./CI/tests/functional_tests
-            # echo "test_app_outages" >> ./CI/tests/functional_tests
+            yq -i '.kraken.performance_monitoring="localhost:9090"' CI/config/common_test_config.yaml
+            yq -i '.elastic.elastic_port=9200' CI/config/common_test_config.yaml
+            yq -i '.elastic.elastic_url="https://localhost"' CI/config/common_test_config.yaml
+            yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
+            yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
+            yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
+            echo "test_service_hijacking" > ./CI/tests/functional_tests
+            echo "test_app_outages" >> ./CI/tests/functional_tests
             echo "test_container"      >> ./CI/tests/functional_tests
             echo "test_pod" >> ./CI/tests/functional_tests
             echo "test_pod_error" >> ./CI/tests/functional_tests
             echo "test_customapp_pod" >> ./CI/tests/functional_tests
-            # echo "test_namespace"      >> ./CI/tests/functional_tests
-            # echo "test_net_chaos"      >> ./CI/tests/functional_tests
-            # echo "test_time"           >> ./CI/tests/functional_tests
-            # echo "test_cpu_hog" >> ./CI/tests/functional_tests
-            # echo "test_memory_hog" >> ./CI/tests/functional_tests
-            # echo "test_io_hog" >> ./CI/tests/functional_tests
-            # echo "test_pod_network_filter" >> ./CI/tests/functional_tests
-
+            echo "test_namespace"      >> ./CI/tests/functional_tests
+            echo "test_net_chaos"      >> ./CI/tests/functional_tests
+            echo "test_time"           >> ./CI/tests/functional_tests
+            echo "test_cpu_hog" >> ./CI/tests/functional_tests
+            echo "test_memory_hog" >> ./CI/tests/functional_tests
+            echo "test_io_hog" >> ./CI/tests/functional_tests
+            echo "test_pod_network_filter" >> ./CI/tests/functional_tests
+            echo "test_pod_server" >> ./CI/tests/functional_tests
 
       # Push on main only steps + all other functional to collect coverage
       # for the badge

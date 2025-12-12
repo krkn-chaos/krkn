@@ -204,61 +204,56 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
     
     def killing_pods(self, config: InputParams, kubecli: KrknKubernetes):
         # region Select target pods
-        try:
-            namespace = config.namespace_pattern
-            if not namespace: 
-                logging.error('Namespace pattern must be specified')
 
-            pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
-            exclude_pods = set()
-            if config.exclude_label:
-                _exclude_pods = self.get_pods("",config.exclude_label,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
-                for pod in _exclude_pods:
-                    exclude_pods.add(pod[0])
+        namespace = config.namespace_pattern
+        if not namespace: 
+            logging.error('Namespace pattern must be specified')
+
+        pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+        exclude_pods = set()
+        if config.exclude_label:
+            _exclude_pods = self.get_pods("",config.exclude_label,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+            for pod in _exclude_pods:
+                exclude_pods.add(pod[0])
 
 
-            pods_count = len(pods)
-            if len(pods) < config.kill:
-                logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
-                        config.kill, len(pods)))
-                return 1
-            
-            random.shuffle(pods)
-            for i in range(config.kill):
-                pod = pods[i]
-                logging.info(pod)
-                if pod[0] in exclude_pods:
-                    logging.info(f"Excluding {pod[0]} from chaos")
-                else:
-                    logging.info(f'Deleting pod {pod[0]}')
-                    kubecli.delete_pod(pod[0], pod[1])
-            
-            self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
-        except Exception as e:
-            logging.error('Exception killing pods' + str(e))
-        return 0
+        pods_count = len(pods)
+        if len(pods) < config.kill:
+            logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
+                    config.kill, len(pods)))
+            return 1
+        
+        random.shuffle(pods)
+        for i in range(config.kill):
+            pod = pods[i]
+            logging.info(pod)
+            if pod[0] in exclude_pods:
+                logging.info(f"Excluding {pod[0]} from chaos")
+            else:
+                logging.info(f'Deleting pod {pod[0]}')
+                kubecli.delete_pod(pod[0], pod[1])
+        
+        return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+        return return_val
 
     def wait_for_pods(
         self, label_selector, pod_name, namespace, pod_count, duration, wait_timeout, kubecli: KrknKubernetes, node_label_selector, node_names
     ):
-        try:
-            timeout = False
-            start_time = datetime.now()
+        timeout = False
+        start_time = datetime.now()
 
-            while not timeout:
-                pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector, node_names=node_names)
-                if pod_count == len(pods):
-                    return
-                
-                time.sleep(duration)
+        while not timeout:
+            pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector, node_names=node_names)
+            if pod_count == len(pods):
+                return
+            
+            time.sleep(duration)
 
-                now_time = datetime.now()
+            now_time = datetime.now()
 
-                time_diff = now_time - start_time
-                if time_diff.seconds > wait_timeout:
-                    logging.error("timeout while waiting for pods to come up")
-                    return 1
-        except Exception as e:
-            logging.info("wait for pods exception" + str(e))
-            return 1
+            time_diff = now_time - start_time
+            if time_diff.seconds > wait_timeout:
+                logging.error("timeout while waiting for pods to come up")
+                return 1
+
         return 0

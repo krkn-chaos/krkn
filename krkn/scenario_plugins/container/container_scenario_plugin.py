@@ -52,19 +52,15 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         return ["container_scenarios"]
 
     def start_monitoring(self, kill_scenario: dict, lib_telemetry: KrknTelemetryOpenshift) -> Future:
-        try:
-            namespace_pattern = f"^{kill_scenario['namespace']}$"
-            label_selector = kill_scenario["label_selector"]
-            recovery_time = kill_scenario["expected_recovery_time"]
-            future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
-                namespace_pattern=namespace_pattern,
-                label_selector=label_selector,
-                max_timeout=recovery_time,
-                v1_client=lib_telemetry.get_lib_kubernetes().cli
-            )
-        except Exception as e:
-            logging.error("Stack trace:\n%s", traceback.format_exc())
-            logging.info("Start monitoring error" + str(e))
+        namespace_pattern = f"^{kill_scenario['namespace']}$"
+        label_selector = kill_scenario["label_selector"]
+        recovery_time = kill_scenario["expected_recovery_time"]
+        future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
+            namespace_pattern=namespace_pattern,
+            label_selector=label_selector,
+            max_timeout=recovery_time,
+            v1_client=lib_telemetry.get_lib_kubernetes().cli
+        )
         return future_snapshot
 
     def container_killing_in_pod(self, cont_scenario, kubecli: KrknKubernetes):
@@ -189,58 +185,53 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
     def retry_container_killing(
         self, kill_action, podname, namespace, container_name, kubecli: KrknKubernetes
     ):
-        try:
-            i = 0
-            while i < 5:
-                logging.info(
-                    "Killing container %s in pod %s (ns %s)"
-                    % (str(container_name), str(podname), str(namespace))
-                )
-                response = kubecli.exec_cmd_in_pod(
-                    kill_action, podname, namespace, container_name
-                )
-                i += 1
-                # Blank response means it is done
-                if not response:
-                    break
-                elif (
-                    "unauthorized" in response.lower()
-                    or "authorization" in response.lower()
-                ):
-                    time.sleep(2)
-                    continue
-                else:
-                    logging.warning(response)
-                    continue
-        except Exception as e:
-            logging.info("Retry failed container error" + str(e))
+        i = 0
+        while i < 5:
+            logging.info(
+                "Killing container %s in pod %s (ns %s)"
+                % (str(container_name), str(podname), str(namespace))
+            )
+            response = kubecli.exec_cmd_in_pod(
+                kill_action, podname, namespace, container_name
+            )
+            i += 1
+            # Blank response means it is done
+            if not response:
+                break
+            elif (
+                "unauthorized" in response.lower()
+                or "authorization" in response.lower()
+            ):
+                time.sleep(2)
+                continue
+            else:
+                logging.warning(response)
+                continue
 
     def check_failed_containers(
         self, killed_container_list, wait_time, kubecli: KrknKubernetes
     ):
 
-        try:
-            container_ready = []
-            timer = 0
-            while timer <= wait_time:
-                for killed_container in killed_container_list:
-                    # pod namespace contain name
-                    pod_output = kubecli.get_pod_info(
-                        killed_container[0], killed_container[1]
-                    )
+        container_ready = []
+        timer = 0
+        while timer <= wait_time:
+            for killed_container in killed_container_list:
+                # pod namespace contain name
+                pod_output = kubecli.get_pod_info(
+                    killed_container[0], killed_container[1]
+                )
 
-                    for container in pod_output.containers:
-                        if container.name == killed_container[2]:
-                            if container.ready:
-                                container_ready.append(killed_container)
-                if len(container_ready) != 0:
-                    for item in container_ready:
-                        killed_container_list = killed_container_list.remove(item)
-                if killed_container_list is None or len(killed_container_list) == 0:
-                    return []
-                timer += 5
-                logging.info("Waiting 5 seconds for containers to become ready")
-                time.sleep(5)
-        except Exception as e:
-            logging.info("Check failed container error" + str(e))
+                for container in pod_output.containers:
+                    if container.name == killed_container[2]:
+                        if container.ready:
+                            container_ready.append(killed_container)
+            if len(container_ready) != 0:
+                for item in container_ready:
+                    killed_container_list = killed_container_list.remove(item)
+            if killed_container_list is None or len(killed_container_list) == 0:
+                return []
+            timer += 5
+            logging.info("Waiting 5 seconds for containers to become ready")
+            time.sleep(5)
+
         return killed_container_list
