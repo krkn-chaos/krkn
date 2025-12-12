@@ -67,7 +67,7 @@ jobs:
           kubectl wait --for=condition=ready pod -l scenario=time-skew --timeout=300s
           kubectl apply -f CI/templates/service_hijacking.yaml
           kubectl wait --for=condition=ready pod -l "app.kubernetes.io/name=proxy" --timeout=300s
-          kubectl apply -f CI/legacy/scenarios/volume_scenarios.yaml
+          kubectl apply -f CI/legacy/scenarios/volume_scenario.yaml
           kubectl wait --for=condition=ready pod kraken-test-pvc -n kraken --timeout=300s
       - name: Get Kind nodes
         run: |
