@@ -75,7 +75,9 @@ jobs:
       # Pull request only steps
       - name: Run unit tests
         if: github.event_name == 'pull_request'
-        run: python -m coverage run -a -m unittest discover -s tests -v
+        run: | 
+          python -m coverage run -a -m unittest discover -s tests -v
+          python -m coverage run -a -m unittest discover -s krkn/tests -v
 
       - name: Setup Pull Request Functional Tests
         if: |
