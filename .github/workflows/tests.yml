@@ -67,6 +67,8 @@ jobs:
           kubectl wait --for=condition=ready pod -l scenario=time-skew --timeout=300s
           kubectl apply -f CI/templates/service_hijacking.yaml
           kubectl wait --for=condition=ready pod -l "app.kubernetes.io/name=proxy" --timeout=300s
+          kubectl apply -f CI/legacy/scenarios/volume_scenario.yaml
+          kubectl wait --for=condition=ready pod kraken-test-pod -n kraken --timeout=300s
       - name: Get Kind nodes
         run: |
           kubectl get nodes --show-labels=true
@@ -99,6 +101,8 @@ jobs:
             echo "test_io_hog" >> ./CI/tests/functional_tests
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
             echo "test_pod_server" >> ./CI/tests/functional_tests
+            echo "test_node" >> ./CI/tests/functional_tests
+            echo "test_pvc" >> ./CI/tests/functional_tests
 
       # Push on main only steps + all other functional to collect coverage
       # for the badge
@@ -135,7 +139,8 @@ jobs:
           echo "test_io_hog" >> ./CI/tests/functional_tests
           echo "test_pod_network_filter" >> ./CI/tests/functional_tests
           echo "test_pod_server" >> ./CI/tests/functional_tests
-
+          echo "test_node" >> ./CI/tests/functional_tests
+          echo "test_pvc" >> ./CI/tests/functional_tests
       # Final common steps
       - name: Run Functional tests
         env:
