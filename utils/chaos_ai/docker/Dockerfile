@@ -1,5 +1,5 @@
 FROM bitnami/kubectl:1.20.9 as kubectl
-FROM python:3.9
+FROM python:3.13.11
 WORKDIR /app
 RUN pip3 install --upgrade pip
 COPY config config/
