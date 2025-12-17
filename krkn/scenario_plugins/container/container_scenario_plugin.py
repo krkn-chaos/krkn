@@ -1,6 +1,7 @@
 import logging
 import random
 import time
+import traceback
 from asyncio import Future
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -41,6 +42,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                         logging.info("ContainerScenarioPlugin failed with unrecovered containers")
                         return 1
         except (RuntimeError, Exception) as e:
+            logging.error("Stack trace:\n%s", traceback.format_exc())
             logging.error("ContainerScenarioPlugin exiting due to Exception %s" % e)
             return 1
         else:
@@ -50,7 +52,6 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         return ["container_scenarios"]
 
     def start_monitoring(self, kill_scenario: dict, lib_telemetry: KrknTelemetryOpenshift) -> Future:
-        
         namespace_pattern = f"^{kill_scenario['namespace']}$"
         label_selector = kill_scenario["label_selector"]
         recovery_time = kill_scenario["expected_recovery_time"]
@@ -232,4 +233,5 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             timer += 5
             logging.info("Waiting 5 seconds for containers to become ready")
             time.sleep(5)
+
         return killed_container_list
