@@ -1,16 +1,18 @@
 node_scenarios:
   - actions:                                                        # node chaos scenarios to be injected
     - node_stop_start_scenario
-    node_name: kind-worker                                          # node on which scenario has to be injected; can set multiple names separated by comma
-    # label_selector: node-role.kubernetes.io/worker                # when node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection
+    # node_name: kind-control-plane                                        # node on which scenario has to be injected; can set multiple names separated by comma
+    label_selector: kubernetes.io/hostname=kind-worker              # when node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection
     instance_count: 1                                               # Number of nodes to perform action/select that match the label selector
     runs: 1                                                         # number of times to inject each scenario under actions (will perform on same node each time)
     timeout: 120                                                    # duration to wait for completion of node scenario injection
     cloud_type: docker                                                # cloud type on which Kubernetes/OpenShift runs
+    duration: 10
   - actions:
     - node_reboot_scenario
-    node_name: kind-worker
-    # label_selector: node-role.kubernetes.io/infra
+    node_name: kind-control-plane
+    # label_selector: kubernetes.io/hostname=kind-worker
     instance_count: 1
     timeout: 120
     cloud_type: docker
+    kube_check: false
