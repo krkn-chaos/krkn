@@ -12,7 +12,7 @@ import uuid
 import time
 import queue
 import threading
-from typing import Optional
+from typing import Optional, Dict
 
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
@@ -20,6 +20,12 @@ from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
 import server as server
+from krkn.resiliency.resiliency import (
+    Resiliency,
+    compute_resiliency,
+    add_scenario_reports,
+    finalize_and_save,
+)
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -52,6 +58,13 @@ def main(options, command: Optional[str]) -> int:
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
+
+    # Determine execution mode (standalone, controller, or disabled)
+    run_mode = (os.getenv("RESILIENCY_ENABLED_MODE") or "standalone").lower().strip()
+    valid_run_modes = {"standalone", "controller", "disabled"}
+    if run_mode not in valid_run_modes:
+        logging.warning("Unknown RESILIENCY_ENABLED_MODE '%s'. Defaulting to 'standalone'", run_mode)
+        run_mode = "standalone"
 
     cfg = options.cfg
     # Parse and read the config
@@ -90,9 +103,7 @@ def main(options, command: Optional[str]) -> int:
         daemon_mode = get_yaml_item_value(config["tunings"], "daemon_mode", False)
 
         prometheus_url = config["performance_monitoring"].get("prometheus_url")
-        prometheus_bearer_token = config["performance_monitoring"].get(
-            "prometheus_bearer_token"
-        )
+        prometheus_bearer_token = config["performance_monitoring"].get("prometheus_bearer_token")
         run_uuid = config["performance_monitoring"].get("uuid")
         enable_alerts = get_yaml_item_value(
             config["performance_monitoring"], "enable_alerts", False
@@ -100,6 +111,14 @@ def main(options, command: Optional[str]) -> int:
         enable_metrics = get_yaml_item_value(
             config["performance_monitoring"], "enable_metrics", False
         )
+
+        # Disable resiliency if Prometheus URL is not available
+        if (not prometheus_url or prometheus_url.strip() == "") and run_mode != "disabled":
+            logging.warning("Prometheus URL not provided; disabling resiliency score features.")
+            run_mode = "disabled"
+
+        # Default placeholder; will be overridden if a Prometheus URL is available
+        prometheus = None
         # elastic search
         enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
 
@@ -247,9 +266,18 @@ def main(options, command: Optional[str]) -> int:
         else:
             elastic_search = None
         summary = ChaosRunAlertSummary()
-        if enable_metrics or enable_alerts or check_critical_alerts:
+        if enable_metrics or enable_alerts or check_critical_alerts or run_mode != "disabled":
             prometheus = KrknPrometheus(prometheus_url, prometheus_bearer_token)
+            # Quick connectivity probe for Prometheus – disable resiliency if unreachable
+            try:
+                prometheus.process_prom_query_in_range(
+                    "up", datetime.datetime.utcnow() - datetime.timedelta(seconds=60), datetime.datetime.utcnow(), granularity=60
+                )
+            except Exception as prom_exc:  
+                logging.error("Prometheus connectivity test failed: %s. Disabling resiliency features as Prometheus is required for SLO evaluation.", prom_exc)
+                run_mode = "disabled"
 
+        resiliency_obj = Resiliency() if run_mode != "disabled" else None  # Initialize resiliency orchestrator
         logging.info("Server URL: %s" % kubecli.get_host())
 
         if command == "list-rollback":
@@ -364,12 +392,23 @@ def main(options, command: Optional[str]) -> int:
                             )
                             sys.exit(-1)
 
+                        batch_window_start_dt = datetime.datetime.utcnow()
                         failed_post_scenarios, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
                                 run_uuid, scenarios_list, config, telemetry_ocp
                             )
                         )
                         chaos_telemetry.scenarios.extend(scenario_telemetries)
+                        batch_window_end_dt = datetime.datetime.utcnow()
+                        if resiliency_obj:
+                            add_scenario_reports(
+                                resiliency_obj=resiliency_obj,
+                                scenario_telemetries=scenario_telemetries,
+                                prom_cli=prometheus,
+                                scenario_type=scenario_type,
+                                batch_start_dt=batch_window_start_dt,
+                                batch_end_dt=batch_window_end_dt,
+                            )
 
                         post_critical_alerts = 0
                         if check_critical_alerts:
@@ -434,12 +473,37 @@ def main(options, command: Optional[str]) -> int:
         else:
             logging.info("No error logs collected during chaos run")
             chaos_telemetry.error_logs = []
+        if resiliency_obj:
+            try:
+                resiliency_obj.attach_compact_to_telemetry(chaos_telemetry)
+            except Exception as exc:
+                logging.error("Failed to embed per-scenario resiliency in telemetry: %s", exc)
+
+        if resiliency_obj:
+            try:
+                summary_report, detailed_report = finalize_and_save(
+                    resiliency_obj=resiliency_obj,
+                    prom_cli=prometheus,
+                    total_start_time=datetime.datetime.fromtimestamp(start_time),
+                    total_end_time=datetime.datetime.fromtimestamp(end_time),
+                    run_mode=run_mode,
+                    logger=logging,
+                )
+
+            except Exception as e:
+                logging.error("Failed to finalize resiliency scoring: %s", e)
+
 
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
+        if resiliency_obj and hasattr(resiliency_obj, "summary"):
+            decoded_chaos_run_telemetry.overall_resiliency_report = resiliency_obj.get_summary()
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
+            elastic_telemetry = ElasticChaosRunTelemetry( 
+                chaos_run_telemetry=decoded_chaos_run_telemetry
+            )
             result = elastic_search.push_telemetry(
                 decoded_chaos_run_telemetry, elastic_telemetry_index
             )
