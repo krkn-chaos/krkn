@@ -13,6 +13,8 @@ function functional_test_pod_crash {
 
   python3 -m coverage run -a run_kraken.py -c CI/config/pod_config.yaml
   echo "Pod disruption scenario test: Success"
+  date
+  kubectl get pods -n kube-system -l component=etcd -o yaml
 }
 
 functional_test_pod_crash

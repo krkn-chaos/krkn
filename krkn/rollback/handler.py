@@ -117,23 +117,32 @@ def _parse_rollback_module(version_file_path: str) -> tuple[RollbackCallable, Ro
     return rollback_callable, rollback_content
 
 
-def execute_rollback_version_files(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: str, scenario_type: str | None = None):
+def execute_rollback_version_files(
+    telemetry_ocp: "KrknTelemetryOpenshift",
+    run_uuid: str | None = None,
+    scenario_type: str | None = None,
+    ignore_auto_rollback_config: bool = False
+):
     """
     Execute rollback version files for the given run_uuid and scenario_type.
     This function is called when a signal is received to perform rollback operations.
     
     :param run_uuid: Unique identifier for the run.
     :param scenario_type: Type of the scenario being rolled back.
+    :param ignore_auto_rollback_config: Flag to ignore auto rollback configuration. Will be set to True for manual execute-rollback calls.
     """
-    
+    if not ignore_auto_rollback_config and RollbackConfig().auto is False:
+            logger.warning(f"Auto rollback is disabled, skipping execution for run_uuid={run_uuid or '*'}, scenario_type={scenario_type or '*'}")
+            return
+
     # Get the rollback versions directory
     version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
     if not version_files:
-        logger.warning(f"Skip execution for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
+        logger.warning(f"Skip execution for run_uuid={run_uuid or '*'}, scenario_type={scenario_type or '*'}")
         return
 
     # Execute all version files in the directory
-    logger.info(f"Executing rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
+    logger.info(f"Executing rollback version files for run_uuid={run_uuid or '*'}, scenario_type={scenario_type or '*'}")
     for version_file in version_files:
         try:
             logger.info(f"Executing rollback version file: {version_file}")
@@ -144,28 +153,37 @@ def execute_rollback_version_files(telemetry_ocp: "KrknTelemetryOpenshift", run_
             logger.info('Executing rollback callable...')
             rollback_callable(rollback_content, telemetry_ocp)
             logger.info('Rollback completed.')
-            
-            logger.info(f"Executed {version_file} successfully.")
+            success = True
         except Exception as e:
+            success = False
             logger.error(f"Failed to execute rollback version file {version_file}: {e}")
             raise
 
+        # Rename the version file with .executed suffix if successful
+        if success:
+            try:
+                executed_file = f"{version_file}.executed"
+                os.rename(version_file, executed_file)
+                logger.info(f"Renamed {version_file} to {executed_file} successfully.")
+            except Exception as e:
+                logger.error(f"Failed to rename rollback version file {version_file}: {e}")
+                raise
 
 def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
     """
     Cleanup rollback version files for the given run_uuid and scenario_type.
-    This function is called to remove the rollback version files after execution.
+    This function is called to remove the rollback version files after successful scenario execution in run_scenarios.
     
     :param run_uuid: Unique identifier for the run.
     :param scenario_type: Type of the scenario being rolled back.
     """
-    
+
     # Get the rollback versions directory
     version_files = RollbackConfig.search_rollback_version_files(run_uuid, scenario_type)
     if not version_files:
         logger.warning(f"Skip cleanup for run_uuid={run_uuid}, scenario_type={scenario_type or '*'}")
         return
-    
+
     # Remove all version files in the directory
     logger.info(f"Cleaning up rollback version files for run_uuid={run_uuid}, scenario_type={scenario_type}")
     for version_file in version_files:
@@ -175,7 +193,6 @@ def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
         except Exception as e:
             logger.error(f"Failed to remove rollback version file {version_file}: {e}")
             raise
-
 
 class RollbackHandler:
     def __init__(

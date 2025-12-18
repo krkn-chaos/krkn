@@ -15,7 +15,7 @@ def invoke(command, timeout=None):
 
 
 # Invokes a given command and returns the stdout
-def invoke_no_exit(command, timeout=None):
+def invoke_no_exit(command, timeout=15):
     output = ""
     try:
         output = subprocess.check_output(command, shell=True, universal_newlines=True, timeout=timeout, stderr=subprocess.DEVNULL)

@@ -115,14 +115,15 @@ class AbstractScenarioPlugin(ABC):
                     )
                     return_value = 1
 
-            # execute rollback files based on the return value
-            if return_value != 0:
+            if return_value == 0:
+                cleanup_rollback_version_files(
+                    run_uuid, scenario_telemetry.scenario_type
+                )
+            else:
+                # execute rollback files based on the return value
                 execute_rollback_version_files(
                     telemetry, run_uuid, scenario_telemetry.scenario_type
                 )
-            cleanup_rollback_version_files(
-                run_uuid, scenario_telemetry.scenario_type
-            )
             scenario_telemetry.exit_status = return_value
             scenario_telemetry.end_timestamp = time.time()
             utils.collect_and_put_ocp_logs(
