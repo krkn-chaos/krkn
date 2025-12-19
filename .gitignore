@@ -60,6 +60,7 @@ inspect.local.*
 
 # Tests
 !CI/config/common_test_config.yaml
+CI/config/*.yaml
 CI/out/*
 CI/ci_results
 CI/legacy/*node.yaml
