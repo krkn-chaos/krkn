@@ -18,7 +18,7 @@ from kubernetes.client.api.custom_objects_api import CustomObjectsApi
 from . import cerberus
 
 from krkn.rollback.config import RollbackContent   
-from krkn.rollback.handler import set_rollback_context_decorator, RollbackHandler
+from krkn.rollback.handler import RollbackHandler
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 def get_test_pods(
@@ -1120,19 +1120,18 @@ def pod_outage(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-
-        for direction, ports in filter_dict.items():
-            pass
-            # REGISTER ROLLBACK FOR THIS CHAOS
-            RollbackHandler.set_rollback_callable(
-                rollback_pod_network_outage,  
-                RollbackContent(
-                    namespace=test_namespace,
-                    resource_identifier="pod-network-outage"  
-                )
+        # REGISTER ROLLBACK FOR THIS CHAOS
+        self.rollback_handler.set_rollback_callable(
+            rollback_pod_network_outage,  
+            RollbackContent(
+                namespace=test_namespace,
+                resource_identifier="pod-network-outage"  
             )
+        )
+        for direction, ports in filter_dict.items():
+            
             job_list.extend(
-                apply_outage_policy(  #this is where the actual chaos is applied , os before this we need to add content to rollback handler
+                apply_outage_policy(  #this is where the actual chaos is applied , so before this we need to add content to rollback handler
                     node_dict,
                     ports,
                     job_template,
@@ -1399,17 +1398,15 @@ def pod_egress_shaping(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-
-        for mod in mod_lst:
-            #Registering rollback for egress shaping (not once per node)
-            RollbackHandler.set_rollback_callable(
-                rollback_pod_network_outage,
-                RollbackContent(
-                    namespace=test_namespace,
-                    resource_identifier="pod-egress-shaping"
-                )
+        # Registering rollback for egress shaping (only once)
+        self.rollback_handler.set_rollback_callable(
+            rollback_pod_network_outage,
+            RollbackContent(
+                namespace=test_namespace,
+                resource_identifier="pod-egress-shaping"
             )
-            
+        )
+        for mod in mod_lst:
             for node, ips in node_dict.items():
                 job_list.extend(
                     apply_net_policy(
@@ -1696,16 +1693,15 @@ def pod_ingress_shaping(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-
-        for mod in mod_lst:
-            #Registering rollback for ingress shaping (not per node)
-            RollbackHandler.set_rollback_callable(
-                rollback_pod_network_outage,
-                RollbackContent(
-                    namespace=test_namespace,
-                    resource_identifier="pod-ingress-shaping"
-                )
+        #Registering rollback for ingress shaping (not per node)
+        self.rollback_handler.set_rollback_callable(
+            rollback_pod_network_outage,
+            RollbackContent(
+                namespace=test_namespace,
+                resource_identifier="pod-ingress-shaping"
             )
+        )
+        for mod in mod_lst:
 
             for node, ips in node_dict.items():
                 job_list.extend(

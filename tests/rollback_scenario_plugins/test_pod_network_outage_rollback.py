@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 from krkn.rollback.config import RollbackContent
 from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin import (
     rollback_pod_network_outage
