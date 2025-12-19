@@ -123,11 +123,11 @@ jobs:
           yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
           yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
           yq -i '.telemetry.password="${{secrets.TELEMETRY_PASSWORD}}"' CI/config/common_test_config.yaml
-          echo "test_telemetry" > ./CI/tests/functional_tests
           echo "test_service_hijacking" >> ./CI/tests/functional_tests
           echo "test_app_outages" >> ./CI/tests/functional_tests
           echo "test_container"      >> ./CI/tests/functional_tests
           echo "test_pod" >> ./CI/tests/functional_tests
+          echo "test_telemetry" > ./CI/tests/functional_tests
           echo "test_pod_error" >> ./CI/tests/functional_tests
           echo "test_customapp_pod" >> ./CI/tests/functional_tests
           echo "test_namespace"      >> ./CI/tests/functional_tests
