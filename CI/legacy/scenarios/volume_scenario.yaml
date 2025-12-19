@@ -45,6 +45,31 @@ metadata:
   name: kraken-test-pod
   namespace: kraken
 spec:
+  securityContext:
+    fsGroup: 1001
+  # initContainer to fix permissions on the mounted volume
+  initContainers:
+    - name: fix-permissions
+      image: 'quay.io/centos7/httpd-24-centos7:centos7'
+      command:
+        - sh
+        - -c
+        - |
+          echo "Setting up permissions for /home/kraken..."
+          # Create the directory if it doesn't exist
+          mkdir -p /home/kraken
+          # Set ownership to user 1001 and group 1001
+          chown -R 1001:1001 /home/kraken
+          # Set permissions to allow read/write
+          chmod -R 755 /home/kraken
+          rm -rf /home/kraken/*
+          echo "Permissions fixed. Current state:"
+          ls -la /home/kraken
+      volumeMounts:
+        - mountPath: "/home/kraken"
+          name: kraken-test-pv
+      securityContext:
+        runAsUser: 0  # Run as root to fix permissions
   volumes:
     - name: kraken-test-pv
       persistentVolumeClaim:
@@ -52,8 +77,13 @@ spec:
   containers:
     - name: kraken-test-container
       image: 'quay.io/centos7/httpd-24-centos7:centos7'
-      volumeMounts:
-        - mountPath: "/home/krake-dir/"
-          name: kraken-test-pv
       securityContext:
-        privileged: true
+        runAsUser: 1001
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - mountPath: "/home/kraken"
+          name: kraken-test-pv
