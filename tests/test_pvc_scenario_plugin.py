@@ -589,6 +589,214 @@ class TestPvcScenarioPluginRun:
 
         assert result == 1
 
+    def test_run_both_pvc_and_pod_name_provided(self):
+        """Test run when both pvc_name and pod_name are provided (pod_name is ignored)"""
+        scenario_config = {
+            "pvc_scenario": {
+                "namespace": "test-ns",
+                "pvc_name": "test-pvc",
+                "pod_name": "ignored-pod",  # This should be ignored
+                "fill_percentage": 80,
+                "duration": 1,
+            }
+        }
+        scenario_path = self.create_scenario_file(scenario_config)
+
+        try:
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            # Mock PVC info with pod names
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = ["actual-pod-from-pvc"]
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            # Create mock pod with PVC volume
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "test-pvc"
+            mock_volume.name = "test-volume"
+            mock_pod.volumes = [mock_volume]
+
+            # Create mock container with volume mount
+            mock_container = MagicMock()
+            mock_container.name = "test-container"
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_pod.containers = [mock_container]
+
+            mock_kubecli.get_pod_info.return_value = mock_pod
+
+            # Mock df command output: 10% used
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df command
+                "/usr/bin/fallocate",  # command -v fallocate
+                "/usr/bin/dd",  # command -v dd
+                "",  # fallocate command
+                "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",  # ls -lh (file created)
+                "",  # rm -f (cleanup)
+                "total 0",  # ls -lh (file removed)
+            ]
+
+            mock_scenario_telemetry = MagicMock()
+
+            with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
+                with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status"):
+                    result = self.plugin.run(
+                        run_uuid="test-uuid",
+                        scenario=scenario_path,
+                        krkn_config={},
+                        lib_telemetry=mock_telemetry,
+                        scenario_telemetry=mock_scenario_telemetry,
+                    )
+
+            assert result == 0
+        finally:
+            os.unlink(scenario_path)
+
+    def test_run_pvc_name_only_no_pods_associated(self):
+        """Test run returns 1 when pvc_name is provided but no pods are associated"""
+        scenario_config = {
+            "pvc_scenario": {
+                "namespace": "test-ns",
+                "pvc_name": "test-pvc",
+                "fill_percentage": 80,
+            }
+        }
+        scenario_path = self.create_scenario_file(scenario_config)
+
+        try:
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            # Mock PVC info with empty pod names (no pods using this PVC)
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = []  # No pods associated
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            mock_scenario_telemetry = MagicMock()
+
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario=scenario_path,
+                krkn_config={},
+                lib_telemetry=mock_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            # Should return 1 because random.choice on empty list raises IndexError
+            assert result == 1
+        finally:
+            os.unlink(scenario_path)
+
+    def test_run_file_creation_failed(self):
+        """Test run returns 1 when file creation fails and cleanup is attempted"""
+        scenario_config = {
+            "pvc_scenario": {
+                "namespace": "test-ns",
+                "pod_name": "test-pod",
+                "fill_percentage": 80,
+                "duration": 1,
+            }
+        }
+        scenario_path = self.create_scenario_file(scenario_config)
+
+        try:
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            # Create mock pod with PVC volume
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "test-pvc"
+            mock_volume.name = "test-volume"
+            mock_pod.volumes = [mock_volume]
+
+            # Create mock container with volume mount
+            mock_container = MagicMock()
+            mock_container.name = "test-container"
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_pod.containers = [mock_container]
+
+            mock_kubecli.get_pod_info.return_value = mock_pod
+
+            # Mock PVC info
+            mock_pvc = MagicMock()
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            # Set up exec_cmd_in_pod responses - file creation fails
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df command
+                "/usr/bin/fallocate",  # command -v fallocate
+                "/usr/bin/dd",  # command -v dd
+                "",  # fallocate command
+                "total 0",  # ls -lh shows NO kraken.tmp (file creation failed)
+                "",  # rm -f (cleanup attempt)
+                "total 0",  # ls -lh (cleanup verification)
+            ]
+
+            mock_scenario_telemetry = MagicMock()
+
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario=scenario_path,
+                krkn_config={},
+                lib_telemetry=mock_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            # Should return 1 because file creation failed
+            assert result == 1
+        finally:
+            os.unlink(scenario_path)
+
+
+class TestRollbackTempFileEdgeCases:
+    """Additional tests for rollback_temp_file edge cases"""
+
+    def test_rollback_temp_file_still_exists(self):
+        """Test rollback when file still exists after removal attempt"""
+        mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+        mock_kubecli = MagicMock()
+        mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+        # Simulate file still exists after rm command
+        mock_kubecli.exec_cmd_in_pod.side_effect = [
+            "",  # rm -f command output
+            "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",  # ls -lh shows file still exists
+        ]
+
+        # Create rollback data
+        rollback_data = {
+            "pod_name": "test-pod",
+            "container_name": "test-container",
+            "full_path": "/mnt/data/kraken.tmp",
+            "file_name": "kraken.tmp",
+            "mount_path": "/mnt/data",
+        }
+        encoded_data = base64.b64encode(
+            json.dumps(rollback_data).encode("utf-8")
+        ).decode("utf-8")
+
+        rollback_content = RollbackContent(
+            namespace="test-ns",
+            resource_identifier=encoded_data,
+        )
+
+        # Should not raise exception, just log warning
+        PvcScenarioPlugin.rollback_temp_file(rollback_content, mock_telemetry)
+
+        # Verify exec_cmd_in_pod was called twice
+        assert mock_kubecli.exec_cmd_in_pod.call_count == 2
+
 
 if __name__ == "__main__":
     unittest.main()
