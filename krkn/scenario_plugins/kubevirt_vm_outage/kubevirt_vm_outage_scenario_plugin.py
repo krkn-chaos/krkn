@@ -55,7 +55,8 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                     pods_status.merge(single_pods_status)
             
             scenario_telemetry.affected_pods = pods_status
-                        
+            if len(scenario_telemetry.affected_pods.unrecovered) > 0: 
+                return 1
             return 0
         except Exception as e:
             logging.error(f"KubeVirt VM Outage scenario failed: {e}")

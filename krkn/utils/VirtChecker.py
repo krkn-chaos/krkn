@@ -20,6 +20,7 @@ class VirtChecker:
         self.namespace = get_yaml_item_value(kubevirt_check_config, "namespace", "")
         self.vm_list = []
         self.threads = []
+        self.iteration_lock = threading.Lock()  # Lock to protect current_iterations
         self.threads_limit = threads_limit
         # setting to 0 in case no variables are set, so no threads later get made
         self.batch_size = 0
@@ -57,16 +58,15 @@ class VirtChecker:
             elif len(node_name_list) == 0:
                 # If node_name_list is blank, add all vms
                 self.vm_list.append(VirtCheck({'vm_name':vmi_name, 'ip_address': ip_address, 'namespace':namespace, 'node_name':node_name, "new_ip_address":""}))
-
         self.batch_size = math.ceil(len(self.vm_list)/self.threads_limit)
 
     def check_disconnected_access(self, ip_address: str, worker_name:str = '', vmi_name: str = ''):
         
-        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address}'"
+        virtctl_vm_cmd = f"ssh core@{worker_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address}'"
         
         all_out = invoke_no_exit(virtctl_vm_cmd)
         logging.debug(f"Checking disconnected access for {ip_address} on {worker_name} output: {all_out}")
-        virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+        virtctl_vm_cmd = f"ssh core@{worker_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
         output = invoke_no_exit(virtctl_vm_cmd)
         if 'True' in output:
             logging.debug(f"Disconnected access for {ip_address} on {worker_name} is successful: {output}")
@@ -78,14 +78,14 @@ class VirtChecker:
             new_node_name = vmi.get("status",{}).get("nodeName")
             # if vm gets deleted, it'll start up with a new ip address
             if new_ip_address != ip_address:
-                virtctl_vm_cmd = f"ssh core@{worker_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                virtctl_vm_cmd = f"ssh core@{worker_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {ip_address} on {worker_name}: {new_output}")
                 if 'True' in new_output:
                     return True, new_ip_address, None
             # if node gets stopped, vmis will start up with a new node (and with new ip)
             if new_node_name != worker_name:
-                virtctl_vm_cmd = f"ssh core@{new_node_name} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                virtctl_vm_cmd = f"ssh core@{new_node_name} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {ip_address} on {new_node_name}: {new_output}")
                 if 'True' in new_output:
@@ -93,7 +93,7 @@ class VirtChecker:
             # try to connect with a common "up" node as last resort
             if self.ssh_node:
                 # using new_ip_address here since if it hasn't changed it'll match ip_address
-                virtctl_vm_cmd = f"ssh core@{self.ssh_node} 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
+                virtctl_vm_cmd = f"ssh core@{self.ssh_node} -o ConnectTimeout=5 'ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no root@{new_ip_address} 2>&1 | grep Permission' && echo 'True' || echo 'False'"
                 new_output = invoke_no_exit(virtctl_vm_cmd)
                 logging.debug(f"Disconnected access for {new_ip_address} on {self.ssh_node}: {new_output}")
                 if 'True' in new_output:
@@ -121,13 +121,12 @@ class VirtChecker:
         for thread in self.threads:
             thread.join()
 
-    def batch_list(self, queue: queue.Queue = None):
-        logging.info("batch size" + str(self.batch_size))
+    def batch_list(self, queue: queue.SimpleQueue = None):
         if self.batch_size > 0:
             # Provided prints to easily visualize how the threads are processed.    
             for i in range (0, len(self.vm_list),self.batch_size):
                 if i+self.batch_size > len(self.vm_list):
-                    sub_list = self.vm_list[i:  len(self.vm_list)-1]
+                    sub_list = self.vm_list[i:]
                 else:
                     sub_list = self.vm_list[i: i+self.batch_size]
                 index = i
@@ -135,13 +134,23 @@ class VirtChecker:
                 self.threads.append(t)
                 t.start()
 
-    
-    def run_virt_check(self, vm_list_batch, virt_check_telemetry_queue: queue.Queue):
+    def increment_iterations(self):
+        """Thread-safe method to increment current_iterations"""
+        with self.iteration_lock:
+            self.current_iterations += 1
+
+    def run_virt_check(self, vm_list_batch, virt_check_telemetry_queue: queue.SimpleQueue):
         
         virt_check_telemetry = []
         virt_check_tracker = {}
-        while self.current_iterations < self.iterations:
+        while True:
+            # Thread-safe read of current_iterations
+            with self.iteration_lock:
+                current = self.current_iterations
+            if current >= self.iterations:
+                break
             for vm in vm_list_batch:
+                start_time= datetime.now()
                 try: 
                     if not self.disconnected: 
                         vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
@@ -157,8 +166,9 @@ class VirtChecker:
                             if new_node_name and vm.node_name != new_node_name:
                                 vm.node_name = new_node_name
                 except Exception:
+                    logging.info('Exception in get vm status')
                     vm_status = False
-                
+
                 if vm.vm_name not in virt_check_tracker:
                     start_timestamp = datetime.now()
                     virt_check_tracker[vm.vm_name] = {
@@ -171,6 +181,7 @@ class VirtChecker:
                         "new_ip_address": vm.new_ip_address
                     }
                 else:
+                    
                     if vm_status != virt_check_tracker[vm.vm_name]["status"]:
                         end_timestamp = datetime.now()
                         start_timestamp = virt_check_tracker[vm.vm_name]["start_timestamp"]
@@ -199,9 +210,11 @@ class VirtChecker:
                     virt_check_telemetry.append(VirtCheck(virt_check_tracker[vm]))
             else:
                 virt_check_telemetry.append(VirtCheck(virt_check_tracker[vm]))
-        virt_check_telemetry_queue.put(virt_check_telemetry)
-    
-    def run_post_virt_check(self, vm_list_batch, virt_check_telemetry, post_virt_check_queue: queue.Queue):
+        try:
+            virt_check_telemetry_queue.put(virt_check_telemetry)
+        except Exception as e:
+            logging.error('Put queue error ' + str(e))
+    def run_post_virt_check(self, vm_list_batch, virt_check_telemetry, post_virt_check_queue: queue.SimpleQueue):
         
         virt_check_telemetry = []
         virt_check_tracker = {}
@@ -240,7 +253,7 @@ class VirtChecker:
 
     def gather_post_virt_checks(self, kubevirt_check_telem):
 
-        post_kubevirt_check_queue = queue.Queue()
+        post_kubevirt_check_queue = queue.SimpleQueue()
         post_threads = []
 
         if self.batch_size > 0:

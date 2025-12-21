@@ -141,7 +141,7 @@ def main(options, command: Optional[str]) -> int:
             logging.error(
                 "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
             )
-            return 1
+            return -1
         logging.info("Initializing client to talk to the Kubernetes cluster")
 
         # Generate uuid for the run
@@ -184,10 +184,10 @@ def main(options, command: Optional[str]) -> int:
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
             logging.error("%s isn't a valid port number, please check" % (port))
-            return 1
+            return -1
         if not signal_address:
             logging.error("Please set the signal address in the config")
-            return 1
+            return -1
         address = (signal_address, port)
 
         # If publish_running_status is False this should keep us going
@@ -220,7 +220,7 @@ def main(options, command: Optional[str]) -> int:
                         "invalid distribution selected, running openshift scenarios against kubernetes cluster."
                         "Please set 'kubernetes' in config.yaml krkn.platform and try again"
                     )
-                    return 1
+                    return -1
         if cv != "":
             logging.info(cv)
         else:
@@ -326,7 +326,7 @@ def main(options, command: Optional[str]) -> int:
                                                args=(health_check_config, health_check_telemetry_queue))
         health_check_worker.start()
 
-        kubevirt_check_telemetry_queue = queue.Queue()
+        kubevirt_check_telemetry_queue = queue.SimpleQueue()
         kubevirt_checker = VirtChecker(kubevirt_check_config, iterations=iterations, krkn_lib=kubecli)
         kubevirt_checker.batch_list(kubevirt_check_telemetry_queue)
 
@@ -361,7 +361,7 @@ def main(options, command: Optional[str]) -> int:
                             logging.error(
                                 f"impossible to find scenario {scenario_type}, plugin not found. Exiting"
                             )
-                            sys.exit(1)
+                            sys.exit(-1)
 
                         failed_post_scenarios, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
@@ -393,8 +393,7 @@ def main(options, command: Optional[str]) -> int:
 
             iteration += 1
             health_checker.current_iterations += 1
-            kubevirt_checker.current_iterations += 1
-
+            kubevirt_checker.increment_iterations()
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
         # is disabled, it's necessary to serialize the ChaosRunTelemetry object
@@ -408,14 +407,10 @@ def main(options, command: Optional[str]) -> int:
         
         kubevirt_checker.thread_join()
         kubevirt_check_telem = []
-        i =0
-        while i <= kubevirt_checker.threads_limit:
-            if not kubevirt_check_telemetry_queue.empty():
-                kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
-            else:
-                break
-            i+= 1
+        while not kubevirt_check_telemetry_queue.empty():
+            kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
         chaos_telemetry.virt_checks = kubevirt_check_telem
+        
         post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
         chaos_telemetry.post_virt_checks = post_kubevirt_check
         # if platform is openshift will be collected
@@ -527,7 +522,7 @@ def main(options, command: Optional[str]) -> int:
 
             else:
                 logging.error("Alert profile is not defined")
-                return 1
+                return -1
                 # sys.exit(1)
         if enable_metrics:
             logging.info(f'Capturing metrics using file {metrics_profile}')
@@ -542,17 +537,20 @@ def main(options, command: Optional[str]) -> int:
                 telemetry_json
             )
 
+        # want to exit with 1 first to show failure of scenario 
+        # even if alerts failing
+        if failed_post_scenarios:
+            logging.error(
+                "Post scenarios are still failing at the end of all iterations"
+            )
+            # sys.exit(1)
+            return 1
+
         if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
             # sys.exit(2)
             return 2
 
-        if failed_post_scenarios:
-            logging.error(
-                "Post scenarios are still failing at the end of all iterations"
-            )
-            # sys.exit(2)
-            return 2
         if health_checker.ret_value != 0:
             logging.error("Health check failed for the applications, Please check; exiting")
             return health_checker.ret_value
@@ -568,7 +566,7 @@ def main(options, command: Optional[str]) -> int:
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         # sys.exit(1)
-        return 2
+        return -1
 
     return 0
 
