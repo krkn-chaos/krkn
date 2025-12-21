@@ -9,14 +9,14 @@ azure-mgmt-network==27.0.0
 itsdangerous==2.0.1
 coverage==7.6.12
 datetime==5.4
-docker==7.0.0
+docker>=6.0,<7.0  # docker 7.0+ has breaking changes with Unix sockets
 gitpython==3.1.41
 google-auth==2.37.0
 google-cloud-compute==1.22.0
 ibm_cloud_sdk_core==3.18.0
 ibm_vpc==0.20.0
 jinja2==3.1.6
-krkn-lib==5.1.12
+krkn-lib==5.1.13
 lxml==5.1.0
 kubernetes==34.1.0
 numpy==1.26.4
@@ -28,11 +28,12 @@ pyfiglet==1.0.2
 pytest==8.0.0
 python-ipmi==0.5.4
 python-openstackclient==6.5.0
-requests==2.32.4
+requests<2.32  # requests 2.32+ breaks Unix socket support (http+docker scheme)
+requests-unixsocket>=0.4.0  # Required for Docker Unix socket support
 service_identity==24.1.0
 PyYAML==6.0.1
 setuptools==78.1.1
-werkzeug==3.0.6
+werkzeug==3.1.4
 wheel==0.42.0
 zope.interface==5.4.0
 

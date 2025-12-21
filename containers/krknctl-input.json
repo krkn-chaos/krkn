@@ -520,6 +520,26 @@
     "required": "false"
   },
   {
+    "name": "kubevirt-exit-on-failure",
+    "short_description": "KubeVirt fail if failed vms at end of run",
+    "description": "KubeVirt fails run if vms still have false status",
+    "variable": "KUBE_VIRT_EXIT_ON_FAIL",
+    "type": "enum",
+    "allowed_values": "True,False,true,false",
+    "separator": ",",
+    "default": "False",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-node-node",
+    "short_description": "KubeVirt node to filter vms on",
+    "description": "Only track VMs in KubeVirt on given node name",
+    "variable": "KUBE_VIRT_NODE_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
     "name": "krkn-debug",
     "short_description": "Krkn debug mode",
     "description": "Enables debug mode for Krkn",
