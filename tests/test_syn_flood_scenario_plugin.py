@@ -245,6 +245,7 @@ class TestSynFloodRun(unittest.TestCase):
     def _create_scenario_file(self, tmp_path, config=None):
         """Helper to create a temporary scenario YAML file"""
         import yaml
+        from pathlib import Path
 
         default_config = {
             "packet-size": 120,
@@ -261,7 +262,7 @@ class TestSynFloodRun(unittest.TestCase):
         if config:
             default_config.update(config)
 
-        scenario_file = tmp_path / "test_scenario.yaml"
+        scenario_file = Path(tmp_path) / "test_scenario.yaml"
         with open(scenario_file, "w") as f:
             yaml.dump(default_config, f)
         return str(scenario_file)
@@ -274,158 +275,176 @@ class TestSynFloodRun(unittest.TestCase):
         mock_scenario_telemetry = MagicMock()
         return mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry
 
-    def test_run_successful_with_target_service(self, tmp_path):
+    def test_run_successful_with_target_service(self):
         """Test successful execution with target-service"""
-        scenario_file = self._create_scenario_file(tmp_path)
-        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
-            self._create_mocks()
-        )
+        import tempfile
 
-        mock_lib_kubernetes.service_exists.return_value = True
-        # Pod finishes immediately
-        mock_lib_kubernetes.is_pod_running.return_value = False
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
 
-        plugin = SynFloodScenarioPlugin()
+            mock_lib_kubernetes.service_exists.return_value = True
+            # Pod finishes immediately
+            mock_lib_kubernetes.is_pod_running.return_value = False
 
-        result = plugin.run(
-            run_uuid=str(uuid.uuid4()),
-            scenario=scenario_file,
-            krkn_config={},
-            lib_telemetry=mock_lib_telemetry,
-            scenario_telemetry=mock_scenario_telemetry,
-        )
+            plugin = SynFloodScenarioPlugin()
 
-        assert result == 0
-        mock_lib_kubernetes.service_exists.assert_called_once_with(
-            "elasticsearch", "default"
-        )
-        mock_lib_kubernetes.deploy_syn_flood.assert_called_once()
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                krkn_config={},
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
 
-    def test_run_successful_with_label_selector(self, tmp_path):
+            self.assertEqual(result, 0)
+            mock_lib_kubernetes.service_exists.assert_called_once_with(
+                "elasticsearch", "default"
+            )
+            mock_lib_kubernetes.deploy_syn_flood.assert_called_once()
+
+    def test_run_successful_with_label_selector(self):
         """Test successful execution with target-service-label"""
-        scenario_file = self._create_scenario_file(
-            tmp_path,
-            {"target-service": "", "target-service-label": "app=elasticsearch"},
-        )
-        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
-            self._create_mocks()
-        )
+        import tempfile
 
-        mock_lib_kubernetes.select_service_by_label.return_value = [
-            "elasticsearch-1",
-            "elasticsearch-2",
-        ]
-        mock_lib_kubernetes.service_exists.return_value = True
-        mock_lib_kubernetes.is_pod_running.return_value = False
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(
+                tmp_dir,
+                {"target-service": "", "target-service-label": "app=elasticsearch"},
+            )
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
 
-        plugin = SynFloodScenarioPlugin()
+            mock_lib_kubernetes.select_service_by_label.return_value = [
+                "elasticsearch-1",
+                "elasticsearch-2",
+            ]
+            mock_lib_kubernetes.service_exists.return_value = True
+            mock_lib_kubernetes.is_pod_running.return_value = False
 
-        result = plugin.run(
-            run_uuid=str(uuid.uuid4()),
-            scenario=scenario_file,
-            krkn_config={},
-            lib_telemetry=mock_lib_telemetry,
-            scenario_telemetry=mock_scenario_telemetry,
-        )
+            plugin = SynFloodScenarioPlugin()
 
-        assert result == 0
-        mock_lib_kubernetes.select_service_by_label.assert_called_once_with(
-            "default", "app=elasticsearch"
-        )
-        # Should deploy pods for each service found
-        assert mock_lib_kubernetes.deploy_syn_flood.call_count == 2
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                krkn_config={},
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
 
-    def test_run_service_not_found(self, tmp_path):
+            self.assertEqual(result, 0)
+            mock_lib_kubernetes.select_service_by_label.assert_called_once_with(
+                "default", "app=elasticsearch"
+            )
+            # Should deploy pods for each service found
+            self.assertEqual(mock_lib_kubernetes.deploy_syn_flood.call_count, 2)
+
+    def test_run_service_not_found(self):
         """Test run method when service does not exist"""
-        scenario_file = self._create_scenario_file(tmp_path)
-        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
-            self._create_mocks()
-        )
+        import tempfile
 
-        mock_lib_kubernetes.service_exists.return_value = False
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
 
-        plugin = SynFloodScenarioPlugin()
+            mock_lib_kubernetes.service_exists.return_value = False
 
-        result = plugin.run(
-            run_uuid=str(uuid.uuid4()),
-            scenario=scenario_file,
-            krkn_config={},
-            lib_telemetry=mock_lib_telemetry,
-            scenario_telemetry=mock_scenario_telemetry,
-        )
+            plugin = SynFloodScenarioPlugin()
 
-        assert result == 1
-        mock_lib_kubernetes.deploy_syn_flood.assert_not_called()
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                krkn_config={},
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
 
-    def test_run_multiple_pods(self, tmp_path):
+            self.assertEqual(result, 1)
+            mock_lib_kubernetes.deploy_syn_flood.assert_not_called()
+
+    def test_run_multiple_pods(self):
         """Test run method with multiple attacker pods"""
-        scenario_file = self._create_scenario_file(tmp_path, {"number-of-pods": 3})
-        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
-            self._create_mocks()
-        )
+        import tempfile
 
-        mock_lib_kubernetes.service_exists.return_value = True
-        mock_lib_kubernetes.is_pod_running.return_value = False
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir, {"number-of-pods": 3})
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
 
-        plugin = SynFloodScenarioPlugin()
+            mock_lib_kubernetes.service_exists.return_value = True
+            mock_lib_kubernetes.is_pod_running.return_value = False
 
-        result = plugin.run(
-            run_uuid=str(uuid.uuid4()),
-            scenario=scenario_file,
-            krkn_config={},
-            lib_telemetry=mock_lib_telemetry,
-            scenario_telemetry=mock_scenario_telemetry,
-        )
+            plugin = SynFloodScenarioPlugin()
 
-        assert result == 0
-        assert mock_lib_kubernetes.deploy_syn_flood.call_count == 3
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                krkn_config={},
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
 
-    def test_run_exception_handling(self, tmp_path):
+            self.assertEqual(result, 0)
+            self.assertEqual(mock_lib_kubernetes.deploy_syn_flood.call_count, 3)
+
+    def test_run_exception_handling(self):
         """Test run method handles exceptions gracefully"""
-        scenario_file = self._create_scenario_file(tmp_path)
-        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
-            self._create_mocks()
-        )
+        import tempfile
 
-        mock_lib_kubernetes.service_exists.return_value = True
-        mock_lib_kubernetes.deploy_syn_flood.side_effect = Exception("Deployment failed")
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
 
-        plugin = SynFloodScenarioPlugin()
+            mock_lib_kubernetes.service_exists.return_value = True
+            mock_lib_kubernetes.deploy_syn_flood.side_effect = Exception("Deployment failed")
 
-        result = plugin.run(
-            run_uuid=str(uuid.uuid4()),
-            scenario=scenario_file,
-            krkn_config={},
-            lib_telemetry=mock_lib_telemetry,
-            scenario_telemetry=mock_scenario_telemetry,
-        )
+            plugin = SynFloodScenarioPlugin()
 
-        assert result == 1
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                krkn_config={},
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
 
-    def test_run_waits_for_pods_to_finish(self, tmp_path):
+            self.assertEqual(result, 1)
+
+    def test_run_waits_for_pods_to_finish(self):
         """Test run method waits for pods to finish"""
-        scenario_file = self._create_scenario_file(tmp_path)
-        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
-            self._create_mocks()
-        )
+        import tempfile
 
-        mock_lib_kubernetes.service_exists.return_value = True
-        # Pod runs for a few iterations then finishes
-        mock_lib_kubernetes.is_pod_running.side_effect = [True, True, False]
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
 
-        plugin = SynFloodScenarioPlugin()
+            mock_lib_kubernetes.service_exists.return_value = True
+            # Pod runs for a few iterations then finishes
+            mock_lib_kubernetes.is_pod_running.side_effect = [True, True, False]
 
-        result = plugin.run(
-            run_uuid=str(uuid.uuid4()),
-            scenario=scenario_file,
-            krkn_config={},
-            lib_telemetry=mock_lib_telemetry,
-            scenario_telemetry=mock_scenario_telemetry,
-        )
+            plugin = SynFloodScenarioPlugin()
 
-        assert result == 0
-        # Should have checked pod status multiple times
-        assert mock_lib_kubernetes.is_pod_running.call_count >= 1
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                krkn_config={},
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            self.assertEqual(result, 0)
+            # Should have checked pod status multiple times
+            self.assertGreaterEqual(mock_lib_kubernetes.is_pod_running.call_count, 1)
 
 
 class TestRollbackSynFloodPods(unittest.TestCase):    
@@ -484,11 +503,20 @@ class TestRollbackSynFloodPods(unittest.TestCase):
         )
 
         mock_lib_telemetry = MagicMock()
+        mock_lib_kubernetes = MagicMock()
+        mock_lib_telemetry.get_lib_kubernetes.return_value = mock_lib_kubernetes
 
         # Should not raise exception, just log error
-        SynFloodScenarioPlugin.rollback_syn_flood_pods(
-            rollback_content, mock_lib_telemetry
-        )
+        with self.assertLogs(level='ERROR') as log_context:
+            SynFloodScenarioPlugin.rollback_syn_flood_pods(
+                rollback_content, mock_lib_telemetry
+            )
+        
+        # Verify error was logged
+        self.assertTrue(any('error' in log.lower() for log in log_context.output))
+        
+        # Verify delete_pod was not called due to invalid data
+        mock_lib_kubernetes.delete_pod.assert_not_called()
 
 
 if __name__ == "__main__":
