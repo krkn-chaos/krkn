@@ -209,7 +209,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             statefulsets = kubecli.get_all_statefulset(namespace)
             for statefulset in statefulsets:
-                logging.info("Deleting statefulsets" + statefulsets)
+                logging.info("Deleting statefulset" + statefulset)
                 kubecli.delete_statefulset(statefulset, namespace)
         except Exception as e:
             logging.error(

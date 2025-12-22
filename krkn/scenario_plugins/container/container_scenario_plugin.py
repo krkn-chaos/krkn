@@ -1,6 +1,7 @@
 import logging
 import random
 import time
+import traceback
 from asyncio import Future
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -41,6 +42,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                         logging.info("ContainerScenarioPlugin failed with unrecovered containers")
                         return 1
         except (RuntimeError, Exception) as e:
+            logging.error("Stack trace:\n%s", traceback.format_exc())
             logging.error("ContainerScenarioPlugin exiting due to Exception %s" % e)
             return 1
         else:
@@ -50,7 +52,6 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         return ["container_scenarios"]
 
     def start_monitoring(self, kill_scenario: dict, lib_telemetry: KrknTelemetryOpenshift) -> Future:
-        
         namespace_pattern = f"^{kill_scenario['namespace']}$"
         label_selector = kill_scenario["label_selector"]
         recovery_time = kill_scenario["expected_recovery_time"]
@@ -70,6 +71,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         container_name = get_yaml_item_value(cont_scenario, "container_name", "")
         kill_action = get_yaml_item_value(cont_scenario, "action", 1)
         kill_count = get_yaml_item_value(cont_scenario, "count", 1)
+        exclude_label = get_yaml_item_value(cont_scenario, "exclude_label", "")
         if not isinstance(kill_action, int):
             logging.error(
                 "Please make sure the action parameter defined in the "
@@ -91,7 +93,19 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 pods = kubecli.get_all_pods(label_selector)
             else:
                 # Only returns pod names
-                pods = kubecli.list_pods(namespace, label_selector)
+                # Use list_pods with exclude_label parameter to exclude pods
+                if exclude_label:
+                    logging.info(
+                        "Using exclude_label '%s' to exclude pods from container scenario %s in namespace %s",
+                        exclude_label,
+                        scenario_name,
+                        namespace,
+                    )
+                pods = kubecli.list_pods(
+                    namespace=namespace,
+                    label_selector=label_selector,
+                    exclude_label=exclude_label if exclude_label else None
+                )
         else:
             if namespace == "*":
                 logging.error(
@@ -102,6 +116,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 # sys.exit(1)
                 raise RuntimeError()
             pods = pod_names
+
         # get container and pod name
         container_pod_list = []
         for pod in pods:
@@ -218,4 +233,5 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             timer += 5
             logging.info("Waiting 5 seconds for containers to become ready")
             time.sleep(5)
+
         return killed_container_list
