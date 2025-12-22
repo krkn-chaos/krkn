@@ -239,7 +239,7 @@ class TestParseConfig(unittest.TestCase):
             assert config["target-service"] == ""
 
 
-class TestSynFloodRun:
+class TestSynFloodRun(unittest.TestCase):
     """Tests for the run method of SynFloodScenarioPlugin"""
 
     def _create_scenario_file(self, tmp_path, config=None):
@@ -428,9 +428,8 @@ class TestSynFloodRun:
         assert mock_lib_kubernetes.is_pod_running.call_count >= 1
 
 
-class TestRollbackSynFloodPods:
+class TestRollbackSynFloodPods(unittest.TestCase):    
     """Tests for rollback_syn_flood_pods static method"""
-
     def test_rollback_syn_flood_pods_successful(self):
         """Test successful rollback of syn flood pods"""
         pod_names = ["syn-flood-abc123", "syn-flood-def456"]
