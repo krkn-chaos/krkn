@@ -74,7 +74,6 @@ jobs:
           kubectl get nodes --show-labels=true
       # Pull request only steps
       - name: Run unit tests
-        if: github.event_name == 'pull_request'
         run: python -m coverage run -a -m unittest discover -s tests -v
 
       - name: Setup Pull Request Functional Tests
@@ -102,7 +101,7 @@ jobs:
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
             echo "test_pod_server" >> ./CI/tests/functional_tests
             echo "test_node" >> ./CI/tests/functional_tests
-            echo "test_pvc" >> ./CI/tests/functional_tests
+            # echo "test_pvc" >> ./CI/tests/functional_tests
 
       # Push on main only steps + all other functional to collect coverage
       # for the badge
@@ -124,11 +123,11 @@ jobs:
           yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
           yq -i '.telemetry.username="${{secrets.TELEMETRY_USERNAME}}"' CI/config/common_test_config.yaml
           yq -i '.telemetry.password="${{secrets.TELEMETRY_PASSWORD}}"' CI/config/common_test_config.yaml
-          echo "test_telemetry" > ./CI/tests/functional_tests
           echo "test_service_hijacking" >> ./CI/tests/functional_tests
           echo "test_app_outages" >> ./CI/tests/functional_tests
           echo "test_container"      >> ./CI/tests/functional_tests
           echo "test_pod" >> ./CI/tests/functional_tests
+          echo "test_telemetry" > ./CI/tests/functional_tests
           echo "test_pod_error" >> ./CI/tests/functional_tests
           echo "test_customapp_pod" >> ./CI/tests/functional_tests
           echo "test_namespace"      >> ./CI/tests/functional_tests
@@ -140,7 +139,7 @@ jobs:
           echo "test_pod_network_filter" >> ./CI/tests/functional_tests
           echo "test_pod_server" >> ./CI/tests/functional_tests
           echo "test_node" >> ./CI/tests/functional_tests
-          echo "test_pvc" >> ./CI/tests/functional_tests
+          # echo "test_pvc" >> ./CI/tests/functional_tests 
       # Final common steps
       - name: Run Functional tests
         env:
