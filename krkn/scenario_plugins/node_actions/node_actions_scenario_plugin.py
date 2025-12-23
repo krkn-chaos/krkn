@@ -225,11 +225,11 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             cloud_type = get_yaml_item_value(node_scenario, "cloud_type", "generic")
             
             # Skip rollback for actions that complete successfully and don't leave nodes in bad state
+            # Note: node_stop_scenario is NOT skipped - if interrupted, nodes are stopped and need restoration
             skip_rollback_actions = [
-                "node_start_scenario",      
-                "node_stop_scenario",       
-                "node_termination_scenario", 
-                "node_reboot_scenario",      
+                "node_start_scenario",      # Node is started - completes successfully, no rollback needed
+                "node_termination_scenario", # Node is terminated - can't rollback anyway
+                "node_reboot_scenario",      # Node reboots and comes back up - completes successfully
             ]
             
             # Only set rollback for actions that leave nodes in a bad state that needs restoration
@@ -402,9 +402,14 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             )
             
             # Determine rollback action based on original action
-            # Note: node_start_scenario, node_stop_scenario, node_termination_scenario, 
-            # and node_reboot_scenario are skipped as they don't leave nodes in bad state
-            if action == "stop_kubelet_scenario":
+            # Note: node_start_scenario, node_termination_scenario, and node_reboot_scenario 
+            # are skipped as they don't leave nodes in bad state
+            if action == "node_stop_scenario":
+                # Need to start the stopped nodes
+                logging.info("Rolling back node_stop_scenario: starting stopped nodes")
+                _rollback_node_stop(affected_nodes, cloud_type, lib_telemetry)
+                
+            elif action == "stop_kubelet_scenario":
                 # Need to start kubelet that was stopped
                 logging.info("Rolling back stop_kubelet_scenario: starting kubelet")
                 _rollback_stop_kubelet(affected_nodes, lib_telemetry)
