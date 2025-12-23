@@ -40,7 +40,7 @@ class TestServiceHijackingScenarioPlugin(unittest.TestCase):
         self.assertEqual(len(result), 1)
 
 
-class TestRollbackServiceHijacking(unittest.TestCase):  
+class TestRollbackServiceHijacking(unittest.TestCase): 
     def test_rollback_service_hijacking(self):
         """
         Test rollback functionality for ServiceHijackingScenarioPlugin
@@ -103,7 +103,6 @@ class TestRollbackServiceHijacking(unittest.TestCase):
         ServiceHijackingScenarioPlugin.rollback_service_hijacking(
             rollback_content, mock_lib_telemetry
         )
-        
         # Verify error was logged to inform operators of rollback failure
         mock_logging.error.assert_called_once()
         error_message = mock_logging.error.call_args[0][0]
@@ -191,12 +190,12 @@ class TestServiceHijackingRun(unittest.TestCase):
             scenario_telemetry=mock_scenario_telemetry,
         )
 
-        assert result == 0
-        mock_lib_kubernetes.service_exists.assert_called_once_with(
-            "nginx-service", "default"
-        )
-        mock_lib_kubernetes.deploy_service_hijacking.assert_called_once()
-        assert mock_lib_kubernetes.replace_service_selector.call_count == 2
+        self.assertEqual(result, 0)  
+        mock_lib_kubernetes.service_exists.assert_called_once_with(  
+            "nginx-service", "default"  
+        )  
+        mock_lib_kubernetes.deploy_service_hijacking.assert_called_once()  
+        self.assertEqual(mock_lib_kubernetes.replace_service_selector.call_count, 2)  
         mock_lib_kubernetes.undeploy_service_hijacking.assert_called_once_with(
             mock_webservice
         )
