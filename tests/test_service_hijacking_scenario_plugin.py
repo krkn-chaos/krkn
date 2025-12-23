@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 import uuid
-
+import yaml
 from krkn.rollback.config import RollbackContent
 from krkn.scenario_plugins.service_hijacking.service_hijacking_scenario_plugin import (
     ServiceHijackingScenarioPlugin,
@@ -124,8 +124,6 @@ class TestServiceHijackingRun(unittest.TestCase):
 
     def _create_scenario_file(self, config=None):
         """Helper to create a temporary scenario YAML file"""
-        import yaml
-
         default_config = {
             "service_name": "nginx-service",
             "service_namespace": "default",
