@@ -607,13 +607,13 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
         assert result == 1
 
     def test_run_both_pvc_and_pod_name_provided(self):
-        """Test run when both pvc_name and pod_name are provided (pod_name is ignored)"""
+        """Test run when both pvc_name and pod_name are provided (pod_name is overridden)"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
                 "pvc_scenario": {
                     "namespace": "test-ns",
                     "pvc_name": "test-pvc",
-                    "pod_name": "ignored-pod",  # This should be ignored
+                    "pod_name": "ignored-pod",  # This will be overridden
                     "fill_percentage": 80,
                     "duration": 1,
                 }
@@ -671,6 +671,19 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                     )
 
             assert result == 0
+            
+            # Verify pod_name was overridden with pod from PVC's podNames list
+            # get_pod_info should be called with "actual-pod-from-pvc", not "ignored-pod"
+            mock_kubecli.get_pod_info.assert_called_with(
+                name="actual-pod-from-pvc", 
+                namespace="test-ns"
+            )
+            
+            # Verify exec_cmd_in_pod uses the overridden pod name
+            for call in mock_kubecli.exec_cmd_in_pod.call_args_list:
+                kwargs = call[1]
+                if 'pod_name' in kwargs:
+                    self.assertEqual(kwargs['pod_name'], "actual-pod-from-pvc")
 
     def test_run_pvc_name_only_no_pods_associated(self):
         """Test run returns 1 when pvc_name is provided but no pods are associated"""
@@ -707,7 +720,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             assert result == 1
 
     def test_run_file_creation_failed(self):
-        """Test run returns 1 when file creation fails and cleanup is attempted"""
+        """Test run returns 1 when file creation fails and verifies cleanup is attempted"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
                 "pvc_scenario": {
@@ -768,13 +781,17 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
             # Should return 1 because file creation failed
             assert result == 1
+            
+            # Verify cleanup was attempted (7 calls total: df, 2x command -v, fallocate, ls, rm, ls)
+            assert mock_kubecli.exec_cmd_in_pod.call_count == 7
 
 
 class TestRollbackTempFileEdgeCases(unittest.TestCase):
     """Additional tests for rollback_temp_file edge cases"""
 
-    def test_rollback_temp_file_still_exists(self):
-        """Test rollback when file still exists after removal attempt"""
+    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.logging")
+    def test_rollback_temp_file_still_exists(self, mock_logging):
+        """Test rollback when file still exists after removal attempt and logs warning"""
         mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
         mock_kubecli = MagicMock()
         mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -807,6 +824,12 @@ class TestRollbackTempFileEdgeCases(unittest.TestCase):
 
         # Verify exec_cmd_in_pod was called twice
         assert mock_kubecli.exec_cmd_in_pod.call_count == 2
+        
+        # Verify warning was logged to inform operators of incomplete rollback
+        mock_logging.warning.assert_called_once()
+        warning_message = mock_logging.warning.call_args[0][0]
+        self.assertIn("may still exist after rollback attempt", warning_message)
+        self.assertIn("kraken.tmp", warning_message)
 
 
 if __name__ == "__main__":
