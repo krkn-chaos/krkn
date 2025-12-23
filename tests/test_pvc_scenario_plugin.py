@@ -205,8 +205,9 @@ class TestRollbackTempFile(unittest.TestCase):
         # Verify exec_cmd_in_pod was called
         assert mock_kubecli.exec_cmd_in_pod.call_count == 2
 
-    def test_rollback_temp_file_invalid_data(self):
-        """Test rollback handles invalid encoded data gracefully"""
+    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.logging")
+    def test_rollback_temp_file_invalid_data(self, mock_logging):
+        """Test rollback handles invalid encoded data gracefully and logs error"""
         mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
 
         rollback_content = RollbackContent(
@@ -217,6 +218,11 @@ class TestRollbackTempFile(unittest.TestCase):
         # Should not raise exception, just log the error
         PvcScenarioPlugin.rollback_temp_file(rollback_content, mock_telemetry)
 
+        # Verify error was logged to inform users of rollback failure
+        mock_logging.error.assert_called_once()
+        error_message = mock_logging.error.call_args[0][0]
+        self.assertIn("Failed to rollback PVC scenario temp file", error_message)
+
 
 class TestPvcScenarioPluginRun(unittest.TestCase):
     """Tests for the run method of PvcScenarioPlugin"""
@@ -225,26 +231,26 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
 
-    def create_scenario_file(self, config: dict) -> str:
-        """Helper to create a temporary scenario YAML file"""
+    def create_scenario_file(self, config: dict, temp_dir: str) -> str:
+        """Helper to create a temporary scenario YAML file in the given directory"""
         import yaml
 
-        fd, path = tempfile.mkstemp(suffix=".yaml")
-        with os.fdopen(fd, "w") as f:
+        path = os.path.join(temp_dir, "scenario.yaml")
+        with open(path, "w") as f:
             yaml.dump(config, f)
         return path
 
     def test_run_missing_namespace(self):
         """Test run returns 1 when namespace is missing"""
-        scenario_config = {
-            "pvc_scenario": {
-                "pvc_name": "test-pvc",
-                # namespace is missing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "pvc_name": "test-pvc",
+                    # namespace is missing
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_scenario_telemetry = MagicMock()
 
@@ -257,20 +263,18 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_missing_pvc_and_pod_name(self):
         """Test run returns 1 when both pvc_name and pod_name are missing"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                # pvc_name and pod_name are missing
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    # pvc_name and pod_name are missing
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_scenario_telemetry = MagicMock()
 
@@ -283,20 +287,18 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_pod_not_found(self):
         """Test run returns 1 when pod doesn't exist"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pod_name": "non-existent-pod",
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "non-existent-pod",
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -312,20 +314,18 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_pvc_not_found_for_pod(self):
         """Test run returns 1 when pod has no PVC"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pod_name": "test-pod",
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -348,21 +348,19 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_invalid_fill_percentage(self):
         """Test run returns 1 when target fill percentage is invalid"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pod_name": "test-pod",
-                "fill_percentage": 10,  # Lower than current usage
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 10,  # Lower than current usage
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -406,24 +404,22 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
             # Should return 1 because target fill (10%) < current fill (50%)
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status")
     def test_run_success_with_fallocate(self, mock_publish, mock_sleep):
         """Test successful run using fallocate"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pod_name": "test-pod",
-                "fill_percentage": 80,
-                "duration": 1,
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -473,24 +469,22 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
             assert result == 0
             mock_sleep.assert_called_once_with(1)
-        finally:
-            os.unlink(scenario_path)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status")
     def test_run_success_with_dd(self, mock_publish, mock_sleep):
         """Test successful run using dd when fallocate is not available"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pod_name": "test-pod",
-                "fill_percentage": 80,
-                "duration": 1,
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -539,21 +533,19 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             assert result == 0
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_no_binary_available(self):
         """Test run returns 1 when neither fallocate nor dd is available"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pod_name": "test-pod",
-                "fill_percentage": 80,
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 80,
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -598,8 +590,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_file_not_found(self):
         """Test run returns 1 when scenario file doesn't exist"""
@@ -618,18 +608,18 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
     def test_run_both_pvc_and_pod_name_provided(self):
         """Test run when both pvc_name and pod_name are provided (pod_name is ignored)"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pvc_name": "test-pvc",
-                "pod_name": "ignored-pod",  # This should be ignored
-                "fill_percentage": 80,
-                "duration": 1,
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pvc_name": "test-pvc",
+                    "pod_name": "ignored-pod",  # This should be ignored
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -681,21 +671,19 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                     )
 
             assert result == 0
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_pvc_name_only_no_pods_associated(self):
         """Test run returns 1 when pvc_name is provided but no pods are associated"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pvc_name": "test-pvc",
-                "fill_percentage": 80,
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pvc_name": "test-pvc",
+                    "fill_percentage": 80,
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -717,22 +705,20 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
             # Should return 1 because random.choice on empty list raises IndexError
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
     def test_run_file_creation_failed(self):
         """Test run returns 1 when file creation fails and cleanup is attempted"""
-        scenario_config = {
-            "pvc_scenario": {
-                "namespace": "test-ns",
-                "pod_name": "test-pod",
-                "fill_percentage": 80,
-                "duration": 1,
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
             }
-        }
-        scenario_path = self.create_scenario_file(scenario_config)
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
 
-        try:
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
@@ -782,8 +768,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
             # Should return 1 because file creation failed
             assert result == 1
-        finally:
-            os.unlink(scenario_path)
 
 
 class TestRollbackTempFileEdgeCases(unittest.TestCase):
