@@ -16,8 +16,6 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -44,52 +42,81 @@ class TestPvcScenarioPlugin(unittest.TestCase):
         self.assertEqual(len(result), 1)
 
 
-class TestToKbytes:
+class TestToKbytes(unittest.TestCase):
     """Tests for the to_kbytes method"""
 
-    def setup_method(self):
+    def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
 
-    @pytest.mark.parametrize(
-        "value,expected",
-        [
-            ("1Ki", 1),  # 1 KB
-            ("2Ki", 2),  # 2 KB
-            ("1Mi", 1024),  # 1024 KB
-            ("2Mi", 2 * 1024),  # 2048 KB
-            ("1Gi", 1024 * 1024),  # 1 GB in KB
-            ("5Gi", 5 * 1024 * 1024),  # 5 GB in KB
-            ("1Ti", 1024 * 1024 * 1024),  # 1 TB in KB
-        ],
-    )
-    def test_to_kbytes_valid_values(self, value, expected):
-        """Test to_kbytes with valid Kubernetes storage values"""
-        result = self.plugin.to_kbytes(value)
-        assert result == expected
+    def test_to_kbytes_1ki(self):
+        """Test to_kbytes with 1Ki"""
+        self.assertEqual(self.plugin.to_kbytes("1Ki"), 1)
 
-    @pytest.mark.parametrize(
-        "invalid_value",
-        [
-            "1K",  # Missing 'i'
-            "1MB",  # Invalid format
-            "1Gib",  # Extra character
-            "abc",  # Non-numeric
-            "1024",  # Missing unit
-            "",  # Empty string
-            "1Pi",  # Unsupported unit (Peta)
-        ],
-    )
-    def test_to_kbytes_invalid_values(self, invalid_value):
-        """Test to_kbytes raises RuntimeError for invalid values"""
-        with pytest.raises(RuntimeError):
-            self.plugin.to_kbytes(invalid_value)
+    def test_to_kbytes_2ki(self):
+        """Test to_kbytes with 2Ki"""
+        self.assertEqual(self.plugin.to_kbytes("2Ki"), 2)
+
+    def test_to_kbytes_1mi(self):
+        """Test to_kbytes with 1Mi"""
+        self.assertEqual(self.plugin.to_kbytes("1Mi"), 1024)
+
+    def test_to_kbytes_2mi(self):
+        """Test to_kbytes with 2Mi"""
+        self.assertEqual(self.plugin.to_kbytes("2Mi"), 2 * 1024)
+
+    def test_to_kbytes_1gi(self):
+        """Test to_kbytes with 1Gi"""
+        self.assertEqual(self.plugin.to_kbytes("1Gi"), 1024 * 1024)
+
+    def test_to_kbytes_5gi(self):
+        """Test to_kbytes with 5Gi"""
+        self.assertEqual(self.plugin.to_kbytes("5Gi"), 5 * 1024 * 1024)
+
+    def test_to_kbytes_1ti(self):
+        """Test to_kbytes with 1Ti"""
+        self.assertEqual(self.plugin.to_kbytes("1Ti"), 1024 * 1024 * 1024)
+
+    def test_to_kbytes_invalid_missing_i(self):
+        """Test to_kbytes raises RuntimeError for 1K (missing i)"""
+        with self.assertRaises(RuntimeError):
+            self.plugin.to_kbytes("1K")
+
+    def test_to_kbytes_invalid_format_mb(self):
+        """Test to_kbytes raises RuntimeError for 1MB"""
+        with self.assertRaises(RuntimeError):
+            self.plugin.to_kbytes("1MB")
+
+    def test_to_kbytes_invalid_extra_char(self):
+        """Test to_kbytes raises RuntimeError for 1Gib"""
+        with self.assertRaises(RuntimeError):
+            self.plugin.to_kbytes("1Gib")
+
+    def test_to_kbytes_invalid_non_numeric(self):
+        """Test to_kbytes raises RuntimeError for abc"""
+        with self.assertRaises(RuntimeError):
+            self.plugin.to_kbytes("abc")
+
+    def test_to_kbytes_invalid_missing_unit(self):
+        """Test to_kbytes raises RuntimeError for 1024"""
+        with self.assertRaises(RuntimeError):
+            self.plugin.to_kbytes("1024")
+
+    def test_to_kbytes_invalid_empty(self):
+        """Test to_kbytes raises RuntimeError for empty string"""
+        with self.assertRaises(RuntimeError):
+            self.plugin.to_kbytes("")
+
+    def test_to_kbytes_invalid_unsupported_unit(self):
+        """Test to_kbytes raises RuntimeError for 1Pi (unsupported)"""
+        with self.assertRaises(RuntimeError):
+            self.plugin.to_kbytes("1Pi")
 
 
-class TestRemoveTempFile:
+class TestRemoveTempFile(unittest.TestCase):
     """Tests for the remove_temp_file method"""
 
-    def setup_method(self):
+    def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
 
@@ -126,7 +153,7 @@ class TestRemoveTempFile:
             "total 1024\n-rw-r--r-- 1 root root 1M Jan 1 00:00 kraken.tmp",  # ls -lh output with kraken.tmp
         ]
 
-        with pytest.raises(RuntimeError):
+        with self.assertRaises(RuntimeError):
             self.plugin.remove_temp_file(
                 file_name="kraken.tmp",
                 full_path="/mnt/data/kraken.tmp",
@@ -139,7 +166,7 @@ class TestRemoveTempFile:
             )
 
 
-class TestRollbackTempFile:
+class TestRollbackTempFile(unittest.TestCase):
     """Tests for the rollback_temp_file static method"""
 
     def test_rollback_temp_file_success(self):
@@ -191,10 +218,10 @@ class TestRollbackTempFile:
         PvcScenarioPlugin.rollback_temp_file(rollback_content, mock_telemetry)
 
 
-class TestPvcScenarioPluginRun:
+class TestPvcScenarioPluginRun(unittest.TestCase):
     """Tests for the run method of PvcScenarioPlugin"""
 
-    def setup_method(self):
+    def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
 
@@ -759,7 +786,7 @@ class TestPvcScenarioPluginRun:
             os.unlink(scenario_path)
 
 
-class TestRollbackTempFileEdgeCases:
+class TestRollbackTempFileEdgeCases(unittest.TestCase):
     """Additional tests for rollback_temp_file edge cases"""
 
     def test_rollback_temp_file_still_exists(self):
