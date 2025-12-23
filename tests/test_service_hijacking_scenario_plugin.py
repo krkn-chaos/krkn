@@ -11,8 +11,10 @@ Assisted By: Claude Code
 
 import base64
 import json
+import tempfile
 import unittest
-from unittest.mock import MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 import uuid
 
 from krkn.rollback.config import RollbackContent
@@ -38,7 +40,7 @@ class TestServiceHijackingScenarioPlugin(unittest.TestCase):
         self.assertEqual(len(result), 1)
 
 
-class TestRollbackServiceHijacking:
+class TestRollbackServiceHijacking(unittest.TestCase):  
     def test_rollback_service_hijacking(self):
         """
         Test rollback functionality for ServiceHijackingScenarioPlugin
@@ -83,9 +85,10 @@ class TestRollbackServiceHijacking:
             "test-webservice", "default"
         )
 
-    def test_rollback_service_hijacking_invalid_data(self):
+    @patch("krkn.scenario_plugins.service_hijacking.service_hijacking_scenario_plugin.logging")
+    def test_rollback_service_hijacking_invalid_data(self, mock_logging):
         """
-        Test rollback functionality with invalid rollback content
+        Test rollback functionality with invalid rollback content logs error
         """
         # Create RollbackContent with invalid base64 data
         rollback_content = RollbackContent(
@@ -96,19 +99,30 @@ class TestRollbackServiceHijacking:
         # Create a mock KrknTelemetryOpenshift object
         mock_lib_telemetry = MagicMock()
 
-        # Call the rollback method and expect it to handle the error gracefully
-        try:
-            ServiceHijackingScenarioPlugin.rollback_service_hijacking(
-                rollback_content, mock_lib_telemetry
-            )
-        except Exception as e:
-            assert isinstance(e, (json.JSONDecodeError, base64.binascii.Error))
+        # Call the rollback method - should not raise exception but log error
+        ServiceHijackingScenarioPlugin.rollback_service_hijacking(
+            rollback_content, mock_lib_telemetry
+        )
+        
+        # Verify error was logged to inform operators of rollback failure
+        mock_logging.error.assert_called_once()
+        error_message = mock_logging.error.call_args[0][0]
+        self.assertIn("Failed to rollback service hijacking", error_message)
 
 
-class TestServiceHijackingRun:
+class TestServiceHijackingRun(unittest.TestCase):
     """Tests for the run method of ServiceHijackingScenarioPlugin"""
 
-    def _create_scenario_file(self, tmp_path, config=None):
+    def setUp(self):
+        """Set up test fixtures - create temporary directory"""
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.tmp_path = Path(self.temp_dir.name)
+
+    def tearDown(self):
+        """Clean up temporary directory after test"""
+        self.temp_dir.cleanup()
+
+    def _create_scenario_file(self, config=None):
         """Helper to create a temporary scenario YAML file"""
         import yaml
 
@@ -138,7 +152,7 @@ class TestServiceHijackingRun:
         if config:
             default_config.update(config)
 
-        scenario_file = tmp_path / "test_scenario.yaml"
+        scenario_file = self.tmp_path / "test_scenario.yaml"
         with open(scenario_file, "w") as f:
             yaml.dump(default_config, f)
         return str(scenario_file)
@@ -151,9 +165,9 @@ class TestServiceHijackingRun:
         mock_scenario_telemetry = MagicMock()
         return mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry
 
-    def test_run_successful(self, tmp_path):
+    def test_run_successful(self):
         """Test successful execution of the run method"""
-        scenario_file = self._create_scenario_file(tmp_path)
+        scenario_file = self._create_scenario_file()
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
         )
@@ -189,9 +203,9 @@ class TestServiceHijackingRun:
             mock_webservice
         )
 
-    def test_run_service_not_found(self, tmp_path):
+    def test_run_service_not_found(self):
         """Test run method when service does not exist"""
-        scenario_file = self._create_scenario_file(tmp_path)
+        scenario_file = self._create_scenario_file()
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
         )
@@ -215,9 +229,9 @@ class TestServiceHijackingRun:
         )
         mock_lib_kubernetes.deploy_service_hijacking.assert_not_called()
 
-    def test_run_patch_service_failed(self, tmp_path):
+    def test_run_patch_service_failed(self):
         """Test run method when patching the service fails"""
-        scenario_file = self._create_scenario_file(tmp_path)
+        scenario_file = self._create_scenario_file()
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
         )
@@ -243,9 +257,9 @@ class TestServiceHijackingRun:
         assert result == 1
         mock_lib_kubernetes.replace_service_selector.assert_called_once()
 
-    def test_run_restore_service_failed(self, tmp_path):
+    def test_run_restore_service_failed(self):
         """Test run method when restoring the service fails"""
-        scenario_file = self._create_scenario_file(tmp_path)
+        scenario_file = self._create_scenario_file()
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
         )
@@ -274,10 +288,10 @@ class TestServiceHijackingRun:
         assert result == 1
         assert mock_lib_kubernetes.replace_service_selector.call_count == 2
 
-    def test_run_with_numeric_port(self, tmp_path):
+    def test_run_with_numeric_port(self):
         """Test run method with numeric target port"""
         scenario_file = self._create_scenario_file(
-            tmp_path, {"service_target_port": 8080}
+            {"service_target_port": 8080}
         )
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
@@ -308,10 +322,10 @@ class TestServiceHijackingRun:
         call_kwargs = mock_lib_kubernetes.deploy_service_hijacking.call_args
         assert call_kwargs[1]["port_number"] == 8080
 
-    def test_run_with_named_port(self, tmp_path):
+    def test_run_with_named_port(self):
         """Test run method with named target port"""
         scenario_file = self._create_scenario_file(
-            tmp_path, {"service_target_port": "http-web-svc"}
+            {"service_target_port": "http-web-svc"}
         )
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
@@ -342,9 +356,9 @@ class TestServiceHijackingRun:
         call_kwargs = mock_lib_kubernetes.deploy_service_hijacking.call_args
         assert call_kwargs[1]["port_name"] == "http-web-svc"
 
-    def test_run_exception_handling(self, tmp_path):
+    def test_run_exception_handling(self):
         """Test run method handles exceptions gracefully"""
-        scenario_file = self._create_scenario_file(tmp_path)
+        scenario_file = self._create_scenario_file()
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
         )
@@ -366,9 +380,9 @@ class TestServiceHijackingRun:
 
         assert result == 1
 
-    def test_run_unprivileged_mode(self, tmp_path):
+    def test_run_unprivileged_mode(self):
         """Test run method with privileged set to False"""
-        scenario_file = self._create_scenario_file(tmp_path, {"privileged": False})
+        scenario_file = self._create_scenario_file({"privileged": False})
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
         )
