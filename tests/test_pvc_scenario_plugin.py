@@ -15,7 +15,7 @@ import os
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
-
+import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -233,8 +233,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
     def create_scenario_file(self, config: dict, temp_dir: str) -> str:
         """Helper to create a temporary scenario YAML file in the given directory"""
-        import yaml
-
         path = os.path.join(temp_dir, "scenario.yaml")
         with open(path, "w") as f:
             yaml.dump(config, f)
