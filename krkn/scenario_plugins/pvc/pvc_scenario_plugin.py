@@ -163,8 +163,10 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     )
                     return 1
                 # Calculate file size
+                # target_fill_percentage may be a string; convert to float before
+                # dividing by 100 to compute the target size in KB.
                 file_size_kb = int(
-                    (float(target_fill_percentage / 100) * float(pvc_capacity_kb))
+                    (float(target_fill_percentage) / 100.0 * float(pvc_capacity_kb))
                     - float(pvc_used_kb)
                 )
                 logging.debug("File size: %s KB" % file_size_kb)
