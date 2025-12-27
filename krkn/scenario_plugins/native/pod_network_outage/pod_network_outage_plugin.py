@@ -19,7 +19,23 @@ from . import cerberus
 
 from krkn.rollback.config import RollbackContent   
 from krkn.rollback.handler import RollbackHandler
+from krkn.rollback.serialization import Serializer
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+
+
+def _resolve_run_uuid(cfg: typing.Optional[dict[str, typing.Any]]) -> str:
+    """Resolve run_uuid from kraken config or fall back to a timestamp."""
+    if cfg and isinstance(cfg, dict):
+        return cfg.get("performance_monitoring", {}).get("uuid", str(time.time_ns()))
+    return str(time.time_ns())
+
+
+def _init_rollback_handler(run_uuid: str, scenario_type: str) -> RollbackHandler:
+    """Initialize a rollback handler with context and serializer."""
+    serializer = Serializer(scenario_type=scenario_type)
+    handler = RollbackHandler(scenario_type, serializer)
+    handler.set_context(run_uuid)
+    return handler
 
 def get_test_pods(
     pod_name: str,
@@ -438,7 +454,7 @@ def apply_net_policy(
     yml_list = []
 
     for pod_ip in set(ips):
-        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli)
+        pod_inf = get_pod_interface(node, pod_ip, pod_template, bridge_name, kubecli, image)
         exec_cmd = get_egress_cmd(
             test_execution, pod_inf, mod, network_params, duration
         )
@@ -1120,14 +1136,16 @@ def pod_outage(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-        # REGISTER ROLLBACK FOR THIS CHAOS
-        rollback_handler = RollbackHandler()
+
+        # Register rollback before applying chaos
+        run_uuid = _resolve_run_uuid(params.kraken_config)
+        rollback_handler = _init_rollback_handler(run_uuid, "pod_network_outage")
         rollback_handler.set_rollback_callable(
-            rollback_pod_network_outage,  
+            rollback_pod_network_outage,
             RollbackContent(
                 namespace=test_namespace,
-                resource_identifier="pod-network-outage"  
-            )
+                resource_identifier="pod-network-outage",
+            ),
         )
         for direction, ports in filter_dict.items():
             # this is where the actual chaos is applied , so before this we need to add content to rollback handler
@@ -1399,14 +1417,15 @@ def pod_egress_shaping(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-        # Registering rollback for egress shaping (only once)
-        rollback_handler = RollbackHandler()
+        # Register rollback before applying chaos
+        run_uuid = _resolve_run_uuid(params.kraken_config)
+        rollback_handler = _init_rollback_handler(run_uuid, "pod_egress_shaping")
         rollback_handler.set_rollback_callable(
             rollback_pod_network_outage,
             RollbackContent(
                 namespace=test_namespace,
-                resource_identifier="pod-egress-shaping"
-            )
+                resource_identifier="pod-egress-shaping",
+            ),
         )
         for mod in mod_lst:
             for node, ips in node_dict.items():
@@ -1695,14 +1714,15 @@ def pod_ingress_shaping(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-        # Registering rollback for ingress shaping (not per node)
-        rollback_handler = RollbackHandler()
+        # Register rollback before applying chaos
+        run_uuid = _resolve_run_uuid(params.kraken_config)
+        rollback_handler = _init_rollback_handler(run_uuid, "pod_ingress_shaping")
         rollback_handler.set_rollback_callable(
             rollback_pod_network_outage,
             RollbackContent(
                 namespace=test_namespace,
-                resource_identifier="pod-ingress-shaping"
-            )
+                resource_identifier="pod-ingress-shaping",
+            ),
         )
         for mod in mod_lst:
 
