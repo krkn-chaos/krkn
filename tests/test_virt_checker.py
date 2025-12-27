@@ -208,6 +208,36 @@ class TestVirtChecker(unittest.TestCase):
     @patch('krkn.utils.VirtChecker.get_yaml_item_value')
     @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
     @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_get_vm_access_second_invoke_success(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test get_vm_access when first invoke fails but second succeeds (covers line 117)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = []
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # First invoke fails, second succeeds (covers line 117)
+        mock_invoke.side_effect = ["False", "True"]
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        result = checker.get_vm_access("test-vm", "test-namespace")
+
+        self.assertTrue(result)
+        self.assertEqual(mock_invoke.call_count, 2)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
     def test_get_vm_access_failure(self, mock_invoke, mock_plugin_class, mock_yaml):
         """Test get_vm_access returns False when VM is not accessible"""
         mock_plugin = MagicMock()
@@ -584,6 +614,1029 @@ class TestVirtChecker(unittest.TestCase):
         # Verify no duplicate items across batches
         all_vm_names = [vm.vm_name for vm in all_items_in_batches]
         self.assertEqual(len(all_vm_names), len(set(all_vm_names)), "No duplicate items should be in batches")
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_check_disconnected_access_all_fail(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test check_disconnected_access when all connection attempts fail (covers line 101)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = []
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # Mock all attempts fail
+        mock_invoke.side_effect = ["some output", "False"]
+
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-1",
+                "interfaces": [{"ipAddress": "192.168.1.10"}]
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+
+        result, new_ip, new_node = checker.check_disconnected_access(
+            "192.168.1.10",
+            "worker-1",
+            "test-vm"
+        )
+
+        self.assertFalse(result)
+        self.assertIsNone(new_ip)
+        self.assertIsNone(new_node)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    def test_increment_iterations(self, mock_plugin_class, mock_yaml):
+        """Test increment_iterations method (covers lines 139-140)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = []
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=5,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        self.assertEqual(checker.current_iterations, 0)
+        checker.increment_iterations()
+        self.assertEqual(checker.current_iterations, 1)
+        checker.increment_iterations()
+        self.assertEqual(checker.current_iterations, 2)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_basic(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check method with basic VM check (covers lines 144-216)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.return_value = "True"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        # Start with 0 iterations, increment after first sleep to exit loop
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        # Should have put results in queue
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_with_disconnected_mode(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check in disconnected mode (covers disconnected branch)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "disconnected":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.side_effect = ["some output", "True"]
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-1",
+                "interfaces": [{"ipAddress": "192.168.1.10"}]
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "disconnected": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_with_status_change(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check when VM status changes (covers status change branch, lines 182-200)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # First iteration returns True, second returns False to trigger status change
+        invoke_call_count = [0]
+        def mock_invoke_func(cmd):
+            invoke_call_count[0] += 1
+            # First 2 calls (first iteration) return True, next calls return False
+            if invoke_call_count[0] <= 2:
+                return "True"
+            return "False"
+        mock_invoke.side_effect = mock_invoke_func
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=2,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        # Track sleep calls to control iterations
+        sleep_count = [0]
+        def mock_sleep_func(*args):
+            sleep_count[0] += 1
+            if sleep_count[0] >= 2:
+                checker.current_iterations = 2
+        mock_sleep.side_effect = mock_sleep_func
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_only_failures(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check with only_failures flag (covers only_failures branch)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "only_failures":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.return_value = "False"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "only_failures": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_exception_handling(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check exception handling (covers exception branch)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.side_effect = Exception("Connection error")
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_disconnected_with_ip_and_node_change(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check in disconnected mode when IP and node change (covers lines 163-170)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "disconnected":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # Initial check fails, returns new IP and node
+        mock_invoke.side_effect = ["some output", "False", "True"]
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-2",  # Different node
+                "interfaces": [{"ipAddress": "192.168.1.99"}]  # Different IP
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "disconnected": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_status_change_only_failures_true_status(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check with only_failures when status is True (covers line 194-195)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "only_failures":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # First iteration True, second iteration False (status changes from True to False)
+        invoke_count = [0]
+        def mock_invoke_func(cmd):
+            invoke_count[0] += 1
+            if invoke_count[0] <= 2:
+                return "True"
+            return "False"
+        mock_invoke.side_effect = mock_invoke_func
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "only_failures": True},
+            iterations=2,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        sleep_count = [0]
+        def mock_sleep_func(*args):
+            sleep_count[0] += 1
+            if sleep_count[0] >= 2:
+                checker.current_iterations = 2
+        mock_sleep.side_effect = mock_sleep_func
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_with_new_ip_address_update(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check updates new_ip_address during status change (covers line 189-190)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # First call True, second call False
+        invoke_count = [0]
+        def mock_invoke_func(cmd):
+            invoke_count[0] += 1
+            if invoke_count[0] <= 2:
+                return "True"
+            return "False"
+        mock_invoke.side_effect = mock_invoke_func
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=2,
+            krkn_lib=self.mock_krkn_lib
+        )
+        # Set new_ip_address on VM to trigger line 189
+        if checker.vm_list:
+            checker.vm_list[0].new_ip_address = "192.168.1.50"
+
+        sleep_count = [0]
+        def mock_sleep_func(*args):
+            sleep_count[0] += 1
+            if sleep_count[0] >= 2:
+                checker.current_iterations = 2
+        mock_sleep.side_effect = mock_sleep_func
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_final_loop_only_failures_with_failure(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check final loop with only_failures and status=False (covers lines 206-211)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "only_failures":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # Return False status throughout
+        mock_invoke.return_value = "False"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "only_failures": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+        result = test_queue.get()
+        # Should have a failure recorded
+        self.assertGreater(len(result), 0)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_run_post_virt_check_success(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_post_virt_check method (covers lines 219-251)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # VM is accessible
+        mock_invoke.return_value = "True"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_post_virt_check(checker.vm_list, [], test_queue)
+
+        # Should put empty list since VM is accessible
+        self.assertFalse(test_queue.empty())
+        result = test_queue.get()
+        self.assertEqual(len(result), 0)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_run_post_virt_check_failure(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_post_virt_check when VM is not accessible"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # VM is not accessible
+        mock_invoke.return_value = "False"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_post_virt_check(checker.vm_list, [], test_queue)
+
+        # Should have failures in queue
+        self.assertFalse(test_queue.empty())
+        result = test_queue.get()
+        self.assertEqual(len(result), 1)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_run_post_virt_check_disconnected(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_post_virt_check in disconnected mode"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "disconnected":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.side_effect = ["some output", "False"]
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-1",
+                "interfaces": [{"ipAddress": "192.168.1.10"}]
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "disconnected": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_post_virt_check(checker.vm_list, [], test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_run_post_virt_check_exception(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_post_virt_check exception handling"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.side_effect = Exception("Connection error")
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_post_virt_check(checker.vm_list, [], test_queue)
+
+        # Should have failure in queue due to exception
+        self.assertFalse(test_queue.empty())
+        result = test_queue.get()
+        self.assertEqual(len(result), 1)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_gather_post_virt_checks(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test gather_post_virt_checks method (covers lines 256-275)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.return_value = "True"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        result = checker.gather_post_virt_checks([])
+
+        self.assertIsInstance(result, list)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_gather_post_virt_checks_with_failures(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test gather_post_virt_checks with failures and exit_on_failure"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "exit_on_failure":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.return_value = "False"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "exit_on_failure": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        result = checker.gather_post_virt_checks([])
+
+        self.assertIsInstance(result, list)
+        self.assertEqual(checker.ret_value, 2)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    def test_gather_post_virt_checks_empty_batch(self, mock_plugin_class, mock_yaml):
+        """Test gather_post_virt_checks with empty batch_size"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = []
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.batch_size = 0
+
+        result = checker.gather_post_virt_checks([])
+
+        self.assertIsInstance(result, list)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_with_new_ip_in_disconnected(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check in disconnected mode with existing new_ip_address"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "disconnected":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.side_effect = ["some output", "True"]
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-1",
+                "interfaces": [{"ipAddress": "192.168.1.20"}]
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "disconnected": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+        # Set existing new_ip_address
+        if checker.vm_list:
+            checker.vm_list[0].new_ip_address = "192.168.1.20"
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_run_post_virt_check_disconnected_with_ip_change(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_post_virt_check in disconnected mode when IP changes"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "disconnected":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # Fail on original IP, succeed on new IP
+        mock_invoke.side_effect = ["some output", "False", "True"]
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-1",
+                "interfaces": [{"ipAddress": "192.168.1.20"}]  # New IP
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "disconnected": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_post_virt_check(checker.vm_list, [], test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    def test_run_post_virt_check_disconnected_with_node_change(self, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_post_virt_check in disconnected mode when node changes"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "disconnected":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # Fail initially, succeed on new node
+        mock_invoke.side_effect = ["some output", "False", "True"]
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-2",  # New node
+                "interfaces": [{"ipAddress": "192.168.1.10"}]
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "disconnected": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_post_virt_check(checker.vm_list, [], test_queue)
+
+        self.assertFalse(test_queue.empty())
+
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_disconnected_node_change(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check in disconnected mode when node changes (covers line 167)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "disconnected":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # Return False first, then True on new node - this triggers node change logic
+        mock_invoke.side_effect = ["some output", "False", "True"]
+        mock_vmi = {
+            "status": {
+                "nodeName": "worker-99",  # Different from original worker-1
+                "interfaces": [{"ipAddress": "192.168.1.10"}]  # Same IP
+            }
+        }
+        mock_plugin.get_vmi = MagicMock(return_value=mock_vmi)
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "disconnected": True},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.kube_vm_plugin = mock_plugin
+        # Ensure vm has no new_ip_address set, so it goes through else branch
+        if checker.vm_list:
+            checker.vm_list[0].new_ip_address = ""
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+        # Verify node was updated
+        self.assertEqual(checker.vm_list[0].node_name, "worker-99")
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_status_change_with_new_ip_and_only_failures_false_status(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check status change branch with new_ip_address and only_failures when status was False (covers lines 186-199)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "only_failures":
+                return True
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # First iteration returns False, second iteration returns True (status changes from False to True)
+        invoke_count = [0]
+        def mock_invoke_func(cmd):
+            invoke_count[0] += 1
+            if invoke_count[0] <= 2:
+                return "False"  # First iteration: status = False
+            return "True"  # Second iteration: status = True (status changed)
+        mock_invoke.side_effect = mock_invoke_func
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "only_failures": True},
+            iterations=2,
+            krkn_lib=self.mock_krkn_lib
+        )
+        # Set new_ip_address to trigger line 192
+        if checker.vm_list:
+            checker.vm_list[0].new_ip_address = "192.168.1.99"
+
+        sleep_count = [0]
+        def mock_sleep_func(*args):
+            sleep_count[0] += 1
+            if sleep_count[0] >= 2:
+                checker.current_iterations = 2
+        mock_sleep.side_effect = mock_sleep_func
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+        result = test_queue.get()
+        # Should have recorded the failure since status was False initially
+        self.assertGreater(len(result), 0)
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_queue_error(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check queue put error handling (covers lines 215-216)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        mock_invoke.return_value = "True"
+
+        checker = VirtChecker(
+            {"namespace": "test-ns"},
+            iterations=1,
+            krkn_lib=self.mock_krkn_lib
+        )
+        checker.current_iterations = 0
+        def increment_on_sleep(*args):
+            checker.current_iterations = 1
+        mock_sleep.side_effect = increment_on_sleep
+
+        # Create a mock queue that raises exception on put
+        mock_queue = MagicMock()
+        mock_queue.put.side_effect = Exception("Queue error")
+        
+        # Should not raise exception - just log error
+        checker.run_virt_check(checker.vm_list, mock_queue)
+
+        mock_queue.put.assert_called_once()
+
+    @patch('krkn_lib.models.telemetry.models.VirtCheck', new=MockVirtCheck)
+    @patch('krkn.utils.VirtChecker.get_yaml_item_value')
+    @patch('krkn.utils.VirtChecker.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.utils.VirtChecker.invoke_no_exit')
+    @patch('time.sleep')
+    def test_run_virt_check_status_change_not_only_failures(self, mock_sleep, mock_invoke, mock_plugin_class, mock_yaml):
+        """Test run_virt_check status change branch without only_failures flag (covers line 197-198)"""
+        mock_plugin = MagicMock()
+        mock_plugin.vmis_list = [self.mock_vmi_1]
+        mock_plugin_class.return_value = mock_plugin
+
+        def yaml_getter(config, key, default):
+            if key == "namespace":
+                return "test-ns"
+            elif key == "only_failures":
+                return False
+            return default
+        mock_yaml.side_effect = yaml_getter
+
+        # First iteration False, second iteration True (status changes)
+        invoke_count = [0]
+        def mock_invoke_func(cmd):
+            invoke_count[0] += 1
+            if invoke_count[0] <= 2:
+                return "False"
+            return "True"
+        mock_invoke.side_effect = mock_invoke_func
+
+        checker = VirtChecker(
+            {"namespace": "test-ns", "only_failures": False},
+            iterations=2,
+            krkn_lib=self.mock_krkn_lib
+        )
+
+        sleep_count = [0]
+        def mock_sleep_func(*args):
+            sleep_count[0] += 1
+            if sleep_count[0] >= 2:
+                checker.current_iterations = 2
+        mock_sleep.side_effect = mock_sleep_func
+
+        import queue
+        test_queue = queue.SimpleQueue()
+        
+        checker.run_virt_check(checker.vm_list, test_queue)
+
+        self.assertFalse(test_queue.empty())
+        result = test_queue.get()
+        # Should have recorded the status change
+        self.assertGreater(len(result), 0)
 
 
 if __name__ == "__main__":
