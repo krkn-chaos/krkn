@@ -3,11 +3,6 @@
 """
 Test suite for krkn.cerberus.setup module
 
-This test file provides comprehensive coverage for:
-- get_status: Get cerberus status
-- publish_kraken_status: Publish kraken status to cerberus
-- application_status: Check application availability
-
 Usage:
     python3 -m coverage run --source=krkn -m pytest tests/cerberus/test_setup.py -v
     python3 -m coverage report -m --include=krkn/cerberus/setup.py
