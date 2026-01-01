@@ -93,7 +93,10 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         )
 
         self.assertEqual(result, 1)
-        mock_logging.assert_called()
+        mock_logging.assert_called_once()
+        logged_message = mock_logging.call_args[0][0]
+        self.assertIn("File read error", logged_message)
+        self.assertIn("/path/to/scenario.yaml", logged_message)
 
     @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS')
     @patch('time.sleep')
@@ -111,7 +114,7 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
 
         mock_cloud_object = Mock()
         mock_aws_class.return_value = mock_cloud_object
-        mock_cloud_object.get_instance_id.side_effect = ["i-123", "i-456"]
+        mock_cloud_object.get_instance_id.return_value = "i-123"  
         mock_cloud_object.wait_until_stopped.return_value = True
         mock_cloud_object.wait_until_running.return_value = True
 
@@ -154,7 +157,7 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
             self.plugin.cluster_shut_down(shut_down_config, self.mock_kubecli, affected_nodes_status)
 
         mock_gcp_class.assert_called_once()
-        # Check that processes=1 is used for GCP
+        # Verify that the 'processes' parameter is set to 1 for GCP cloud type
         calls = mock_multiprocess.call_args_list
         for call_args in calls:
             self.assertEqual(call_args[0][2], 1)
@@ -322,8 +325,8 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
             self.plugin.cluster_shut_down(shut_down_config, self.mock_kubecli, affected_nodes_status)
 
         mock_logging.assert_called()
-        self.assertIn("not currently supported", str(mock_logging.call_args))
-
+        logged_message = mock_logging.call_args[0][0]  
+        self.assertIn("not currently supported", logged_message)
     @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS')
     @patch('time.sleep')
     @patch('time.time')
@@ -340,7 +343,7 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
 
         mock_cloud_object = Mock()
         mock_aws_class.return_value = mock_cloud_object
-        mock_cloud_object.get_instance_id.side_effect = ["i-123"]
+        mock_cloud_object.get_instance_id.return_value = "i-123"
         mock_cloud_object.wait_until_stopped.return_value = True
         mock_cloud_object.wait_until_running.return_value = True
 
@@ -423,8 +426,8 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         self.plugin.multiprocess_nodes(mock_cloud_function, nodes, processes=0)
 
         mock_logging.assert_called()
-        self.assertIn("Error on pool multiprocessing", str(mock_logging.call_args))
-
+        logged_args, logged_kwargs = mock_logging.call_args  
+        self.assertIn("Error on pool multiprocessing", logged_args[0])
     @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS')
     @patch('time.sleep')
     @patch('time.time')
