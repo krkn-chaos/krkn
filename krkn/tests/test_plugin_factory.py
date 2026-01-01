@@ -10,6 +10,8 @@ from krkn.scenario_plugins.native.plugins import PluginStep, Plugins, PLUGINS
 from krkn.tests.test_classes.correct_scenario_plugin import (
     CorrectScenarioPlugin,
 )
+import yaml
+
 
 
 class TestPluginFactory(unittest.TestCase):
@@ -194,7 +196,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -212,7 +213,6 @@ class TestPlugins(unittest.TestCase):
         test_data = {"id": "test_step", "config": {"param": "value"}}
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -232,7 +232,6 @@ class TestPlugins(unittest.TestCase):
         test_data = ["invalid", "entries"]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -254,7 +253,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -276,7 +274,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -303,7 +300,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -347,7 +343,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -389,7 +384,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -433,7 +427,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
@@ -476,7 +469,6 @@ class TestPlugins(unittest.TestCase):
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
-            import yaml
             yaml.dump(test_data, f)
             temp_file = f.name
 
