@@ -10,7 +10,7 @@ Assisted By: Claude Code
 """
 
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch, call  
 
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -82,15 +82,24 @@ class TestCommonFunctions(unittest.TestCase):
         """
         Test get_managedcluster returns clusters matching label selector
         """
-        self.mock_kubecli.list_killable_managedclusters.return_value = ["cluster1", "cluster2", "cluster3"]
+        self.mock_kubecli.list_killable_managedclusters.side_effect = [
+            ["cluster1", "cluster2", "cluster3"],
+            ["cluster1", "cluster2", "cluster3"],
+        ]
 
         result = common_functions.get_managedcluster(
             "", "env=production", 2, self.mock_kubecli
         )
 
         self.assertEqual(len(result), 2)
-        # Should be called with label_selector parameter
-        self.mock_kubecli.list_killable_managedclusters.assert_called_with("env=production")
+        # Should be called once without and once with label_selector
+        self.assertEqual(
+            self.mock_kubecli.list_killable_managedclusters.call_count,
+            2,
+        )
+        self.mock_kubecli.list_killable_managedclusters.assert_has_calls(
+            [call(), call("env=production")]
+        )
 
     def test_get_managedcluster_no_available_clusters(self):
         """
@@ -167,7 +176,7 @@ class TestCommonFunctions(unittest.TestCase):
         )
 
         # Check that logging was called multiple times (including the info message about unavailable cluster)
-        self.assertTrue(mock_logging.call_count >= 1)
+        self.assertGreaterEqual(mock_logging.call_count, 1)  
         # Check all calls for the expected message
         all_calls = [str(call) for call in mock_logging.call_args_list]
         found_message = any("managedcluster with provided managedcluster_name does not exist" in call
