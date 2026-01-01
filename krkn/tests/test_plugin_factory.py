@@ -539,6 +539,13 @@ class TestPLUGINSConstant(unittest.TestCase):
         for step_id in expected_steps:
             self.assertIn(step_id, PLUGINS.steps_by_id)
 
+        # Ensure the registered id matches the decorator and no legacy alias is present
+        self.assertEqual(
+            PLUGINS.steps_by_id["pod_network_outage"].schema.id,
+            "pod_network_outage",
+        )
+        self.assertNotIn("pod_outage", PLUGINS.steps_by_id)
+
     def test_plugins_step_count(self):
         """Test that PLUGINS has the expected number of steps"""
         self.assertEqual(len(PLUGINS.steps_by_id), 5)
