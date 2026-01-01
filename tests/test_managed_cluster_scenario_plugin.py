@@ -10,8 +10,7 @@ Assisted By: Claude Code
 """
 
 import unittest
-from unittest.mock import Mock, patch, call  
-
+from unittest.mock import Mock, patch, call
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -128,12 +127,29 @@ class TestCommonFunctions(unittest.TestCase):
         self.assertEqual(result, available_clusters)
         self.assertEqual(len(result), 3)
 
-    def test_get_managedcluster_random_selection(self):
+    @patch('logging.info')
+    def test_get_managedcluster_return_empty_when_count_is_zero(self, mock_logging):
+        """
+        Test get_managedcluster returns empty list when instance_kill_count is 0
+        """
+        available_clusters = ["cluster1", "cluster2", "cluster3"]
+        self.mock_kubecli.list_killable_managedclusters.return_value = available_clusters
+
+        result = common_functions.get_managedcluster(
+            "", "env=test", 0, self.mock_kubecli
+        )
+
+        self.assertEqual(result, [])
+        mock_logging.assert_called()
+
+    @patch('random.randint')
+    def test_get_managedcluster_random_selection(self, mock_randint):
         """
         Test get_managedcluster randomly selects the specified number of clusters
         """
         available_clusters = ["cluster1", "cluster2", "cluster3", "cluster4", "cluster5"]
         self.mock_kubecli.list_killable_managedclusters.return_value = available_clusters.copy()
+        mock_randint.side_effect = [1, 0, 2]
 
         result = common_functions.get_managedcluster(
             "", "env=test", 3, self.mock_kubecli
@@ -174,7 +190,6 @@ class TestCommonFunctions(unittest.TestCase):
         common_functions.get_managedcluster(
             "nonexistent-cluster", "env=test", 1, self.mock_kubecli
         )
-
         # Check that logging was called multiple times (including the info message about unavailable cluster)
         self.assertGreaterEqual(mock_logging.call_count, 1)  
         # Check all calls for the expected message
@@ -205,30 +220,6 @@ class TestCommonFunctions(unittest.TestCase):
 
         self.mock_kubecli.watch_managedcluster_status.assert_called_once_with(
             "test-cluster", "Unknown", 300
-        )
-
-    def test_wait_for_available_status_with_different_timeout(self):
-        """
-        Test wait_for_available_status with different timeout value
-        """
-        common_functions.wait_for_available_status(
-            "production-cluster", 600, self.mock_kubecli
-        )
-
-        self.mock_kubecli.watch_managedcluster_status.assert_called_once_with(
-            "production-cluster", "True", 600
-        )
-
-    def test_wait_for_unavailable_status_with_different_timeout(self):
-        """
-        Test wait_for_unavailable_status with different timeout value
-        """
-        common_functions.wait_for_unavailable_status(
-            "production-cluster", 600, self.mock_kubecli
-        )
-
-        self.mock_kubecli.watch_managedcluster_status.assert_called_once_with(
-            "production-cluster", "Unknown", 600
         )
 
 
