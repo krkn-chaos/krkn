@@ -142,7 +142,7 @@ class TestRemoveTempFile(unittest.TestCase):
         )
 
         # Verify exec_cmd_in_pod was called twice (rm and ls)
-        assert mock_kubecli.exec_cmd_in_pod.call_count == 2
+        self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)  
 
     def test_remove_temp_file_failure(self):
         """Test removal failure when file still exists"""
@@ -203,7 +203,7 @@ class TestRollbackTempFile(unittest.TestCase):
         PvcScenarioPlugin.rollback_temp_file(rollback_content, mock_telemetry)
 
         # Verify exec_cmd_in_pod was called
-        assert mock_kubecli.exec_cmd_in_pod.call_count == 2
+        self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)  
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.logging")
     def test_rollback_temp_file_invalid_data(self, mock_logging):
@@ -284,7 +284,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 scenario_telemetry=mock_scenario_telemetry,
             )
 
-            assert result == 1
+            self.assertEqual(result, 1)
 
     def test_run_pod_not_found(self):
         """Test run returns 1 when pod doesn't exist"""
@@ -311,7 +311,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 scenario_telemetry=mock_scenario_telemetry,
             )
 
-            assert result == 1
+            self.assertEqual(result, 1)
 
     def test_run_pvc_not_found_for_pod(self):
         """Test run returns 1 when pod has no PVC"""
@@ -345,7 +345,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 scenario_telemetry=mock_scenario_telemetry,
             )
 
-            assert result == 1
+            self.assertEqual(result, 1)
 
     def test_run_invalid_fill_percentage(self):
         """Test run returns 1 when target fill percentage is invalid"""
@@ -401,7 +401,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             # Should return 1 because target fill (10%) < current fill (50%)
-            assert result == 1
+            self.assertEqual(result, 1)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status")
@@ -465,7 +465,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 scenario_telemetry=mock_scenario_telemetry,
             )
 
-            assert result == 0
+            self.assertEqual(result, 0)
             mock_sleep.assert_called_once_with(1)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
@@ -530,7 +530,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 scenario_telemetry=mock_scenario_telemetry,
             )
 
-            assert result == 0
+            self.assertEqual(result, 0)
 
     def test_run_no_binary_available(self):
         """Test run returns 1 when neither fallocate nor dd is available"""
@@ -574,7 +574,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_kubecli.exec_cmd_in_pod.side_effect = [
                 "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df command
                 "",  # command -v fallocate (not found)
-                None,  # command -v dd (not found)
+                "",  # command -v dd (not found)
             ]
 
             mock_scenario_telemetry = MagicMock()
@@ -587,7 +587,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 scenario_telemetry=mock_scenario_telemetry,
             )
 
-            assert result == 1
+            self.assertEqual(result, 1)
 
     def test_run_file_not_found(self):
         """Test run returns 1 when scenario file doesn't exist"""
@@ -602,7 +602,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             scenario_telemetry=mock_scenario_telemetry,
         )
 
-        assert result == 1
+        self.assertEqual(result, 1)
 
     def test_run_both_pvc_and_pod_name_provided(self):
         """Test run when both pvc_name and pod_name are provided (pod_name is overridden)"""
@@ -668,9 +668,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                         scenario_telemetry=mock_scenario_telemetry,
                     )
 
-            assert result == 0
-            
-            # Verify pod_name was overridden with pod from PVC's podNames list
+            self.assertEqual(result, 0)  
             # get_pod_info should be called with "actual-pod-from-pvc", not "ignored-pod"
             mock_kubecli.get_pod_info.assert_called_with(
                 name="actual-pod-from-pvc", 
@@ -715,7 +713,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             # Should return 1 because random.choice on empty list raises IndexError
-            assert result == 1
+            self.assertEqual(result, 1)
 
     def test_run_file_creation_failed(self):
         """Test run returns 1 when file creation fails and verifies cleanup is attempted"""
@@ -778,11 +776,10 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             )
 
             # Should return 1 because file creation failed
-            assert result == 1
+            self.assertEqual(result, 1)
             
             # Verify cleanup was attempted (7 calls total: df, 2x command -v, fallocate, ls, rm, ls)
-            assert mock_kubecli.exec_cmd_in_pod.call_count == 7
-
+            self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 7)
 
 class TestRollbackTempFileEdgeCases(unittest.TestCase):
     """Additional tests for rollback_temp_file edge cases"""
