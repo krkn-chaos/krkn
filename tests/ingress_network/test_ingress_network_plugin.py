@@ -530,6 +530,8 @@ class NetworkScenariosTest(unittest.TestCase):
         self.assertEqual(mock_delete_ifb.call_count, 2)
         self.assertEqual(mock_kube_helper.delete_pod.call_count, 2)
 
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.Environment')
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.FileSystemLoader')
     @patch('yaml.safe_load')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_jobs')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_virtual_interfaces')
@@ -539,7 +541,8 @@ class NetworkScenariosTest(unittest.TestCase):
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.kube_helper')
     def test_network_chaos_parallel_execution(
         self, mock_kube_helper, mock_get_nodes, mock_apply_filter,
-        mock_wait_job, mock_delete_virtual, mock_delete_jobs, mock_yaml
+        mock_wait_job, mock_delete_virtual, mock_delete_jobs, mock_yaml,
+        mock_file_loader, mock_env
     ):
         """Test network chaos with parallel execution"""
         # Setup mocks
@@ -570,6 +573,8 @@ class NetworkScenariosTest(unittest.TestCase):
         mock_wait_job.assert_called_once()
         mock_delete_virtual.assert_called_once()
 
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.Environment')
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.FileSystemLoader')
     @patch('yaml.safe_load')
     @patch('time.sleep', return_value=None)
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_jobs')
@@ -580,7 +585,8 @@ class NetworkScenariosTest(unittest.TestCase):
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.kube_helper')
     def test_network_chaos_serial_execution(
         self, mock_kube_helper, mock_get_nodes, mock_apply_filter,
-        mock_wait_job, mock_delete_virtual, mock_delete_jobs, mock_sleep, mock_yaml
+        mock_wait_job, mock_delete_virtual, mock_delete_jobs, mock_sleep, mock_yaml,
+        mock_file_loader, mock_env
     ):
         """Test network chaos with serial execution"""
         # Setup mocks
@@ -611,13 +617,16 @@ class NetworkScenariosTest(unittest.TestCase):
         # Should wait for jobs twice (once per parameter)
         self.assertEqual(mock_wait_job.call_count, 2)
 
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.Environment')
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.FileSystemLoader')
     @patch('yaml.safe_load')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_jobs')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_virtual_interfaces')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.get_node_interfaces')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.kube_helper')
     def test_network_chaos_invalid_execution_type(
-        self, mock_kube_helper, mock_get_nodes, mock_delete_virtual, mock_delete_jobs, mock_yaml
+        self, mock_kube_helper, mock_get_nodes, mock_delete_virtual, mock_delete_jobs, mock_yaml,
+        mock_file_loader, mock_env
     ):
         """Test network chaos with invalid execution type"""
         # Setup mocks
@@ -642,13 +651,16 @@ class NetworkScenariosTest(unittest.TestCase):
         self.assertEqual(output_id, "error")
         self.assertIn("Invalid execution type", output_data.error)
 
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.Environment')
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.FileSystemLoader')
     @patch('yaml.safe_load')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_jobs')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_virtual_interfaces')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.get_node_interfaces')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.kube_helper')
     def test_network_chaos_get_nodes_error(
-        self, mock_kube_helper, mock_get_nodes, mock_delete_virtual, mock_delete_jobs, mock_yaml
+        self, mock_kube_helper, mock_get_nodes, mock_delete_virtual, mock_delete_jobs, mock_yaml,
+        mock_file_loader, mock_env
     ):
         """Test network chaos when getting nodes fails"""
         # Setup mocks
@@ -671,6 +683,8 @@ class NetworkScenariosTest(unittest.TestCase):
         self.assertEqual(output_id, "error")
         self.assertIn("Failed to get nodes", output_data.error)
 
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.Environment')
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.FileSystemLoader')
     @patch('yaml.safe_load')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_jobs')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_virtual_interfaces')
@@ -679,7 +693,8 @@ class NetworkScenariosTest(unittest.TestCase):
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.kube_helper')
     def test_network_chaos_apply_filter_error(
         self, mock_kube_helper, mock_get_nodes, mock_apply_filter,
-        mock_delete_virtual, mock_delete_jobs, mock_yaml
+        mock_delete_virtual, mock_delete_jobs, mock_yaml,
+        mock_file_loader, mock_env
     ):
         """Test network chaos when applying filter fails"""
         # Setup mocks
