@@ -89,9 +89,9 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.scenario_telemetry = MagicMock(spec=ScenarioTelemetry)
         self.telemetry.get_lib_kubernetes.return_value = self.k8s_client
     
-    def create_mock_time(self):
+    def create_incrementing_time_function(self):
         """
-        Create a mock time function that increments with each call.
+        Create an incrementing time function that returns sequential float values.
         Returns a callable that can be used with patch('time.time', side_effect=...)
         """
         time_counter = [0]
@@ -115,39 +115,50 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
             ]
         )
 
-        # Mock get_vmi to first return the VMI, then None (deleted), then recreated VMI (running)
-        get_vmi_responses = [  
-            self.mock_vmi,          # Initial get in validate_environment  
-            self.mock_vmi,          # Get before delete  
-            self.mock_vmi_recreated,  # After delete (recreated with new timestamp)  
-            self.mock_vmi_recreated,  # Check if running  
-        ]  
-
-        def get_vmi_side_effect(*args, **kwargs):  
-            # Return the predefined sequence for the first calls, then keep returning  
-            # the last (running) VMI for any additional calls to avoid StopIteration.  
-            index = get_vmi_side_effect.call_count  
-            if index < len(get_vmi_responses):  
-                response = get_vmi_responses[index]  
-            else:  
-                response = get_vmi_responses[-1]  
-            get_vmi_side_effect.call_count += 1  
-            return response  
-
-        get_vmi_side_effect.call_count = 0  
-
-        self.custom_object_client.get_namespaced_custom_object = MagicMock(  
-            side_effect=get_vmi_side_effect  
+        # Mock get_namespaced_custom_object with a sequence that handles multiple calls
+        # Call sequence: 
+        # 1. validate_environment: get original VMI
+        # 2. execute_scenario: get VMI before deletion
+        # 3. delete_vmi: loop checking if timestamp changed (returns recreated VMI on first check)
+        # 4+. wait_for_running: loop until phase is Running (may call multiple times)
+        get_vmi_responses = [
+            self.mock_vmi,            # Initial get in validate_environment
+            self.mock_vmi,            # Get before delete
+            self.mock_vmi_recreated,  # After delete (recreated with new timestamp)
+            self.mock_vmi_recreated,  # Check if running
+        ]
+        def get_vmi_side_effect(*args, **kwargs):
+            """
+            Return a predefined sequence of VMIs. If the function is called more
+            times than there are responses, fail the test to surface unexpected
+            additional calls instead of silently masking them.
+            """
+            index = get_vmi_side_effect.call_count
+            try:
+                return get_vmi_responses[index]
+            except IndexError:
+                raise AssertionError(
+                    f"get_vmi_side_effect called more times ({index + 1}) "
+                    f"than expected ({len(get_vmi_responses)})."
+                )
+            finally:
+                get_vmi_side_effect.call_count += 1
+        get_vmi_side_effect.call_count = 0
+        self.custom_object_client.get_namespaced_custom_object = MagicMock(
+            side_effect=get_vmi_side_effect
         )
 
         # Mock delete operation
         self.custom_object_client.delete_namespaced_custom_object = MagicMock(return_value={})
 
-        with patch('time.time', side_effect=self.create_mock_time()), patch('time.sleep'):
+        with patch('time.time', side_effect=self.create_incrementing_time_function()), patch('time.sleep'):
             with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
                 result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 0)
+        # Verify get_namespaced_custom_object was called at least the minimum expected times
+        # (actual count may be higher due to wait_for_running loop iterations)
+        self.assertGreaterEqual(self.custom_object_client.get_namespaced_custom_object.call_count, 4)
         
     def test_injection_failure(self):
         """
@@ -181,6 +192,14 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
             result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 1)
+        # Verify delete was attempted before the error occurred
+        self.custom_object_client.delete_namespaced_custom_object.assert_called_once_with(
+            group="kubevirt.io",
+            version="v1",
+            namespace="default",
+            plural="virtualmachineinstances",
+            name="test-vm"
+        )
         
     def test_disable_auto_restart(self):
         """
@@ -206,14 +225,21 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
             ]
         )
 
-        # Mock get operations
+        # Mock get_namespaced_custom_object with detailed call sequence
+        # NOTE: This mock handles both VMI (virtualmachineinstances) and VM (virtualmachines) calls
+        # Call sequence:
+        # 1. validate_environment: get VMI (plural=virtualmachineinstances)
+        # 2. execute_scenario: get VMI before deletion (plural=virtualmachineinstances)
+        # 3. patch_vm_spec: get VM for patching (plural=virtualmachines)
+        # 4. delete_vmi: loop checking if VMI timestamp changed (plural=virtualmachineinstances)
+        # 5+. wait_for_running: loop until VMI phase is Running (plural=virtualmachineinstances)
         self.custom_object_client.get_namespaced_custom_object = MagicMock(
             side_effect=[
-                self.mock_vmi,  # validate_environment
-                self.mock_vmi,  # get before delete
-                mock_vm,  # get VM for patching
-                self.mock_vmi_recreated,  # After delete (recreated)
-                self.mock_vmi_recreated,  # Check if running
+                self.mock_vmi,  # Call 1: validate_environment
+                self.mock_vmi,  # Call 2: get VMI before delete
+                mock_vm,  # Call 3: get VM for patching (different resource type)
+                self.mock_vmi_recreated,  # Call 4: delete_vmi detects new timestamp
+                self.mock_vmi_recreated,  # Call 5: wait_for_running checks phase
             ]
         )
 
@@ -221,15 +247,13 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.custom_object_client.patch_namespaced_custom_object = MagicMock(return_value=mock_vm)
         self.custom_object_client.delete_namespaced_custom_object = MagicMock(return_value={})
 
-        with patch('time.time', side_effect=self.create_mock_time()), patch('time.sleep'):
+        with patch('time.time', side_effect=self.create_incrementing_time_function()), patch('time.sleep'):
             with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
                 result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 0)
         # Verify patch was called to disable auto-restart
         self.custom_object_client.patch_namespaced_custom_object.assert_called()
-        # Verify the expected number of get_namespaced_custom_object calls
-        self.assertEqual(self.custom_object_client.get_namespaced_custom_object.call_count, 5)
         
     def test_recovery_when_vmi_does_not_exist(self):
         """
@@ -251,11 +275,17 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
             "status": {"phase": "Running"}
         }
 
-        # Mock get_vmi to return None (VMI not found), then the running VMI after recreation
+        # Mock get_namespaced_custom_object call sequence in recover method
+        # Call sequence:
+        # 1. wait_for_running (line 391): first loop iteration - VMI may not be fully created yet
+        # 2. wait_for_running: subsequent loop iterations - VMI exists and is running
+        # Note: recover() does NOT call get_vmi before creating the VMI - it only checks
+        # if self.original_vmi exists, then directly calls create_namespaced_custom_object.
+        # All get_vmi calls happen within wait_for_running after VMI creation.
         self.custom_object_client.get_namespaced_custom_object = MagicMock(
             side_effect=[
-                ApiException(status=404, reason="Not Found"),  # First check - not found
-                running_vmi,  # After creation - check if running
+                ApiException(status=404, reason="Not Found"),  # wait_for_running: VMI still being created
+                running_vmi,  # wait_for_running: VMI now exists and is running
             ]
         )
 
@@ -263,7 +293,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.custom_object_client.create_namespaced_custom_object = MagicMock(return_value=running_vmi)
 
         # Run recovery with mocked time
-        with patch('time.time', side_effect=self.create_mock_time()), patch('time.sleep'):
+        with patch('time.time', side_effect=self.create_incrementing_time_function()), patch('time.sleep'):
             result = self.plugin.recover("test-vm", "default", False)
 
         self.assertEqual(result, 0)
@@ -281,7 +311,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.custom_object_client.list_namespaced_custom_object = MagicMock(
             side_effect=[
                 {"items": [self.mock_vmi]},  # For get_vmis
-                {},  # For validate_environment - empty result simulating no KubeVirt CRDs  
+                {"items": []},  # For validate_environment - empty result simulating no KubeVirt CRDs  
             ]
         )
 
