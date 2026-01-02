@@ -327,14 +327,20 @@ class ibm_node_scenarios(abstract_node_scenarios):
                 vm_stopped = self.ibmcloud.stop_instances(instance_id)
                 if vm_stopped:
                     self.ibmcloud.wait_until_stopped(instance_id, timeout, affected_node)
-                logging.info(
-                    "Node with instance ID: %s is in stopped state" % node
-                )
-                logging.info(
-                    "node_stop_scenario has been successfully injected!"
-                )
+                    logging.info(
+                        "Node with instance ID: %s is in stopped state" % node
+                    )
+                    logging.info(
+                        "node_stop_scenario has been successfully injected!"
+                    )
+                else:
+                    logging.error(
+                        "Failed to stop node instance %s. Stop command failed." % instance_id
+                    )
+                    raise Exception("Stop command failed for instance %s" % instance_id)
+                self.affected_nodes_status.affected_nodes.append(affected_node)
         except Exception as e:
-            logging.error("Failed to stop node instance. Test Failed")
+            logging.error("Failed to stop node instance. Test Failed: %s" % str(e))
             logging.error("node_stop_scenario injection failed!")
 
 
@@ -345,24 +351,31 @@ class ibm_node_scenarios(abstract_node_scenarios):
                 affected_node = AffectedNode(node, node_id=instance_id)
                 logging.info("Starting node_reboot_scenario injection")
                 logging.info("Rebooting the node %s " % (node))
-                self.ibmcloud.reboot_instances(instance_id)
-                self.ibmcloud.wait_until_rebooted(instance_id, timeout, affected_node)
-                if self.node_action_kube_check:
-                    nodeaction.wait_for_unknown_status(
-                        node, timeout, affected_node
+                vm_rebooted = self.ibmcloud.reboot_instances(instance_id)
+                if vm_rebooted:
+                    self.ibmcloud.wait_until_rebooted(instance_id, timeout, affected_node)
+                    if self.node_action_kube_check:
+                        nodeaction.wait_for_unknown_status(
+                            node, timeout, self.kubecli, affected_node
+                        )
+                        nodeaction.wait_for_ready_status(
+                            node, timeout, self.kubecli, affected_node
+                        )
+                    logging.info(
+                        "Node with instance ID: %s has rebooted successfully" % node
                     )
-                    nodeaction.wait_for_ready_status(
-                        node, timeout, affected_node
+                    logging.info(
+                        "node_reboot_scenario has been successfully injected!"
                     )
-                logging.info(
-                    "Node with instance ID: %s has rebooted successfully" % node
-                )
-                logging.info(
-                    "node_reboot_scenario has been successfully injected!"
-                )
+                else:
+                    logging.error(
+                        "Failed to reboot node instance %s. Reboot command failed." % instance_id
+                    )
+                    raise Exception("Reboot command failed for instance %s" % instance_id)
+                self.affected_nodes_status.affected_nodes.append(affected_node)
 
         except Exception as e:
-            logging.error("Failed to reboot node instance. Test Failed")
+            logging.error("Failed to reboot node instance. Test Failed: %s" % str(e))
             logging.error("node_reboot_scenario injection failed!")
 
 
@@ -383,7 +396,8 @@ class ibm_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "node_terminate_scenario has been successfully injected!"
                 )
+                self.affected_nodes_status.affected_nodes.append(affected_node)
         except Exception as e:
-            logging.error("Failed to terminate node instance. Test Failed")
+            logging.error("Failed to terminate node instance. Test Failed: %s" % str(e))
             logging.error("node_terminate_scenario injection failed!")
 
