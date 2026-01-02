@@ -339,10 +339,12 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         # Mock successful delete operation
         self.custom_object_client.delete_namespaced_custom_object = MagicMock(return_value={})
 
-        # Mock that get_vmi always returns the same VMI object with the same creationTimestamp.  
-        # delete_vmi checks whether the VMI's creationTimestamp has changed to detect a recreate;  
-        # by keeping it unchanged, delete_vmi keeps waiting until the (patched) time exceeds timeout,  
-        # thus exercising the timeout path.  
+        # Mock get_vmi to always return the same VMI with unchanged creationTimestamp.
+        # This simulates a scenario where the VMI has NOT been recreated after deletion
+        # (i.e., still has the original creationTimestamp from before deletion).
+        # delete_vmi (lines 315-320) loops checking if creationTimestamp changed to detect
+        # successful recreation. Since it never changes here, the loop continues until
+        # the mocked time exceeds the timeout value, exercising the timeout path.
 
         self.custom_object_client.get_namespaced_custom_object = MagicMock(
             return_value=self.mock_vmi
