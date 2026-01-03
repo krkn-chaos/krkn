@@ -42,7 +42,7 @@ class TestGetStatus(unittest.TestCase):
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "",
-                "check_applicaton_routes": False
+                "check_application_routes": False
             }
         }
         
@@ -58,7 +58,7 @@ class TestGetStatus(unittest.TestCase):
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus:8080",
-                "check_applicaton_routes": False
+                "check_application_routes": False
             }
         }
         mock_response = MagicMock()
@@ -78,7 +78,7 @@ class TestGetStatus(unittest.TestCase):
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus:8080",
-                "check_applicaton_routes": False
+                "check_application_routes": False
             }
         }
         mock_response = MagicMock()
@@ -97,7 +97,7 @@ class TestGetStatus(unittest.TestCase):
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus:8080",
-                "check_applicaton_routes": True
+                "check_application_routes": True
             }
         }
         mock_response = MagicMock()
@@ -119,7 +119,7 @@ class TestGetStatus(unittest.TestCase):
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus:8080",
-                "check_applicaton_routes": True
+                "check_application_routes": True
             }
         }
         mock_response = MagicMock()
