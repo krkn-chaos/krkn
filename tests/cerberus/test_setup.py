@@ -74,6 +74,7 @@ class TestGetStatus(unittest.TestCase):
     @patch('krkn.cerberus.setup.requests.get')
     def test_cerberus_enabled_unhealthy(self, mock_get, mock_exit):
         """Test get_status exits when cerberus returns unhealthy status"""
+        mock_exit.side_effect = SystemExit(1)
         config = {
             "cerberus": {
                 "cerberus_enabled": True,
@@ -85,7 +86,8 @@ class TestGetStatus(unittest.TestCase):
         mock_response.content = b"False"
         mock_get.return_value = mock_response
         
-        get_status(config, 0, 100)
+        with self.assertRaises(SystemExit):
+            get_status(config, 0, 100)
         
         mock_exit.assert_called_once_with(1)
 
@@ -115,6 +117,7 @@ class TestGetStatus(unittest.TestCase):
     @patch('krkn.cerberus.setup.requests.get')
     def test_cerberus_with_application_routes_unhealthy(self, mock_get, mock_app_status, mock_exit):
         """Test get_status with application routes check - routes unhealthy"""
+        mock_exit.side_effect = SystemExit(1)
         config = {
             "cerberus": {
                 "cerberus_enabled": True,
@@ -127,7 +130,8 @@ class TestGetStatus(unittest.TestCase):
         mock_get.return_value = mock_response
         mock_app_status.return_value = (False, {"route1", "route2"})
         
-        get_status(config, 0, 100)
+        with self.assertRaises(SystemExit):
+            get_status(config, 0, 100)
         
         mock_exit.assert_called_once_with(1)
 
@@ -147,7 +151,9 @@ class TestPublishKrakenStatus(unittest.TestCase):
         mock_get_status.return_value = False
         
         with patch('krkn.cerberus.setup.sys.exit') as mock_exit:
-            publish_kraken_status(config, ["failed_scenario"], 0, 100)
+            mock_exit.side_effect = SystemExit(1)
+            with self.assertRaises(SystemExit):
+                publish_kraken_status(config, ["failed_scenario"], 0, 100)
             mock_exit.assert_called_once_with(1)
 
     @patch('krkn.cerberus.setup.get_status')
@@ -177,7 +183,9 @@ class TestPublishKrakenStatus(unittest.TestCase):
         mock_get_status.return_value = True
         
         with patch('krkn.cerberus.setup.sys.exit') as mock_exit:
-            publish_kraken_status(config, ["failed_scenario"], 0, 100)
+            mock_exit.side_effect = SystemExit(1)
+            with self.assertRaises(SystemExit):
+                publish_kraken_status(config, ["failed_scenario"], 0, 100)
             mock_exit.assert_called_once_with(1)
 
     @patch('krkn.cerberus.setup.get_status')
@@ -310,9 +318,11 @@ class TestApplicationStatus(unittest.TestCase):
     @patch('krkn.cerberus.setup.requests.get')
     def test_application_status_request_exception(self, mock_get, mock_exit):
         """Test application_status exits on request exception"""
+        mock_exit.side_effect = SystemExit(1)
         mock_get.side_effect = Exception("Connection error")
         
-        application_status("http://cerberus:8080", 0, 6000)
+        with self.assertRaises(SystemExit):
+            application_status("http://cerberus:8080", 0, 6000)
         
         mock_exit.assert_called_once_with(1)
 
@@ -320,11 +330,13 @@ class TestApplicationStatus(unittest.TestCase):
     @patch('krkn.cerberus.setup.requests.get')
     def test_application_status_json_parse_error(self, mock_get, mock_exit):
         """Test application_status exits on JSON parse error"""
+        mock_exit.side_effect = SystemExit(1)
         mock_response = MagicMock()
         mock_response.content = b"invalid json"
         mock_get.return_value = mock_response
         
-        application_status("http://cerberus:8080", 0, 6000)
+        with self.assertRaises(SystemExit):
+            application_status("http://cerberus:8080", 0, 6000)
         
         mock_exit.assert_called_once_with(1)
 
