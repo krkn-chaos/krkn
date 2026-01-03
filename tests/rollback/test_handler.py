@@ -16,7 +16,7 @@ Usage:
 """
 
 import unittest
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 import os
 import tempfile
 import sys
@@ -30,8 +30,6 @@ from krkn.rollback.handler import (
     cleanup_rollback_version_files,
     RollbackHandler,
 )
-from krkn.rollback.config import RollbackContext
-
 
 class TestSetRollbackContextDecorator(unittest.TestCase):
     """Test suite for set_rollback_context_decorator"""
@@ -191,7 +189,7 @@ def rollback_test(content: RollbackContent, telemetry: KrknTelemetryOpenshift):
             os.unlink(temp_file)
 
     def test_parse_module_rollback_content_is_none(self):
-        """Test parsing fails when rollback_content variable is None (covers line 114)"""
+        """Test parsing fails when rollback_content variable is None"""
         module_content = '''
 from krkn.rollback.config import RollbackContent
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
