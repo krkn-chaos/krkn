@@ -48,7 +48,7 @@ class TestSetupKubernetes(unittest.TestCase):
         mock_client.CoreV1Api.return_value = mock_cli
         mock_client.BatchV1Api.return_value = mock_batch_cli
 
-        cli, batch_cli = kube_funcs.setup_kubernetes(None)
+        kube_funcs.setup_kubernetes(None)
 
         mock_config.load_kube_config.assert_called_once_with("~/.kube/config")
 
@@ -157,26 +157,35 @@ class TestCreatePod(unittest.TestCase):
     @patch('krkn.scenario_plugins.native.network.kubernetes_functions.time.sleep')
     @patch('krkn.scenario_plugins.native.network.kubernetes_functions.time.time')
     def test_create_pod_timeout(self, mock_time, mock_sleep, mock_exit, mock_delete_pod):
-        """Test create_pod with timeout"""
+        """Test create_pod with timeout - iterates through loop before timing out"""
         mock_cli = MagicMock()
         mock_pod_stat = MagicMock()
         mock_pod_stat.status.phase = "Pending"
         mock_pod_stat.status.container_statuses = []
         mock_cli.create_namespaced_pod.return_value = mock_pod_stat
         mock_cli.read_namespaced_pod.return_value = mock_pod_stat
-        # Use callable to handle multiple time.time() calls (including from logging)
-        time_counter = [0]
+        # Use a callable to return time values; logging also calls time.time() internally
+        # so we need to handle many calls. First call sets end_time (0+120=120),
+        # subsequent calls simulate loop iterations before exceeding timeout
+        time_call_count = [0]
         def mock_time_func():
-            time_counter[0] += 200  # Each call increments by 200 to exceed timeout
-            return time_counter[0]
+            time_call_count[0] += 1
+            if time_call_count[0] == 1:
+                return 0  # Initial call for end_time calculation
+            elif time_call_count[0] <= 3:
+                return 50 * (time_call_count[0] - 1)  # Loop iterations: 50, 100
+            else:
+                return 150  # Exceed timeout and any logging calls
         mock_time.side_effect = mock_time_func
         body = {"metadata": {"name": "test-pod"}}
 
         mock_exit.side_effect = SystemExit(1)
-        
+
         with self.assertRaises(SystemExit):
             kube_funcs.create_pod(mock_cli, body, "default", timeout=120)
 
+        # Verify time.sleep was called during loop iterations (covers line 80)
+        self.assertTrue(mock_sleep.called, "time.sleep should be called during loop iterations")
         mock_delete_pod.assert_called_once()
         mock_exit.assert_called_once_with(1)
 
@@ -241,14 +250,22 @@ class TestCreateIfb(unittest.TestCase):
 
     @patch('krkn.scenario_plugins.native.network.kubernetes_functions.exec_cmd_in_pod')
     def test_create_ifb(self, mock_exec):
-        """Test create_ifb creates virtual interfaces"""
+        """Test create_ifb creates virtual interfaces with correct parameters"""
         mock_cli = MagicMock()
-        mock_exec.return_value = ""
 
         kube_funcs.create_ifb(mock_cli, 3, "test-pod")
 
         # Should be called 4 times: 1 for modprobe + 3 for each interface
         self.assertEqual(mock_exec.call_count, 4)
+
+        # Verify the calls were made with correct parameters
+        expected_calls = [
+            call(mock_cli, ['chroot', '/host', 'modprobe', 'ifb', 'numifbs=3'], 'test-pod', 'default'),
+            call(mock_cli, ['chroot', '/host', 'ip', 'link', 'set', 'dev', 'ifb0', 'up'], 'test-pod', 'default'),
+            call(mock_cli, ['chroot', '/host', 'ip', 'link', 'set', 'dev', 'ifb1', 'up'], 'test-pod', 'default'),
+            call(mock_cli, ['chroot', '/host', 'ip', 'link', 'set', 'dev', 'ifb2', 'up'], 'test-pod', 'default'),
+        ]
+        mock_exec.assert_has_calls(expected_calls, any_order=False)
 
 
 class TestDeleteIfb(unittest.TestCase):
@@ -258,7 +275,6 @@ class TestDeleteIfb(unittest.TestCase):
     def test_delete_ifb(self, mock_exec):
         """Test delete_ifb removes virtual interfaces"""
         mock_cli = MagicMock()
-        mock_exec.return_value = ""
 
         kube_funcs.delete_ifb(mock_cli, "test-pod")
 
