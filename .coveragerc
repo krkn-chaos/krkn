@@ -2,3 +2,21 @@
 omit =
     tests/*
     krkn/tests/**
+    /tmp/*
+    */tmp*
+    **/version_template.j2
+
+[report]
+ignore_errors = True
+omit =
+    tests/*
+    krkn/tests/**
+    /tmp/*
+    */tmp*
+    **/version_template.j2
+
+[html]
+skip_empty = True
+
+[json]
+pretty_print = True
