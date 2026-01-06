@@ -27,7 +27,7 @@ def get_status(config, start_time, end_time):
     application_routes_status = True
     if config["cerberus"]["cerberus_enabled"]:
         cerberus_url = config["cerberus"]["cerberus_url"]
-        check_application_routes = config["cerberus"]["check_applicaton_routes"]
+        check_application_routes = config["cerberus"]["check_application_routes"]
         if not cerberus_url:
             logging.error("url where Cerberus publishes True/False signal is not provided.")
             sys.exit(1)
