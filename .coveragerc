@@ -2,6 +2,5 @@
 omit =
     tests/*
     krkn/tests/**
-    /tmp/*
     */tmp*
     **/version_template.j2
