@@ -92,7 +92,7 @@ class CnvNodeActionsScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             # --- Phase 1: Delegate Node Chaos Injection ---
-            logging.info(f"Phase 1: Delegating infrastructure actions to NodeActionsScenarioPlugin using scenario: {scenario}")
+            logging.info(f"Phase 1: Delegating node actions to NodeActionsScenarioPlugin using scenario: {scenario}")
             exit_code = self.node_actions_plugin.run(
                 run_uuid, 
                 scenario,
@@ -107,7 +107,7 @@ class CnvNodeActionsScenarioPlugin(AbstractScenarioPlugin):
             
             logging.info("Phase 1 Complete: Node actions finished successfully.")
 
-            # --- Phase 2: Post-Chaos Verification (CNV Specific) ---
+            # --- Phase 2: CNV-Post-Chaos Verification (CNV Specific) ---
             cnv_post_chaos_action = config.get("cnv_post_chaos_action")
             if not cnv_post_chaos_action:
                 logging.warning("No 'cnv_post_chaos_action' specified. Skipping Phase 2.")

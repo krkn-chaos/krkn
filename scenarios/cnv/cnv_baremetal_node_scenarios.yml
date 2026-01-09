@@ -1,0 +1,30 @@
+node_scenarios:
+  - actions:                                                        # Node chaos scenarios to be injected
+    - node_stop_start_scenario                                      # Action to run. Supported actions: node_stop, node_restart, node_stop_start etc. Please refer documentation
+    node_name:                                                      # Node(s) on which scenario has to be injected separated by a comma
+    label_selector: node-role.kubernetes.io/worker                  # When node_name is not specified, a node with matching label_selector is selected for node chaos scenario injection.
+    instance_count: 1                                               # Number of nodes to perform action/select that match the label selector
+    runs: 1                                                         # Number of times to inject each scenario under actions (will perform on same node each time).
+    timeout: 360                                                    # Duration to wait for completion of node scenario injection.
+    duration: 120                                                   # Duration to stop the node before running the start action
+    parallel: False                                                 # Run action on label or node name in parallel or sequential, set to true for parallel
+    cloud_type: bm                                                  # Cloud type on which Kubernetes/OpenShift runs.
+    kube_check: True                                                # Run the kubernetes api calls to see if the node gets to a certain state during the node scenario   
+    bmc_user: defaultuser                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines
+    bmc_password: defaultpass                                       # For baremetal (bm) cloud type. The default IPMI password. Optional if specified for all machines
+    bmc_info:                                                       # This section is here to specify baremetal per-machine info, so it is optional if there is no per-machine info.
+      node-1:                                                       # The node name for the baremetal machine
+        bmc_addr: mgmt-machine1.example.com                         # Optional. For baremetal nodes with the IPMI BMC address missing from 'oc get bmh'
+      node-2:
+        bmc_addr: mgmt-machine2.example.com
+        bmc_user: user                                              # The baremetal IPMI user. Overrides the default IPMI user specified above. Optional if the default is set
+        bmc_password: pass                                          # The baremetal IPMI password. Overrides the default IPMI user specified above. Optional if the default is set
+    
+    # --- CNV Parameters ---
+    vm_timeout: 1200
+    snapshot_timeout: 120
+    cnv_post_chaos_action: ssh_vm
+    vm_name: master-outage-snap-vm
+    vm_namespace: default
+    snapshot_name: recovery-snap
+    vm_manifest_path: ../scenarios-hub/lp_chaos/cnv/manifests/test-vm-snapshot.yaml

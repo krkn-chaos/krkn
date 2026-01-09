@@ -1,0 +1,22 @@
+node_scenarios:
+  - actions:
+    - node_stop_start_scenario
+    node_name: "" 
+    label_selector: node-role.kubernetes.io/master
+    instance_count: 1                                             
+    runs: 1                                                       
+    timeout: 360                                                  
+    duration: 20                                                 
+    cloud_type: aws                                                
+    parallel: true                                                
+    kube_check: true                                             
+    poll_interval: 15 
+    
+    # --- CNV Parameters ---
+    vm_timeout: 1200
+    snapshot_timeout: 120
+    cnv_post_chaos_action: ssh_vm         # select one option from create_vm, create_snapshot or ssh_vm. 
+    vm_name: master-outage-snap-vm
+    vm_namespace: default
+    snapshot_name: recovery-snap
+    vm_manifest_path: ../scenarios-hub/lp_chaos/cnv/manifests/test-vm-snapshot.yaml  # vm manifest path
