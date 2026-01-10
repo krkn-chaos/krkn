@@ -22,19 +22,19 @@ class SnapshotDisruptionBase(ABC):
         Initializes the base class for a snapshot disruption scenario.
         """
 
-        # --- Scenario Parameters with Defaults ---
+        # --- Scenario Parameters with Defaults (To be overridden by YAML) ---
         # Target VM Parameters
-        self.vm_name = "chaos-vm-snapshot-test"
-        self.vm_namespace = "default"
+        self.vm_name = "" # e.g: chaos-vm-snapshot-test
+        self.vm_namespace = "" # e.g: default
         self.vmi_wait_timeout = 300
 
         # Snapshot Disruption Parameters
-        self.snapshot_name = "chaos-snapshot"
-        self.snapshot_controller_namespace = "openshift-cluster-storage-operator"
-        self.snapshot_controller_label = "app=csi-snapshot-controller"
+        self.snapshot_name = "" # e.g: chaos-snapshot
+        self.snapshot_controller_namespace = "" # e.g: openshift-cluster-storage-operator
+        self.snapshot_controller_label = "" # e.g: app=csi-snapshot-controller
         self.snapshot_creation_wait_time = 5
         self.snapshot_ready_timeout = 300
-        
+
         # Resource Management
         self.cleanup_resources = True
 

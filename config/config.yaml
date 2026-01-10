@@ -53,7 +53,7 @@ kraken:
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
        - cnv_snapshot_disruption_scenarios:
-           - ../scenarios-hub/lp_chaos/cnv/snapshot_creation_disruption.yaml
+           - scenarios/cnv/snapshot_creation_disruption.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
