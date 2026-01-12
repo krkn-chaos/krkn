@@ -3,6 +3,7 @@ from typing import Tuple
 from krkn_lib.k8s import KrknKubernetes
 
 from krkn.scenario_plugins.network_chaos_ng.models import NetworkFilterConfig
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
 
 
 def generate_rules(
