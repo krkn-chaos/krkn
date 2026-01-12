@@ -211,6 +211,32 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         # Store initial affected nodes count to track newly affected nodes
         initial_affected_nodes_count = len(node_scenario_object.affected_nodes_status.affected_nodes)
 
+        # Unconditionally register rollback before action execution
+        # This ensures that even if the scenarios fail or are interrupted, the rollback
+        # handler is registered. The rollback handler uses state checks to avoid 
+        # restoring nodes that don't need it.
+        cloud_type = get_yaml_item_value(node_scenario, "cloud_type", "generic")
+        rollback_data = {
+           "cloud_type": cloud_type.lower(),
+           "action": action,
+           "affected_nodes": [
+               {
+                   "node_name": str(node),
+                   "node_id": None # node_id unavailable before execution, but recovery relies on name
+               }
+               for node in nodes
+           ],
+        }
+        json_str = json.dumps(rollback_data)
+        encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+        self.rollback_handler.set_rollback_callable(
+           self.rollback_node_actions,
+           RollbackContent(
+               namespace=None,  # Node actions are cluster-level
+               resource_identifier=encoded_data,
+           ),
+        )
+
         if parallel_nodes:
             self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
         else:
@@ -218,43 +244,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 self.run_node(single_node, node_scenario_object, action, node_scenario)
         affected_nodes_status = node_scenario_object.affected_nodes_status
         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
-        
-        # Capture rollback data for newly affected nodes
-        newly_affected_nodes = affected_nodes_status.affected_nodes[initial_affected_nodes_count:]
-        if newly_affected_nodes:
-            cloud_type = get_yaml_item_value(node_scenario, "cloud_type", "generic")
-            
-            # Skip rollback for actions that complete successfully and don't leave nodes in bad state
-            # Note: node_stop_scenario is NOT skipped - if interrupted, nodes are stopped and need restoration
-            skip_rollback_actions = [
-                "node_start_scenario",      # Node is started - completes successfully, no rollback needed
-                "node_termination_scenario", # Node is terminated - can't rollback anyway
-                "node_reboot_scenario",      # Node reboots and comes back up - completes successfully
-            ]
-            
-            # Only set rollback for actions that leave nodes in a bad state that needs restoration
-            if action not in skip_rollback_actions:
-                # Set rollback callable to ensure node restoration on failure or interruption
-                rollback_data = {
-                    "cloud_type": cloud_type.lower(),
-                    "action": action,
-                    "affected_nodes": [
-                        {
-                            "node_name": affected_node.node_name,
-                            "node_id": affected_node.node_id if hasattr(affected_node, "node_id") and affected_node.node_id else None,
-                        }
-                        for affected_node in newly_affected_nodes
-                    ],
-                }
-                json_str = json.dumps(rollback_data)
-                encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
-                self.rollback_handler.set_rollback_callable(
-                    self.rollback_node_actions,
-                    RollbackContent(
-                        namespace=None,  # Node actions are cluster-level, not namespace-specific
-                        resource_identifier=encoded_data,
-                    ),
-                )
 
     def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
         try:
