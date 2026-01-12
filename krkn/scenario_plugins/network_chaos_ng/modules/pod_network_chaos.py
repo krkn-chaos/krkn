@@ -82,10 +82,6 @@ class PodNetworkChaosModule(AbstractNetworkChaosModule):
             else:
                 interfaces = self.config.interfaces
 
-            container_ids = self.kubecli.get_lib_kubernetes().get_container_ids(
-                target, self.config.namespace
-            )
-
             if len(container_ids) == 0:
                 raise Exception(
                     f"impossible to resolve container id for pod {target} namespace {self.config.namespace}"

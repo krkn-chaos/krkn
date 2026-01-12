@@ -99,7 +99,7 @@ def get_ingress_shaping_commands(
     )
     rate_commands.append(
         f"tc qdisc add dev {ifb_dev} parent {CLASS_ID} handle {NETEM_HANDLE} "
-        f"netem delay {delay_ms if delay_ms else '0'} "
+        f"netem delay {delay_ms if delay_ms else '0ms'} "
         f"loss {loss_pct if loss_pct else '0'}% || true"
     )
 
