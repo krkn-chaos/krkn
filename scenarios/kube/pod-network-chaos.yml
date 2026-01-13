@@ -1,4 +1,4 @@
-- id: node_network_chaos
+- id: pod_network_chaos
   image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
   wait_duration: 1
   test_duration: 60
