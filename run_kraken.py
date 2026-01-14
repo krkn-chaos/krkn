@@ -32,6 +32,7 @@ from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ChaosRunTelemetry
+from krkn_lib.models.k8s import ResiliencyReport
 from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
@@ -113,10 +114,6 @@ def main(options, command: Optional[str]) -> int:
             config["performance_monitoring"], "enable_metrics", False
         )
 
-        # Disable resiliency if Prometheus URL is not available
-        if (not prometheus_url or prometheus_url.strip() == "") and run_mode != "disabled":
-            logging.warning("Prometheus URL not provided; disabling resiliency score features.")
-            run_mode = "disabled"
 
         # Default placeholder; will be overridden if a Prometheus URL is available
         prometheus = None
@@ -249,6 +246,11 @@ def main(options, command: Optional[str]) -> int:
             logging.info(cv)
         else:
             logging.info("Cluster version CRD not detected, skipping")
+
+        # Final check: ensure Prometheus URL is available; disable resiliency if not
+        if (not prometheus_url or prometheus_url.strip() == "") and run_mode != "disabled":
+            logging.warning("Prometheus URL not provided; disabling resiliency score features.")
+            run_mode = "disabled"
 
         # KrknTelemetry init
         telemetry_k8s = KrknTelemetryKubernetes(
@@ -504,7 +506,13 @@ def main(options, command: Optional[str]) -> int:
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
         if resiliency_obj and hasattr(resiliency_obj, "summary"):
-            decoded_chaos_run_telemetry.overall_resiliency_report = resiliency_obj.get_summary()
+            summary_dict = resiliency_obj.get_summary()
+            decoded_chaos_run_telemetry.overall_resiliency_report = ResiliencyReport(
+                json_object=summary_dict,
+                resiliency_score=summary_dict.get("resiliency_score", 0),
+                passed_slos=summary_dict.get("passed_slos", 0),
+                total_slos=summary_dict.get("total_slos", 0)
+            )
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
