@@ -112,10 +112,6 @@ def main(options, command: Optional[str]) -> int:
             config["performance_monitoring"], "enable_metrics", False
         )
 
-        # Disable resiliency if Prometheus URL is not available
-        if (not prometheus_url or prometheus_url.strip() == "") and run_mode != "disabled":
-            logging.warning("Prometheus URL not provided; disabling resiliency score features.")
-            run_mode = "disabled"
 
         # Default placeholder; will be overridden if a Prometheus URL is available
         prometheus = None
@@ -245,6 +241,11 @@ def main(options, command: Optional[str]) -> int:
             logging.info(cv)
         else:
             logging.info("Cluster version CRD not detected, skipping")
+
+        # Final check: ensure Prometheus URL is available; disable resiliency if not
+        if (not prometheus_url or prometheus_url.strip() == "") and run_mode != "disabled":
+            logging.warning("Prometheus URL not provided; disabling resiliency score features.")
+            run_mode = "disabled"
 
         # KrknTelemetry init
         telemetry_k8s = KrknTelemetryKubernetes(
