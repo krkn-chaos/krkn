@@ -33,7 +33,7 @@ requests-unixsocket>=0.4.0  # Required for Docker Unix socket support
 service_identity==24.1.0
 PyYAML==6.0.1
 setuptools==78.1.1
-werkzeug==3.1.4
+werkzeug==3.1.5
 wheel==0.42.0
 zope.interface==5.4.0
 
