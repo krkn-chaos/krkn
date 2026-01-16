@@ -196,13 +196,11 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 exclude_nodes = common_node_functions.get_node(
                     exclude_label, 0, kubecli
                 )
-
-                for node in nodes:
-                    if node in exclude_nodes:
-                        logging.info(
-                            f"excluding node {node} with exclude label {exclude_nodes}"
-                        )
-                        nodes.remove(node)
+                if exclude_nodes:
+                    logging.info(
+                        f"excluding nodes {exclude_nodes} with exclude label {exclude_label}"
+                    )
+                nodes = [node for node in nodes if node not in exclude_nodes]
 
         # GCP api doesn't support multiprocessing calls, will only actually run 1
         if parallel_nodes:
