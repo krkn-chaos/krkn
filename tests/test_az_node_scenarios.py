@@ -10,9 +10,7 @@ Assisted By: Claude Code
 """
 
 import unittest
-from unittest.mock import MagicMock, Mock, patch, PropertyMock, call
-import logging
-import time
+from unittest.mock import Mock, patch
 
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
@@ -358,6 +356,26 @@ class TestAzure(unittest.TestCase):
     @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.NetworkManagementClient')
     @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.ComputeManagementClient')
     @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.DefaultAzureCredential')
+    def test_wait_until_stopped_timeout(self, mock_credential, mock_compute, mock_network, mock_logging, mock_sleep):
+        """Test wait_until_stopped returns False on timeout"""
+        azure = Azure()
+
+        mock_status = Mock()
+        mock_status.code = "PowerState/stopping"
+        mock_instance_view = Mock()
+        mock_instance_view.statuses = [Mock(), mock_status]
+
+        azure.compute_client.virtual_machines.instance_view.return_value = mock_instance_view
+
+        result = azure.wait_until_stopped("test-rg", "test-vm", 10, None)
+
+        self.assertFalse(result)
+
+    @patch('time.sleep')
+    @patch('logging.info')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.NetworkManagementClient')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.ComputeManagementClient')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.DefaultAzureCredential')
     def test_wait_until_terminated_success(self, mock_credential, mock_compute, mock_network, mock_logging, mock_sleep):
         """Test wait_until_terminated waits for VM deletion"""
         azure = Azure()
@@ -435,6 +453,26 @@ class TestAzure(unittest.TestCase):
         azure.delete_security_group("test-rg", "chaos")
 
         azure.network_client.network_security_groups.begin_delete.assert_called_once_with("test-rg", "chaos")
+
+    @patch('builtins.print')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.NetworkManagementClient')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.ComputeManagementClient')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.DefaultAzureCredential')
+    def test_delete_security_group_with_result(self, mock_credential, mock_compute, mock_network, mock_print):
+        """Test delete_security_group deletes NSG with non-None result"""
+        azure = Azure()
+
+        mock_result = Mock()
+        mock_result.as_dict.return_value = {"id": "/test-nsg-id", "name": "chaos"}
+        mock_operation = Mock()
+        mock_operation.result.return_value = mock_result
+        azure.network_client.network_security_groups.begin_delete.return_value = mock_operation
+
+        azure.delete_security_group("test-rg", "chaos")
+
+        azure.network_client.network_security_groups.begin_delete.assert_called_once_with("test-rg", "chaos")
+        mock_result.as_dict.assert_called_once()
+        mock_print.assert_called_once_with({"id": "/test-nsg-id", "name": "chaos"})
 
     @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.NetworkManagementClient')
     @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.ComputeManagementClient')
