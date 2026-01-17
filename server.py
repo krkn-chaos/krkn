@@ -1,10 +1,12 @@
 import sys
 import logging
 import _thread
+import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http.client import HTTPConnection
 
 server_status = ""
+status_lock = threading.Lock()
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     """
@@ -20,7 +22,9 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def do_status(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(bytes(server_status, encoding='utf8'))
+        with status_lock:
+            status = server_status
+        self.wfile.write(bytes(status, encoding='utf8'))
         SimpleHTTPRequestHandler.requests_served += 1
 
     def do_POST(self):
@@ -34,24 +38,28 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     def set_run(self):
         self.send_response(200)
         self.end_headers()
-        global server_status
-        server_status = 'RUN'
+        with status_lock:
+            global server_status
+            server_status = 'RUN'
 
     def set_stop(self):
         self.send_response(200)
         self.end_headers()
-        global server_status
-        server_status = 'STOP'
+        with status_lock:
+            global server_status
+            server_status = 'STOP'
 
     def set_pause(self):
         self.send_response(200)
         self.end_headers()
-        global server_status
-        server_status = 'PAUSE'
+        with status_lock:
+            global server_status
+            server_status = 'PAUSE'
 
 def publish_kraken_status(status):
-    global server_status
-    server_status = status
+    with status_lock:
+        global server_status
+        server_status = status
 
 def start_server(address, status):
     server = address[0]
