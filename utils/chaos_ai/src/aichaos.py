@@ -58,7 +58,10 @@ class AIChaos:
                 return start_state, end_state
 
         # after the experiment
-        for probe in data['steady_states']['after']['probes']:
+        after_probes = data['steady_states']['after']['probes']
+        if not after_probes:
+            return None, None
+        for probe in after_probes:
             # if probe['output']['status'] == probe['activity']['tolerance']:
             if not probe['tolerance_met']:
                 # print(probe)
