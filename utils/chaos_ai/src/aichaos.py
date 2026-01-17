@@ -102,7 +102,14 @@ class AIChaos:
     def create_episode(self):
         self.logger.info('[CREATE_EPISODE]')
         episode = []
+        max_attempts = max(1, len(self.faults)) * 5
+        attempts = 0
         while True:
+            if attempts >= max_attempts:
+                self.logger.warning(
+                    f"[CREATE_EPISODE] Max attempts reached ({max_attempts}); aborting episode creation"
+                )
+                return [], None, None
             # inject more faults
             # TODO: model - choose faults based on q-learning ...
             fault_pod = random.choice(self.faults)
@@ -118,6 +125,7 @@ class AIChaos:
             print('[CREATE EPISODE]', start_state, next_state)
             # if before state tolerance is not met
             if start_state is None and next_state is None:
+                attempts += 1
                 continue
 
             episode.append({'fault': fault, 'pod_name': pod_name})
