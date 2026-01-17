@@ -14,13 +14,17 @@ from src.test_application import TestApplication
 
 
 class AIChaos:
-    def __init__(self, namespace='robot-shop', states=None, faults=None, rewards=None, urls=[], max_faults=5,
-                 service_weights=None, ctd_subsets=None, pod_names=[], chaos_dir='../config/', kubeconfig='~/.kube/config',
+    def __init__(self, namespace='robot-shop', states=None, faults=None, rewards=None, urls=None, max_faults=5,
+                 service_weights=None, ctd_subsets=None, pod_names=None, chaos_dir='../config/', kubeconfig='~/.kube/config',
                  chaos_experiment='experiment.json', logfile='log', qfile='qfile.csv', efile='efile', epfile='episodes.json',
                  loglevel=logging.INFO,
                  chaos_journal='journal.json', iterations=10, alpha=0.9, gamma=0.2, epsilon=0.3,
                  num_requests=10, sleep_time=1, timeout=2, chaos_engine='kraken', dstk_probes=None,
                  static_run=False, all_faults=False, command='podman'):
+        if urls is None:
+            urls = []
+        if pod_names is None:
+            pod_names = []
         self.namespace = namespace
         self.faults = faults
         self.unused_faults = faults.copy()

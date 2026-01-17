@@ -8,9 +8,11 @@ import logging
 
 
 class AIChaos:
-    def __init__(self, states=None, faults=None, rewards=None, pod_names=[], chaos_dir=None,
+    def __init__(self, states=None, faults=None, rewards=None, pod_names=None, chaos_dir=None,
                  chaos_experiment='experiment.json',
                  chaos_journal='journal.json', iterations=1000, static_run=False):
+        if pod_names is None:
+            pod_names = []
         self.faults = faults
         self.pod_names = pod_names
         self.states = states
