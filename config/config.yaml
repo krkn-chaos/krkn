@@ -57,6 +57,9 @@ kraken:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
        - http_load_scenarios:
               - scenarios/kube/http_load_scenario.yml
+       - aws_s3_replication_scenarios:                    # AWS S3 replication chaos scenarios
+           - scenarios/aws_s3_replication/s3_replication_pause.yaml
+           - scenarios/aws_s3_replication/s3_replication_extended.yaml
 
 resiliency:
   resiliency_run_mode: standalone  # Options: standalone, detailed, disabled
