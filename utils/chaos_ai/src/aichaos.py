@@ -46,8 +46,8 @@ class AIChaos:
     # End state is reached when system is down or return error code like '500','404'
     def get_next_state(self):
         self.logger.info('[GET_NEXT_STATE]')
-        f = open(self.chaos_dir + self.chaos_journal)
-        data = json.load(f)
+        with open(self.chaos_dir + self.chaos_journal) as f:
+            data = json.load(f)
 
         # before the experiment (if before steady state is false, after is null?)
         for probe in data['steady_states']['before']['probes']:
@@ -73,8 +73,8 @@ class AIChaos:
 
     def inject_faults(self, fault, pod_name):
         self.logger.info('[INJECT_FAULT] ' + fault)
-        f = open(self.chaos_dir + self.chaos_experiment)
-        data = json.load(f)
+        with open(self.chaos_dir + self.chaos_experiment) as f:
+            data = json.load(f)
         for m in data['method']:
             if 'provider' in m:
                 if fault == 'kill_microservice':
