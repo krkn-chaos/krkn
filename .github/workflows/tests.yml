@@ -39,6 +39,7 @@ jobs:
           sudo apt-get install build-essential python3-dev
           pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r CI/tests_v2/requirements.txt
           pip install coverage
 
       - name: Deploy test workloads

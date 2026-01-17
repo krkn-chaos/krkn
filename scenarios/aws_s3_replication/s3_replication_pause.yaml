@@ -1,0 +1,18 @@
+# AWS S3 Replication Chaos Scenario Configuration
+#
+# This scenario temporarily pauses S3 bucket replication to test application
+# resilience when replicated data becomes unavailable or out of sync.
+#
+# Use Case: Test how your application handles replication lag or failures
+
+aws_s3_replication_scenarios:
+  # Required: Name of the S3 source bucket with replication configured
+  bucket_name: "<YOUR-SOURCE-BUCKET-NAME>"
+  
+  # Required: Duration to pause replication (in seconds)
+  # During this time, new objects won't be replicated to destination buckets
+  duration: 300  # 5 minutes
+  
+  # Optional: AWS region where the bucket is located
+  # If not specified, uses the default region from AWS configuration
+  region: "<YOUR-AWS-REGION>"  # e.g., us-east-1, us-west-2
