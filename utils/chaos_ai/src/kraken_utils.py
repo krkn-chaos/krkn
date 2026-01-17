@@ -42,7 +42,9 @@ class KrakenUtils:
             # self.logger.debug('[Chaos Result] '+e+' : '+line)
             self.logger.debug('[KRAKEN][Chaos Result] '+e)
 
-    def wait_engines(self, engines=[]):
+    def wait_engines(self, engines=None):
+        if engines is None:
+            engines = []
         status = 'Completed'
         max_checks = self.wait_checks
         for e in engines:
