@@ -22,6 +22,8 @@ class AIChaos:
                  num_requests=10, sleep_time=1, timeout=2, chaos_engine='kraken', dstk_probes=None,
                  static_run=False, all_faults=False, command='podman'):
         self.namespace = namespace
+        if faults is None:
+            faults = []
         self.faults = faults
         self.unused_faults = faults.copy()
         self.all_faults = all_faults
