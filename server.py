@@ -1,6 +1,5 @@
 import sys
 import logging
-import _thread
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from http.client import HTTPConnection
@@ -36,29 +35,29 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
             self.set_pause()
 
     def set_run(self):
+        global server_status
         self.send_response(200)
         self.end_headers()
         with status_lock:
-            global server_status
             server_status = 'RUN'
 
     def set_stop(self):
+        global server_status
         self.send_response(200)
         self.end_headers()
         with status_lock:
-            global server_status
             server_status = 'STOP'
 
     def set_pause(self):
+        global server_status
         self.send_response(200)
         self.end_headers()
         with status_lock:
-            global server_status
             server_status = 'PAUSE'
 
 def publish_kraken_status(status):
+    global server_status
     with status_lock:
-        global server_status
         server_status = status
 
 def start_server(address, status):
@@ -68,7 +67,8 @@ def start_server(address, status):
     httpd = HTTPServer(address, SimpleHTTPRequestHandler)
     logging.info("Starting http server at http://%s:%s\n" % (server, port))
     try:
-        _thread.start_new_thread(httpd.serve_forever, ())
+        server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        server_thread.start()
         publish_kraken_status(status)
     except Exception as e:
         logging.error(
