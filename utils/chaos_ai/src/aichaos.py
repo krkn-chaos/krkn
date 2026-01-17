@@ -11,6 +11,10 @@ class AIChaos:
     def __init__(self, states=None, faults=None, rewards=None, pod_names=[], chaos_dir=None,
                  chaos_experiment='experiment.json',
                  chaos_journal='journal.json', iterations=1000, static_run=False):
+        if states is None:
+            states = {}
+        if faults is None:
+            faults = []
         self.faults = faults
         self.pod_names = pod_names
         self.states = states
