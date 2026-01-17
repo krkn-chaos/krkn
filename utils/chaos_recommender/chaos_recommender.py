@@ -280,9 +280,16 @@ def main():
                     f"Path for output file not specified. "
                     f"Using default folder {output_path}"
                 )
-            if not os.path.exists(os.path.expanduser(output_path)):
-                logging.error(f"Folder {output_path} for output not found.")
-                sys.exit(1)
+            expanded_output_path = os.path.expanduser(output_path)
+            if not os.path.exists(expanded_output_path):
+                try:
+                    os.makedirs(expanded_output_path, exist_ok=True)
+                    logging.info(f"Created output folder {expanded_output_path}")
+                except Exception as e:
+                    logging.error(
+                        f"Failed to create output folder {expanded_output_path}: {str(e)}"
+                    )
+                    sys.exit(1)
 
         # Validate required inputs
         if not namespaces:
