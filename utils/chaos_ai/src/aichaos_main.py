@@ -105,6 +105,9 @@ class AIChaos:
 
     def select_faults(self):
         max_faults = min(self.max_faults, len(self.unused_faults))
+        if max_faults == 0:
+            self.logger.warning("[select_faults] No faults available to select")
+            return []
         num_faults = random.randint(1, max_faults)
         if self.all_faults:
             num_faults = len(self.unused_faults)
