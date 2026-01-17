@@ -285,7 +285,7 @@ def main():
                 try:
                     os.makedirs(expanded_output_path, exist_ok=True)
                     logging.info(f"Created output folder {expanded_output_path}")
-                except Exception as e:
+                except OSError as e:
                     logging.error(
                         f"Failed to create output folder {expanded_output_path}: {str(e)}"
                     )
