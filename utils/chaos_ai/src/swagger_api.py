@@ -95,9 +95,8 @@ class AIChaosSwagger:
                           loglevel=logging.DEBUG, chaos_experiment=cexp, iterations=params['iterations'])
         aichaos.start_chaos()
 
-        file = open(outfile, "w")
-        file.write('done')
-        file.close()
+        with open(outfile, "w") as file:
+            file.write('done')
         os.remove(initfile)
         # os.remove(csvfile)
         # ConstraintsInference().remove_temp_files(dir, file_id)
@@ -145,8 +144,8 @@ class AIChaosSwagger:
         qfile = flaskdir + 'qfile_' + str(chaosid) + '.csv'
         initfile = ''.join([flaskdir, 'init-', chaosid])
         if os.path.exists(qfile):
-            f = open(qfile, "r")
-            return f.read()
+            with open(qfile, "r") as f:
+                return f.read()
         elif os.path.exists(initfile):
             return 'Running'
         else:
@@ -159,8 +158,8 @@ class AIChaosSwagger:
         epfile = flaskdir + 'episodes_' + str(chaosid) + '.json'
         initfile = ''.join([flaskdir, 'init-', chaosid])
         if os.path.exists(epfile):
-            f = open(epfile, "r")
-            return f.read()
+            with open(epfile, "r") as f:
+                return f.read()
         elif os.path.exists(initfile):
             return 'Running'
         else:
