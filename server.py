@@ -6,6 +6,7 @@ from http.client import HTTPConnection
 
 server_status = ""
 status_lock = threading.Lock()
+requests_served_lock = threading.Lock()
 
 class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
     """
@@ -23,7 +24,8 @@ class SimpleHTTPRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         with status_lock:
             self.wfile.write(bytes(server_status, encoding='utf8'))
-        SimpleHTTPRequestHandler.requests_served += 1
+        with requests_served_lock:
+            SimpleHTTPRequestHandler.requests_served += 1
 
     def do_POST(self):
         if self.path == "/STOP":
