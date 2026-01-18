@@ -60,7 +60,7 @@ def start_server(address, status):
     port = address[1]
     global httpd
     httpd = HTTPServer(address, SimpleHTTPRequestHandler)
-    logging.info("Starting http server at http://%s:%s" % (server, port))
+    logging.info(f"Starting http server at http://{server}:{port}")
     try:
         t = threading.Thread(target=httpd.serve_forever)
         t.daemon = True
