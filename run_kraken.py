@@ -57,8 +57,7 @@ def main(options, command: Optional[str]) -> int:
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
-        global kubeconfig_path, wait_duration, kraken_config
-
+        
         kubeconfig_path = os.path.expanduser(
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
@@ -252,16 +251,12 @@ def main(options, command: Optional[str]) -> int:
         logging.info("Server URL: %s" % kubecli.get_host())
 
         if command == "list-rollback":
-            sys.exit(
-                list_rollback_command(
-                    options.run_uuid, options.scenario_type
-                )
+            return list_rollback_command(
+                options.run_uuid, options.scenario_type
             )
         elif command == "execute-rollback":
-            sys.exit(
-                execute_rollback_command(
-                    telemetry_ocp, options.run_uuid, options.scenario_type
-                )
+            return execute_rollback_command(
+                telemetry_ocp, options.run_uuid, options.scenario_type
             )
 
         # Initialize the start iteration to 0
@@ -361,7 +356,7 @@ def main(options, command: Optional[str]) -> int:
                             logging.error(
                                 f"impossible to find scenario {scenario_type}, plugin not found. Exiting"
                             )
-                            sys.exit(-1)
+                            return -1
 
                         failed_post_scenarios, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
