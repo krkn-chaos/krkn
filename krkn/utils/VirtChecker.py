@@ -124,11 +124,8 @@ class VirtChecker:
     def batch_list(self, queue: queue.SimpleQueue = None):
         if self.batch_size > 0:
             # Provided prints to easily visualize how the threads are processed.    
-            for i in range (0, len(self.vm_list),self.batch_size):
-                if i+self.batch_size > len(self.vm_list):
-                    sub_list = self.vm_list[i:]
-                else:
-                    sub_list = self.vm_list[i: i+self.batch_size]
+            for i in range(0, len(self.vm_list), self.batch_size):
+                sub_list = self.vm_list[i: i + self.batch_size]
                 index = i
                 t = threading.Thread(target=self.run_virt_check,name=str(index), args=(sub_list,queue))
                 self.threads.append(t)
@@ -165,8 +162,8 @@ class VirtChecker:
                                 vm.new_ip_address = new_ip_address
                             if new_node_name and vm.node_name != new_node_name:
                                 vm.node_name = new_node_name
-                except Exception:
-                    logging.info('Exception in get vm status')
+                except Exception as e:
+                    logging.info(f'Exception in get vm status for {vm.vm_name}: {e}')
                     vm_status = False
 
                 if vm.vm_name not in virt_check_tracker:

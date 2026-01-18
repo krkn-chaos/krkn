@@ -21,64 +21,74 @@ class HealthChecker:
 
 
     def run_health_check(self, health_check_config, health_check_telemetry_queue: queue.Queue):        
-        if health_check_config and health_check_config["config"] and any(config.get("url") for config in health_check_config["config"]):
+        if health_check_config and health_check_config.get("config") and any(config.get("url") for config in health_check_config["config"]):
             health_check_telemetry = []
             health_check_tracker = {}
-            interval = health_check_config["interval"] if health_check_config["interval"] else 2
+            interval = health_check_config.get("interval", 2)
             
-            response_tracker = {config["url"]:True for config in health_check_config["config"]}
+            response_tracker = {
+                config["url"]: True
+                for config in health_check_config["config"]
+                if config.get("url")
+            }
             while self.current_iterations < self.iterations:
                 for config in health_check_config.get("config"):
                     auth, headers = None, None
-                    verify_url = config["verify_url"] if "verify_url" in config else True
-                    if config["url"]: url = config["url"]
+                    verify_url = config.get("verify_url", True)
+                    if not config.get("url"):
+                        continue
+                    url = config["url"]
 
-                    if config["bearer_token"]:
+                    if config.get("bearer_token"):
                         bearer_token = "Bearer " + config["bearer_token"]
                         headers = {"Authorization": bearer_token}
-                    if config["auth"]: auth = tuple(config["auth"].split(','))
+                    if config.get("auth"):
+                        auth = tuple(config["auth"].split(','))
                     try: 
                         response = self.make_request(url, auth, headers, verify_url)
-                    except Exception:
-                        response = {}
-                        response['status_code'] = 500
+                    except Exception as e:
+                        logging.warning(f"Health check failed for {url}: {e}")
+                        response = {'status_code': 500}
                     
-                    if config["url"] not in health_check_tracker:
+                    if url not in health_check_tracker:
                         start_timestamp = datetime.now()
-                        health_check_tracker[config["url"]] = {
+                        health_check_tracker[url] = {
                             "status_code": response["status_code"],
                             "start_timestamp": start_timestamp
                         }
                         if response["status_code"] != 200: 
-                            if response_tracker[config["url"]] != False: response_tracker[config["url"]] = False
-                            if config["exit_on_failure"] and config["exit_on_failure"] == True and self.ret_value==0: self.ret_value = 2
+                            if response_tracker[url] is not False:
+                                response_tracker[url] = False
+                            if config.get("exit_on_failure") and self.ret_value == 0:
+                                self.ret_value = 2
                     else:
-                            if response["status_code"] != health_check_tracker[config["url"]]["status_code"]:
-                                end_timestamp = datetime.now()
-                                start_timestamp = health_check_tracker[config["url"]]["start_timestamp"]
-                                previous_status_code = str(health_check_tracker[config["url"]]["status_code"])
-                                duration = (end_timestamp - start_timestamp).total_seconds()
-                                change_record = {
-                                    "url": config["url"],
-                                    "status": False,
-                                    "status_code": previous_status_code,
-                                    "start_timestamp": start_timestamp.isoformat(),
-                                    "end_timestamp": end_timestamp.isoformat(),
-                                    "duration": duration
-                                }
+                        if response["status_code"] != health_check_tracker[url]["status_code"]:
+                            end_timestamp = datetime.now()
+                            start_timestamp = health_check_tracker[url]["start_timestamp"]
+                            previous_status_code = str(health_check_tracker[url]["status_code"])
+                            duration = (end_timestamp - start_timestamp).total_seconds()
+                            change_record = {
+                                "url": url,
+                                "status": False,
+                                "status_code": previous_status_code,
+                                "start_timestamp": start_timestamp.isoformat(),
+                                "end_timestamp": end_timestamp.isoformat(),
+                                "duration": duration
+                            }
 
-                                health_check_telemetry.append(HealthCheck(change_record))
-                                if response_tracker[config["url"]] != True: response_tracker[config["url"]] = True
-                                del health_check_tracker[config["url"]]
+                            health_check_telemetry.append(HealthCheck(change_record))
+                            if response_tracker[url] is not True:
+                                response_tracker[url] = True
+                            del health_check_tracker[url]
                     time.sleep(interval)
             health_check_end_time_stamp = datetime.now()
-            for url in health_check_tracker.keys():
-                duration = (health_check_end_time_stamp - health_check_tracker[url]["start_timestamp"]).total_seconds()
+            for url, tracker in health_check_tracker.items():
+                duration = (health_check_end_time_stamp - tracker["start_timestamp"]).total_seconds()
                 success_response = {
                     "url": url,
                     "status": True,
-                    "status_code": response["status_code"],
-                    "start_timestamp": health_check_tracker[url]["start_timestamp"].isoformat(),
+                    "status_code": tracker["status_code"],
+                    "start_timestamp": tracker["start_timestamp"].isoformat(),
                     "end_timestamp": health_check_end_time_stamp.isoformat(),
                     "duration": duration
                 }
