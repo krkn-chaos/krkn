@@ -24,7 +24,10 @@ class RunPythonPluginTest(unittest.TestCase):
         finally:
             try:
                 os.unlink(tmp_file.name)
-            except FileNotFoundError:
+            except OSError:
+                # Ignore errors during cleanup: on Windows the file may be
+                # concurrently removed or temporarily locked by another process.
+                # Using OSError covers FileNotFoundError, PermissionError, etc.
                 pass
 
     def test_error_execution(self):
@@ -44,7 +47,10 @@ class RunPythonPluginTest(unittest.TestCase):
         finally:
             try:
                 os.unlink(tmp_file.name)
-            except FileNotFoundError:
+            except OSError:
+                # Ignore errors during cleanup: on Windows the file may be
+                # concurrently removed or temporarily locked by another process.
+                # Using OSError covers FileNotFoundError, PermissionError, etc.
                 pass
 
 
