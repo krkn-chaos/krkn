@@ -22,8 +22,10 @@ class RunPythonPluginTest(unittest.TestCase):
             self.assertEqual("success", output_id)
             self.assertEqual("Hello world!", output_data.stdout.strip())
         finally:
-            if os.path.exists(tmp_file.name):
-                os.remove(tmp_file.name)
+            try:
+                os.unlink(tmp_file.name)
+            except FileNotFoundError:
+                pass
 
     def test_error_execution(self):
         tmp_file = tempfile.NamedTemporaryFile(delete=False)
@@ -40,8 +42,10 @@ class RunPythonPluginTest(unittest.TestCase):
             self.assertEqual(42, output_data.exit_code)
             self.assertEqual("Hello world!", output_data.stdout.strip())
         finally:
-            if os.path.exists(tmp_file.name):
-                os.remove(tmp_file.name)
+            try:
+                os.unlink(tmp_file.name)
+            except FileNotFoundError:
+                pass
 
 
 if __name__ == "__main__":
