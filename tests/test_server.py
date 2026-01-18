@@ -298,14 +298,18 @@ class TestServerModuleFunctions(unittest.TestCase):
         self.assertEqual(server.server_status, "NEW_STATUS")
 
     @patch('server.HTTPServer')
-    @patch('server._thread')
-    def test_start_server_creates_http_server(self, mock_thread, mock_http_server):
+    @patch('server.threading.Thread')
+    def test_start_server_creates_http_server(self, mock_thread_class, mock_http_server):
         """
         Test start_server creates HTTPServer with correct address
         """
         address = ("localhost", 8080)
         mock_server_instance = MagicMock()
         mock_http_server.return_value = mock_server_instance
+        
+        # Configure mock thread
+        mock_thread_instance = MagicMock()
+        mock_thread_class.return_value = mock_thread_instance
 
         server.start_server(address, "RUNNING")
 
@@ -315,31 +319,43 @@ class TestServerModuleFunctions(unittest.TestCase):
         )
 
     @patch('server.HTTPServer')
-    @patch('server._thread')
-    def test_start_server_starts_thread(self, mock_thread, mock_http_server):
+    @patch('server.threading.Thread')
+    def test_start_server_starts_thread(self, mock_thread_class, mock_http_server):
         """
         Test start_server starts a new thread for serve_forever
         """
         address = ("localhost", 8080)
         mock_server_instance = MagicMock()
         mock_http_server.return_value = mock_server_instance
+        
+        # Configure mock thread
+        mock_thread_instance = MagicMock()
+        mock_thread_class.return_value = mock_thread_instance
 
         server.start_server(address, "RUNNING")
 
-        mock_thread.start_new_thread.assert_called_once()
-        # Check that serve_forever was passed to the thread
-        args = mock_thread.start_new_thread.call_args[0]
-        self.assertEqual(args[0], mock_server_instance.serve_forever)
+        # Check that Thread was initialized with correct target
+        mock_thread_class.assert_called_once_with(target=mock_server_instance.serve_forever)
+        
+        # Check that thread was set as daemon
+        self.assertTrue(mock_thread_instance.daemon)
+        
+        # Check that start was called
+        mock_thread_instance.start.assert_called_once()
 
     @patch('server.HTTPServer')
-    @patch('server._thread')
-    def test_start_server_publishes_status(self, mock_thread, mock_http_server):
+    @patch('server.threading.Thread')
+    def test_start_server_publishes_status(self, mock_thread_class, mock_http_server):
         """
         Test start_server publishes the provided status
         """
         address = ("localhost", 8080)
         mock_server_instance = MagicMock()
         mock_http_server.return_value = mock_server_instance
+        
+        # Configure mock thread
+        mock_thread_instance = MagicMock()
+        mock_thread_class.return_value = mock_thread_instance
 
         server.start_server(address, "INITIAL_STATUS")
 
