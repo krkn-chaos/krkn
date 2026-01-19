@@ -1,7 +1,6 @@
 """Unit tests for AWS S3 Replication scenarios module."""
 
 import pytest
-from botocore.exceptions import ClientError
 from krkn.scenario_plugins.aws_s3_replication.aws_s3_scenarios import AWSS3Replication
 
 

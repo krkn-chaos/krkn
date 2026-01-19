@@ -7,7 +7,7 @@
 
 aws_s3_replication_scenarios:
   # Required: Name of the S3 source bucket with replication configured
-  bucket_name: "my-source-bucket"
+  bucket_name: "<YOUR-SOURCE-BUCKET-NAME>"
   
   # Required: Duration to pause replication (in seconds)
   # During this time, new objects won't be replicated to destination buckets
@@ -15,4 +15,4 @@ aws_s3_replication_scenarios:
   
   # Optional: AWS region where the bucket is located
   # If not specified, uses the default region from AWS configuration
-  region: "us-east-1"
+  region: "<YOUR-AWS-REGION>"  # e.g., us-east-1, us-west-2

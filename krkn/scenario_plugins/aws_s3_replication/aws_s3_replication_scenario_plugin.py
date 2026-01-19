@@ -24,10 +24,6 @@ from krkn.rollback.handler import set_rollback_context_decorator
 class AwsS3ReplicationScenarioPlugin(AbstractScenarioPlugin):
     """Plugin for AWS S3 replication chaos scenarios."""
 
-    def __init__(self):
-        """Initialize the AWS S3 Replication scenario plugin."""
-        super().__init__(scenario_type="aws_s3_replication_scenarios")
-
     @set_rollback_context_decorator
     def run(
         self,
@@ -83,38 +79,19 @@ class AwsS3ReplicationScenarioPlugin(AbstractScenarioPlugin):
                 return 1
 
             # Initialize AWS S3 handler
-            logging.info("Initializing AWS S3 replication handler...")
             s3_handler = AWSS3Replication(region=region)
 
             # Record start time for telemetry
             start_time = int(time.time())
 
-            # Step 1: Get and save current replication configuration
+            # Step 1: Save current replication config and pause replication
+            # pause_replication() internally retrieves and returns the original config
             logging.info(
-                f"Step 1/4: Retrieving current replication configuration for bucket '{bucket_name}'..."
-            )
-            original_config = s3_handler.get_replication_configuration(bucket_name)
-            
-            if not original_config:
-                logging.error(
-                    f"AwsS3ReplicationScenarioPlugin: Failed to retrieve replication configuration "
-                    f"for bucket '{bucket_name}'"
-                )
-                return 1
-
-            logging.info(
-                f"Successfully retrieved replication configuration with "
-                f"{len(original_config.get('Rules', []))} rule(s)"
-            )
-
-            # Step 2: Pause replication
-            logging.info(
-                f"Step 2/4: Pausing replication for bucket '{bucket_name}'..."
+                f"Step 1/3: Pausing replication for bucket '{bucket_name}'..."
             )
             
             try:
-                s3_handler.pause_replication(bucket_name)
-                logging.info(f"Successfully paused replication for bucket '{bucket_name}'")
+                original_config = s3_handler.pause_replication(bucket_name)
                 
                 # Set rollback callable to ensure replication is restored on failure or interruption
                 rollback_data = {
@@ -139,9 +116,9 @@ class AwsS3ReplicationScenarioPlugin(AbstractScenarioPlugin):
                 )
                 return 1
 
-            # Step 3: Wait for specified duration (chaos period)
+            # Step 2: Wait for specified duration (chaos period)
             logging.info(
-                f"Step 3/4: Replication paused. Waiting for {duration}s (chaos period)..."
+                f"Step 2/3: Replication paused. Waiting for {duration}s (chaos period)..."
             )
             
             # Log periodic status updates during wait
@@ -161,23 +138,30 @@ class AwsS3ReplicationScenarioPlugin(AbstractScenarioPlugin):
             
             logging.info(f"Chaos period completed ({duration}s)")
 
-            # Step 4: Restore replication
+            # Step 3: Restore replication
             logging.info(
-                f"Step 4/4: Restoring replication for bucket '{bucket_name}'..."
+                f"Step 3/3: Restoring replication for bucket '{bucket_name}'..."
             )
             
             try:
                 s3_handler.restore_replication(bucket_name, original_config)
                 logging.info(f"Successfully restored replication for bucket '{bucket_name}'")
                 
-                # Verify restoration
+                # Verify that all replication rules are currently enabled.
+                # Note: this checks the enabled/disabled status of rules, not that the
+                # current configuration exactly matches the original_config.
                 if s3_handler.verify_replication_status(bucket_name, expected_status='Enabled'):
-                    logging.info("Replication status verified: All rules are enabled")
+                    logging.info(
+                        "Replication status verification: all replication rules are currently "
+                        "'Enabled'. This does not by itself guarantee the policy matches the "
+                        "original configuration."
+                    )
                 else:
                     logging.warning(
-                        "Replication status verification: Some rules may not be enabled. "
-                        "Please verify manually."
-                    )
+                        "Replication status verification: not all replication rules are "
+                        "currently 'Enabled'. This does not necessarily mean restoration "
+                        "failed (the original configuration may include disabled rules); "
+                        "please verify the replication configuration manually.")
                 
             except Exception as e:
                 logging.error(

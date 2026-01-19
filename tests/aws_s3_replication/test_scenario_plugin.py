@@ -4,7 +4,7 @@ import os
 import tempfile
 import pytest
 import yaml
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin import (
     AwsS3ReplicationScenarioPlugin
 )
@@ -41,7 +41,7 @@ def valid_scenario_config():
     return {
         'aws_s3_replication_scenarios': {
             'bucket_name': 'test-bucket',
-            'duration': 60,
+            'duration': 1,  # Short duration for tests
             'region': 'us-east-1'
         }
     }
@@ -66,24 +66,26 @@ class TestAwsS3ReplicationScenarioPlugin:
 
     def test_plugin_initialization(self):
         """Test plugin initialization."""
-        plugin = AwsS3ReplicationScenarioPlugin()
+        plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
         assert plugin is not None
 
     def test_get_scenario_types(self):
         """Test get_scenario_types method."""
-        plugin = AwsS3ReplicationScenarioPlugin()
+        plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
         scenario_types = plugin.get_scenario_types()
         
         assert isinstance(scenario_types, list)
         assert len(scenario_types) == 1
         assert 'aws_s3_replication_scenarios' in scenario_types
 
-    @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.AWSS3Replication')
     @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.AWSS3Replication')
+    @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.time.sleep')
     def test_run_success(
         self,
-        mock_cerberus,
+        mock_sleep,
         mock_s3_class,
+        mock_cerberus,
         scenario_config_file,
         krkn_config,
         mock_telemetry,
@@ -91,18 +93,19 @@ class TestAwsS3ReplicationScenarioPlugin:
     ):
         """Test successful scenario execution."""
         # Setup mocks
-        mock_s3_instance = Mock()
-        mock_s3_instance.get_replication_configuration.return_value = {
+        original_config = {
             'Role': 'arn:aws:iam::123456789012:role/test-role',
             'Rules': [{'ID': 'rule-1', 'Status': 'Enabled', 'Priority': 1}]
         }
-        mock_s3_instance.pause_replication.return_value = None
+        mock_s3_instance = Mock()
+        # pause_replication now returns the original config
+        mock_s3_instance.pause_replication.return_value = original_config
         mock_s3_instance.restore_replication.return_value = None
         mock_s3_instance.verify_replication_status.return_value = True
         mock_s3_class.return_value = mock_s3_instance
         
         # Run scenario
-        plugin = AwsS3ReplicationScenarioPlugin()
+        plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
         result = plugin.run(
             run_uuid='test-uuid',
             scenario=scenario_config_file,
@@ -113,9 +116,8 @@ class TestAwsS3ReplicationScenarioPlugin:
         
         # Verify
         assert result == 0
-        mock_s3_instance.get_replication_configuration.assert_called_once_with('test-bucket')
         mock_s3_instance.pause_replication.assert_called_once_with('test-bucket')
-        mock_s3_instance.restore_replication.assert_called_once()
+        mock_s3_instance.restore_replication.assert_called_once_with('test-bucket', original_config)
         mock_cerberus.publish_kraken_status.assert_called_once()
 
     def test_run_missing_bucket_name(
@@ -136,7 +138,7 @@ class TestAwsS3ReplicationScenarioPlugin:
             temp_path = f.name
         
         try:
-            plugin = AwsS3ReplicationScenarioPlugin()
+            plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
             result = plugin.run(
                 run_uuid='test-uuid',
                 scenario=temp_path,
@@ -169,7 +171,7 @@ class TestAwsS3ReplicationScenarioPlugin:
             temp_path = f.name
         
         try:
-            plugin = AwsS3ReplicationScenarioPlugin()
+            plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
             result = plugin.run(
                 run_uuid='test-uuid',
                 scenario=temp_path,
@@ -190,7 +192,7 @@ class TestAwsS3ReplicationScenarioPlugin:
         mock_scenario_telemetry
     ):
         """Test scenario execution with non-existent config file."""
-        plugin = AwsS3ReplicationScenarioPlugin()
+        plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
         result = plugin.run(
             run_uuid='test-uuid',
             scenario='/nonexistent/file.yaml',
@@ -212,14 +214,10 @@ class TestAwsS3ReplicationScenarioPlugin:
     ):
         """Test scenario execution when pause fails."""
         mock_s3_instance = Mock()
-        mock_s3_instance.get_replication_configuration.return_value = {
-            'Role': 'arn:aws:iam::123456789012:role/test-role',
-            'Rules': [{'ID': 'rule-1', 'Status': 'Enabled'}]
-        }
         mock_s3_instance.pause_replication.side_effect = RuntimeError("Pause failed")
         mock_s3_class.return_value = mock_s3_instance
         
-        plugin = AwsS3ReplicationScenarioPlugin()
+        plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
         result = plugin.run(
             run_uuid='test-uuid',
             scenario=scenario_config_file,
@@ -230,28 +228,30 @@ class TestAwsS3ReplicationScenarioPlugin:
         
         assert result == 1
 
-    @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.AWSS3Replication')
     @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.AWSS3Replication')
+    @patch('krkn.scenario_plugins.aws_s3_replication.aws_s3_replication_scenario_plugin.time.sleep')
     def test_run_restore_failure(
         self,
-        mock_cerberus,
+        mock_sleep,
         mock_s3_class,
+        mock_cerberus,
         scenario_config_file,
         krkn_config,
         mock_telemetry,
         mock_scenario_telemetry
     ):
         """Test scenario execution when restore fails."""
-        mock_s3_instance = Mock()
-        mock_s3_instance.get_replication_configuration.return_value = {
+        original_config = {
             'Role': 'arn:aws:iam::123456789012:role/test-role',
             'Rules': [{'ID': 'rule-1', 'Status': 'Enabled'}]
         }
-        mock_s3_instance.pause_replication.return_value = None
+        mock_s3_instance = Mock()
+        mock_s3_instance.pause_replication.return_value = original_config
         mock_s3_instance.restore_replication.side_effect = RuntimeError("Restore failed")
         mock_s3_class.return_value = mock_s3_instance
         
-        plugin = AwsS3ReplicationScenarioPlugin()
+        plugin = AwsS3ReplicationScenarioPlugin("aws_s3_replication_scenarios")
         result = plugin.run(
             run_uuid='test-uuid',
             scenario=scenario_config_file,

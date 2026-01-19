@@ -204,7 +204,8 @@ class AWSS3Replication:
                     f"original configuration is empty or None"
                 )
                 raise RuntimeError(
-                    f"Invalid original configuration for bucket '{bucket_name}'"
+                    f"Cannot restore replication for bucket '{bucket_name}': "
+                    f"original configuration is invalid or missing"
                 )
             
             enabled_count = sum(
