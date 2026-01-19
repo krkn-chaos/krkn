@@ -322,3 +322,40 @@ class TestRollbackAbstractScenarioPlugin:
                 mock_parse.assert_not_called()
                 mock_rollback_callable.assert_not_called()
                 mock_rename.assert_not_called()
+
+
+def test_list_rollback_returns_zero_when_no_versions_dir(tmp_path, monkeypatch):
+    """list_rollback should return 0 when versions directory does not exist."""
+    from krkn.rollback.command import list_rollback
+    import krkn.rollback.command as cmd
+
+    class DummyCfg:
+        pass
+
+    dummy = DummyCfg()
+    dummy.versions_directory = str(tmp_path / "does_not_exist")
+
+    monkeypatch.setattr(cmd, 'RollbackConfig', lambda *a, **k: dummy)
+
+    rc = list_rollback()
+    assert rc == 0
+
+
+def test_execute_rollback_returns_codes(monkeypatch):
+    """execute_rollback should return 0 on success and 1 on exception."""
+    from krkn.rollback.command import execute_rollback
+    import krkn.rollback.command as cmd
+
+    def success_exec(telemetry_ocp, run_uuid, scenario_type, ignore_auto_rollback_config=True):
+        return None
+
+    monkeypatch.setattr(cmd, 'execute_rollback_version_files', success_exec)
+    rc_ok = execute_rollback(None, run_uuid="r", scenario_type="s")
+    assert rc_ok == 0
+
+    def fail_exec(*args, **kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(cmd, 'execute_rollback_version_files', fail_exec)
+    rc_fail = execute_rollback(None, run_uuid="r", scenario_type="s")
+    assert rc_fail == 1
