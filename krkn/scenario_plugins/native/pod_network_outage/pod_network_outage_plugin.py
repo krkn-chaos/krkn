@@ -133,18 +133,20 @@ def wait_for_job(
     """
 
     wait_time = time.time() + timeout
-    count = 0
-    job_len = len(job_list)
-    while count != job_len:
+    completed_jobs = set()
+    total_jobs = len(job_list)
+
+    while len(completed_jobs) < total_jobs:
         for job_name in job_list:
+            if job_name in completed_jobs:
+                continue
             try:
                 api_response = kubecli.get_job_status(job_name, namespace="default")
                 if (
                     api_response.status.succeeded is not None
                     or api_response.status.failed is not None
                 ):
-                    count += 1
-                    job_list.remove(job_name)
+                    completed_jobs.add(job_name)
             except Exception:
                 logging.warning("Exception in getting job status")
             if time.time() > wait_time:
@@ -152,7 +154,7 @@ def wait_for_job(
                     "Jobs did not complete within "
                     "the {0}s timeout period".format(timeout)
                 )
-            time.sleep(5)
+        time.sleep(5)
 
 
 def get_bridge_name(cli: ApiextensionsV1Api, custom_obj: CustomObjectsApi) -> str:
