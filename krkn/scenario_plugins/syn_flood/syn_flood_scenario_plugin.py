@@ -39,7 +39,7 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                 if not lib_telemetry.get_lib_kubernetes().service_exists(
                     target, config["namespace"]
                 ):
-                    logging.error(f"SynFloodScenarioPlugin {target} service not found")
+                    logging.error("SynFloodScenarioPlugin %s service not found", target)
                     return 1
                 for i in range(config["number-of-pods"]):
                     pod_name = "syn-flood-" + krkn_lib_utils.get_random_string(10)
@@ -81,7 +81,9 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
 
         except Exception as e:
             logging.error(
-                f"SynFloodScenarioPlugin scenario {scenario} failed with exception: {e}"
+                "SynFloodScenarioPlugin scenario %s failed with exception: %s",
+                scenario,
+                e,
             )
             return 1
         else:
@@ -166,9 +168,13 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
             import base64 # noqa
             import json # noqa
             pod_names = json.loads(base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8'))
-            logging.info(f"Rolling back syn flood pods: {pod_names} in namespace: {namespace}")
+            logging.info(
+                "Rolling back syn flood pods: %s in namespace: %s",
+                pod_names,
+                namespace,
+            )
             for pod_name in pod_names:
                 lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
             logging.info("Rollback of syn flood pods completed successfully.")
         except Exception as e:
-            logging.error(f"Failed to rollback syn flood pods: {e}")
+            logging.error("Failed to rollback syn flood pods: %s", e)

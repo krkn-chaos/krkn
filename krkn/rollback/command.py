@@ -24,11 +24,14 @@ def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=Non
 
     versions_directory = RollbackConfig().versions_directory
     
-    logging.info(f"Rollback versions directory: {versions_directory}")
+    logging.info("Rollback versions directory: %s", versions_directory)
     
     # Check if the directory exists first
     if not os.path.exists(versions_directory):
-        logging.info(f"Rollback versions directory does not exist: {versions_directory}")
+        logging.info(
+            "Rollback versions directory does not exist: %s",
+            versions_directory,
+        )
         return 0
     
     # List all directories and files
@@ -44,7 +47,10 @@ def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=Non
         
         if not run_dirs:
             if run_uuid:
-                logging.info(f"No rollback directories found for run_uuid: {run_uuid}")
+                logging.info(
+                    "No rollback directories found for run_uuid: %s",
+                    run_uuid,
+                )
             else:
                 logging.info("No rollback directories found")
             return 0
@@ -80,7 +86,7 @@ def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=Non
                 print(f"{file_prefix}[Permission Denied]")
                 
     except Exception as e:
-        logging.error(f"Error listing rollback directory: {e}")
+        logging.error("Error listing rollback directory: %s", e)
         return 1
     
     return 0
@@ -96,7 +102,11 @@ def execute_rollback(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: Optional
     :return: Exit code (0 for success, 1 for error)
     """
     logging.info("Executing rollback version files")
-    logging.info(f"Executing rollback for run_uuid={run_uuid  or '*'}, scenario_type={scenario_type or '*'}")
+    logging.info(
+        "Executing rollback for run_uuid=%s, scenario_type=%s",
+        run_uuid or "*",
+        scenario_type or "*",
+    )
 
     try:
         # Execute rollback version files
@@ -109,5 +119,5 @@ def execute_rollback(telemetry_ocp: "KrknTelemetryOpenshift", run_uuid: Optional
         return 0
         
     except Exception as e:
-        logging.error(f"Error during rollback execution: {e}")
+        logging.error("Error during rollback execution: %s", e)
         return 1

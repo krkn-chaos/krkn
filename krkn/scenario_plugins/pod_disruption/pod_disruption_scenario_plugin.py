@@ -162,7 +162,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         
         # If specific node names are provided, make multiple calls with field selector
         if node_names:
-            logging.debug(f"Targeting pods on {len(node_names)} specific nodes")
+            logging.debug("Targeting pods on %s specific nodes", len(node_names))
             all_pods = []
             for node_name in node_names:
                 pods = self._select_pods_with_field_selector(
@@ -172,7 +172,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 if pods:
                     all_pods.extend(pods)
             
-            logging.debug(f"Found {len(all_pods)} target pods across {len(node_names)} nodes")
+            logging.debug(
+                "Found %s target pods across %s nodes",
+                len(all_pods),
+                len(node_names),
+            )
             return all_pods
         
         #  Node label selector approach - use field selectors
@@ -180,10 +184,17 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             # Get nodes matching the label selector first
             nodes_with_label = kubecli.list_nodes(label_selector=node_label_selector)
             if not nodes_with_label:
-                logging.debug(f"No nodes found with label selector: {node_label_selector}")
+                logging.debug(
+                    "No nodes found with label selector: %s",
+                    node_label_selector,
+                )
                 return []
             
-            logging.debug(f"Targeting pods on {len(nodes_with_label)} nodes with label: {node_label_selector}")
+            logging.debug(
+                "Targeting pods on %s nodes with label: %s",
+                len(nodes_with_label),
+                node_label_selector,
+            )
             # Use field selector for each node
             all_pods = []
             for node_name in nodes_with_label:
@@ -194,7 +205,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 if pods:
                     all_pods.extend(pods)
             
-            logging.debug(f"Found {len(all_pods)} target pods across {len(nodes_with_label)} nodes")
+            logging.debug(
+                "Found %s target pods across %s nodes",
+                len(all_pods),
+                len(nodes_with_label),
+            )
             return all_pods
         
         # Standard pod selection (no node targeting)
@@ -219,8 +234,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
             pods_count = len(pods)
             if len(pods) < config.kill:
-                logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
-                        config.kill, len(pods)))
+                logging.error(
+                    "Not enough pods match the criteria, expected %s but found only %s pods",
+                    config.kill,
+                    len(pods),
+                )
                 return 1
             
             random.shuffle(pods)
@@ -228,9 +246,9 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 pod = pods[i]
                 logging.info(pod)
                 if pod[0] in exclude_pods:
-                    logging.info(f"Excluding {pod[0]} from chaos")
+                    logging.info("Excluding %s from chaos", pod[0])
                 else:
-                    logging.info(f'Deleting pod {pod[0]}')
+                    logging.info("Deleting pod %s", pod[0])
                     kubecli.delete_pod(pod[0], pod[1])
             
             return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)

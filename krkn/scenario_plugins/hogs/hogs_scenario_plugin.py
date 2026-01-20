@@ -36,13 +36,16 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             has_selector = True
             if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
                 if scenario_config.node_selector:
-                    logging.warning(f"node selector {scenario_config.node_selector} not in right format (key=value)")
+                    logging.warning(
+                        "node selector %s not in right format (key=value)",
+                        scenario_config.node_selector,
+                    )
                 node_selector = ""
             else:
                 node_selector = scenario_config.node_selector
 
             if node_name:
-                logging.info(f"Using specific node: {node_name}")
+                logging.info("Using specific node: %s", node_name)
                 all_nodes = lib_telemetry.get_lib_kubernetes().list_nodes("")
                 if node_name not in all_nodes:
                     raise Exception(f"Specified node {node_name} not found or not available")
@@ -62,7 +65,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             self.run_scenario(scenario_config, lib_telemetry.get_lib_kubernetes(), available_nodes, exception_queue)
             return 0
         except Exception as e:
-            logging.error(f"scenario exception: {e}")
+            logging.error("scenario exception: %s", e)
             return 1
 
     def get_scenario_types(self) -> list[str]:
@@ -74,9 +77,14 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         try:
             if not config.workers:
                 config.workers = lib_k8s.get_node_cpu_count(node)
-                logging.info(f"[{node}] detected {config.workers} cpus for node {node}")
+                logging.info(
+                    "[%s] detected %s cpus for node %s",
+                    node,
+                    config.workers,
+                    node,
+                )
 
-            logging.info(f"[{node}] workers number: {config.workers}")
+            logging.info("[%s] workers number: %s", node, config.workers)
 
             # using kubernetes.io/hostname = <node_name> selector to
             # precisely deploy each workload on each selected node
@@ -104,7 +112,13 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
 
             max_wait = 30
             wait = 0
-            logging.info(f"[{node}] waiting {max_wait} up to seconds pod: {pod_name} namespace: {config.namespace} to finish")
+            logging.info(
+                "[%s] waiting %s up to seconds pod: %s namespace: %s to finish",
+                node,
+                max_wait,
+                pod_name,
+                config.namespace,
+            )
             while lib_k8s.is_pod_running(pod_name, config.namespace):
                 if wait >= max_wait:
                     raise Exception(f"[{node}] hog workload pod: {pod_name} namespace: {config.namespace} "
@@ -113,7 +127,12 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                 wait += 1
                 continue
 
-            logging.info(f"[{node}] deleting pod: {pod_name} namespace: {config.namespace}")
+            logging.info(
+                "[%s] deleting pod: %s namespace: %s",
+                node,
+                pod_name,
+                config.namespace,
+            )
             lib_k8s.delete_pod(pod_name, config.namespace)
 
             for resource in samples:
@@ -126,14 +145,23 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             avg_node_resources.disk_space = avg_node_resources.disk_space / len(samples)
 
             if config.type == HogType.cpu:
-                logging.info(f"[{node}] detected cpu consumption: "
-                             f"{(avg_node_resources.cpu / (config.workers * 1000000000)) * 100} %")
+                logging.info(
+                    "[%s] detected cpu consumption: %s %%",
+                    node,
+                    (avg_node_resources.cpu / (config.workers * 1000000000)) * 100,
+                )
             if config.type == HogType.memory:
-                logging.info(f"[{node}] detected memory increase: "
-                             f"{avg_node_resources.memory / node_resources_start.memory * 100} %")
+                logging.info(
+                    "[%s] detected memory increase: %s %%",
+                    node,
+                    avg_node_resources.memory / node_resources_start.memory * 100,
+                )
             if config.type == HogType.io:
-                logging.info(f"[{node}] detected disk space allocated: "
-                             f"{(avg_node_resources.disk_space - node_resources_end.disk_space) / 1024 / 1024} MB")
+                logging.info(
+                    "[%s] detected disk space allocated: %s MB",
+                    node,
+                    (avg_node_resources.disk_space - node_resources_end.disk_space) / 1024 / 1024,
+                )
         except Exception as e:
             exception_queue.put(e)
 
@@ -142,8 +170,8 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                      available_nodes: list[str],
                      exception_queue: queue.Queue):
         workers = []
-        logging.info(f"running {config.type.value} hog scenario")
-        logging.info(f"targeting nodes: [{','.join(available_nodes)}]")
+        logging.info("running %s hog scenario", config.type.value)
+        logging.info("targeting nodes: [%s]", ",".join(available_nodes))
         for node in available_nodes:
             config_copy = copy.deepcopy(config)
             worker = threading.Thread(target=self.run_scenario_worker,
@@ -174,9 +202,11 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             namespace = rollback_content.namespace
             pod_name = rollback_content.resource_identifier
             logging.info(
-                f"Rolling back hog pod: {pod_name} in namespace: {namespace}"
+                "Rolling back hog pod: %s in namespace: %s",
+                pod_name,
+                namespace,
             )
             lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
             logging.info("Rollback of hog pod completed successfully.")
         except Exception as e:
-            logging.error(f"Failed to rollback hog pod: {e}")
+            logging.error("Failed to rollback hog pod: %s", e)

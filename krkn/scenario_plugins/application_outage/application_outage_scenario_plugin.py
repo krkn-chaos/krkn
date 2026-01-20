@@ -120,7 +120,8 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
         except Exception as e:
             logging.error(
-                "ApplicationOutageScenarioPlugin exiting due to Exception %s" % e
+                "ApplicationOutageScenarioPlugin exiting due to Exception %s",
+                e,
             )
             return 1
         else:
@@ -140,12 +141,14 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
             namespace = rollback_content.namespace
             policy_name = rollback_content.resource_identifier
             logging.info(
-                f"Rolling back network policy: {policy_name} in namespace: {namespace}"
+                "Rolling back network policy: %s in namespace: %s",
+                policy_name,
+                namespace,
             )
             lib_telemetry.get_lib_kubernetes().delete_net_policy(policy_name, namespace)
             logging.info("Network policy rollback completed successfully.")
         except Exception as e:
-            logging.error(f"Failed to rollback network policy: {e}")
+            logging.error("Failed to rollback network policy: %s", e)
 
     def get_scenario_types(self) -> list[str]:
         return ["application_outages_scenarios"]

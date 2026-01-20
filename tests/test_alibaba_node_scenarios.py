@@ -84,10 +84,15 @@ class TestAlibaba(unittest.TestCase):
         mock_request = Mock()
         alibaba.compute_client.do_action.side_effect = Exception("API error")
 
-        # The actual code has a bug in the format string (%S instead of %s)
-        # So we expect this to raise a ValueError
-        with self.assertRaises(ValueError):
-            alibaba._send_request(mock_request)
+        # Test that error is logged when API call fails with lazy logging format
+        result = alibaba._send_request(mock_request)
+        
+        # Verify error was logged with lazy logging format
+        mock_logging.assert_called_once()
+        call_args = mock_logging.call_args
+        self.assertEqual(call_args[0][0], "ERROR sending request %s with message %s")
+        self.assertEqual(call_args[0][1], mock_request)
+        self.assertIsInstance(call_args[0][2], Exception)
 
     @patch('krkn.scenario_plugins.node_actions.alibaba_node_scenarios.AcsClient')
     def test_list_instances_success(self, mock_acs_client):

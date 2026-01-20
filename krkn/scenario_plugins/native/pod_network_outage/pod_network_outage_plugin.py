@@ -696,7 +696,7 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes, image: str) -
         )
 
         if not output:
-            logging.error(f"Exception occurred while executing command {cmd} in pod")
+            logging.error("Exception occurred while executing command %s in pod", cmd)
             sys.exit(1)
 
         bridges = output.split("\n")
@@ -757,7 +757,7 @@ def check_cookie(
         )
 
         if not output:
-            logging.error(f"Exception occurred while executing command {cmd} in pod")
+            logging.error("Exception occurred while executing command %s in pod", cmd)
             sys.exit(1)
 
         flow_list = output.split("\n")

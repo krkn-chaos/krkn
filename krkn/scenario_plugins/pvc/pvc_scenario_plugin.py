@@ -47,14 +47,12 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     "pvc_name: '%s'\n"
                     "pod_name: '%s'\n"
                     "namespace: '%s'\n"
-                    "target_fill_percentage: '%s%%'\nduration: '%ss'"
-                    % (
-                        str(pvc_name),
-                        str(pod_name),
-                        str(namespace),
-                        str(target_fill_percentage),
-                        str(duration),
-                    )
+                    "target_fill_percentage: '%s%%'\nduration: '%ss'",
+                    str(pvc_name),
+                    str(pod_name),
+                    str(namespace),
+                    str(target_fill_percentage),
+                    str(duration),
                 )
 
                 # Check input params
@@ -78,8 +76,8 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 if pvc_name:
                     if pod_name:
                         logging.info(
-                            "pod_name '%s' will be overridden with one of "
-                            "the pods mounted in the PVC" % (str(pod_name))
+                            "pod_name '%s' will be overridden with one of the pods mounted in the PVC",
+                            str(pod_name),
                         )
                     pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
                         pvc_name, namespace
@@ -88,11 +86,13 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         # random generator not used for
                         # security/cryptographic purposes.
                         pod_name = random.choice(pvc.podNames)  # nosec
-                        logging.info("Pod name: %s" % pod_name)
+                        logging.info("Pod name: %s", pod_name)
                     except Exception:
                         logging.error(
                             "PvcScenarioPlugin Pod associated with %s PVC, on namespace %s, "
-                            "not found" % (str(pvc_name), str(namespace))
+                            "not found",
+                            str(pvc_name),
+                            str(namespace),
                         )
                         return 1
 
@@ -104,7 +104,9 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 if pod is None:
                     logging.error(
                         "PvcScenarioPlugin Exiting as pod '%s' doesn't exist "
-                        "in namespace '%s'" % (str(pod_name), str(namespace))
+                        "in namespace '%s'",
+                        str(pod_name),
+                        str(namespace),
                     )
                     return 1
 
@@ -118,12 +120,13 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         break
                 if "pvc" not in locals():
                     logging.error(
-                        "PvcScenarioPlugin Pod '%s' in namespace '%s' does not use a pvc"
-                        % (str(pod_name), str(namespace))
+                        "PvcScenarioPlugin Pod '%s' in namespace '%s' does not use a pvc",
+                        str(pod_name),
+                        str(namespace),
                     )
                     return 1
-                logging.info("Volume name: %s" % volume_name)
-                logging.info("PVC name: %s" % pvc_name)
+                logging.info("Volume name: %s", volume_name)
+                logging.info("PVC name: %s", pvc_name)
 
                 # Get container name and mount path
                 for container in pod.containers:
@@ -132,8 +135,8 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                             mount_path = vol.mountPath
                             container_name = container.name
                             break
-                logging.info("Container path: %s" % container_name)
-                logging.info("Mount path: %s" % mount_path)
+                logging.info("Container path: %s", container_name)
+                logging.info("Mount path: %s", mount_path)
 
                 # Get PVC capacity and used bytes
                 command = "df %s -B 1024 | sed 1d" % (str(mount_path))
@@ -144,8 +147,8 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 ).split()
                 pvc_used_kb = int(command_output[2])
                 pvc_capacity_kb = pvc_used_kb + int(command_output[3])
-                logging.info("PVC used: %s KB" % pvc_used_kb)
-                logging.info("PVC capacity: %s KB" % pvc_capacity_kb)
+                logging.info("PVC used: %s KB", pvc_used_kb)
+                logging.info("PVC capacity: %s KB", pvc_capacity_kb)
 
                 # Check valid fill percentage
                 current_fill_percentage = pvc_used_kb / pvc_capacity_kb
@@ -155,11 +158,9 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     logging.error(
                         "PvcScenarioPlugin Target fill percentage (%.2f%%) is lower than "
                         "current fill percentage (%.2f%%) "
-                        "or higher than 99%%"
-                        % (
-                            target_fill_percentage,
-                            current_fill_percentage * 100,
-                        )
+                        "or higher than 99%%",
+                        target_fill_percentage,
+                        current_fill_percentage * 100,
                     )
                     return 1
                 # Calculate file size
@@ -167,18 +168,16 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     (float(target_fill_percentage / 100) * float(pvc_capacity_kb))
                     - float(pvc_used_kb)
                 )
-                logging.debug("File size: %s KB" % file_size_kb)
+                logging.debug("File size: %s KB", file_size_kb)
 
                 file_name = "kraken.tmp"
                 logging.info(
-                    "Creating %s file, %s KB size, in pod %s at %s (ns %s)"
-                    % (
-                        str(file_name),
-                        str(file_size_kb),
-                        str(pod_name),
-                        str(mount_path),
-                        str(namespace),
-                    )
+                    "Creating %s file, %s KB size, in pod %s at %s (ns %s)",
+                    str(file_name),
+                    str(file_size_kb),
+                    str(pod_name),
+                    str(mount_path),
+                    str(namespace),
                 )
 
                 start_time = int(time.time())
@@ -217,7 +216,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     )
                     return 1
 
-                logging.debug("Create temp file in the PVC command:\n %s" % command)
+                logging.debug("Create temp file in the PVC command:\n %s", command)
                 lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                     [command],
                     pod_name,
@@ -227,11 +226,11 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
 
                 # Check if file is created
                 command = "ls -lh %s" % (str(mount_path))
-                logging.debug("Check file is created command:\n %s" % command)
+                logging.debug("Check file is created command:\n %s", command)
                 response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                     [command], pod_name, namespace, container_name
                 )
-                logging.info("\n" + str(response))
+                logging.info("\n%s", response)
                 if str(file_name).lower() in str(response).lower():
                     logging.info("%s file successfully created", str(full_path))
                     
@@ -254,8 +253,8 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     )
                 else:
                     logging.error(
-                        "PvcScenarioPlugin Failed to create tmp file with %s size"
-                        % (str(file_size_kb))
+                        "PvcScenarioPlugin Failed to create tmp file with %s size",
+                        str(file_size_kb),
                     )
                     self.remove_temp_file(
                         file_name,
@@ -270,7 +269,8 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     return 1
 
                 logging.info(
-                    "Waiting for the specified duration in the config: %ss" % duration
+                    "Waiting for the specified duration in the config: %ss",
+                    duration,
                 )
                 time.sleep(duration)
                 logging.info("Finish waiting")
@@ -288,7 +288,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 end_time = int(time.time())
                 cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
         except (RuntimeError, Exception) as e:
-            logging.error("PvcScenarioPlugin exiting due to Exception %s" % e)
+            logging.error("PvcScenarioPlugin exiting due to Exception %s", e)
             return 1
         else:
             return 0
@@ -306,20 +306,20 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         kubecli: KrknKubernetes,
     ):
         command = "rm -f %s" % (str(full_path))
-        logging.debug("Remove temp file from the PVC command:\n %s" % command)
+        logging.debug("Remove temp file from the PVC command:\n %s", command)
         kubecli.exec_cmd_in_pod([command], pod_name, namespace, container_name)
         command = "ls -lh %s" % (str(mount_path))
-        logging.debug("Check temp file is removed command:\n %s" % command)
+        logging.debug("Check temp file is removed command:\n %s", command)
         response = kubecli.exec_cmd_in_pod(
             [command], pod_name, namespace, container_name
         )
-        logging.info("\n" + str(response))
+        logging.info("\n%s", response)
         if not (str(file_name).lower() in str(response).lower()):
             logging.info("Temp file successfully removed")
         else:
             logging.error(
-                "PvcScenarioPlugin Failed to delete tmp file with %s size"
-                % (str(file_size_kb))
+                "PvcScenarioPlugin Failed to delete tmp file with %s size",
+                str(file_size_kb),
             )
             raise RuntimeError()
 
@@ -327,7 +327,8 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         if not re.match("^[0-9]+[K|M|G|T]i$", value):
             logging.error(
                 "PvcScenarioPlugin PVC capacity %s does not match expression "
-                "regexp '^[0-9]+[K|M|G|T]i$'"
+                "regexp '^[0-9]+[K|M|G|T]i$'",
+                value,
             )
             raise RuntimeError()
         unit = {"K": 0, "M": 1, "G": 2, "T": 3}
@@ -359,34 +360,38 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
             mount_path = rollback_data["mount_path"]
             
             logging.info(
-                f"Rolling back PVC scenario: removing temp file {full_path} from pod {pod_name} in namespace {namespace}"
+                "Rolling back PVC scenario: removing temp file %s from pod %s in namespace %s",
+                full_path,
+                pod_name,
+                namespace,
             )
             
             # Remove the temp file
             command = "rm -f %s" % (str(full_path))
-            logging.info("Remove temp file from the PVC command:\n %s" % command)
+            logging.info("Remove temp file from the PVC command:\n %s", command)
             response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                 [command], pod_name, namespace, container_name
             )
-            logging.info("\n" + str(response))
+            logging.info("\n%s", response)
             # Verify removal
             command = "ls -lh %s" % (str(mount_path))
-            logging.info("Check temp file is removed command:\n %s" % command)
+            logging.info("Check temp file is removed command:\n %s", command)
             response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                 [command], pod_name, namespace, container_name
             )
-            logging.info("\n" + str(response))
+            logging.info("\n%s", response)
             
             if not (str(file_name).lower() in str(response).lower()):
                 logging.info("Temp file successfully removed during rollback")
             else:
                 logging.warning(
-                    f"Temp file {file_name} may still exist after rollback attempt"
+                    "Temp file %s may still exist after rollback attempt",
+                    file_name,
                 )
             
             logging.info("PVC scenario rollback completed successfully.")
         except Exception as e:
-            logging.error(f"Failed to rollback PVC scenario temp file: {e}")
+            logging.error("Failed to rollback PVC scenario temp file: %s", e)
 
     def get_scenario_types(self) -> list[str]:
         return ["pvc_scenarios"]

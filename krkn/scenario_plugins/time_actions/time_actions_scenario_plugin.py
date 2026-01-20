@@ -45,7 +45,9 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     )
         except (RuntimeError, Exception) as e:
             logging.error(
-                f"TimeActionsScenarioPlugin scenario {scenario} failed with exception: {e}"
+                "TimeActionsScenarioPlugin scenario %s failed with exception: %s",
+                scenario,
+                e,
             )
             return 1
         else:
@@ -99,7 +101,9 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         skew_pod_name = f"time-skew-pod-{get_random_string(5)}"
         ntp_enabled = True
         logging.info(
-            f'Creating pod to skew {"time" if action == "skew_time" else "date"} on node {node_name}'
+            "Creating pod to skew %s on node %s",
+            "time" if action == "skew_time" else "date",
+            node_name,
         )
         status_command = ["timedatectl"]
         param = "2001-01-01"
@@ -117,17 +121,21 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 ntp_enabled = False
 
                 logging.warning(
-                    f'ntp unactive on node {node_name} skewing {"time" if action == "skew_time" else "date"} to {param}'
+                    "ntp unactive on node %s skewing %s to %s",
+                    node_name,
+                    "time" if action == "skew_time" else "date",
+                    param,
                 )
                 self.pod_exec(skew_pod_name, skew_command, pod_namespace, None, kubecli)
             else:
                 logging.info(
-                    f'ntp active in cluster node, {"time" if action == "skew_time" else "date"} skewing will have no effect, skipping'
+                    "ntp active in cluster node, %s skewing will have no effect, skipping",
+                    "time" if action == "skew_time" else "date",
                 )
         except ApiException:
             pass
         except Exception as e:
-            logging.error(f"failed to execute skew command in pod: {e}")
+            logging.error("failed to execute skew command in pod: %s", e)
         finally:
             kubecli.delete_pod(status_pod_name, pod_namespace)
             if not ntp_enabled:
@@ -150,7 +158,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     node_names = [node for node in node_names if node not in excluded_nodes]
             for node in node_names:
                 self.skew_node(node, scenario["action"], kubecli)
-                logging.info("Reset date/time on node " + str(node))
+                logging.info("Reset date/time on node %s", node)
             return "node", node_names
 
         elif "pod" in scenario["object_type"]:
@@ -208,14 +216,15 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             pod_counter = 0
             for pod in pod_names:
                 if len(pod) > 1:
+                    pod_name = pod[0]
                     selected_container_name = self.get_container_name(
-                        pod[0],
+                        pod_name,
                         pod[1],
                         kubecli,
                         container_name,
                     )
                     pod_exec_response = self.pod_exec(
-                        pod[0],
+                        pod_name,
                         skew_command,
                         pod[1],
                         selected_container_name,
@@ -225,18 +234,24 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                         logging.error(
                             "Couldn't reset time on container %s "
                             "in pod %s in namespace %s",
-                            selected_container_name, pod[0], pod[1]
+                            selected_container_name,
+                            pod_name,
+                            pod[1],
                         )
                         # removed_exit
                         # sys.exit(1)
                         raise RuntimeError()
                     pod_names[pod_counter].append(selected_container_name)
                 else:
+                    pod_name = pod
                     selected_container_name = self.get_container_name(
-                        pod, scenario["namespace"], kubecli, container_name
+                        pod_name,
+                        scenario["namespace"],
+                        kubecli,
+                        container_name,
                     )
                     pod_exec_response = self.pod_exec(
-                        pod,
+                        pod_name,
                         skew_command,
                         scenario["namespace"],
                         selected_container_name,
@@ -246,29 +261,31 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                         logging.error(
                             "Couldn't reset time on container "
                             "%s in pod %s in namespace %s",
-                            selected_container_name, pod, scenario["namespace"]
+                            selected_container_name,
+                            pod_name,
+                            scenario["namespace"],
                         )
                         # removed_exit
                         # sys.exit(1)
                         raise RuntimeError()
                     pod_names[pod_counter].append(selected_container_name)
-                logging.info(f"Reset date/time on pod {pod[0]}")
+                logging.info("Reset date/time on pod %s", pod_name)
                 pod_counter += 1
             return "pod", pod_names
 
     # From kubectl/oc command get time output
     def parse_string_date(self, obj_datetime):
         try:
-            logging.info("Obj_date time " + str(obj_datetime))
+            logging.info("Obj_date time %s", obj_datetime)
             obj_datetime = re.sub(r"\s\s+", " ", obj_datetime).strip()
-            logging.info("Obj_date sub time " + str(obj_datetime))
+            logging.info("Obj_date sub time %s", obj_datetime)
             date_line = re.match(
                 r"[\s\S\n]*\w{3} \w{3} \d{1,} \d{2}:\d{2}:\d{2} \w{3} \d{4}[\s\S\n]*",  # noqa
                 obj_datetime,
             )
             if date_line is not None:
                 search_response = date_line.group().strip()
-                logging.info("Search response: " + str(search_response))
+                logging.info("Search response: %s", search_response)
                 return search_response
             else:
                 return ""
@@ -308,7 +325,8 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     time.sleep(10)
                     logging.info(
                         "Date/time on node %s still not reset, "
-                        "waiting 10 seconds and retrying" % node_name
+                        "waiting 10 seconds and retrying",
+                        node_name,
                     )
 
                     node_datetime_string = kubecli.exec_cmd_in_pod(
@@ -318,12 +336,13 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     counter += 1
                     if counter > max_retries:
                         logging.error(
-                            "Date and time in node %s didn't reset properly" % node_name
+                            "Date and time in node %s didn't reset properly",
+                            node_name,
                         )
                         not_reset.append(node_name)
                         break
                 if counter < max_retries:
-                    logging.info("Date in node " + str(node_name) + " reset properly")
+                    logging.info("Date in node %s reset properly", node_name)
                 kubecli.delete_pod(check_pod_name)
 
         elif object_type == "pod":
@@ -338,7 +357,8 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     time.sleep(10)
                     logging.info(
                         "Date/time on pod %s still not reset, "
-                        "waiting 10 seconds and retrying" % pod_name[0]
+                        "waiting 10 seconds and retrying",
+                        pod_name[0],
                     )
                     pod_datetime = self.pod_exec(
                         pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
@@ -347,13 +367,13 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     counter += 1
                     if counter > max_retries:
                         logging.error(
-                            "Date and time in pod %s didn't reset properly"
-                            % pod_name[0]
+                            "Date and time in pod %s didn't reset properly",
+                            pod_name[0],
                         )
                         not_reset.append(pod_name[0])
                         break
                 if counter < max_retries:
-                    logging.info("Date in pod " + str(pod_name[0]) + " reset properly")
+                    logging.info("Date in pod %s reset properly", pod_name[0])
         return not_reset
 
     def get_scenario_types(self) -> list[str]:

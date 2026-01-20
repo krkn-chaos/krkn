@@ -64,7 +64,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                             end_time = int(time.time())
                             cerberus.get_status(krkn_config, start_time, end_time)
                 except (RuntimeError, Exception) as e:
-                    logging.error("Node Actions exiting due to Exception %s" % e)
+                    logging.error("Node Actions exiting due to Exception %s", e)
                     return 1
             return 0
 

@@ -179,19 +179,19 @@ class docker_node_scenarios(abstract_node_scenarios):
                 container_id = self.docker.get_container_id(node)
                 affected_node.node_id = container_id
                 logging.info(
-                    "Starting the node %s with container ID: %s " % (node, container_id)
+                    "Starting the node %s with container ID: %s " , node, container_id
                 )
                 self.docker.start_instances(node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
-                    "Node with container ID: %s is in running state" % (container_id)
+                    "Node with container ID: %s is in running state" , container_id
                 )
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to start node instance. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed" , e
                 )
                 logging.error("node_start_scenario injection failed!")
                 raise e
@@ -206,18 +206,18 @@ class docker_node_scenarios(abstract_node_scenarios):
                 container_id = self.docker.get_container_id(node)
                 affected_node.node_id = container_id
                 logging.info(
-                    "Stopping the node %s with container ID: %s " % (node, container_id)
+                    "Stopping the node %s with container ID: %s " , node, container_id
                 )
                 self.docker.stop_instances(node)
                 logging.info(
-                    "Node with container ID: %s is in stopped state" % (container_id)
+                    "Node with container ID: %s is in stopped state" , container_id
                 )
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
-                    "Test Failed" % (e)
+                    "Test Failed" , e
                 )
                 logging.error("node_stop_scenario injection failed!")
                 raise e
@@ -231,17 +231,17 @@ class docker_node_scenarios(abstract_node_scenarios):
                 container_id = self.docker.get_container_id(node)
                 logging.info(
                     "Terminating the node %s with container ID: %s "
-                    % (node, container_id)
+                    , node, container_id
                 )
                 self.docker.terminate_instances(node)
                 logging.info(
-                    "Node with container ID: %s has been terminated" % (container_id)
+                    "Node with container ID: %s has been terminated" , container_id
                 )
                 logging.info("node_termination_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
                     "Failed to terminate node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed" , e
                 )
                 logging.error("node_termination_scenario injection failed!")
                 raise e
@@ -255,20 +255,20 @@ class docker_node_scenarios(abstract_node_scenarios):
                 container_id = self.docker.get_container_id(node)
                 logging.info(
                     "Rebooting the node %s with container ID: %s "
-                    % (node, container_id)
+                    , node, container_id
                 )
                 self.docker.reboot_instances(node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
-                    "Node with container ID: %s has been rebooted" % (container_id)
+                    "Node with container ID: %s has been rebooted" , container_id
                 )
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed" , e
                 )
                 logging.error("node_reboot_scenario injection failed!")
                 raise e

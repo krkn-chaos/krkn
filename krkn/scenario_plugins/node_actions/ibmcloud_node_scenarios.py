@@ -38,7 +38,7 @@ class IbmCloud:
             self.service.set_service_url(service_url)
             
         except Exception as e:
-            logging.error("error authenticating" + str(e))
+            logging.error("error authenticating %s", str(e))
 
     def configure_ssl_verification(self, disable_ssl_verification):
         """
@@ -47,7 +47,10 @@ class IbmCloud:
         Args:
             disable_ssl_verification: If True, disables SSL verification.
         """
-        logging.info(f"Configuring SSL verification: disable_ssl_verification={disable_ssl_verification}")
+        logging.info(
+            "Configuring SSL verification: disable_ssl_verification=%s",
+            disable_ssl_verification,
+        )
         if disable_ssl_verification:
             self.service.set_disable_ssl_verification(True)
             logging.info("SSL verification disabled for IBM Cloud VPC service")
@@ -61,7 +64,10 @@ class IbmCloud:
         for node in node_list:
             if node_name == node["vpc_name"]:
                 return node["vpc_id"]
-        logging.error("Couldn't find node with name " + str(node_name) + ", you could try another region")
+        logging.error(
+            "Couldn't find node with name %s, you could try another region",
+            node_name,
+        )
         sys.exit(1)
 
     def delete_instance(self, instance_id):
@@ -70,9 +76,9 @@ class IbmCloud:
         """
         try:
             self.service.delete_instance(instance_id)
-            logging.info("Deleted Instance -- '{}'".format(instance_id))
+            logging.info("Deleted Instance -- '%s'", instance_id)
         except Exception as e:
-            logging.info("Instance '{}' could not be deleted. ".format(instance_id))
+            logging.info("Instance '%s' could not be deleted.", instance_id)
             return False
 
     def reboot_instances(self, instance_id):
@@ -86,10 +92,10 @@ class IbmCloud:
                 instance_id,
                 type="reboot",
             )
-            logging.info("Reset Instance -- '{}'".format(instance_id))
+            logging.info("Reset Instance -- '%s'", instance_id)
             return True
         except Exception as e:
-            logging.info("Instance '{}' could not be rebooted".format(instance_id))
+            logging.info("Instance '%s' could not be rebooted", instance_id)
             return False
 
     def stop_instances(self, instance_id):
@@ -103,11 +109,11 @@ class IbmCloud:
                 instance_id,
                 type="stop",
             )
-            logging.info("Stopped Instance -- '{}'".format(instance_id))
+            logging.info("Stopped Instance -- '%s'", instance_id)
             return True
         except Exception as e:
-            logging.info("Instance '{}' could not be stopped".format(instance_id))
-            logging.info("error" + str(e))
+            logging.info("Instance '%s' could not be stopped", instance_id)
+            logging.info("error %s", e)
             return False
 
     def start_instances(self, instance_id):
@@ -121,10 +127,10 @@ class IbmCloud:
                 instance_id,
                 type="start",
             )
-            logging.info("Started Instance -- '{}'".format(instance_id))
+            logging.info("Started Instance -- '%s'", instance_id)
             return True
         except Exception as e:
-            logging.info("Instance '{}' could not start running".format(instance_id))
+            logging.info("Instance '%s' could not start running", instance_id)
             return False
 
     def list_instances(self):
@@ -147,7 +153,7 @@ class IbmCloud:
                 for vpc in instances_list:
                     instance_names.append({"vpc_name": vpc.name, "vpc_id": vpc.id})
         except Exception as e:
-            logging.error("Error listing out instances: " + str(e))
+            logging.error("Error listing out instances: %s", str(e))
             sys.exit(1)
         return instance_names
 
@@ -168,7 +174,7 @@ class IbmCloud:
         except Exception as e:
             logging.error(
                 "Failed to get node instance status %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s.",instance_id, e
             )
             return None
 
@@ -184,13 +190,13 @@ class IbmCloud:
             vpc = self.get_instance_status(instance_id)
             logging.info(
                 "Instance %s is still being deleted, sleeping for 5 seconds"
-                % instance_id
+                , instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still not deleted in allotted time" % instance_id
+                    "Instance %s is still not deleted in allotted time" , instance_id
                 )
                 return False
         end_time = time.time()
@@ -209,13 +215,13 @@ class IbmCloud:
         while status != "running":
             status = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still not running, sleeping for 5 seconds" % instance_id
+                "Instance %s is still not running, sleeping for 5 seconds" , instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still not ready in allotted time" % instance_id
+                    "Instance %s is still not ready in allotted time" , instance_id
                 )
                 return False
         end_time = time.time()
@@ -234,13 +240,13 @@ class IbmCloud:
         while status != "stopped":
             status = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still not stopped, sleeping for 5 seconds" % instance_id
+                "Instance %s is still not stopped, sleeping for 5 seconds" , instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still not stopped in allotted time" % instance_id
+                    "Instance %s is still not stopped in allotted time" , instance_id
                 )
                 return False
         end_time = time.time()
@@ -260,13 +266,13 @@ class IbmCloud:
         while status == "starting":
             status = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still restarting, sleeping for 5 seconds" % instance_id
+                "Instance %s is still restarting, sleeping for 5 seconds" , instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still restarting after allotted time" % instance_id
+                    "Instance %s is still restarting after allotted time" , instance_id
                 )
                 return False
         self.wait_until_running(instance_id, timeout, affected_node)

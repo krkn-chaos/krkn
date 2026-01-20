@@ -146,7 +146,10 @@ class AbstractScenarioPlugin(ABC):
             if scenario_telemetry.exit_status != 0:
                 failed_scenarios.append(scenario_config)
             scenario_telemetries.append(scenario_telemetry)
-            logging.info(f"wating {wait_duration} before running the next scenario")
+            logging.info(
+                "wating %s before running the next scenario",
+                wait_duration,
+            )
             time.sleep(wait_duration)
         return failed_scenarios, scenario_telemetries
 

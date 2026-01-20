@@ -161,7 +161,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 bmc_addr = self.bm.get_bmc_addr(node)
                 affected_node.node_id = bmc_addr
                 logging.info(
-                    "Starting the node %s with bmc address: %s " % (node, bmc_addr)
+                    "Starting the node %s with bmc address: %s " , node, bmc_addr
                 )
                 self.bm.start_instances(bmc_addr, node)
                 self.bm.wait_until_running(bmc_addr, node, affected_node)
@@ -175,7 +175,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.error(
                     "Failed to start node instance. Encountered following "
                     "exception: %s. Test Failed. Most errors are caused by "
-                    "an incorrect ipmi address or login" % (e)
+                    "an incorrect ipmi address or login" , e
                 )
                 logging.error("node_start_scenario injection failed!")
                 raise e
@@ -190,12 +190,12 @@ class bm_node_scenarios(abstract_node_scenarios):
                 bmc_addr = self.bm.get_bmc_addr(node)
                 affected_node.node_id = bmc_addr
                 logging.info(
-                    "Stopping the node %s with bmc address: %s " % (node, bmc_addr)
+                    "Stopping the node %s with bmc address: %s " , node, bmc_addr
                 )
                 self.bm.stop_instances(bmc_addr, node)
                 self.bm.wait_until_stopped(bmc_addr, node, affected_node)
                 logging.info(
-                    "Node with bmc address: %s is in stopped state" % (bmc_addr)
+                    "Node with bmc address: %s is in stopped state" , bmc_addr
                 )
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
@@ -203,7 +203,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
                     "Test Failed. Most errors are caused by "
-                    "an incorrect ipmi address or login" % (e)
+                    "an incorrect ipmi address or login" , e
                 )
                 logging.error("node_stop_scenario injection failed!")
                 raise e
@@ -222,7 +222,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 bmc_addr = self.bm.get_bmc_addr(node)
                 logging.info("BMC Addr: %s", bmc_addr)
                 logging.info(
-                    "Rebooting the node %s with bmc address: %s " % (node, bmc_addr)
+                    "Rebooting the node %s with bmc address: %s " , node, bmc_addr
                 )
                 self.bm.reboot_instances(bmc_addr, node)
                 if self.node_action_kube_check: 
@@ -234,7 +234,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
                     " %s. Test Failed. Most errors are caused by "
-                    "an incorrect ipmi address or login" % (e)
+                    "an incorrect ipmi address or login" , e
                 )
                 traceback.print_exc()
                 logging.error("node_reboot_scenario injection failed!")
@@ -279,7 +279,7 @@ done'''
             except Exception as e:
                 logging.error(
                     "Failed to obtain disk attachment information of %s node. "
-                    "Encounteres following exception: %s." % (node, e)
+                    "Encounteres following exception: %s." , node, e
                 )
                 raise RuntimeError()
             finally:
@@ -292,7 +292,7 @@ done'''
                 logging.info("Starting disk_detach_scenario injection")
                 logging.info(
                     "Detaching the %s disks from instance %s "
-                    % (disk_attachment_details, node)
+                    , disk_attachment_details, node
                 )
                 disk_pod_name = f"detach-disk-pod-{get_random_string(5)}"
                 detach_disk_command=''
@@ -307,7 +307,7 @@ done'''
             except Exception as e:
                 logging.error(
                     "Failed to detach disk from %s node. Encountered following"
-                    "exception: %s." % (node, e)
+                    "exception: %s." , node, e
                 )
                 logging.debug("")
                 raise RuntimeError()
@@ -320,7 +320,7 @@ done'''
             try:
                 logging.info(
                     "Attaching the %s disks from instance %s "
-                    % (disk_attachment_details, node)
+                    , disk_attachment_details, node
                 )
                 disk_pod_name = f"attach-disk-pod-{get_random_string(5)}"
                 attach_disk_command=''
@@ -335,7 +335,7 @@ done'''
             except Exception as e:
                 logging.error(
                     "Failed to attach disk to %s node. Encountered following"
-                    "exception: %s." % (node, e)
+                    "exception: %s." , node, e
                 )
                 logging.debug("")
                 raise RuntimeError()

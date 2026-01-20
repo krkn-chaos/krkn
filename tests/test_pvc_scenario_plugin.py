@@ -822,9 +822,12 @@ class TestRollbackTempFileEdgeCases(unittest.TestCase):
         
         # Verify warning was logged to inform operators of incomplete rollback
         mock_logging.warning.assert_called_once()
-        warning_message = mock_logging.warning.call_args[0][0]
+        # Check the lazy logging format: message template + file_name argument
+        call_args = mock_logging.warning.call_args
+        warning_message = call_args[0][0]
         self.assertIn("may still exist after rollback attempt", warning_message)
-        self.assertIn("kraken.tmp", warning_message)
+        # file_name is passed as second argument in lazy logging
+        self.assertIn("kraken.tmp", call_args[0])
 
 
 if __name__ == "__main__":

@@ -141,7 +141,7 @@ class TestAbstractNodeScenarios(unittest.TestCase):
         # Assert
         self.scenarios.disk_detach_scenario.assert_not_called()
         self.scenarios.disk_attach_scenario.assert_not_called()
-        mock_error.assert_any_call("Node %s has only root disk attached" % node)
+        mock_error.assert_any_call("Node %s has only root disk attached", node)
 
     @patch('krkn.scenario_plugins.node_actions.abstract_node_scenarios.nodeaction.wait_for_unknown_status')
     @patch('krkn.scenario_plugins.node_actions.abstract_node_scenarios.runcommand.run')
@@ -177,8 +177,8 @@ class TestAbstractNodeScenarios(unittest.TestCase):
         instance_kill_count = 1
         node = "test-node"
         timeout = 300
-        error_msg = "Command failed"
-        mock_run.side_effect = Exception(error_msg)
+        error_exc = Exception("Command failed")
+        mock_run.side_effect = error_exc
 
         # Act & Assert
         with self.assertRaises(Exception):
@@ -187,7 +187,7 @@ class TestAbstractNodeScenarios(unittest.TestCase):
 
         mock_error.assert_any_call(
             "Failed to stop the kubelet of the node. Encountered following "
-            "exception: %s. Test Failed" % error_msg
+            "exception: %s. Test Failed", error_exc
         )
 
     @patch('logging.info')
@@ -247,8 +247,8 @@ class TestAbstractNodeScenarios(unittest.TestCase):
         instance_kill_count = 1
         node = "test-node"
         timeout = 300
-        error_msg = "Restart failed"
-        mock_run.side_effect = Exception(error_msg)
+        error_exc = Exception("Restart failed")
+        mock_run.side_effect = error_exc
 
         # Act & Assert
         with self.assertRaises(Exception):
@@ -257,7 +257,7 @@ class TestAbstractNodeScenarios(unittest.TestCase):
 
         mock_error.assert_any_call(
             "Failed to restart the kubelet of the node. Encountered following "
-            "exception: %s. Test Failed" % error_msg
+            "exception: %s. Test Failed", error_exc
         )
 
     @patch('krkn.scenario_plugins.node_actions.abstract_node_scenarios.runcommand.run')
@@ -290,8 +290,8 @@ class TestAbstractNodeScenarios(unittest.TestCase):
         instance_kill_count = 1
         node = "test-node"
         timeout = 300
-        error_msg = "Crash command failed"
-        mock_run.side_effect = Exception(error_msg)
+        error_exc = Exception("Crash command failed")
+        mock_run.side_effect = error_exc
 
         # Act
         result = self.scenarios.node_crash_scenario(instance_kill_count, node, timeout)
@@ -300,7 +300,7 @@ class TestAbstractNodeScenarios(unittest.TestCase):
         self.assertEqual(result, 1)
         mock_error.assert_any_call(
             "Failed to crash the node. Encountered following exception: %s. "
-            "Test Failed" % error_msg
+            "Test Failed", error_exc
         )
 
     def test_node_start_scenario_not_implemented(self):

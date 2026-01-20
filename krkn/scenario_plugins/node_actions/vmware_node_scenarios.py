@@ -125,10 +125,10 @@ class vSphere:
         vm = self.get_vm(instance_id)
         try:
             self.client.vcenter.vm.Power.stop(vm)
-            logging.info(f"Stopped VM -- '{instance_id}-({vm})'")
+            logging.info("Stopped VM -- '%s-(%s)'", instance_id, vm)
             return True
         except AlreadyInDesiredState:
-            logging.info(f"VM '{instance_id}'-'({vm})' is already Powered Off")
+            logging.info("VM '%s'-(%s) is already Powered Off", instance_id, vm)
             return False
 
     def start_instances(self, instance_id):
@@ -140,10 +140,10 @@ class vSphere:
         vm = self.get_vm(instance_id)
         try:
             self.client.vcenter.vm.Power.start(vm)
-            logging.info(f"Started VM -- '{instance_id}-({vm})'")
+            logging.info("Started VM -- '%s-(%s)'", instance_id, vm)
             return True
         except AlreadyInDesiredState:
-            logging.info(f"VM '{instance_id}'-'({vm})' is already Powered On")
+            logging.info("VM '%s'-(%s) is already Powered On", instance_id, vm)
             return False
 
     def list_instances(self, datacenter):
@@ -292,12 +292,13 @@ class vSphere:
         try:
             vm = self.get_vm(instance_id)
             state = self.client.vcenter.vm.Power.get(vm).state
-            logging.info(f"Check instance {instance_id} status")
+            logging.info("Check instance %s status", instance_id)
             return state
         except Exception as e:
             logging.error(
-                f"Failed to get node instance status {instance_id}. Encountered following "
-                f"exception: {str(e)}. "
+                "Failed to get node instance status %s. Encountered following exception: %s. ",
+                instance_id,
+                str(e),
             )
             return None
 
@@ -314,12 +315,13 @@ class vSphere:
         while vm is not None:
             vm = self.get_vm(instance_id)
             logging.info(
-                f"VM {instance_id} is still being deleted, " f"sleeping for 5 seconds"
+                "VM %s is still being deleted, sleeping for 5 seconds",
+                instance_id,
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info(f"VM {instance_id} is still not deleted in allotted time")
+                logging.info("VM %s is still not deleted in allotted time", instance_id)
                 exit_status = False
         end_time = time.time()
         if affected_node:
@@ -345,7 +347,7 @@ class vSphere:
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info(f"VM {instance_id} is still not ready in allotted time")
+                logging.info("VM %s is still not ready in allotted time", instance_id)
                 exit_status = False
         end_time = time.time()
         if affected_node:
@@ -367,12 +369,13 @@ class vSphere:
         while status != Power.State.POWERED_OFF:
             status = self.get_vm_status(instance_id)
             logging.info(
-                f"VM {instance_id} is still not running, " f"sleeping for 5 seconds"
+                "VM %s is still not running, sleeping for 5 seconds",
+                instance_id,
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info(f"VM {instance_id} is still not ready in allotted time")
+                logging.info("VM %s is still not ready in allotted time", instance_id)
                 exit_status = False
         end_time = time.time()
         if affected_node:
@@ -394,19 +397,20 @@ class vmware_node_scenarios(abstract_node_scenarios):
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
                 logging.info("Starting node_start_scenario injection")
-                logging.info(f"Starting the node {node} ")
+                logging.info("Starting the node %s", node)
                 vm_started = self.vsphere.start_instances(node)
                 if vm_started:
                     self.vsphere.wait_until_running(node, timeout, affected_node)
                     if self.node_action_kube_check:
                         nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
-                logging.info(f"Node with instance ID: {node} is in running state")
+                logging.info("Node with instance ID: %s is in running state", node)
                 logging.info("node_start_scenario has been successfully injected!")
                 self.affected_nodes_status.affected_nodes.append(affected_node)
         except Exception as e:
             logging.error("Failed to start node instance. Test Failed")
             logging.error(
-                f"node_start_scenario injection failed! " f"Error was: {str(e)}"
+                "node_start_scenario injection failed! Error was: %s",
+                str(e),
             )
 
     def node_stop_scenario(self, instance_kill_count, node, timeout, poll_interval):
@@ -414,7 +418,7 @@ class vmware_node_scenarios(abstract_node_scenarios):
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
                 logging.info("Starting node_stop_scenario injection")
-                logging.info(f"Stopping the node {node} ")
+                logging.info("Stopping the node %s", node)
                 vm_stopped = self.vsphere.stop_instances(node)
                 if vm_stopped:
                     self.vsphere.wait_until_stopped(node, timeout, affected_node)
@@ -422,13 +426,14 @@ class vmware_node_scenarios(abstract_node_scenarios):
                         nodeaction.wait_for_ready_status(
                             node, timeout, self.kubecli, affected_node
                         )
-                logging.info(f"Node with instance ID: {node} is in stopped state")
+                logging.info("Node with instance ID: %s is in stopped state", node)
                 logging.info("node_stop_scenario has been successfully injected!")
                 self.affected_nodes_status.affected_nodes.append(affected_node)
         except Exception as e:
             logging.error("Failed to stop node instance. Test Failed")
             logging.error(
-                f"node_stop_scenario injection failed! " f"Error was: {str(e)}"
+                "node_stop_scenario injection failed! Error was: %s",
+                str(e),
             )
                 
 
@@ -437,7 +442,7 @@ class vmware_node_scenarios(abstract_node_scenarios):
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
                 logging.info("Starting node_reboot_scenario injection")
-                logging.info(f"Rebooting the node {node} ")
+                logging.info("Rebooting the node %s", node)
                 self.vsphere.reboot_instances(node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(
@@ -445,14 +450,16 @@ class vmware_node_scenarios(abstract_node_scenarios):
                     )
                    
                 logging.info(
-                    f"Node with instance ID: {node} has rebooted " "successfully"
+                    "Node with instance ID: %s has rebooted successfully",
+                    node,
                 )
                 logging.info("node_reboot_scenario has been successfully injected!")
                 self.affected_nodes_status.affected_nodes.append(affected_node)
         except Exception as e:
             logging.error("Failed to reboot node instance. Test Failed")
             logging.error(
-                f"node_reboot_scenario injection failed! " f"Error was: {str(e)}"
+                "node_reboot_scenario injection failed! Error was: %s",
+                str(e),
             )
 
 
@@ -466,10 +473,10 @@ class vmware_node_scenarios(abstract_node_scenarios):
                 )
                 self.vsphere.stop_instances(node)
                 self.vsphere.wait_until_stopped(node, timeout, affected_node)
-                logging.info(f"Releasing the node with instance ID: {node} ")
+                logging.info("Releasing the node with instance ID: %s", node)
                 self.vsphere.release_instances(node)
                 self.vsphere.wait_until_released(node, timeout, affected_node)
-                logging.info(f"Node with instance ID: {node} has been released")
+                logging.info("Node with instance ID: %s has been released", node)
                 logging.info(
                     "node_terminate_scenario has been " "successfully injected!"
                 )
@@ -477,5 +484,6 @@ class vmware_node_scenarios(abstract_node_scenarios):
         except Exception as e:
             logging.error("Failed to terminate node instance. Test Failed")
             logging.error(
-                f"node_terminate_scenario injection failed! " f"Error was: {str(e)}"
+                "node_terminate_scenario injection failed! Error was: %s",
+                str(e),
             )

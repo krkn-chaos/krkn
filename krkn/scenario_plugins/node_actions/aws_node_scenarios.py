@@ -33,7 +33,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to start node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             raise RuntimeError()
 
@@ -41,11 +41,11 @@ class AWS:
     def stop_instances(self, instance_id):
         try:
             self.boto_client.stop_instances(InstanceIds=[instance_id])
-            logging.info("EC2 instance: " + str(instance_id) + " stopped")
+            logging.info("EC2 instance: %s stopped", instance_id)
         except Exception as e:
             logging.error(
                 "Failed to stop node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             raise RuntimeError()
 
@@ -53,11 +53,11 @@ class AWS:
     def terminate_instances(self, instance_id):
         try:
             self.boto_client.terminate_instances(InstanceIds=[instance_id])
-            logging.info("EC2 instance: " + str(instance_id) + " terminated")
+            logging.info("EC2 instance: %s terminated", instance_id)
         except Exception as e:
             logging.error(
                 "Failed to terminate node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             raise RuntimeError()
 
@@ -69,7 +69,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to reboot node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             raise RuntimeError()
 
@@ -99,7 +99,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to get status waiting for %s to be running %s"
-                % (instance_id, e)
+                , instance_id, e
             )
             return False
 
@@ -126,7 +126,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to get status waiting for %s to be stopped %s"
-                % (instance_id, e)
+                , instance_id, e
             )
             return False
 
@@ -153,7 +153,7 @@ class AWS:
         except Exception as e:
             logging.error(
                 "Failed to get status waiting for %s to be terminated %s"
-                % (instance_id, e)
+                , instance_id, e
             )
             return False
 
@@ -163,12 +163,12 @@ class AWS:
             logging.info("Trying to create a default deny network acl")
             response = self.boto_client.create_network_acl(VpcId=vpc_id)
             acl_id = response["NetworkAcl"]["NetworkAclId"]
-            logging.info("Created a network acl, id=%s" % acl_id)
+            logging.info("Created a network acl, id=%s", acl_id)
         except Exception as e:
             logging.error(
                 "Failed to create the default network_acl: %s"
                 "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
-                % (e)
+                , e
             )
 
             raise RuntimeError()
@@ -202,7 +202,7 @@ class AWS:
             logging.error(
                 "Failed to describe network acl: %s."
                 "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
-                % (e)
+                , e
             )
 
             raise RuntimeError()
@@ -220,7 +220,7 @@ class AWS:
             logging.error(
                 "Failed to delete network_acl %s: %s"
                 "Make sure you have aws cli configured on the host and set for the region of your vpc/subnet"
-                % (acl_id, e)
+                , acl_id, e
             )
 
             raise RuntimeError()
@@ -233,7 +233,7 @@ class AWS:
             except Exception as e:
                 logging.error(
                     "Detaching volume %s failed with exception: %s"
-                    % (volume, e)
+                    , volume, e
                 )
 
     # Attach volume
@@ -257,7 +257,7 @@ class AWS:
             logging.error(
                 "Failed attaching disk %s to the %s instance. "
                 "Encountered following exception: %s"
-                % (attachment['VolumeId'], attachment['InstanceId'], e)
+                , attachment['VolumeId'], attachment['InstanceId'], e
             )
             raise RuntimeError()
 
@@ -308,20 +308,20 @@ class aws_node_scenarios(abstract_node_scenarios):
                 instance_id = self.aws.get_instance_id(node)
                 affected_node.node_id = instance_id
                 logging.info(
-                    "Starting the node %s with instance ID: %s " % (node, instance_id)
+                    "Starting the node %s with instance ID: %s " , node, instance_id
                 )
                 self.aws.start_instances(instance_id)
                 self.aws.wait_until_running(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
-                    "Node with instance ID: %s is in running state" % (instance_id)
+                    "Node with instance ID: %s is in running state", instance_id
                 )
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to start node instance. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed", e
                 )
                 logging.error("node_start_scenario injection failed!")
 
@@ -337,19 +337,19 @@ class aws_node_scenarios(abstract_node_scenarios):
                 instance_id = self.aws.get_instance_id(node)
                 affected_node.node_id = instance_id
                 logging.info(
-                    "Stopping the node %s with instance ID: %s " % (node, instance_id)
+                    "Stopping the node %s with instance ID: %s " , node, instance_id
                 )
                 self.aws.stop_instances(instance_id)
                 self.aws.wait_until_stopped(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
                 logging.info(
-                    "Node with instance ID: %s is in stopped state" % (instance_id)
+                    "Node with instance ID: %s is in stopped state" , instance_id
                 )
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node=affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
-                    "Test Failed" % (e)
+                    "Test Failed" , e
                 )
                 logging.error("node_stop_scenario injection failed!")
 
@@ -366,7 +366,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = instance_id
                 logging.info(
                     "Terminating the node %s with instance ID: %s "
-                    % (node, instance_id)
+                    , node, instance_id
                 )
                 self.aws.terminate_instances(instance_id)
                 self.aws.wait_until_terminated(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
@@ -377,13 +377,13 @@ class aws_node_scenarios(abstract_node_scenarios):
                 if node in self.kubecli.list_nodes():
                     raise Exception("Node could not be terminated")
                 logging.info(
-                    "Node with instance ID: %s has been terminated" % (instance_id)
+                    "Node with instance ID: %s has been terminated" , instance_id
                 )
                 logging.info("node_termination_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
                     "Failed to terminate node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed" , e
                 )
                 logging.error("node_termination_scenario injection failed!")
 
@@ -399,20 +399,20 @@ class aws_node_scenarios(abstract_node_scenarios):
                 instance_id = self.aws.get_instance_id(node)
                 affected_node.node_id = instance_id
                 logging.info(
-                    "Rebooting the node %s with instance ID: %s " % (node, instance_id)
+                    "Rebooting the node %s with instance ID: %s " , node, instance_id
                 )
                 self.aws.reboot_instances(instance_id)
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
-                    "Node with instance ID: %s has been rebooted" % (instance_id)
+                    "Node with instance ID: %s has been rebooted" , instance_id
                 )
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed"  , e
                 )
                 logging.error("node_reboot_scenario injection failed!")
 
@@ -435,7 +435,7 @@ class aws_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error(
                     "Failed to obtain disk attachment information of %s node. "
-                    "Encounteres following exception: %s." % (node, e)
+                    "Encounteres following exception: %s." , node, e
                 )
                 raise RuntimeError()
 
@@ -448,13 +448,13 @@ class aws_node_scenarios(abstract_node_scenarios):
                 volumes_ids = self.aws.get_volumes_ids(instance_id)
                 logging.info(
                     "Detaching the %s volumes from instance %s "
-                    % (volumes_ids, node)
+                    , volumes_ids, node
                 )
                 self.aws.detach_volumes(volumes_ids)
             except Exception as e:
                 logging.error(
                     "Failed to detach disk from %s node. Encountered following"
-                    "exception: %s." % (node, e)
+                    "exception: %s."  , node, e
                 )
                 logging.debug("")
                 raise RuntimeError()

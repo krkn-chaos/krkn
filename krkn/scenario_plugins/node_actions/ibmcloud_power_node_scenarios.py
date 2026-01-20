@@ -65,7 +65,7 @@ class IbmCloudPower:
                 "CRN": self.CRN,
             }
         else:
-            logging.error(f"Authentication Error: {response.status_code}")
+            logging.error("Authentication Error: %s", response.status_code)
             return None, None
             
 
@@ -85,7 +85,7 @@ class IbmCloudPower:
         for node in response.json()["pvmInstances"]:
             if node_name == node["serverName"]:
                 return node["pvmInstanceID"]
-        logging.error("Couldn't find node with name " + str(node_name) + ", you could try another region")
+        logging.error("Couldn't find node with name %s, you could try another region", str(node_name))
         sys.exit(1)
 
     def delete_instance(self, instance_id):
@@ -132,7 +132,7 @@ class IbmCloudPower:
             return True
         except Exception as e:
             logging.info("Instance '{}' could not be stopped".format(instance_id))
-            logging.info("error" + str(e))
+            logging.info("error %s" , str(e))
             return False
 
     def start_instances(self, instance_id):
@@ -161,7 +161,7 @@ class IbmCloudPower:
             for pvm in response.json()["pvmInstances"]:
                 instance_names.append({"serverName": pvm.serverName, "pvmInstanceID": pvm.pvmInstanceID})
         except Exception as e:
-            logging.error("Error listing out instances: " + str(e))
+            logging.error("Error listing out instances: %s", str(e))
             sys.exit(1)
         return instance_names
 
@@ -183,7 +183,7 @@ class IbmCloudPower:
         except Exception as e:
             logging.error(
                 "Failed to get node instance status %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s.", instance_id, e
             )
             return None
 
@@ -198,14 +198,14 @@ class IbmCloudPower:
         while vpc is not None:
             vpc = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still being deleted, sleeping for 5 seconds"
-                % instance_id
+                "Instance %s is still being deleted, sleeping for 5 seconds",
+                instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still not deleted in allotted time" % instance_id
+                    "Instance %s is still not deleted in allotted time", instance_id
                 )
                 return False
         end_time = time.time()
@@ -224,13 +224,13 @@ class IbmCloudPower:
         while status != "ACTIVE":
             status = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still not running, sleeping for 5 seconds" % instance_id
+                "Instance %s is still not running, sleeping for 5 seconds", instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still not ready in allotted time" % instance_id
+                    "Instance %s is still not ready in allotted time", instance_id
                 )
                 return False
         end_time = time.time()
@@ -249,13 +249,13 @@ class IbmCloudPower:
         while status != "STOPPED":
             status = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still not stopped, sleeping for 5 seconds" % instance_id
+                "Instance %s is still not stopped, sleeping for 5 seconds", instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still not stopped in allotted time" % instance_id
+                    "Instance %s is still not stopped in allotted time", instance_id
                 )
                 return False
         end_time = time.time()
@@ -276,13 +276,13 @@ class IbmCloudPower:
         while status == "HARD_REBOOT" or status == "SOFT_REBOOT":
             status = self.get_instance_status(instance_id)
             logging.info(
-                "Instance %s is still restarting, sleeping for 5 seconds" % instance_id
+                "Instance %s is still restarting, sleeping for 5 seconds", instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Instance %s is still restarting after allotted time" % instance_id
+                    "Instance %s is still restarting after allotted time", instance_id
                 )
                 return False
         self.wait_until_running(instance_id, timeout, affected_node)
@@ -315,7 +315,7 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
                                 node, timeout, self.kubecli, affected_node
                             )
                     logging.info(
-                        "Node with instance ID: %s is in running state" % node
+                        "Node with instance ID: %s is in running state", node
                     )
                     logging.info(
                         "node_start_scenario has been successfully injected!"
@@ -342,7 +342,7 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
                 if vm_stopped:
                     self.ibmcloud_power.wait_until_stopped(instance_id, timeout, affected_node)
                 logging.info(
-                    "Node with instance ID: %s is in stopped state" % node
+                    "Node with instance ID: %s is in stopped state", node
                 )
                 logging.info(
                     "node_stop_scenario has been successfully injected!"
@@ -369,7 +369,7 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
                         node, timeout, affected_node
                     )
                 logging.info(
-                    "Node with instance ID: %s has rebooted successfully" % node
+                        "Node with instance ID: %s has rebooted successfully", node
                 )
                 logging.info(
                     "node_reboot_scenario has been successfully injected!"
@@ -392,7 +392,7 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
                 self.ibmcloud_power.delete_instance(instance_id)
                 self.ibmcloud_power.wait_until_deleted(node, timeout, affected_node)
                 logging.info(
-                    "Node with instance ID: %s has been released" % node
+                        "Node with instance ID: %s has been released", node
                 )
                 logging.info(
                     "node_terminate_scenario has been successfully injected!"

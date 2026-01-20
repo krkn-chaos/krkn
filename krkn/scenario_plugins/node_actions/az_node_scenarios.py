@@ -32,7 +32,7 @@ class Azure:
             if node_name == vm.name:
                 resource_group = array[4]
                 return vm.name, resource_group
-        logging.error("Couldn't find vm with name " + str(node_name))
+        logging.error("Couldn't find vm with name %s", str(node_name))
 
     # Get the instance ID of the node
     def get_network_interface(self, node_name, resource_group):
@@ -55,11 +55,11 @@ class Azure:
     def start_instances(self, group_name, vm_name):
         try:
             self.compute_client.virtual_machines.begin_start(group_name, vm_name)
-            logging.info("vm name " + str(vm_name) + " started")
+            logging.info("vm name %s started", str(vm_name))
         except Exception as e:
             logging.error(
                 "Failed to start node instance %s. Encountered following "
-                "exception: %s." % (vm_name, e)
+                "exception: %s." , vm_name, e
             )
             raise RuntimeError()
 
@@ -67,11 +67,11 @@ class Azure:
     def stop_instances(self, group_name, vm_name):
         try:
             self.compute_client.virtual_machines.begin_power_off(group_name, vm_name)
-            logging.info("vm name " + str(vm_name) + " stopped")
+            logging.info("vm name %s stopped", str(vm_name))
         except Exception as e:
             logging.error(
                 "Failed to stop node instance %s. Encountered following "
-                "exception: %s." % (vm_name, e)
+                "exception: %s." , vm_name, e
             )
             raise RuntimeError()
 
@@ -79,11 +79,11 @@ class Azure:
     def terminate_instances(self, group_name, vm_name):
         try:
             self.compute_client.virtual_machines.begin_delete(group_name, vm_name)
-            logging.info("vm name " + str(vm_name) + " terminated")
+            logging.info("vm name %s terminated", str(vm_name))
         except Exception as e:
             logging.error(
                 "Failed to terminate node instance %s. Encountered following "
-                "exception: %s." % (vm_name, e)
+                "exception: %s." , vm_name, e
             )
 
             raise RuntimeError()
@@ -92,11 +92,11 @@ class Azure:
     def reboot_instances(self, group_name, vm_name):
         try:
             self.compute_client.virtual_machines.begin_restart(group_name, vm_name)
-            logging.info("vm name " + str(vm_name) + " rebooted")
+            logging.info("vm name %s rebooted", str(vm_name))
         except Exception as e:
             logging.error(
                 "Failed to reboot node instance %s. Encountered following "
-                "exception: %s." % (vm_name, e)
+                "exception: %s." , vm_name, e
             )
 
             raise RuntimeError()
@@ -115,11 +115,11 @@ class Azure:
         status = self.get_vm_status(resource_group, vm_name)
         while status and status.code != "PowerState/running":
             status = self.get_vm_status(resource_group, vm_name)
-            logging.info("Vm %s is still not running, sleeping for 5 seconds" % vm_name)
+            logging.info("Vm %s is still not running, sleeping for 5 seconds" , vm_name)
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info("Vm %s is still not ready in allotted time" % vm_name)
+                logging.info("Vm %s is still not ready in allotted time" , vm_name)
                 return False
         end_time = time.time()
         if affected_node:
@@ -133,11 +133,11 @@ class Azure:
         status = self.get_vm_status(resource_group, vm_name)
         while status and status.code != "PowerState/stopped":
             status = self.get_vm_status(resource_group, vm_name)
-            logging.info("Vm %s is still stopping, sleeping for 5 seconds" % vm_name)
+            logging.info("Vm %s is still stopping, sleeping for 5 seconds" , vm_name)
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info("Vm %s is still not stopped in allotted time" % vm_name)
+                logging.info("Vm %s is still not stopped in allotted time" , vm_name)
                 return False
         end_time = time.time()
         if affected_node:
@@ -157,14 +157,14 @@ class Azure:
                 statuses = self.compute_client.virtual_machines.instance_view(
                     resource_group, vm_name
                 ).statuses[0]
-                logging.info("Vm %s is still deleting, waiting 10 seconds" % vm_name)
+                logging.info("Vm %s is still deleting, waiting 10 seconds" , vm_name)
                 time.sleep(10)
                 time_counter += 10
                 if time_counter >= timeout:
-                    logging.info("Vm %s was not terminated in allotted time" % vm_name)
+                    logging.info("Vm %s was not terminated in allotted time" , vm_name)
                     return False
             except Exception:
-                logging.info("Vm %s is terminated" % vm_name)
+                logging.info("Vm %s is terminated" , vm_name)
                 end_time = time.time()
                 if affected_node:
                     affected_node.set_affected_node_status("terminated", end_time - start_time)
@@ -225,18 +225,18 @@ class azure_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = vm_name
                 logging.info(
                     "Starting the node %s with instance ID: %s "
-                    % (vm_name, resource_group)
+                    , vm_name, resource_group
                 )
                 self.azure.start_instances(resource_group, vm_name)
                 self.azure.wait_until_running(resource_group, vm_name, timeout, affected_node=affected_node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
-                logging.info("Node with instance ID: %s is in running state" % node)
+                logging.info("Node with instance ID: %s is in running state" , node)
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to start node instance. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed" , e
                 )
                 logging.error("node_start_scenario injection failed!")
 
@@ -253,17 +253,17 @@ class azure_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = vm_name
                 logging.info(
                     "Stopping the node %s with instance ID: %s "
-                    % (vm_name, resource_group)
+                    , vm_name, resource_group
                 )
                 self.azure.stop_instances(resource_group, vm_name)
                 self.azure.wait_until_stopped(resource_group, vm_name, timeout, affected_node=affected_node)
-                logging.info("Node with instance ID: %s is in stopped state" % vm_name)
+                logging.info("Node with instance ID: %s is in stopped state" , vm_name)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(vm_name, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
-                    "Test Failed" % e
+                    "Test Failed" , e
                 )
                 logging.error("node_stop_scenario injection failed!")
 
@@ -280,7 +280,7 @@ class azure_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = vm_name
                 logging.info(
                     "Terminating the node %s with instance ID: %s "
-                    % (vm_name, resource_group)
+                    , vm_name, resource_group
                 )
                 self.azure.terminate_instances(resource_group, vm_name)
                 self.azure.wait_until_terminated(resource_group, vm_name, timeout, affected_node)
@@ -297,7 +297,7 @@ class azure_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error(
                     "Failed to terminate node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed" , e
                 )
                 logging.error("node_termination_scenario injection failed!")
 
@@ -315,7 +315,7 @@ class azure_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = vm_name
                 logging.info(
                     "Rebooting the node %s with instance ID: %s "
-                    % (vm_name, resource_group)
+                    , vm_name, resource_group
                 )
                 
                 self.azure.reboot_instances(resource_group, vm_name)
@@ -327,7 +327,7 @@ class azure_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed"  , e
                 )
                 logging.error("node_reboot_scenario injection failed!")
 
@@ -363,7 +363,7 @@ class azure_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error(
                     "Failed to block node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed" , e
                 )
                 logging.error("node_block_scenario injection failed!")
 

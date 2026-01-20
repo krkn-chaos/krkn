@@ -59,7 +59,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 return 1
             return 0
         except Exception as e:
-            logging.error(f"KubeVirt VM Outage scenario failed: {e}")
+            logging.error("KubeVirt VM Outage scenario failed: %s", e)
             log_exception(e)
             return 1
 
@@ -90,13 +90,17 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             return vmi
         except ApiException as e:
             if e.status == 404:
-                logging.warning(f"VMI {name} not found in namespace {namespace}")
+                logging.warning(
+                    "VMI %s not found in namespace %s",
+                    name,
+                    namespace,
+                )
                 return None
             else:
-                logging.error(f"Error getting VMI {name}: {e}")
+                logging.error("Error getting VMI %s: %s", name, e)
                 raise
         except Exception as e:
-            logging.error(f"Unexpected error getting VMI {name}: {e}")
+            logging.error("Unexpected error getting VMI %s: %s", name, e)
             raise
             
     def get_vmis(self, regex_name: str, namespace: str) -> Optional[Dict]:
@@ -124,13 +128,17 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                         self.vmis_list.append(vmi)
         except ApiException as e:
             if e.status == 404:
-                logging.warning(f"VMI {regex_name} not found in namespace {namespace}")
+                logging.warning(
+                    "VMI %s not found in namespace %s",
+                    regex_name,
+                    namespace,
+                )
                 return []
             else:
-                logging.error(f"Error getting VMI {regex_name}: {e}")
+                logging.error("Error getting VMI %s: %s", regex_name, e)
                 raise
         except Exception as e:
-            logging.error(f"Unexpected error getting VMI {regex_name}: {e}")
+            logging.error("Unexpected error getting VMI %s: %s", regex_name, e)
             raise
     
     def execute_scenario(self, config: Dict[str, Any], scenario_telemetry: ScenarioTelemetry) -> int:
@@ -160,7 +168,11 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 rand_int = random.randint(0, len(self.vmis_list) - 1)
                 vmi = self.vmis_list[rand_int]
                     
-                logging.info(f"Starting KubeVirt VM outage scenario for VM: {vm_name} in namespace: {namespace}")
+                logging.info(
+                    "Starting KubeVirt VM outage scenario for VM: %s in namespace: %s",
+                    vm_name,
+                    namespace,
+                )
                 vmi_name = vmi.get("metadata").get("name")
                 vmi_namespace = vmi.get("metadata").get("namespace")
                 if not self.validate_environment(vmi_name, vmi_namespace):
@@ -172,11 +184,11 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                     namespace=vmi_namespace,
                 )
                 if not vmi:
-                    logging.error(f"VMI {vm_name} not found in namespace {namespace}")
+                    logging.error("VMI %s not found in namespace %s", vm_name, namespace)
                     return 1
                     
                 self.original_vmi = vmi
-                logging.info(f"Captured initial state of VMI: {vm_name}")
+                logging.info("Captured initial state of VMI: %s", vm_name)
                 result = self.delete_vmi(vmi_name, vmi_namespace, disable_auto_restart)
                 if result != 0:
                     self.pods_status.unrecovered.append(self.affected_pod)
@@ -193,12 +205,15 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 )
 
                 self.pods_status.recovered.append(self.affected_pod)
-                logging.info(f"Successfully completed KubeVirt VM outage scenario for VM: {vm_name}")
+                logging.info(
+                    "Successfully completed KubeVirt VM outage scenario for VM: %s",
+                    vm_name,
+                )
             
             return self.pods_status
             
         except Exception as e:
-            logging.error(f"Error executing KubeVirt VM outage scenario: {e}")
+            logging.error("Error executing KubeVirt VM outage scenario: %s", e)
             log_exception(e)
             return self.pods_status
 
@@ -222,14 +237,17 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             # Check if VMI exists
             vmi = self.get_vmi(vm_name, namespace)
             if not vmi:
-                logging.error(f"VMI {vm_name} not found in namespace {namespace}")
+                logging.error("VMI %s not found in namespace %s", vm_name, namespace)
                 return False
                 
-            logging.info(f"Validated environment: KubeVirt is installed and VMI {vm_name} exists")
+            logging.info(
+                "Validated environment: KubeVirt is installed and VMI %s exists",
+                vm_name,
+            )
             return True
             
         except Exception as e:
-            logging.error(f"Error validating environment: {e}")
+            logging.error("Error validating environment: %s", e)
             return False
 
     def patch_vm_spec(self, vm_name: str, namespace: str, running: bool) -> bool:
@@ -268,10 +286,10 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             return True
             
         except ApiException as e:
-            logging.error(f"Failed to patch VM {vm_name}: {e}")
+            logging.error("Failed to patch VM %s: %s", vm_name, e)
             return False
         except Exception as e:
-            logging.error(f"Unexpected error patching VM {vm_name}: {e}")
+            logging.error("Unexpected error patching VM %s: %s", vm_name, e)
             return False
             
     def delete_vmi(self, vm_name: str, namespace: str, disable_auto_restart: bool = False, timeout: int = 120) -> int:
@@ -283,11 +301,18 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         :return: 0 for success, 1 for failure
         """
         try:
-            logging.info(f"Injecting chaos: Deleting VMI {vm_name} in namespace {namespace}")
+            logging.info(
+                "Injecting chaos: Deleting VMI %s in namespace %s",
+                vm_name,
+                namespace,
+            )
             
             # If auto-restart should be disabled, patch the VM spec first
             if disable_auto_restart:
-                logging.info(f"Disabling auto-restart for VM {vm_name} by setting spec.running=False")
+                logging.info(
+                    "Disabling auto-restart for VM %s by setting spec.running=False",
+                    vm_name,
+                )
                 if not self.patch_vm_spec(vm_name, namespace, running=False):
                     logging.error("Failed to disable auto-restart for VM"
                                " - proceeding with deletion but VM may auto-restart")
@@ -303,10 +328,10 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 )
             except ApiException as e:
                 if e.status == 404:
-                    logging.warning(f"VMI {vm_name} not found during deletion")
+                    logging.warning("VMI %s not found during deletion", vm_name)
                     return 1
                 else:
-                    logging.error(f"API error during VMI deletion: {e}")
+                    logging.error("API error during VMI deletion: %s", e)
                     return 1
             
             # Wait for the VMI to be deleted
@@ -315,19 +340,19 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 deleted_vmi = self.get_vmi(vm_name, namespace)
                 if deleted_vmi:
                     if start_creation_time != deleted_vmi.get('metadata', {}).get('creationTimestamp'):
-                        logging.info(f"VMI {vm_name} successfully recreated")
+                        logging.info("VMI %s successfully recreated", vm_name)
                         self.affected_pod.pod_rescheduling_time = time.time() - start_time
                         return 0
                 else: 
-                    logging.info(f"VMI {vm_name} successfully deleted")
+                    logging.info("VMI %s successfully deleted", vm_name)
                 time.sleep(1)
                 
-            logging.error(f"Timed out waiting for VMI {vm_name} to be deleted")
+            logging.error("Timed out waiting for VMI %s to be deleted", vm_name)
             self.pods_status.unrecovered.append(self.affected_pod)
             return 1
             
         except Exception as e:
-            logging.error(f"Error deleting VMI {vm_name}: {e}")
+            logging.error("Error deleting VMI %s: %s", vm_name, e)
             log_exception(e)
             self.pods_status.unrecovered.append(self.affected_pod)
             return 1
@@ -344,11 +369,15 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                     end_time = time.time()
                     self.affected_pod.pod_readiness_time = end_time - start_time
 
-                    logging.info(f"VMI {vm_name} is already running")
+                    logging.info("VMI %s is already running", vm_name)
                     return 0
-                logging.info(f"VMI {vm_name} exists but is not in Running state. Current state: {vmi.get('status', {}).get('phase')}")
+                logging.info(
+                    "VMI %s exists but is not in Running state. Current state: %s",
+                    vm_name,
+                    vmi.get('status', {}).get('phase'),
+                )
             else:
-                logging.info(f"VMI {vm_name} not yet recreated")
+                logging.info("VMI %s not yet recreated", vm_name)
             time.sleep(1)
         return 1
     
@@ -363,10 +392,17 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         :return: 0 for success, 1 for failure
         """
         try:
-            logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
+            logging.info(
+                "Attempting to recover VMI %s in namespace %s",
+                vm_name,
+                namespace,
+            )
             
             if self.original_vmi:
-                logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
+                logging.info(
+                    "Auto-recovery didn't occur for VMI %s. Attempting manual recreation",
+                    vm_name,
+                )
                 
                 try:
                     # Clean up server-generated fields
@@ -385,23 +421,29 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                         plural="virtualmachineinstances",
                         body=vmi_dict
                     )
-                    logging.info(f"Successfully recreated VMI {vm_name}")
+                    logging.info("Successfully recreated VMI %s", vm_name)
                     
                     # Wait for VMI to start running
                     self.wait_for_running(vm_name,namespace)
                     
-                    logging.warning(f"VMI {vm_name} was recreated but didn't reach Running state in time")
+                    logging.warning(
+                        "VMI %s was recreated but didn't reach Running state in time",
+                        vm_name,
+                    )
                     return 0  # Still consider it a success as the VMI was recreated
                     
                 except Exception as e:
-                    logging.error(f"Error recreating VMI {vm_name}: {e}")
+                    logging.error("Error recreating VMI %s: %s", vm_name, e)
                     log_exception(e)
                     return 1
             else:
-                logging.error(f"Failed to recover VMI {vm_name}: No original state captured and auto-recovery did not occur")
+                logging.error(
+                    "Failed to recover VMI %s: No original state captured and auto-recovery did not occur",
+                    vm_name,
+                )
                 return 1
                 
         except Exception as e:
-            logging.error(f"Unexpected error recovering VMI {vm_name}: {e}")
+            logging.error("Unexpected error recovering VMI %s: %s", vm_name, e)
             log_exception(e)
             return 1

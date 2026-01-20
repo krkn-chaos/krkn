@@ -11,8 +11,8 @@ def get_node_by_name(node_name_list, kubecli: KrknKubernetes):
     for node_name in node_name_list:
         if node_name not in killable_nodes:
             logging.info(
-                f"Node with provided ${node_name} does not exist or the node might "
-                "be in NotReady state."
+                "Node with provided %s does not exist or the node might "
+                "be in NotReady state." , node_name
             )
             return
     return node_name_list
@@ -28,7 +28,7 @@ def get_node(label_selector, instance_kill_count, kubecli: KrknKubernetes):
     if not nodes:
         raise Exception("Ready nodes with the provided label selector do not exist")
     logging.info(
-        "Ready nodes with the label selector %s: %s" % (label_selector_list, nodes)
+        "Ready nodes with the label selector %s: %s" , label_selector_list, nodes
     )
     number_of_nodes = len(nodes)
     if instance_kill_count == number_of_nodes or instance_kill_count == 0:
@@ -89,8 +89,8 @@ def check_service_status(node, service, ssh_private_key, timeout):
                 break
         except Exception as e:
             logging.error(
-                "Failed to ssh to instance: %s within the timeout duration of %s: %s"
-                % (node, timeout, e)
+                "Failed to ssh to instance: %s within the timeout duration of %s: %s",
+                node, timeout, e
             )
 
     for service_name in service:
@@ -101,10 +101,10 @@ def check_service_status(node, service, ssh_private_key, timeout):
         )
         service_status = stdout.readlines()[0]
         logging.info(
-            "Status of service %s is %s \n" % (service_name, service_status.strip())
+            "Status of service %s is %s \n" , service_name, service_status.strip()
         )
         if service_status.strip() != "active":
             logging.error(
-                "Service %s is in %s state" % (service_name, service_status.strip())
+                "Service %s is in %s state" , service_name, service_status.strip()
             )
     ssh.close()

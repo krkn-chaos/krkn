@@ -15,7 +15,7 @@ class GCP:
             _, self.project_id = google.auth.default()
             self.instance_client = compute_v1.InstancesClient()
         except Exception as e:
-            logging.error("Error on setting up GCP connection: " + str(e))
+            logging.error("Error on setting up GCP connection: %s", str(e))
 
             raise e
 
@@ -33,7 +33,7 @@ class GCP:
                             return instance
             logging.info("no instances ")
         except Exception as e:
-            logging.error("Error getting the instance of the node: " + str(e))
+            logging.error("Error getting the instance of the node: %s", str(e))
 
             raise e
 
@@ -72,11 +72,11 @@ class GCP:
                 zone=self.get_node_instance_zone(instance_id),
             )
             self.instance_client.start(request=request)
-            logging.info("Instance: " + str(instance_id) + " started")
+            logging.info("Instance: %s started", str(instance_id))
         except Exception as e:
             logging.error(
                 "Failed to start node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s.", instance_id, e
             )
 
             raise RuntimeError()
@@ -94,7 +94,7 @@ class GCP:
         except Exception as e:
             logging.error(
                 "Failed to stop node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
 
             raise RuntimeError()
@@ -108,11 +108,11 @@ class GCP:
                 zone=self.get_node_instance_zone(instance_id),
             )
             self.instance_client.suspend(request=request)
-            logging.info("Instance: " + str(instance_id) + " suspended")
+            logging.info("Instance: %s suspended", str(instance_id))
         except Exception as e:
             logging.error(
                 "Failed to suspend node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
 
             raise RuntimeError()
@@ -126,11 +126,11 @@ class GCP:
                 zone=self.get_node_instance_zone(instance_id),
             )
             self.instance_client.delete(request=request)
-            logging.info("Instance: " + str(instance_id) + " terminated")
+            logging.info("Instance: %s terminated", str(instance_id))
         except Exception as e:
             logging.error(
                 "Failed to terminate node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
 
             raise RuntimeError()
@@ -144,11 +144,11 @@ class GCP:
                 zone=self.get_node_instance_zone(instance_id),
             )
             self.instance_client.reset(request=request)
-            logging.info("Instance: " + str(instance_id) + " rebooted")
+            logging.info("Instance: %s rebooted", str(instance_id))
         except Exception as e:
             logging.error(
                 "Failed to reboot node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s."  , instance_id, e
             )
 
             raise RuntimeError()
@@ -167,22 +167,22 @@ class GCP:
                     zone=self.get_node_instance_zone(instance_id),
                 )
                 instance_status = self.instance_client.get(request=request).status
-                logging.info("Status of instance " + str(instance_id) + ": " + instance_status)
+                logging.info("Status of instance %s: %s", str(instance_id), instance_status)
             except Exception as e:
                 logging.error(
                     "Failed to get status of instance %s. Encountered following "
-                    "exception: %s." % (instance_id, e)
+                    "exception: %s." , instance_id, e
                 )
                 raise RuntimeError()
 
             if instance_status == expected_status:
-                logging.info('status matches, end' + str(expected_status) + str(instance_status))                
+                logging.info('status matches, end %s%s', str(expected_status), str(instance_status))                
                 return True
             time.sleep(sleeper)
             i += sleeper
         logging.error(
-            "Status of %s was not %s in %s seconds"
-            % (instance_id, expected_status, timeout)
+            "Status of %s was not %s in %s seconds",
+            instance_id, expected_status, timeout
         )
         return False
 
@@ -236,20 +236,20 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 instance_id = self.gcp.get_instance_name(instance)
                 affected_node.node_id = instance_id
                 logging.info(
-                    "Starting the node %s with instance ID: %s " % (node, instance_id)
+                    "Starting the node %s with instance ID: %s " , node, instance_id
                 )
                 self.gcp.start_instances(instance_id)
                 self.gcp.wait_until_running(instance_id, timeout, affected_node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
-                    "Node with instance ID: %s is in running state" % instance_id
+                    "Node with instance ID: %s is in running state" , instance_id
                 )
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to start node instance. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed" , e
                 )
                 logging.error("node_start_scenario injection failed!")
 
@@ -266,19 +266,19 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 instance_id = self.gcp.get_instance_name(instance)
                 affected_node.node_id = instance_id
                 logging.info(
-                    "Stopping the node %s with instance ID: %s " % (node, instance_id)
+                    "Stopping the node %s with instance ID: %s " , node, instance_id
                 )
                 self.gcp.stop_instances(instance_id)
                 self.gcp.wait_until_stopped(instance_id, timeout, affected_node=affected_node)
                 logging.info(
-                    "Node with instance ID: %s is in stopped state" % instance_id
+                    "Node with instance ID: %s is in stopped state" , instance_id
                 )
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
-                    "Test Failed" % (e)
+                    "Test Failed" , e
                 )
                 logging.error("node_stop_scenario injection failed!")
 
@@ -296,7 +296,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = instance_id
                 logging.info(
                     "Terminating the node %s with instance ID: %s "
-                    % (node, instance_id)
+                    , node, instance_id
                 )
                 self.gcp.terminate_instances(instance_id)
                 self.gcp.wait_until_terminated(instance_id, timeout, affected_node=affected_node)
@@ -307,13 +307,13 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 if node in self.kubecli.list_nodes():
                     raise RuntimeError("Node could not be terminated")
                 logging.info(
-                    "Node with instance ID: %s has been terminated" % instance_id
+                    "Node with instance ID: %s has been terminated" , instance_id
                 )
                 logging.info("node_termination_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
                     "Failed to terminate node instance. Encountered following exception:"
-                    " %s. Test Failed" % e
+                    " %s. Test Failed" , e
                 )
                 logging.error("node_termination_scenario injection failed!")
 
@@ -330,7 +330,7 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 instance_id = self.gcp.get_instance_name(instance)
                 affected_node.node_id = instance_id
                 logging.info(
-                    "Rebooting the node %s with instance ID: %s " % (node, instance_id)
+                    "Rebooting the node %s with instance ID: %s " , node, instance_id
                 )
                 self.gcp.reboot_instances(instance_id)
                 if self.node_action_kube_check:
@@ -339,13 +339,13 @@ class gcp_node_scenarios(abstract_node_scenarios):
                 if self.node_action_kube_check:
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
-                    "Node with instance ID: %s has been rebooted" % instance_id
+                    "Node with instance ID: %s has been rebooted" , instance_id
                 )
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed" , e
                 )
                 logging.error("node_reboot_scenario injection failed!")
 

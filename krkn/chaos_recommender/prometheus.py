@@ -74,7 +74,7 @@ def save_utilization_to_file(utilization, filename, prometheus):
         utilization_data = utilization[namespace]
         df_cpu = convert_data_to_dataframe(utilization_data[0], "CPU")
         services = df_cpu.service.unique()
-        logging.info(f"Services for namespace {namespace}: {services}")
+        logging.info("Services for namespace %s: %s", namespace, services)
 
         for s in services:
 

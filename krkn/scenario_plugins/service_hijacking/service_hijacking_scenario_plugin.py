@@ -33,41 +33,51 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
 
 
         logging.info(
-            f"checking service {service_name} in namespace: {service_namespace}"
+            "checking service %s in namespace: %s",
+            service_name,
+            service_namespace,
         )
         if not lib_telemetry.get_lib_kubernetes().service_exists(
             service_name, service_namespace
         ):
             logging.error(
-                f"ServiceHijackingScenarioPlugin service: {service_name} not found in namespace: {service_namespace}, failed to run scenario."
+                "ServiceHijackingScenarioPlugin service: %s not found in namespace: %s, failed to run scenario.",
+                service_name,
+                service_namespace,
             )
             return 1
         try:
             logging.info(
-                f"service: {service_name} found in namespace: {service_namespace}"
+                "service: %s found in namespace: %s",
+                service_name,
+                service_namespace,
             )
-            logging.info(f"creating webservice and initializing test plan...")
+            logging.info("creating webservice and initializing test plan...")
             # both named ports and port numbers can be used
             if isinstance(target_port, int):
-                logging.info(f"webservice will listen on port {target_port}")
+                logging.info("webservice will listen on port %s", target_port)
                 webservice = (
                     lib_telemetry.get_lib_kubernetes().deploy_service_hijacking(
                         service_namespace, plan, image, port_number=target_port, privileged=privileged
                     )
                 )
             else:
-                logging.info(f"traffic will be redirected to named port: {target_port}")
+                logging.info("traffic will be redirected to named port: %s", target_port)
                 webservice = (
                     lib_telemetry.get_lib_kubernetes().deploy_service_hijacking(
                         service_namespace, plan, image, port_name=target_port, privileged=privileged
                     )
                 )
             logging.info(
-                f"successfully deployed pod: {webservice.pod_name} "
-                f"in namespace:{service_namespace} with selector {webservice.selector}!"
+                "successfully deployed pod: %s in namespace:%s with selector %s!",
+                webservice.pod_name,
+                service_namespace,
+                webservice.selector,
             )
             logging.info(
-                f"patching service: {service_name} to hijack traffic towards: {webservice.pod_name}"
+                "patching service: %s to hijack traffic towards: %s",
+                service_name,
+                webservice.pod_name,
             )
             original_service = (
                 lib_telemetry.get_lib_kubernetes().replace_service_selector(
@@ -76,12 +86,15 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             )
             if original_service is None:
                 logging.error(
-                    f"ServiceHijackingScenarioPlugin failed to patch service: {service_name}, namespace: {service_namespace} with selector {webservice.selector}"
+                    "ServiceHijackingScenarioPlugin failed to patch service: %s, namespace: %s with selector %s",
+                    service_name,
+                    service_namespace,
+                    webservice.selector,
                 )
                 return 1
 
-            logging.info(f"service: {service_name} successfully patched!")
-            logging.info(f"original service manifest:\n\n{yaml.dump(original_service)}")
+            logging.info("service: %s successfully patched!", service_name)
+            logging.info("original service manifest:\n\n%s", yaml.dump(original_service))
             
             # Set rollback callable to ensure service restoration and pod cleanup on failure or interruption
             rollback_data = {
@@ -100,13 +113,13 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 ),
             )
             
-            logging.info(f"waiting {chaos_duration} before restoring the service")
+            logging.info("waiting %s before restoring the service", chaos_duration)
             time.sleep(chaos_duration)
             selectors = [
                 "=".join([key, original_service["spec"]["selector"][key]])
                 for key in original_service["spec"]["selector"].keys()
             ]
-            logging.info(f"restoring the service selectors {selectors}")
+            logging.info("restoring the service selectors %s", selectors)
             original_service = (
                 lib_telemetry.get_lib_kubernetes().replace_service_selector(
                     selectors, service_name, service_namespace
@@ -114,8 +127,10 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             )
             if original_service is None:
                 logging.error(
-                    f"ServiceHijackingScenarioPlugin failed to restore original "
-                    f"service: {service_name}, namespace: {service_namespace} with selectors: {selectors}"
+                    "ServiceHijackingScenarioPlugin failed to restore original service: %s, namespace: %s with selectors: %s",
+                    service_name,
+                    service_namespace,
+                    selectors,
                 )
                 return 1
             logging.info("selectors successfully restored")
@@ -124,7 +139,9 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             return 0
         except Exception as e:
             logging.error(
-                f"ServiceHijackingScenarioPlugin scenario {scenario} failed with exception: {e}"
+                "ServiceHijackingScenarioPlugin scenario %s failed with exception: %s",
+                scenario,
+                e,
             )
             return 1
 
@@ -151,7 +168,9 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             webservice_pod_name = rollback_data["webservice_pod_name"]
             
             logging.info(
-                f"Rolling back service hijacking: restoring service {service_name} in namespace {service_namespace}"
+                "Rolling back service hijacking: restoring service %s in namespace %s",
+                service_name,
+                service_namespace,
             )
             
             # Restore original service selectors
@@ -159,7 +178,7 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 "=".join([key, original_selectors[key]])
                 for key in original_selectors.keys()
             ]
-            logging.info(f"Restoring original service selectors: {selectors}")
+            logging.info("Restoring original service selectors: %s", selectors)
             
             restored_service = lib_telemetry.get_lib_kubernetes().replace_service_selector(
                 selectors, service_name, service_namespace
@@ -167,24 +186,30 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             
             if restored_service is None:
                 logging.warning(
-                    f"Failed to restore service {service_name} in namespace {service_namespace}"
+                    "Failed to restore service %s in namespace %s",
+                    service_name,
+                    service_namespace,
                 )
             else:
-                logging.info(f"Successfully restored service {service_name}")
+                logging.info("Successfully restored service %s", service_name)
             
             # Delete the hijacker pod
-            logging.info(f"Deleting hijacker pod: {webservice_pod_name}")
+            logging.info("Deleting hijacker pod: %s", webservice_pod_name)
             try:
                 lib_telemetry.get_lib_kubernetes().delete_pod(
                     webservice_pod_name, service_namespace
                 )
-                logging.info(f"Successfully deleted hijacker pod: {webservice_pod_name}")
+                logging.info("Successfully deleted hijacker pod: %s", webservice_pod_name)
             except Exception as e:
-                logging.warning(f"Failed to delete hijacker pod {webservice_pod_name}: {e}")
+                logging.warning(
+                    "Failed to delete hijacker pod %s: %s",
+                    webservice_pod_name,
+                    e,
+                )
             
             logging.info("Service hijacking rollback completed successfully.")
         except Exception as e:
-            logging.error(f"Failed to rollback service hijacking: {e}")
+            logging.error("Failed to rollback service hijacking: %s", e)
 
     def get_scenario_types(self) -> list[str]:
         return ["service_hijacking_scenarios"]

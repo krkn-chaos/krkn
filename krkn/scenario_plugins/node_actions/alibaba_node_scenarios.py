@@ -59,7 +59,7 @@ class Alibaba:
                 return instance_list
             return []
         except Exception as e:
-            logging.error("ERROR while trying to get list of instances " + str(e))
+            logging.error("ERROR while trying to get list of instances %s" , str(e))
             raise e
 
     # Get the instance ID of the node
@@ -86,11 +86,11 @@ class Alibaba:
             request.set_InstanceId(instance_id)
             self._send_request(request)
             logging.info("Start %s command submit successfully.", instance_id)
-            logging.info("ECS instance with id " + str(instance_id) + " started")
+            logging.info("ECS instance with id %s started", instance_id)
         except Exception as e:
             logging.error(
                 "Failed to start node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             raise e
 
@@ -106,7 +106,7 @@ class Alibaba:
         except Exception as e:
             logging.error(
                 "Failed to stop node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             raise e
 
@@ -136,7 +136,7 @@ class Alibaba:
         except Exception as e:
             logging.error(
                 "Failed to reboot node instance %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             raise e
 
@@ -156,7 +156,7 @@ class Alibaba:
         except Exception as e:
             logging.error(
                 "Failed to get node instance status %s. Encountered following "
-                "exception: %s." % (instance_id, e)
+                "exception: %s." , instance_id, e
             )
             return None
 
@@ -168,12 +168,12 @@ class Alibaba:
         while status != "Running":
             status = self.get_vm_status(instance_id)
             logging.info(
-                "ECS %s is still not running, sleeping for 5 seconds" % instance_id
+                "ECS %s is still not running, sleeping for 5 seconds", instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
-                logging.info("ECS %s is still not ready in allotted time" % instance_id)
+                logging.info("ECS %s is still not ready in allotted time", instance_id)
                 return False
         end_time = time.time()
         if affected_node:
@@ -188,13 +188,13 @@ class Alibaba:
         while status != "Stopped":
             status = self.get_vm_status(instance_id)
             logging.info(
-                "Vm %s is still stopping, sleeping for 5 seconds" % instance_id
+                "Vm %s is still stopping, sleeping for 5 seconds", instance_id
             )
             time.sleep(5)
             time_counter += 5
             if time_counter >= timeout:
                 logging.info(
-                    "Vm %s is still not stopped in allotted time" % instance_id
+                    "Vm %s is still not stopped in allotted time", instance_id
                 )
                 return False
         end_time = time.time()
@@ -210,15 +210,15 @@ class Alibaba:
         while statuses and statuses != "Released":
             statuses = self.get_vm_status(instance_id)
             logging.info(
-                "ECS %s is still being released, waiting 10 seconds" % instance_id
+                "ECS %s is still being released, waiting 10 seconds", instance_id
             )
             time.sleep(10)
             time_counter += 10
             if time_counter >= timeout:
-                logging.info("ECS %s was not released in allotted time" % instance_id)
+                logging.info("ECS %s was not released in allotted time", instance_id)
                 return False
 
-        logging.info("ECS %s is released" % instance_id)
+        logging.info("ECS %s is released", instance_id)
         end_time = time.time()
         if affected_node:
             affected_node.set_affected_node_status("terminated", end_time - start_time)
@@ -242,18 +242,18 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 vm_id = self.alibaba.get_instance_id(node)
                 affected_node.node_id = vm_id
                 logging.info(
-                    "Starting the node %s with instance ID: %s " % (node, vm_id)
+                    "Starting the node %s with instance ID: %s ", node, vm_id
                 )
                 self.alibaba.start_instances(vm_id)
                 self.alibaba.wait_until_running(vm_id, timeout, affected_node)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
-                logging.info("Node with instance ID: %s is in running state" % node)
+                logging.info("Node with instance ID: %s is in running state", node)
                 logging.info("node_start_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to start node instance. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed", e
                 )
                 logging.error("node_start_scenario injection failed!")
                 raise e
@@ -268,17 +268,17 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 vm_id = self.alibaba.get_instance_id(node)
                 affected_node.node_id = vm_id
                 logging.info(
-                    "Stopping the node %s with instance ID: %s " % (node, vm_id)
+                    "Stopping the node %s with instance ID: %s ", node, vm_id
                 )
                 self.alibaba.stop_instances(vm_id)
                 self.alibaba.wait_until_stopped(vm_id, timeout, affected_node)
-                logging.info("Node with instance ID: %s is in stopped state" % vm_id)
+                logging.info("Node with instance ID: %s is in stopped state", vm_id)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
             except Exception as e:
                 logging.error(
                     "Failed to stop node instance. Encountered following exception: %s. "
-                    "Test Failed" % e
+                    "Test Failed", e
                 )
                 logging.error("node_stop_scenario injection failed!")
                 raise e
@@ -298,18 +298,18 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 self.alibaba.stop_instances(vm_id)
                 self.alibaba.wait_until_stopped(vm_id, timeout, affected_node)
                 logging.info(
-                    "Releasing the node %s with instance ID: %s " % (node, vm_id)
+                    "Releasing the node %s with instance ID: %s ", node, vm_id
                 )
                 self.alibaba.release_instance(vm_id)
                 self.alibaba.wait_until_released(vm_id, timeout, affected_node)
-                logging.info("Node with instance ID: %s has been released" % node)
+                logging.info("Node with instance ID: %s has been released", node)
                 logging.info(
                     "node_termination_scenario has been successfully injected!"
                 )
             except Exception as e:
                 logging.error(
                     "Failed to release node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed", e
                 )
                 logging.error("node_termination_scenario injection failed!")
                 raise e
@@ -329,13 +329,13 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
-                    "Node with instance ID: %s has been rebooted" % (instance_id)
+                    "Node with instance ID: %s has been rebooted", instance_id
                 )
                 logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed", e
                 )
                 logging.error("node_reboot_scenario injection failed!")
                 raise e

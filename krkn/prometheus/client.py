@@ -32,22 +32,21 @@ def alerts(
 ):
 
     if alert_profile is None or os.path.exists(alert_profile) is False:
-        logging.error(f"{alert_profile} alert profile does not exist")
+        logging.error("%s alert profile does not exist", alert_profile)
         sys.exit(1)
 
     with open(alert_profile) as profile:
         profile_yaml = yaml.safe_load(profile)
         if not isinstance(profile_yaml, list):
             logging.error(
-                f"{alert_profile} wrong file format, alert profile must be "
-                f"a valid yaml file containing a list of items with at least 3 properties: "
-                f"expr, description, severity"
+                "%s wrong file format, alert profile must be a valid yaml file containing a list of items with at least 3 properties: expr, description, severity",
+                alert_profile,
             )
             sys.exit(1)
 
         for alert in profile_yaml:
             if list(alert.keys()).sort() != ["expr", "description", "severity"].sort():
-                logging.error(f"wrong alert {alert}, skipping")
+                logging.error("wrong alert %s, skipping", alert)
                 continue
 
             processed_alert = prom_cli.process_alert(
@@ -179,16 +178,15 @@ def metrics(
 ) -> list[dict[str, list[(int, float)] | str]]:
    
     if metrics_profile is None or os.path.exists(metrics_profile) is False:
-        logging.error(f"{metrics_profile} alert profile does not exist")
+        logging.error("%s alert profile does not exist", metrics_profile)
         sys.exit(1)
     with open(metrics_profile) as profile:
         profile_yaml = yaml.safe_load(profile)
 
         if not profile_yaml["metrics"] or not isinstance(profile_yaml["metrics"], list):
             logging.error(
-                f"{metrics_profile} wrong file format, alert profile must be "
-                f"a valid yaml file containing a list of items with 3 properties: "
-                f"expr, description, severity"
+                "%s wrong file format, alert profile must be a valid yaml file containing a list of items with 3 properties: expr, description, severity",
+                metrics_profile,
             )
             sys.exit(1)
         elapsed_ceil = math.ceil((end_time - start_time)/ 60 )
@@ -298,7 +296,7 @@ def metrics(
                         "run_uuid": run_uuid,
                         "metrics": metrics_list
                 }, f, indent=2)
-                logging.info(f"Metrics saved to {local_file}")
+                logging.info("Metrics saved to %s", local_file)
             except Exception as e:
-                logging.error(f"Failed to save metrics to {local_file}: {e}")
+                logging.error("Failed to save metrics to %s: %s", local_file, e)
     return metrics_list

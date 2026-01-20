@@ -72,7 +72,7 @@ def analysis(
     # Identify outliers for each namespace
     for namespace in namespaces:
 
-        logging.info(f"Identifying outliers for namespace {namespace}...")
+        logging.info("Identifying outliers for namespace %s...", namespace)
 
         namespace_zscores = zscores.loc[zscores["Namespace"] == namespace]
         namespace_data = data.loc[data["namespace"] == namespace]
@@ -94,8 +94,8 @@ def analysis(
 
         if cpu_services:
             logging.info(
-                f"These services use significant CPU compared to "
-                f"their assigned limits: {cpu_services}"
+                "These services use significant CPU compared to their assigned limits: %s",
+                cpu_services,
             )
         else:
             logging.info(
@@ -105,8 +105,8 @@ def analysis(
             )
         if mem_services:
             logging.info(
-                f"These services use significant MEMORY compared to "
-                f"their assigned limits: {mem_services}"
+                "These services use significant MEMORY compared to their assigned limits: %s",
+                mem_services,
             )
         else:
             logging.info(

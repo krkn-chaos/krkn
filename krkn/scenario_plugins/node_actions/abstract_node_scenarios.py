@@ -80,7 +80,7 @@ class abstract_node_scenarios:
             except Exception as e:
                 logging.error(
                     "Failed to stop the kubelet of the node. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed" , e
                 )
                 logging.error("stop_kubelet_scenario injection failed!")
                 raise e
@@ -112,7 +112,7 @@ class abstract_node_scenarios:
             except Exception as e:
                 logging.error(
                     "Failed to restart the kubelet of the node. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed" , e
                 )
                 logging.error("restart_kubelet_scenario injection failed!")
                 raise e
@@ -132,7 +132,7 @@ class abstract_node_scenarios:
             except Exception as e:
                 logging.error(
                     "Failed to crash the node. Encountered following exception: %s. "
-                    "Test Failed" % (e)
+                    "Test Failed" , e
                 )
                 logging.error("node_crash_scenario injection failed!")
                 return 1

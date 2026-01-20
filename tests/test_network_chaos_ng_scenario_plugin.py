@@ -50,7 +50,7 @@ class TestNetworkChaosNgUtils(unittest.TestCase):
         Test log_info function with parallel=True
         """
         utils.log_info("Test message", parallel=True, node_name="node1")
-        mock_logging_info.assert_called_once_with("[node1]: Test message")
+        mock_logging_info.assert_called_once_with("[%s]: %s", "node1", "Test message")
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils.logging.info")
     def test_log_info_parallel_missing_node_name(self, mock_logging_info):
@@ -58,7 +58,7 @@ class TestNetworkChaosNgUtils(unittest.TestCase):
         Test log_info with parallel=True and missing node_name
         """
         utils.log_info("Test message", parallel=True)
-        mock_logging_info.assert_called_once_with("[]: Test message")
+        mock_logging_info.assert_called_once_with("[%s]: %s", "", "Test message")
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils.logging.error")
     def test_log_error_non_parallel(self, mock_logging_error):
@@ -74,7 +74,7 @@ class TestNetworkChaosNgUtils(unittest.TestCase):
         Test log_error function with parallel=True
         """
         utils.log_error("Error message", parallel=True, node_name="node2")
-        mock_logging_error.assert_called_once_with("[node2]: Error message")
+        mock_logging_error.assert_called_once_with("[%s]: %s", "node2", "Error message")
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils.logging.error")
     def test_log_error_parallel_missing_node_name(self, mock_logging_error):
@@ -82,7 +82,7 @@ class TestNetworkChaosNgUtils(unittest.TestCase):
         Test log_error with parallel=True and missing node_name
         """
         utils.log_error("Error message", parallel=True)
-        mock_logging_error.assert_called_once_with("[]: Error message")
+        mock_logging_error.assert_called_once_with("[%s]: %s", "", "Error message")
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils.logging.warning")
     def test_log_warning_non_parallel(self, mock_logging_warning):
@@ -98,7 +98,7 @@ class TestNetworkChaosNgUtils(unittest.TestCase):
         Test log_warning function with parallel=True
         """
         utils.log_warning("Warning message", parallel=True, node_name="node3")
-        mock_logging_warning.assert_called_once_with("[node3]: Warning message")
+        mock_logging_warning.assert_called_once_with("[%s]: %s", "node3", "Warning message")
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils.logging.warning")
     def test_log_warning_parallel_missing_node_name(self, mock_logging_warning):
@@ -106,7 +106,7 @@ class TestNetworkChaosNgUtils(unittest.TestCase):
         Test log_warning with parallel=True and missing node_name
         """
         utils.log_warning("Warning message", parallel=True)
-        mock_logging_warning.assert_called_once_with("[]: Warning message")
+        mock_logging_warning.assert_called_once_with("[%s]: %s", "", "Warning message")
 
 
 if __name__ == "__main__":
