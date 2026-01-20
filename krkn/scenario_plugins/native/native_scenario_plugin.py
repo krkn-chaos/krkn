@@ -26,7 +26,7 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
             )
 
         except Exception as e:
-            logging.error("NativeScenarioPlugin exiting due to Exception %s" % e)
+            logging.error("NativeScenarioPlugin exiting due to Exception %s", e)
             return 1
         else:
             return 0

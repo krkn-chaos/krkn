@@ -200,7 +200,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 for node in nodes:
                     if node in exclude_nodes:
                         logging.info(
-                            f"excluding node {node} with exclude label {exclude_nodes}"
+                            "excluding node %s with exclude label %s", node, exclude_nodes
                         )
                         nodes.remove(node)
 

@@ -22,11 +22,11 @@ class OPENSTACKCLOUD:
     def start_instances(self, node):
         try:
             runcommand.invoke("openstack server start %s" % (node))
-            logging.info("Instance: " + str(node) + " started")
+            logging.info("Instance: %s started", node)
         except Exception as e:
             logging.error(
                 "Failed to start node instance %s. Encountered following "
-                "exception: %s." % (node, e)
+                "exception: %s.", node, e
             )
             raise RuntimeError()
 
@@ -34,11 +34,11 @@ class OPENSTACKCLOUD:
     def stop_instances(self, node):
         try:
             runcommand.invoke("openstack server stop %s" % (node))
-            logging.info("Instance: " + str(node) + " stopped")
+            logging.info("Instance: %s stopped", node)
         except Exception as e:
             logging.error(
                 "Failed to stop node instance %s. Encountered following "
-                "exception: %s." % (node, e)
+                "exception: %s.", node, e
             )
             raise RuntimeError()
 
@@ -46,11 +46,11 @@ class OPENSTACKCLOUD:
     def reboot_instances(self, node):
         try:
             runcommand.invoke("openstack server reboot --soft %s" % (node))
-            logging.info("Instance: " + str(node) + " rebooted")
+            logging.info("Instance: %s rebooted", node)
         except Exception as e:
             logging.error(
                 "Failed to reboot node instance %s. Encountered following "
-                "exception: %s." % (node, e)
+                "exception: %s.", node, e
             )
             raise RuntimeError()
 
@@ -139,7 +139,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error(
                     "Failed to start node instance. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed", e
                 )
                 logging.error("node_start_scenario injection failed!")
 
@@ -188,7 +188,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
-                    " %s. Test Failed" % (e)
+                    " %s. Test Failed", e
                 )
                 logging.error("node_reboot_scenario injection failed!")
 
@@ -212,7 +212,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
             except Exception as e:
                 logging.error(
                     "Failed to start node instance. Encountered following "
-                    "exception: %s. Test Failed" % (e)
+                    "exception: %s. Test Failed", e
                 )
                 logging.error("helper_node_start_scenario injection failed!")
 

@@ -105,7 +105,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                                     "objects in namespace %s was unsuccessful"
                                     % str(selected_namespace)
                                 )
-                                logging.info("Namespace action error: " + str(e))
+                                logging.info("Namespace action error: %s", e)
                                 return 1
                             namespaces.remove(selected_namespace)
                             logging.info(
@@ -151,7 +151,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
             pod_status = kubecli.get_pod_info(pod, namespace)
             if pod_status and pod_status.status == "Running":
                 running_pods.append(pod)
-        logging.info("all running pods " + str(running_pods))
+        logging.info("all running pods %s", running_pods)
         return running_pods
 
     def delete_all_deployment_namespace(self, kubecli: KrknKubernetes, namespace: str):
@@ -164,7 +164,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             deployments = kubecli.get_deployment_ns(namespace)
             for deployment in deployments:
-                logging.info("Deleting deployment" + deployment)
+                logging.info("Deleting deployment %s", deployment)
                 kubecli.delete_deployment(deployment, namespace)
         except Exception as e:
             logging.error(
@@ -185,7 +185,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             daemonsets = kubecli.get_daemonset(namespace)
             for daemonset in daemonsets:
-                logging.info("Deleting daemonset" + daemonset)
+                logging.info("Deleting daemonset %s", daemonset)
                 kubecli.delete_daemonset(daemonset, namespace)
         except Exception as e:
             logging.error(
@@ -209,7 +209,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             statefulsets = kubecli.get_all_statefulset(namespace)
             for statefulset in statefulsets:
-                logging.info("Deleting statefulset" + statefulset)
+                logging.info("Deleting statefulset %s", statefulset)
                 kubecli.delete_statefulset(statefulset, namespace)
         except Exception as e:
             logging.error(
@@ -230,7 +230,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             replicasets = kubecli.get_all_replicasets(namespace)
             for replicaset in replicasets:
-                logging.info("Deleting replicaset" + replicaset)
+                logging.info("Deleting replicaset %s", replicaset)
                 kubecli.delete_replicaset(replicaset, namespace)
         except Exception as e:
             logging.error(
@@ -252,7 +252,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             services = kubecli.get_all_services(namespace)
             for service in services:
-                logging.info("Deleting services" + service)
+                logging.info("Deleting services %s", service)
                 kubecli.delete_services(service, namespace)
         except Exception as e:
             logging.error(
@@ -316,7 +316,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         daemonsets = kubecli.get_daemonset(namespace_name)
                         if len(obj_list) == len(daemonsets):
                             still_missing_obj.pop(obj_name)
-                logging.info("Still missing objects " + str(still_missing_obj))
+                logging.info("Still missing objects %s", still_missing_obj)
                 killed_namespaces[namespace_name] = still_missing_obj.copy()
                 if len(killed_namespaces[namespace_name].keys()) == 0:
                     logging.info(
@@ -338,7 +338,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
         logging.error(
             "Objects are still not ready after waiting " + str(wait_time) + "seconds"
         )
-        logging.error("Non active namespaces " + str(killed_namespaces))
+        logging.error("Non active namespaces %s", killed_namespaces)
         return killed_namespaces
 
     def get_scenario_types(self) -> list[str]:

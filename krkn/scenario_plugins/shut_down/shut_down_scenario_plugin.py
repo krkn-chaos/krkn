@@ -73,7 +73,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                 pool.map(cloud_object_function, nodes)
             pool.close()
         except Exception as e:
-            logging.info("Error on pool multiprocessing: " + str(e))
+            logging.info("Error on pool multiprocessing: %s", e)
 
     # Inject the cluster shut down scenario
     # krkn_lib
@@ -97,7 +97,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
         else:
             logging.error(
                 "Cloud type %s is not currently supported for cluster shut down"
-                % cloud_type
+                , cloud_type
             )
 
             raise RuntimeError()
