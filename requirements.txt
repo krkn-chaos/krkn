@@ -6,7 +6,6 @@ azure-identity==1.16.1
 azure-keyvault==4.2.0
 azure-mgmt-compute==30.5.0
 azure-mgmt-network==27.0.0
-itsdangerous==2.0.1
 coverage==7.6.12
 datetime==5.4
 docker>=6.0,<7.0  # docker 7.0+ has breaking changes with Unix sockets
@@ -33,7 +32,6 @@ requests-unixsocket>=0.4.0  # Required for Docker Unix socket support
 service_identity==24.1.0
 PyYAML==6.0.1
 setuptools==78.1.1
-werkzeug==3.1.4
 wheel==0.42.0
 zope.interface==5.4.0
 
