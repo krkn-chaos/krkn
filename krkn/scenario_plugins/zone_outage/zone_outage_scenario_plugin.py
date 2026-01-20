@@ -156,7 +156,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 new_association_id, original_acl_id
             )
         logging.info(
-            "Wating for 60 seconds to make sure " "the changes are in place"
+            "Waiting for 60 seconds to make sure " "the changes are in place"
         )
         time.sleep(60)
 
