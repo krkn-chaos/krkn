@@ -322,7 +322,7 @@ class azure_node_scenarios(abstract_node_scenarios):
                 if self.node_action_kube_check:
                     nodeaction.wait_for_ready_status(vm_name, timeout, self.kubecli, affected_node)
 
-                logging.info("Node with instance ID: %s has been rebooted" % (vm_name))
+                logging.info("Node with instance ID: %s has been rebooted", vm_name)
                 logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
@@ -346,13 +346,13 @@ class azure_node_scenarios(abstract_node_scenarios):
                 affected_node.node_id = vm_name
  
                 logging.info(
-                    "block the node %s with instance ID: %s "
-                    % (vm_name, network_resource_group)
+                    "block the node %s with instance ID: %s ",
+                    vm_name, network_resource_group
                 )
                 network_group_id = self.azure.create_security_group(network_resource_group, "chaos", location, private_ip)
                 old_network_group= self.azure.update_subnet(network_group_id, network_resource_group, subnet, virtual_network)
-                logging.info("Node with instance ID: %s has been blocked" % (vm_name))
-                logging.info("Waiting for %s seconds before resetting the subnet" % (duration))
+                logging.info("Node with instance ID: %s has been blocked", vm_name)
+                logging.info("Waiting for %s seconds before resetting the subnet", duration)
                 time.sleep(duration)
 
                 # replace old network security group

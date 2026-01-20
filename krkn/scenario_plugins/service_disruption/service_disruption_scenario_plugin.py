@@ -38,8 +38,8 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                             )
                             logging.error(
                                 "ServiceDisruptionScenarioPlugin Current scenario config has "
-                                "namespace '%s' and label selector '%s'"
-                                % (scenario_namespace, scenario_label)
+                                "namespace '%s' and label selector '%s'",
+                                scenario_namespace, scenario_label
                             )
                             logging.error(
                                 "ServiceDisruptionScenarioPlugin Please set either namespace "

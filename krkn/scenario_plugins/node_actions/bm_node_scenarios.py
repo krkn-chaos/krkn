@@ -45,7 +45,7 @@ class BM:
 
         # Get the bmc addr from the BareMetalHost object.
         with oc.project("openshift-machine-api"):
-            logging.info("Getting node with name: %s" % (node_name))
+            logging.info("Getting node with name: %s", node_name)
             node = self.get_node_object(node_name)
             provider_id = node.model.spec.providerID
             startOfUid = provider_id.rfind("/")  # The / before the uid
@@ -220,7 +220,7 @@ class bm_node_scenarios(abstract_node_scenarios):
             try:
                 logging.info("Starting node_reboot_scenario injection")
                 bmc_addr = self.bm.get_bmc_addr(node)
-                logging.info("BMC Addr: %s" % (bmc_addr))
+                logging.info("BMC Addr: %s", bmc_addr)
                 logging.info(
                     "Rebooting the node %s with bmc address: %s " % (node, bmc_addr)
                 )
@@ -228,7 +228,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
-                logging.info("Node with bmc address: %s has been rebooted" % (bmc_addr))
+                logging.info("Node with bmc address: %s has been rebooted", bmc_addr)
                 logging.info("node_reboot_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
@@ -246,12 +246,12 @@ class bm_node_scenarios(abstract_node_scenarios):
         disk_attachment_details = self.get_disk_attachment_info(instance_kill_count, node)
         if disk_attachment_details:
             self.disk_detach_scenario(instance_kill_count, node, disk_attachment_details, timeout)
-            logging.info("Waiting for %s seconds before attaching the disk" % (duration))
+            logging.info("Waiting for %s seconds before attaching the disk", duration)
             time.sleep(duration)
             self.disk_attach_scenario(instance_kill_count, node, disk_attachment_details)
             logging.info("node_disk_detach_attach_scenario has been successfully injected!")
         else:
-            logging.error("Node %s has only root disk attached" % (node))
+            logging.error("Node %s has only root disk attached", node)
             logging.error("node_disk_detach_attach_scenario failed!")
 
 
@@ -271,9 +271,9 @@ done'''
                 disk_response = self.kubecli.exec_command_on_node(
                     node, pod_command, disk_pod_name, "default"
                 )
-                logging.info("Disk response: %s" % (disk_response))
+                logging.info("Disk response: %s", disk_response)
                 node_disks = [disk for disk in disk_response.split("\n") if disk]
-                logging.info("Node disks: %s" % (node_disks))
+                logging.info("Node disks: %s", node_disks)
                 offline_disks = [disk for disk in user_disks if disk in node_disks]
                 return offline_disks if offline_disks else node_disks
             except Exception as e:
@@ -302,8 +302,8 @@ done'''
                 cmd_output = self.kubecli.exec_command_on_node(
                     node, pod_command, disk_pod_name, "default"
                 )
-                logging.info("Disk command output: %s" % (cmd_output))
-                logging.info("Disk %s has been detached from %s node" % (disk_attachment_details, node))
+                logging.info("Disk command output: %s", cmd_output)
+                logging.info("Disk %s has been detached from %s node", disk_attachment_details, node)
             except Exception as e:
                 logging.error(
                     "Failed to detach disk from %s node. Encountered following"
@@ -330,8 +330,8 @@ done'''
                 cmd_output = self.kubecli.exec_command_on_node(
                         node, pod_command, disk_pod_name, "default"
                     )
-                logging.info("Disk command output: %s" % (cmd_output))
-                logging.info("Disk %s has been attached to %s node" % (disk_attachment_details, node))
+                logging.info("Disk command output: %s", cmd_output)
+                logging.info("Disk %s has been attached to %s node", disk_attachment_details, node)
             except Exception as e:
                 logging.error(
                     "Failed to attach disk to %s node. Encountered following"

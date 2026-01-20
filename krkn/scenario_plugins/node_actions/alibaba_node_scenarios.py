@@ -39,7 +39,7 @@ class Alibaba:
             response_detail = json.loads(response_str)
             return response_detail
         except Exception as e:
-            logging.error("ERROR sending request %s with message %S" % (request, e))
+            logging.error("ERROR sending request %s with message %s", request, e)
 
     # output the instance owned in current region.
     def list_instances(self):
@@ -323,7 +323,7 @@ class alibaba_node_scenarios(abstract_node_scenarios):
                 logging.info("Starting node_reboot_scenario injection")
                 instance_id = self.alibaba.get_instance_id(node)
                 affected_node.node_id = instance_id
-                logging.info("Rebooting the node with instance ID: %s " % (instance_id))
+                logging.info("Rebooting the node with instance ID: %s ", instance_id)
                 self.alibaba.reboot_instances(instance_id)
                 if self.node_action_kube_check:
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)

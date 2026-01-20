@@ -136,6 +136,6 @@ def application_status(cerberus_url, start_time, end_time):
                 else:
                     continue
         except Exception as e:
-            logging.error("Failed to scrape metrics from cerberus API at %s: %s" % (url, e))
+            logging.error("Failed to scrape metrics from cerberus API at %s: %s", url, e)
             sys.exit(1)
     return status, set(failed_routes)

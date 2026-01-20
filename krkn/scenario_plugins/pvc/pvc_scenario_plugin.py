@@ -233,7 +233,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 )
                 logging.info("\n" + str(response))
                 if str(file_name).lower() in str(response).lower():
-                    logging.info("%s file successfully created" % (str(full_path)))
+                    logging.info("%s file successfully created", str(full_path))
                     
                     # Set rollback callable to ensure temp file cleanup on failure or interruption
                     rollback_data = {

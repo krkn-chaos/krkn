@@ -77,7 +77,7 @@ def check_service_status(node, service, ssh_private_key, timeout):
         try:
             time.sleep(sleeper)
             i += sleeper
-            logging.info("Trying to ssh to instance: %s" % (node))
+            logging.info("Trying to ssh to instance: %s", node)
             connection = ssh.connect(
                 node,
                 username="root",
@@ -94,7 +94,7 @@ def check_service_status(node, service, ssh_private_key, timeout):
             )
 
     for service_name in service:
-        logging.info("Checking status of Service: %s" % (service_name))
+        logging.info("Checking status of Service: %s", service_name)
         stdin, stdout, stderr = ssh.exec_command(
             "systemctl status %s  | grep '^   Active' "
             "|  awk '{print $2}'" % (service_name)

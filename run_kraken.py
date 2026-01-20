@@ -176,14 +176,14 @@ def main(options, command: Optional[str]) -> int:
         distribution = "kubernetes"
         if ocpcli.is_openshift():
             distribution = "openshift"
-        logging.info("Detected distribution %s" % (distribution))
+        logging.info("Detected distribution %s", distribution)
 
         # find node kraken might be running on
         kubecli.find_kraken_node()
 
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
-            logging.error("%s isn't a valid port number, please check" % (port))
+            logging.error("%s isn't a valid port number, please check", port)
             return -1
         if not signal_address:
             logging.error("Please set the signal address in the config")
@@ -196,7 +196,7 @@ def main(options, command: Optional[str]) -> int:
             server_address = address[0]
             port = address[1]
             logging.info(
-                "Publishing kraken status at http://%s:%s" % (server_address, port)
+                "Publishing kraken status at http://%s:%s", server_address, port
             )
             server.start_server(address, run_signal)
 
@@ -561,10 +561,10 @@ def main(options, command: Optional[str]) -> int:
 
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
-            "%s. Report generated at %s. Exiting" % (run_uuid, report_file)
+            "%s. Report generated at %s. Exiting", run_uuid, report_file
         )
     else:
-        logging.error("Cannot find a config at %s, please check" % (cfg))
+        logging.error("Cannot find a config at %s, please check", cfg)
         # sys.exit(1)
         return -1
 

@@ -55,7 +55,7 @@ def delete_pod(cli, name, namespace):
         if e.status == 404:
             logging.info("Pod deleted")
         else:
-            logging.error("Failed to delete pod %s" % e)
+            logging.error("Failed to delete pod %s", e)
             raise e
 
 
@@ -78,7 +78,7 @@ def create_pod(cli, body, namespace, timeout=120):
                 raise Exception("Starting pod failed")
             time.sleep(1)
     except Exception as e:
-        logging.error("Pod creation failed %s" % e)
+        logging.error("Pod creation failed %s", e)
         if pod_stat:
             logging.error(pod_stat.status.container_statuses)
         delete_pod(cli, body["metadata"]["name"], namespace)
@@ -207,7 +207,7 @@ def delete_job(batch_cli, name, namespace="default"):
                 propagation_policy="Foreground", grace_period_seconds=0
             ),
         )
-        logging.debug("Job deleted. status='%s'" % str(api_response.status))
+        logging.debug("Job deleted. status='%s'", str(api_response.status))
         return api_response
     except ApiException as api:
         logging.warning(
@@ -237,7 +237,7 @@ def list_ready_nodes(cli, label_selector=None):
         else:
             ret = cli.list_node(pretty=True)
     except ApiException as e:
-        logging.error("Exception when calling CoreV1Api->list_node: %s\n" % e)
+        logging.error("Exception when calling CoreV1Api->list_node: %s\n", e)
         raise e
     for node in ret.items:
         for cond in node.status.conditions:
@@ -262,7 +262,7 @@ def get_node(node_name, label_selector, instance_kill_count, cli):
     nodes = list_ready_nodes(cli, label_selector)
     if not nodes:
         raise Exception("Ready nodes with the provided label selector do not exist")
-    logging.info("Ready nodes with the label selector %s: %s" % (label_selector, nodes))
+    logging.info("Ready nodes with the label selector %s: %s", label_selector, nodes)
     number_of_nodes = len(nodes)
     if instance_kill_count == number_of_nodes:
         return nodes

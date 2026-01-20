@@ -120,7 +120,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                     )
             logging.info(
                 "Network association ids associated with "
-                "the subnet %s: %s" % (subnet_id, network_association_ids)
+                "the subnet %s: %s", subnet_id, network_association_ids
             )
             
             # Use provided default ACL if available, otherwise create a new one

@@ -290,7 +290,7 @@ class ibm_node_scenarios(abstract_node_scenarios):
             affected_node = AffectedNode(node, node_id=instance_id)
             for _ in range(instance_kill_count):
                 logging.info("Starting node_start_scenario injection")
-                logging.info("Starting the node %s " % (node))
+                logging.info("Starting the node %s ", node)
                 
                 if instance_id:
                     vm_started = self.ibmcloud.start_instances(instance_id)
@@ -323,7 +323,7 @@ class ibm_node_scenarios(abstract_node_scenarios):
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node, instance_id)
                 logging.info("Starting node_stop_scenario injection")
-                logging.info("Stopping the node %s " % (node))
+                logging.info("Stopping the node %s ", node)
                 vm_stopped = self.ibmcloud.stop_instances(instance_id)
                 if vm_stopped:
                     self.ibmcloud.wait_until_stopped(instance_id, timeout, affected_node)
@@ -350,7 +350,7 @@ class ibm_node_scenarios(abstract_node_scenarios):
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node, node_id=instance_id)
                 logging.info("Starting node_reboot_scenario injection")
-                logging.info("Rebooting the node %s " % (node))
+                logging.info("Rebooting the node %s ", node)
                 vm_rebooted = self.ibmcloud.reboot_instances(instance_id)
                 if vm_rebooted:
                     self.ibmcloud.wait_until_rebooted(instance_id, timeout, affected_node)
@@ -387,7 +387,7 @@ class ibm_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Starting node_termination_scenario injection by first stopping the node"
                 )
-                logging.info("Deleting the node with instance ID: %s " % (node))
+                logging.info("Deleting the node with instance ID: %s ", node)
                 self.ibmcloud.delete_instance(instance_id)
                 self.ibmcloud.wait_until_deleted(node, timeout, affected_node)
                 logging.info(

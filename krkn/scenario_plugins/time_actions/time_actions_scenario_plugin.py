@@ -82,8 +82,8 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 return container_name
             else:
                 logging.error(
-                    "Container name %s not an existing container in pod %s"
-                    % (container_name, pod_name)
+                    "Container name %s not an existing container in pod %s",
+                    container_name, pod_name
                 )
         else:
             container_name = container_names[
@@ -175,14 +175,14 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 if "label_selector" not in scenario.keys():
                     logging.info(
                         "label_selector key not found, querying for all the pods "
-                        "in namespace: %s" % (scenario["namespace"])
+                        "in namespace: %s", scenario["namespace"]
                     )
                     pod_names = kubecli.list_pods(scenario["namespace"])
                 else:
                     logging.info(
                         "Querying for the pods matching the %s label_selector "
-                        "in namespace %s"
-                        % (scenario["label_selector"], scenario["namespace"])
+                        "in namespace %s",
+                        scenario["label_selector"], scenario["namespace"]
                     )
                     pod_names = kubecli.list_pods(
                         scenario["namespace"], scenario["label_selector"]
@@ -224,8 +224,8 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     if pod_exec_response is False:
                         logging.error(
                             "Couldn't reset time on container %s "
-                            "in pod %s in namespace %s"
-                            % (selected_container_name, pod[0], pod[1])
+                            "in pod %s in namespace %s",
+                            selected_container_name, pod[0], pod[1]
                         )
                         # removed_exit
                         # sys.exit(1)
@@ -245,14 +245,14 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     if pod_exec_response is False:
                         logging.error(
                             "Couldn't reset time on container "
-                            "%s in pod %s in namespace %s"
-                            % (selected_container_name, pod, scenario["namespace"])
+                            "%s in pod %s in namespace %s",
+                            selected_container_name, pod, scenario["namespace"]
                         )
                         # removed_exit
                         # sys.exit(1)
                         raise RuntimeError()
                     pod_names[pod_counter].append(selected_container_name)
-                logging.info("Reset date/time on pod " + str(pod[0]))
+                logging.info(f"Reset date/time on pod {pod[0]}")
                 pod_counter += 1
             return "pod", pod_names
 
@@ -273,7 +273,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             else:
                 return ""
         except Exception as e:
-            logging.info("Exception %s when trying to parse string to date" % str(e))
+            logging.info("Exception %s when trying to parse string to date", str(e))
             return ""
 
     # Get date and time from string returned from OC

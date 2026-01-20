@@ -29,7 +29,7 @@ class abstract_node_scenarios:
     def node_stop_start_scenario(self, instance_kill_count, node, timeout, duration, poll_interval):
         logging.info("Starting node_stop_start_scenario injection")
         self.node_stop_scenario(instance_kill_count, node, timeout, poll_interval)
-        logging.info("Waiting for %s seconds before starting the node" % (duration))
+        logging.info("Waiting for %s seconds before starting the node", duration)
         time.sleep(duration)
         self.node_start_scenario(instance_kill_count, node, timeout, poll_interval)
         self.affected_nodes_status.merge_affected_nodes()
@@ -47,12 +47,12 @@ class abstract_node_scenarios:
         disk_attachment_details = self.get_disk_attachment_info(instance_kill_count, node)
         if disk_attachment_details:
             self.disk_detach_scenario(instance_kill_count, node, timeout)
-            logging.info("Waiting for %s seconds before attaching the disk" % (duration))
+            logging.info("Waiting for %s seconds before attaching the disk", duration)
             time.sleep(duration)
             self.disk_attach_scenario(instance_kill_count, disk_attachment_details, timeout)
             logging.info("node_disk_detach_attach_scenario has been successfully injected!")
         else:
-            logging.error("Node %s has only root disk attached" % (node))
+            logging.error("Node %s has only root disk attached", node)
             logging.error("node_disk_detach_attach_scenario failed!")
 
     # Node scenario to terminate the node
@@ -69,13 +69,13 @@ class abstract_node_scenarios:
             affected_node = AffectedNode(node)
             try:
                 logging.info("Starting stop_kubelet_scenario injection")
-                logging.info("Stopping the kubelet of the node %s" % (node))
+                logging.info("Stopping the kubelet of the node %s", node)
                 runcommand.run(
                     "oc debug node/" + node + " -- chroot /host systemctl stop kubelet"
                 )
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                 
-                logging.info("The kubelet of the node %s has been stopped" % (node))
+                logging.info("The kubelet of the node %s has been stopped", node)
                 logging.info("stop_kubelet_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
@@ -100,14 +100,14 @@ class abstract_node_scenarios:
             affected_node = AffectedNode(node)
             try:
                 logging.info("Starting restart_kubelet_scenario injection")
-                logging.info("Restarting the kubelet of the node %s" % (node))
+                logging.info("Restarting the kubelet of the node %s", node)
                 runcommand.run(
                     "oc debug node/"
                     + node
                     + " -- chroot /host systemctl restart kubelet &"
                 )
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli,affected_node)
-                logging.info("The kubelet of the node %s has been restarted" % (node))
+                logging.info("The kubelet of the node %s has been restarted", node)
                 logging.info("restart_kubelet_scenario has been successfuly injected!")
             except Exception as e:
                 logging.error(
@@ -123,7 +123,7 @@ class abstract_node_scenarios:
         for _ in range(instance_kill_count):
             try:
                 logging.info("Starting node_crash_scenario injection")
-                logging.info("Crashing the node %s" % (node))
+                logging.info("Crashing the node %s", node)
                 runcommand.run(
                     "oc debug node/" + node + " -- chroot /host "
                     "dd if=/dev/urandom of=/proc/sysrq-trigger"

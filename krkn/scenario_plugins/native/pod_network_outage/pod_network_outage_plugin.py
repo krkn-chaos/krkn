@@ -111,7 +111,7 @@ def delete_jobs(kubecli: KrknKubernetes, job_list: typing.List[str]):
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception as e:
-            logging.warning("Exception in getting job status: %s" % str(e))
+            logging.warning("Exception in getting job status: %s", str(e))
         api_response = kubecli.delete_job(name=job_name, namespace="default")
 
 
@@ -267,7 +267,7 @@ def apply_outage_policy(
                 exec_cmd = f"{exec_cmd}ovs-ofctl -O  OpenFlow13 add-flow {br} cookie={cookie},table={table},priority=65535,ip,{net_direction[direction]}={ip},actions=drop;"
         exec_cmd = f"sleep 30;{exec_cmd}sleep {duration};ovs-ofctl -O  OpenFlow13  del-flows {br} cookie={cookie}/-1"
         cookie_list.append(cookie)
-        logging.info("Executing %s on node %s" % (exec_cmd, node))
+        logging.info("Executing %s on node %s", exec_cmd, node)
 
         job_body = yaml.safe_load(
             job_template.render(
@@ -355,7 +355,7 @@ def apply_ingress_policy(
         exec_cmd = get_ingress_cmd(
             test_execution, pod_inf, mod, count, network_params, duration
         )
-        logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
+        logging.info("Executing %s on pod %s in node %s", exec_cmd, pod_ip, node)
         job_body = yaml.safe_load(
             job_template.render(jobname=mod + str(pod_ip), nodename=node, image=image, cmd=exec_cmd)
         )
@@ -439,7 +439,7 @@ def apply_net_policy(
         exec_cmd = get_egress_cmd(
             test_execution, pod_inf, mod, network_params, duration
         )
-        logging.info("Executing %s on pod %s in node %s" % (exec_cmd, pod_ip, node))
+        logging.info("Executing %s on pod %s in node %s", exec_cmd, pod_ip, node)
         job_body = yaml.safe_load(
             job_template.render(jobname=mod + str(pod_ip), nodename=node, image=image, cmd=exec_cmd)
         )
@@ -686,7 +686,7 @@ def list_bridges(node: str, pod_template, kubecli: KrknKubernetes, image: str) -
     """
     pod_name_regex = str(random.randint(0, 10000))
     pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
-    logging.info("Creating pod to query bridge on node %s" % node)
+    logging.info("Creating pod to query bridge on node %s", node)
     kubecli.create_pod(pod_body, "default", 300)
     pod_name = f"modtools-{pod_name_regex}"
     try:
@@ -738,7 +738,7 @@ def check_cookie(
     """
     pod_name_regex = str(random.randint(0, 10000))
     pod_body = yaml.safe_load(pod_template.render(regex_name = pod_name_regex,nodename=node, image=image))
-    logging.info("Creating pod to query duplicate rules on node %s" % node)
+    logging.info("Creating pod to query duplicate rules on node %s", node)
     kubecli.create_pod(pod_body, "default", 300)
     pod_name = f"modtools-{pod_name_regex}"
     try:
@@ -797,7 +797,7 @@ def get_pod_interface(
     """
     pod_name_regex = str(random.randint(0, 10000))
     pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
-    logging.info("Creating pod to query pod interface on node %s" % node)
+    logging.info("Creating pod to query pod interface on node %s", node)
     kubecli.create_pod(pod_body, "default", 300)
     inf = ""
     pod_name = f"modtools-{pod_name_regex}"
@@ -1150,7 +1150,7 @@ def pod_outage(
             egress_ports=params.egress_ports,
         )
     except Exception as e:
-        logging.error("Pod network outage scenario exiting due to Exception - %s" % e)
+        logging.error("Pod network outage scenario exiting due to Exception - %s", e)
         return "error", PodOutageErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
@@ -1437,7 +1437,7 @@ def pod_egress_shaping(
             execution_type=params.execution_type,
         )
     except Exception as e:
-        logging.error("Pod network Shaping scenario exiting due to Exception - %s" % e)
+        logging.error("Pod network Shaping scenario exiting due to Exception - %s", e)
         return "error", PodEgressNetShapingErrorOutput(format_exc())
     finally:
         logging.info("Deleting jobs(if any)")
@@ -1711,7 +1711,7 @@ def pod_ingress_shaping(
             logging.info("Waiting for parallel job to finish")
             start_time = int(time.time())
             wait_for_job(job_list[:], kubecli, params.test_duration + 300)
-            logging.info("Waiting for wait_duration %s" % params.test_duration)
+            logging.info("Waiting for wait_duration %s", params.test_duration)
             time.sleep(params.test_duration)
             end_time = int(time.time())
             if publish:

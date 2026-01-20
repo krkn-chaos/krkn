@@ -184,7 +184,7 @@ class AWS:
             logging.info(status)
             new_association_id = status["NewAssociationId"]
         except Exception as e:
-            logging.error("Failed to replace network acl association: %s" % (e))
+            logging.error("Failed to replace network acl association: %s", e)
 
             raise RuntimeError()
         return new_association_id
@@ -214,7 +214,7 @@ class AWS:
     # Delete network acl
     def delete_network_acl(self, acl_id):
         try:
-            logging.info("Deleting the network acl: %s" % (acl_id))
+            logging.info("Deleting the network acl: %s", acl_id)
             self.boto_client.delete_network_acl(NetworkAclId=acl_id)
         except Exception as e:
             logging.error(

@@ -400,7 +400,7 @@ def apply_ingress_filter(
     exec_cmd = get_ingress_cmd(
         interface_list, network_params, duration=cfg.test_duration
     )
-    logging.info("Executing %s on node %s" % (exec_cmd, node))
+    logging.info("Executing %s on node %s", exec_cmd, node)
     job_body = yaml.safe_load(
         job_template.render(jobname=str(hash(node))[:5], nodename=node, image=image, cmd=exec_cmd)
     )

@@ -92,7 +92,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                                 test_dict["egress"],
                                 duration=test_duration,
                             )
-                            logging.info("Executing %s on node %s" % (exec_cmd, node))
+                            logging.info("Executing %s on node %s", exec_cmd, node)
                             job_body = yaml.safe_load(
                                 job_template.render(
                                     jobname=i + str(hash(node))[:5],
