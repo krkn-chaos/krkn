@@ -1,0 +1,72 @@
+#
+# Kraken-Chaos Scenario: Snapshot Controller Disruption During Creation
+#
+# Purpose:
+#   This scenario tests the resilience of the Containerized Native Virtualization (CNV)
+#   snapshotting mechanism. It simulates a failure of the snapshot controller
+#   during the creation of a Virtual Machine (VM) snapshot and verifies that the
+#   system can recover and successfully complete the snapshot.
+#
+# How it works:
+#   1. It targets a running VM.
+#   2. It initiates a VolumeSnapshot for that VM.
+#   3. After a brief delay, it forcefully kills the snapshot controller pod.
+#   4. It then monitors the VolumeSnapshot to ensure it eventually reaches a 'Ready' state.
+#   5. Finally, it cleans up the created snapshot.
+#
+scenarios:
+  - snapshot_creation_disruption:
+      parameters:
+        #
+        # --- Target VM Parameters ---
+        #
+        # vm_name: The name of the Virtual Machine to target for the snapshot.
+        # (Default: "chaos-vm-snapshot-test" in the plugin code)
+        vm_name: "chaos-vm-snapshot-test"
+
+        # vm_namespace: The Kubernetes namespace where the target VM resides.
+        # (Default: "default" in the plugin code)
+        vm_namespace: "default"
+
+        # vmi_wait_timeout: The maximum time (in seconds) to wait for the
+        #   Virtual Machine Instance (VMI) to enter the 'Running' state
+        #   before starting the test.
+        # (Default: 300 in the plugin code)
+        vmi_wait_timeout: 300
+
+        #
+        # --- Snapshot Disruption Parameters ---
+        #
+        # snapshot_name: The name to be used for the VolumeSnapshot resource.
+        # (Default: "chaos-snapshot" in the plugin code)
+        snapshot_name: "chaos-snapshot"
+
+        # snapshot_controller_namespace: The namespace where the snapshot
+        #   controller components are deployed.
+        # (Default: "openshift-cluster-storage-operator" in the plugin code)
+        snapshot_controller_namespace: "openshift-cluster-storage-operator"
+
+        # snapshot_controller_label: The label selector used to find and target
+        #   the snapshot controller pod for termination.
+        # (Default: "app=csi-snapshot-controller" in the plugin code)
+        snapshot_controller_label: "app=csi-snapshot-controller"
+        
+        # snapshot_creation_wait_time: The delay (in seconds) after creating the
+        #   snapshot before killing the controller. This timing is critical to ensure
+        #   the disruption happens mid-process.
+        # (Default: 5 in the plugin code)
+        snapshot_creation_wait_time: 5
+
+        # snapshot_ready_timeout: The maximum time (in seconds) to wait for the
+        #   snapshot to become ready after the disruption. If it doesn't become
+        #   ready within this period, the test fails.
+        # (Default: 300 in the plugin code)
+        snapshot_ready_timeout: 300
+        
+        #
+        # --- Resource Management ---
+        #
+        # cleanup_resources: If true, the scenario will automatically delete the
+        #   created VolumeSnapshot upon completion.
+        # (Default: true in the plugin code)
+        cleanup_resources: true
