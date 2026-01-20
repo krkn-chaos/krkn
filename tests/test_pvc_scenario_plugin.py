@@ -32,6 +32,10 @@ class TestPvcScenarioPlugin(unittest.TestCase):
         """
         self.plugin = PvcScenarioPlugin()
 
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
+
     def test_get_scenario_types(self):
         """
         Test get_scenario_types returns correct scenario type
@@ -48,6 +52,10 @@ class TestToKbytes(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
 
     def test_to_kbytes_1ki(self):
         """Test to_kbytes with 1Ki"""
@@ -119,6 +127,10 @@ class TestRemoveTempFile(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
 
     def test_remove_temp_file_success(self):
         """Test successful removal of temp file"""
@@ -230,6 +242,10 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
 
     def create_scenario_file(self, config: dict, temp_dir: str) -> str:
         """Helper to create a temporary scenario YAML file in the given directory"""
