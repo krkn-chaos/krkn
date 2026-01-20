@@ -1,3 +1,17 @@
+# ⚠️ DEPRECATED - This project has moved
+
+> **All development has moved to [github.com/krkn-chaos/krkn-ai](https://github.com/krkn-chaos/krkn-ai)**
+>
+> This directory is no longer maintained. Please visit the new repository for:
+> - Latest features and updates
+> - Active development and support
+> - Bug fixes and improvements
+> - Documentation and examples
+>
+> See [../README.md](../README.md) for more information.
+
+---
+
 # aichaos
 Enhancing Chaos Engineering with AI-assisted fault injection for better resiliency and non-functional testing.
 

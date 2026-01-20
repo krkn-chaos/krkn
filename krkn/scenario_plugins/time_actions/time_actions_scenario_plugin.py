@@ -43,7 +43,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     cerberus.publish_kraken_status(
                         krkn_config, not_reset, start_time, end_time
                     )
-        except (RuntimeError, Exception):
+        except (RuntimeError, Exception) as e:
             logging.error(
                 f"TimeActionsScenarioPlugin scenario {scenario} failed with exception: {e}"
             )
