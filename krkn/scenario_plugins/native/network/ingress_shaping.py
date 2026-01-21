@@ -9,7 +9,7 @@ import random
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
 from . import kubernetes_functions as kube_helper
-from . import cerberus
+from krkn import cerberus
 import typing
 from arcaflow_plugin_sdk import validation, plugin
 from kubernetes.client.api.core_v1_api import CoreV1Api as CoreV1Api

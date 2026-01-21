@@ -15,7 +15,7 @@ from arcaflow_plugin_sdk import plugin, validation
 from kubernetes import client
 from kubernetes.client.api.apiextensions_v1_api import ApiextensionsV1Api
 from kubernetes.client.api.custom_objects_api import CustomObjectsApi
-from . import cerberus
+from krkn import cerberus
 
 
 def get_test_pods(
