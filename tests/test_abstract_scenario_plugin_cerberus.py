@@ -12,7 +12,7 @@ class ConcreteScenarioPlugin(AbstractScenarioPlugin):
     def __init__(self):
         super().__init__("test_scenario")
     
-    def run(self, run_uuid, scenario, krkn_config, lib_telemetry, scenario_telemetry):
+    def run(self, run_uuid, scenario, lib_telemetry, scenario_telemetry):
         return 0
     
     def get_scenario_types(self):
@@ -25,7 +25,7 @@ class FailingScenarioPlugin(AbstractScenarioPlugin):
     def __init__(self):
         super().__init__("failing_scenario")
     
-    def run(self, run_uuid, scenario, krkn_config, lib_telemetry, scenario_telemetry):
+    def run(self, run_uuid, scenario, lib_telemetry, scenario_telemetry):
         return 1
     
     def get_scenario_types(self):
@@ -213,7 +213,7 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
                 super().__init__("mixed_scenario")
                 self.call_count = 0
             
-            def run(self, run_uuid, scenario, krkn_config, lib_telemetry, scenario_telemetry):
+            def run(self, run_uuid, scenario, lib_telemetry, scenario_telemetry):
                 self.call_count += 1
                 return 0 if self.call_count % 2 == 1 else 1  # Alternate success/failure
             
@@ -310,7 +310,7 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
             def __init__(self):
                 super().__init__("exception_scenario")
             
-            def run(self, run_uuid, scenario, krkn_config, lib_telemetry, scenario_telemetry):
+            def run(self, run_uuid, scenario, lib_telemetry, scenario_telemetry):
                 raise RuntimeError("Unexpected error in run()")
             
             def get_scenario_types(self):
