@@ -18,6 +18,7 @@ jinja2==3.1.6
 krkn-lib==5.1.13
 lxml==5.1.0
 kubernetes==34.1.0
+moto>=5.0.0  # AWS mocking for S3 replication tests
 numpy==1.26.4
 pandas==2.2.0
 openshift-client==1.0.21
