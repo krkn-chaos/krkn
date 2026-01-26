@@ -70,14 +70,15 @@ class HealthChecker:
                                 health_check_telemetry.append(HealthCheck(change_record))
                                 if response_tracker[config["url"]] != True: response_tracker[config["url"]] = True
                                 del health_check_tracker[config["url"]]
-                    time.sleep(interval)
+                time.sleep(interval)
+                self.current_iterations += 1
             health_check_end_time_stamp = datetime.now()
             for url in health_check_tracker.keys():
                 duration = (health_check_end_time_stamp - health_check_tracker[url]["start_timestamp"]).total_seconds()
                 success_response = {
                     "url": url,
                     "status": True,
-                    "status_code": response["status_code"],
+                    "status_code": health_check_tracker[url]["status_code"],
                     "start_timestamp": health_check_tracker[url]["start_timestamp"].isoformat(),
                     "end_timestamp": health_check_end_time_stamp.isoformat(),
                     "duration": duration
