@@ -8,6 +8,7 @@ import base64
 import json
 import logging
 import time
+from typing import Any
 
 import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
@@ -29,7 +30,7 @@ class AwsS3ReplicationScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
+        krkn_config: dict[str, Any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -48,12 +49,18 @@ class AwsS3ReplicationScenarioPlugin(AbstractScenarioPlugin):
         try:
             # Load scenario configuration
             with open(scenario, "r") as f:
-                config_yaml = yaml.full_load(f)
+                config_yaml = yaml.safe_load(f)
                 scenario_config = config_yaml["aws_s3_replication_scenarios"]
 
             # Parse configuration parameters
             bucket_name = get_yaml_item_value(scenario_config, "bucket_name", None)
-            duration = get_yaml_item_value(scenario_config, "duration", 300)
+
+            try:
+                duration = int(get_yaml_item_value(scenario_config, "duration", 300))
+            except (TypeError, ValueError):
+                logging.error(f"AwsS3ReplicationScenarioPlugin: Invalid duration value '{scenario_config.get('duration')}', must be an integer.")
+                return 1
+                
             region = get_yaml_item_value(scenario_config, "region", None)
 
             logging.info(
@@ -92,6 +99,9 @@ class AwsS3ReplicationScenarioPlugin(AbstractScenarioPlugin):
             
             try:
                 original_config = s3_handler.pause_replication(bucket_name)
+                if not original_config or not original_config.get("Rules"):
+                    logging.error(f"AwsS3ReplicationScenarioPlugin: No original replication config retrieved for bucket '{bucket_name}', aborting.")
+                    return 1
                 
                 # Set rollback callable to ensure replication is restored on failure or interruption
                 rollback_data = {
