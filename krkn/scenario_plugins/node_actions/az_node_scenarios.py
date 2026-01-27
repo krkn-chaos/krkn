@@ -18,8 +18,6 @@ class Azure:
         logging.info("azure " + str(self))
         # Acquire a credential object using CLI-based authentication.
         credentials = DefaultAzureCredential()
-        # az_account = runcommand.invoke("az account list -o yaml")
-        # az_account_yaml = yaml.safe_load(az_account, Loader=yaml.FullLoader)
         logger = logging.getLogger("azure")
         logger.setLevel(logging.WARNING)
         subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
