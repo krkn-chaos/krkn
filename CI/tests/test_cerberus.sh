@@ -36,8 +36,8 @@ function functional_test_cerberus {
   envsubst < CI/config/common_test_config.yaml > CI/config/cerberus_test_config.yaml
   
   # Enable cerberus in the config (using yq jq-wrapper syntax with -i -y)
-  yq -y -i '.cerberus.cerberus_enabled = true' CI/config/cerberus_test_config.yaml
-  yq -y -i ".cerberus.cerberus_url = \"http://${mock_cerberus_ip}:8080\"" CI/config/cerberus_test_config.yaml
+  yq -i '.cerberus.cerberus_enabled = true' CI/config/cerberus_test_config.yaml
+  yq -i ".cerberus.cerberus_url = \"http://${mock_cerberus_ip}:8080\"" CI/config/cerberus_test_config.yaml
   
   echo "========================================"
   echo "Cerberus Configuration:"

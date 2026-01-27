@@ -37,9 +37,9 @@ function functional_test_cerberus_unhealthy {
   
   # Enable cerberus in the config but DON'T exit_on_failure (so the test can verify the behavior)
   # Using yq jq-wrapper syntax with -i -y
-  yq -y -i '.cerberus.cerberus_enabled = true' CI/config/cerberus_unhealthy_test_config.yaml
-  yq -y -i ".cerberus.cerberus_url = \"http://${mock_cerberus_ip}:8080\"" CI/config/cerberus_unhealthy_test_config.yaml
-  yq -y -i '.kraken.exit_on_failure = false' CI/config/cerberus_unhealthy_test_config.yaml
+  yq -i '.cerberus.cerberus_enabled = true' CI/config/cerberus_unhealthy_test_config.yaml
+  yq -i ".cerberus.cerberus_url = \"http://${mock_cerberus_ip}:8080\"" CI/config/cerberus_unhealthy_test_config.yaml
+  yq -i '.kraken.exit_on_failure = false' CI/config/cerberus_unhealthy_test_config.yaml
   
   echo "========================================"
   echo "Cerberus Unhealthy Configuration:"
