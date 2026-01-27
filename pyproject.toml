@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kraken"
+version = "0.0.0"
+description = "Chaos and resiliency testing tool"
+readme = "README.md"
+authors = [
+  {name = "chaitanyaenr", email = "nelluri@redhat.com"}
+]
+license = {text = "Apache License 2.0"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+]
+dependencies = [
+    "aliyun-python-sdk-core==2.13.36",
+    "aliyun-python-sdk-ecs==4.24.25",
+    "arcaflow-plugin-sdk==0.14.0",
+    "boto3==1.28.61",
+    "azure-identity==1.16.1",
+    "azure-keyvault==4.2.0",
+    "azure-mgmt-compute==30.5.0",
+    "azure-mgmt-network==27.0.0",
+    "itsdangerous==2.0.1",
+    "coverage==7.6.12",
+    "datetime==5.4",
+    "docker>=6.0,<7.0",
+    "gitpython==3.1.41",
+    "google-auth==2.37.0",
+    "google-cloud-compute==1.22.0",
+    "ibm_cloud_sdk_core==3.18.0",
+    "ibm_vpc==0.20.0",
+    "jinja2==3.1.6",
+    "krkn-lib==5.1.13",
+    "lxml==5.1.0",
+    "kubernetes==34.1.0",
+    "numpy==1.26.4",
+    "pandas==2.2.0",
+    "openshift-client==1.0.21",
+    "paramiko==3.4.0",
+    "pyVmomi==8.0.2.0.1",
+    "pyfiglet==1.0.2",
+    "pytest==8.0.0",
+    "python-ipmi==0.5.4",
+    "python-openstackclient==6.5.0",
+    "requests<2.32",
+    "requests-unixsocket>=0.4.0",
+    "service_identity==24.1.0",
+    "PyYAML==6.0.1",
+    "setuptools==78.1.1",
+    "werkzeug==3.1.4",
+    "wheel==0.42.0",
+    "zope.interface==5.4.0",
+    "cryptography>=42.0.4",
+    "protobuf>=4.25.8",
+]
+
+[project.urls]
+Homepage = "https://github.com/krkn-chaos/krkn"
+
+[tool.setuptools]
+packages = ["krkn", "tests"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml", "*.json", "*.template", "*.sh"]
