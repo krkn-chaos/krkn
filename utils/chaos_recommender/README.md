@@ -1,3 +1,17 @@
+# ⚠️ DEPRECATED - This project has moved
+
+> **All development has moved to [github.com/krkn-chaos/krkn-ai](https://github.com/krkn-chaos/krkn-ai)**
+>
+> This directory is no longer maintained. Please visit the new repository for:
+> - Latest features and updates
+> - Active development and support
+> - Bug fixes and improvements
+> - Documentation and examples
+>
+> See [../README.md](../README.md) for more information.
+
+---
+
 # Chaos Recommendation Tool
 
 This tool, designed for Redhat Kraken, operates through the command line and offers recommendations for chaos testing. It suggests probable chaos test cases that can disrupt application services by analyzing their behavior and assessing their susceptibility to specific fault types.

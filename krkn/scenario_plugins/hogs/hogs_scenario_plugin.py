@@ -53,7 +53,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                     raise Exception("no available nodes to schedule workload")
 
                 if not has_selector:
-                    available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
+                    available_nodes = [available_nodes[random.randint(0, len(available_nodes) - 1)]]
 
             if scenario_config.number_of_nodes and len(available_nodes) > scenario_config.number_of_nodes:
                 available_nodes = random.sample(available_nodes, scenario_config.number_of_nodes)

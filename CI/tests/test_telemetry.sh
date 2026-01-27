@@ -18,9 +18,8 @@ function functional_test_telemetry {
   yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
   yq -i '.telemetry.run_tag=env(RUN_TAG)' CI/config/common_test_config.yaml
 
-  export scenario_type="hog_scenarios"
-
-  export scenario_file="scenarios/kube/cpu-hog.yml"
+  export scenario_type="pod_disruption_scenarios"
+  export scenario_file="scenarios/kind/pod_etcd.yml"
 
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/telemetry.yaml
