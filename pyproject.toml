@@ -26,8 +26,6 @@ dependencies = [
     "azure-mgmt-compute==30.5.0",
     "azure-mgmt-network==27.0.0",
     "itsdangerous==2.0.1",
-    "coverage==7.6.12",
-    "datetime==5.4",
     "docker>=6.0,<7.0",
     "gitpython==3.1.41",
     "google-auth==2.37.0",
@@ -44,26 +42,29 @@ dependencies = [
     "paramiko==3.4.0",
     "pyVmomi==8.0.2.0.1",
     "pyfiglet==1.0.2",
-    "pytest==8.0.0",
     "python-ipmi==0.5.4",
     "python-openstackclient==6.5.0",
     "requests<2.32",
     "requests-unixsocket>=0.4.0",
     "service_identity==24.1.0",
     "PyYAML==6.0.1",
-    "setuptools==78.1.1",
     "werkzeug==3.1.4",
-    "wheel==0.42.0",
     "zope.interface==5.4.0",
     "cryptography>=42.0.4",
     "protobuf>=4.25.8",
+]
+
+[project.optional-dependencies]
+test = [
+    "coverage==7.6.12",
+    "pytest==8.0.0",
 ]
 
 [project.urls]
 Homepage = "https://github.com/krkn-chaos/krkn"
 
 [tool.setuptools]
-packages = ["krkn", "tests"]
+packages = ["krkn"]
 
 [tool.setuptools.package-data]
 "*" = ["*.yaml", "*.yml", "*.json", "*.template", "*.sh"]
