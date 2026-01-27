@@ -104,7 +104,8 @@ class AIChaos:
         episode = []
         while True:
             # inject more faults
-            # TODO: model - choose faults based on q-learning ...
+            # NOTE: Fault selection here is intentionally simplistic.
+            # See aichaos_main.py for epsilon-greedy, production-ready logic.
             fault_pod = random.choice(self.faults)
             fault = fault_pod.split(':')[0]
             pod_name = fault_pod.split(':')[1]
