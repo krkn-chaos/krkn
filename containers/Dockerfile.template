@@ -1,26 +1,27 @@
 # oc build
 FROM golang:1.24.9 AS oc-build
+ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
 WORKDIR /tmp
 # oc build
 RUN git clone --branch release-4.18 https://github.com/openshift/oc.git
 WORKDIR /tmp/oc
 RUN go mod edit -go 1.24.9 &&\
-    go mod edit -require github.com/moby/buildkit@v0.12.5 &&\
-    go mod edit -require github.com/containerd/containerd@v1.7.29&&\
+    go mod edit -require github.com/moby/buildkit@v0.19.0 &&\
+    go mod edit -require github.com/containerd/containerd@v1.7.30&&\
     go mod edit -require github.com/docker/docker@v27.5.1+incompatible&&\
-    go mod edit -require github.com/opencontainers/runc@v1.2.8&&\
-    go mod edit -require github.com/go-git/go-git/v5@v5.13.0&&\
-    go mod edit -require github.com/opencontainers/selinux@v1.13.0&&\
-    go mod edit -require github.com/ulikunitz/xz@v0.5.15&&\
-    go mod edit -require golang.org/x/net@v0.38.0&&\
-    go mod edit -require github.com/containerd/containerd@v1.7.27&&\
-    go mod edit -require golang.org/x/oauth2@v0.27.0&&\
-    go mod edit -require golang.org/x/crypto@v0.35.0&&\
-    go mod edit -replace github.com/containerd/containerd@v1.7.27=github.com/containerd/containerd@v1.7.29&&\
+    go mod edit -require github.com/opencontainers/runc@v1.2.5&&\
+    go mod edit -require github.com/go-git/go-git/v5@v5.13.2&&\
+    go mod edit -require github.com/opencontainers/selinux@v1.11.1&&\
+    go mod edit -require github.com/ulikunitz/xz@v0.5.13&&\
+    go mod edit -require golang.org/x/net@v0.35.0&&\
+    go mod edit -require github.com/containerd/containerd@v1.7.30&&\
+    go mod edit -require golang.org/x/oauth2@v0.34.0&&\
+    go mod edit -require golang.org/x/crypto@v0.47.0&&\
+    go mod edit -replace github.com/containerd/containerd@v1.7.30=github.com/containerd/containerd@v1.7.30&&\
     go mod tidy && go mod vendor
 
-RUN make GO_REQUIRED_MIN_VERSION:= oc
+RUN GOARCH=$TARGETARCH make GO_REQUIRED_MIN_VERSION:= oc
 
 # virtctl build
 WORKDIR /tmp
@@ -28,7 +29,7 @@ RUN git clone https://github.com/kubevirt/kubevirt.git
 WORKDIR /tmp/kubevirt
 RUN go mod edit -go 1.24.9 &&\
     go work use &&\
-    go build -o virtctl ./cmd/virtctl/
+    GOARCH=$TARGETARCH go build -o virtctl ./cmd/virtctl/
 
 FROM fedora:40
 ARG PR_NUMBER
