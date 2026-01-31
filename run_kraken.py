@@ -461,7 +461,12 @@ def main(options, command: Optional[str]) -> int:
                     if distribution == "openshift":
                         prometheus_archive_files = (
                             telemetry_ocp.get_ocp_prometheus_data(
-                                config["telemetry"], telemetry_request_id
+                                config["telemetry"],
+                                telemetry_request_id,
+                                start_time,
+                                end_time,
+                                prometheus_url,
+                                prometheus_bearer_token,
                             )
                         )
                     else:
@@ -480,6 +485,11 @@ def main(options, command: Optional[str]) -> int:
                                             "prometheus_container_name"
                                         ],
                                         config["telemetry"]["prometheus_namespace"],
+                                        "/prometheus",
+                                        start_time,
+                                        end_time,
+                                        prometheus_url,
+                                        prometheus_bearer_token,
                                     )
                                 )
                             except Exception as e:
