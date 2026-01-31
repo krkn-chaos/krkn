@@ -76,7 +76,7 @@ class abstract_node_scenarios:
                 nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                 
                 logging.info("The kubelet of the node %s has been stopped" % (node))
-                logging.info("stop_kubelet_scenario has been successfuly injected!")
+                logging.info("stop_kubelet_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to stop the kubelet of the node. Encountered following "
@@ -108,7 +108,7 @@ class abstract_node_scenarios:
                 )
                 nodeaction.wait_for_ready_status(node, timeout, self.kubecli,affected_node)
                 logging.info("The kubelet of the node %s has been restarted" % (node))
-                logging.info("restart_kubelet_scenario has been successfuly injected!")
+                logging.info("restart_kubelet_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to restart the kubelet of the node. Encountered following "
@@ -128,7 +128,7 @@ class abstract_node_scenarios:
                     "oc debug node/" + node + " -- chroot /host "
                     "dd if=/dev/urandom of=/proc/sysrq-trigger"
                 )
-                logging.info("node_crash_scenario has been successfuly injected!")
+                logging.info("node_crash_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to crash the node. Encountered following exception: %s. "
