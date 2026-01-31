@@ -212,7 +212,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
 
         with patch('time.time', side_effect=self.create_incrementing_time_function()), patch('time.sleep'):
             with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-                result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+                result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 0)
         # Verify get_namespaced_custom_object was called exactly as many times as
@@ -260,7 +260,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         )
 
         with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-            result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+            result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 1)
         # Verify delete was attempted before the error occurred
@@ -317,7 +317,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
 
         with patch('time.time', side_effect=self.create_incrementing_time_function()), patch('time.sleep'):
             with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-                result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+                result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 0)
         # Verify patch was called to disable auto-restart
@@ -379,7 +379,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
                 # Mock validate_environment to return False (KubeVirt not installed)
                 with patch.object(self.plugin, 'validate_environment', return_value=False):
                     with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-                        result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+                        result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         # When validation fails, run() returns 1 due to exception handling
         self.assertEqual(result, 1)
