@@ -12,6 +12,7 @@ import sys
 
 # sys.path.append("..")
 from src.aichaos_main import AIChaos
+import src.utils as utils
 
 app = Flask(__name__)
 Swagger(app)
@@ -54,6 +55,8 @@ class AIChaosSwagger:
                 params['iterations'] = config_params['iterations']
                 params['maxfaults'] = config_params['maxfaults']
         # faults = [f + ':' + p for f in params['faults'].split(',') for p in params['podlabels'].split(',')]
+        if params['podlabels'] is None or params['podlabels'] == '':
+            params['podlabels'] = ','.join(utils.get_pods(kubeconfigfile))
         faults = []
         for f in params['faults'].split(','):
             if f in ['pod-delete']:
@@ -119,6 +122,10 @@ class AIChaosSwagger:
         # print('HEADER:', f.headers)
         print('[GenerateChaos] reqs:', request.form.to_dict())
         # print('[GenerateChaos]', f.filename, datetime.now())
+        if utils.is_cluster_accessible(kubeconfigfile):
+            print("Cluster is accessible!")
+        else:
+            return 'Cluster not accessible !!!'
         thread = threading.Thread(target=sw.startchaos, args=(kubeconfigfile, str(i), request.form.to_dict()))
         thread.daemon = True
         print(thread.getName())
