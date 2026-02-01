@@ -83,7 +83,7 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
                 )
 
                 file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
-                env = Environment(loader=file_loader, autoescape=True)
+                env = Environment(loader=file_loader, autoescape=False)
                 job_template = env.get_template("job.j2")
 
                 cmd = self.build_load_command(
@@ -269,10 +269,12 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
             for jobname in pending_jobs[:]:
                 try:
                     api_response = kubecli.get_job_status(jobname, namespace=namespace)
-                    if api_response.status.succeeded is not None or api_response.status.failed is not None:
+                    succeeded = api_response.status.succeeded or 0
+                    failed = api_response.status.failed or 0
+                    if succeeded > 0 or failed > 0:
                         completed_count += 1
                         pending_jobs.remove(jobname)
-                        status = "succeeded" if api_response.status.succeeded else "failed"
+                        status = "succeeded" if succeeded > 0 else "failed"
                         logging.info(f"HttpLoadScenarioPlugin: Job {jobname} {status}")
                 except Exception as e:
                     logging.warning(f"HttpLoadScenarioPlugin: Exception getting job status for {jobname}: {e}")
