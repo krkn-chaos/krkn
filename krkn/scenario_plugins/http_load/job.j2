@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: http-load-{{jobname}}
+  namespace: {{namespace}}
+  labels:
+    app: http-load
+    krkn: chaos
+    scenario: http-load-testing
+spec:
+  template:
+    metadata:
+      labels:
+        app: http-load
+        job-name: http-load-{{jobname}}
+    spec:
+      containers:
+      - name: http-load
+        image: {{image}}
+        imagePullPolicy: IfNotPresent
+        command: ["/bin/sh", "-c", "{{cmd}}"]
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+      restartPolicy: Never
+  backoffLimit: 0
