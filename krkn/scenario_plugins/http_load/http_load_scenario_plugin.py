@@ -45,6 +45,19 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
                     http_load_config, "image", "williamyeh/hey:latest"
                 )
 
+                if duration <= 0:
+                    logging.error("HttpLoadScenarioPlugin: duration must be positive")
+                    return 1
+                if concurrency <= 0:
+                    logging.error("HttpLoadScenarioPlugin: concurrency must be positive")
+                    return 1
+                if requests_per_second < 0:
+                    logging.error("HttpLoadScenarioPlugin: requests_per_second cannot be negative")
+                    return 1
+                if number_of_pods <= 0:
+                    logging.error("HttpLoadScenarioPlugin: number_of_pods must be positive")
+                    return 1
+
                 request_body = get_yaml_item_value(http_load_config, "request_body", "")
                 headers = get_yaml_item_value(http_load_config, "headers", {})
                 content_type = get_yaml_item_value(http_load_config, "content_type", "")
@@ -230,7 +243,8 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
             cmd += f" -q {requests_per_second}"
 
         if content_type:
-            cmd += f" -T '{content_type}'"
+            escaped_content_type = content_type.replace("'", "'\"'\"'")
+            cmd += f" -T '{escaped_content_type}'"
 
         if headers:
             for key, value in headers.items():
@@ -241,7 +255,8 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
             escaped_body = request_body.replace("'", "'\"'\"'")
             cmd += f" -d '{escaped_body}'"
 
-        cmd += f" '{target_url}'"
+        escaped_url = target_url.replace("'", "'\"'\"'")
+        cmd += f" '{escaped_url}'"
         return cmd
 
     def wait_for_jobs(self, job_list, kubecli, namespace, timeout=300):
@@ -259,8 +274,8 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
                         pending_jobs.remove(jobname)
                         status = "succeeded" if api_response.status.succeeded else "failed"
                         logging.info(f"HttpLoadScenarioPlugin: Job {jobname} {status}")
-                except Exception:
-                    logging.warning(f"HttpLoadScenarioPlugin: Exception getting job status for {jobname}")
+                except Exception as e:
+                    logging.warning(f"HttpLoadScenarioPlugin: Exception getting job status for {jobname}: {e}")
 
                 if time.time() > wait_time:
                     raise Exception("HttpLoadScenarioPlugin: Timeout waiting for jobs to complete")
