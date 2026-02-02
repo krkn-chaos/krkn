@@ -1,0 +1,52 @@
+name: Manage Stale Issues and Pull Requests
+
+on:
+  schedule:
+    # Run daily at 1:00 AM UTC
+    - cron: '0 1 * * *'
+  workflow_dispatch: 
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    name: Mark and Close Stale Issues and PRs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark and close stale issues and PRs
+        uses: actions/stale@v9
+        with:
+          days-before-issue-stale: 60
+          days-before-issue-close: 14
+          stale-issue-label: 'stale'
+          stale-issue-message: |
+            This issue has been automatically marked as stale because it has not had any activity in the last 60 days.
+            It will be closed in 14 days if no further activity occurs.
+            If this issue is still relevant, please leave a comment or remove the stale label.
+            Thank you for your contributions to krkn!
+          close-issue-message: |
+            This issue has been automatically closed due to inactivity.
+            If you believe this issue is still relevant, please feel free to reopen it or create a new issue with updated information.
+            Thank you for your understanding!
+          close-issue-reason: 'not_planned'
+
+          days-before-pr-stale: 90
+          days-before-pr-close: 14
+          stale-pr-label: 'stale'
+          stale-pr-message: |
+            This pull request has been automatically marked as stale because it has not had any activity in the last 90 days.
+            It will be closed in 14 days if no further activity occurs.
+            If this PR is still relevant, please rebase it, address any pending reviews, or leave a comment.
+            Thank you for your contributions to krkn!
+          close-pr-message: |
+            This pull request has been automatically closed due to inactivity.
+            If you believe this PR is still relevant, please feel free to reopen it or create a new pull request with updated changes.
+            Thank you for your understanding!
+
+          # Exempt labels
+          exempt-issue-labels: 'bug,enhancement,good first issue'
+          exempt-pr-labels: 'pending discussions,hold'
+
+          remove-stale-when-updated: true
