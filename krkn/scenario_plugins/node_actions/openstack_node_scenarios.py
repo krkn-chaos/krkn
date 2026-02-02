@@ -184,7 +184,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with instance name: %s has been rebooted" % (node))
-                logging.info("node_reboot_scenario has been successfuly injected!")
+                logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
@@ -249,7 +249,7 @@ class openstack_node_scenarios(abstract_node_scenarios):
                 node_ip.strip(), service, ssh_private_key, timeout
             )
             logging.info("Service status checked on %s" % (node_ip))
-            logging.info("Check service status is successfuly injected!")
+            logging.info("Check service status is successfully injected!")
         except Exception as e:
             logging.error(
                 "Failed to check service status. Encountered following exception:"
