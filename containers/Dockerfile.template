@@ -41,7 +41,7 @@ ENV KUBECONFIG /home/krkn/.kube/config
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
 RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
-    git python39 jq yq gettext wget which ipmitool openssh-server &&\
+    git python3.11 jq yq gettext wget which ipmitool openssh-server &&\
     dnf clean all
 
 # copy oc client binary from oc-build image
@@ -63,15 +63,15 @@ RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR
 # if it is a TAG trigger checkout the tag
 RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 
-RUN python3.9 -m ensurepip --upgrade --default-pip
-RUN python3.9 -m pip install --upgrade pip setuptools==78.1.1
+RUN python3.11 -m ensurepip --upgrade --default-pip
+RUN python3.11 -m pip install --upgrade pip setuptools==78.1.1
 
 # removes the the vulnerable versions of setuptools and pip
 RUN rm -rf "$(pip cache dir)"
 RUN rm -rf /tmp/*
-RUN rm -rf /usr/local/lib/python3.9/ensurepip/_bundled
-RUN pip3.9 install -r requirements.txt
-RUN pip3.9 install jsonschema
+RUN rm -rf /usr/local/lib/python3.11/ensurepip/_bundled
+RUN pip3.11 install -r requirements.txt
+RUN pip3.11 install jsonschema
 
 LABEL krknctl.title.global="Krkn Base Image"
 LABEL krknctl.description.global="This is the krkn base image."
