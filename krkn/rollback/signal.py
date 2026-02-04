@@ -16,9 +16,17 @@ class SignalHandler:
     _signal_handlers_installed = False  # No need for thread-safe variable due to _signal_lock
     _original_handlers: Dict[int, Any] = {}
     _signal_lock = threading.Lock()
+    _stop_event: threading.Event = None
     
     # Thread-local storage for context
     _local = threading.local()
+
+    @classmethod
+    def get_stop_event(cls) -> threading.Event:
+        """Get or create the stop event for graceful thread cancellation."""
+        if cls._stop_event is None:
+            cls._stop_event = threading.Event()
+        return cls._stop_event
 
     @classmethod
     def _set_context(cls, run_uuid: str, scenario_type: str, telemetry_ocp: KrknTelemetryOpenshift):
@@ -38,35 +46,23 @@ class SignalHandler:
 
     @classmethod
     def _signal_handler(cls, signum: int, frame):
-        """Handle signals with current thread context information."""
+        """Handle signals - set stop event and raise KeyboardInterrupt for graceful exit."""
         signal_name = signal.Signals(signum).name
+        
+        # Set the stop event to signal all threads to terminate
+        if cls._stop_event is not None:
+            cls._stop_event.set()
+        
+        # Log warning and skip rollback - let the scenario handle graceful exit
+        logger.warning(f"Signal {signal_name} received without complete context, skipping rollback.")
+        
+        # Clear context
         run_uuid, scenario_type, telemetry_ocp = cls._get_context()
-        if not run_uuid or not scenario_type or not telemetry_ocp:
-            logger.warning(f"Signal {signal_name} received without complete context, skipping rollback.")
-            return
-
-        # Clear the context for the next signal, as another signal may arrive before the rollback completes.
-        # This ensures that the rollback is performed only once.
-        cls._set_context(None, None, telemetry_ocp)
+        if telemetry_ocp:
+            cls._set_context(None, None, telemetry_ocp)
         
-        # Perform rollback
-        logger.info(f"Performing rollback for signal {signal_name} with run_uuid={run_uuid}, scenario_type={scenario_type}")
-        execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
-        
-        # Call original handler if it exists
-        if signum not in cls._original_handlers:
-            logger.info(f"Signal {signal_name} has no registered handler, exiting...")
-            return
-
-        original_handler = cls._original_handlers[signum]
-        if callable(original_handler):
-            logger.info(f"Calling original handler for {signal_name}")
-            original_handler(signum, frame)
-        elif original_handler == signal.SIG_DFL:
-            # Restore default behavior
-            logger.info(f"Restoring default signal handler for {signal_name}")
-            signal.signal(signum, signal.SIG_DFL)
-            signal.raise_signal(signum)
+        # Raise KeyboardInterrupt for graceful exit
+        raise KeyboardInterrupt()
 
     @classmethod
     def _register_signal_handler(cls):
