@@ -3,8 +3,9 @@ pandas
 notebook
 jupyterlab
 jupyter
-seaborn
+seaborn==0.13.2
 requests
 wheel
-Flask==2.1.0
+Flask==2.2.5
 flasgger==0.9.5
+pillow==10.3.0

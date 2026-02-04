@@ -15,7 +15,7 @@ google-cloud-compute==1.22.0
 ibm_cloud_sdk_core==3.18.0
 ibm_vpc==0.20.0
 jinja2==3.1.6
-krkn-lib==5.1.13
+krkn-lib==6.0.1
 lxml==5.1.0
 kubernetes==34.1.0
 numpy==1.26.4
@@ -32,8 +32,8 @@ requests-unixsocket>=0.4.0  # Required for Docker Unix socket support
 service_identity==24.1.0
 PyYAML==6.0.1
 setuptools==78.1.1
-wheel==0.42.0
-zope.interface==5.4.0
+wheel>=0.44.0
+zope.interface==6.1
 
 git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
 cryptography>=42.0.4 # not directly required, pinned by Snyk to avoid a vulnerability
