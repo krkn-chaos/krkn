@@ -1,0 +1,9 @@
+# AWS S3 Replication Chaos Scenario - Extended Duration
+#
+# This scenario pauses replication for an extended period to test
+# long-term resilience and recovery procedures.
+
+aws_s3_replication_scenarios:
+  bucket_name: "<YOUR-SOURCE-BUCKET-NAME>"
+  duration: 1800  # 30 minutes
+  region: "<YOUR-AWS-REGION>"  # e.g., us-east-1, us-west-2
