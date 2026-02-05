@@ -6,6 +6,7 @@ import sys
 import yaml
 import logging
 import optparse
+from colorlog import ColoredFormatter
 import pyfiglet
 import uuid
 import time
@@ -646,15 +647,23 @@ if __name__ == "__main__":
     # If no command or regular execution, continue with existing logic
     report_file = options.output
     tee_handler = TeeLogHandler()
-    handlers = [
-        logging.FileHandler(report_file, mode="w"),
-        logging.StreamHandler(),
-        tee_handler,
-    ]
+
+    fmt = "%(asctime)s [%(levelname)s] %(message)s"
+    plain = logging.Formatter(fmt)
+    colored = ColoredFormatter(
+        "%(asctime)s [%(log_color)s%(levelname)s%(reset)s] %(message)s",
+        log_colors={'DEBUG': 'white', 'INFO': 'white', 'WARNING': 'yellow', 'ERROR': 'red', 'CRITICAL': 'bold_red'},
+        reset=True, style='%'
+    )
+    file_handler = logging.FileHandler(report_file, mode="w")
+    file_handler.setFormatter(plain)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(colored)
+    tee_handler.setFormatter(plain)
+    handlers = [file_handler, stream_handler, tee_handler]
 
     logging.basicConfig(
         level=logging.DEBUG if options.debug else logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=handlers,
     )
     option_error = False
