@@ -669,8 +669,8 @@ if __name__ == "__main__":
     error_collection_handler = ErrorCollectionHandler(level=logging.ERROR)
 
     handlers = [
-        logging.FileHandler(report_file, mode="w"),
-        logging.StreamHandler(),
+        file_handler,
+        stream_handler,
         tee_handler,
         error_collection_handler,
     ]
