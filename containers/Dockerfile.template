@@ -1,89 +1,76 @@
-# oc build
-FROM golang:1.24.9 AS oc-build
-RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
-WORKDIR /tmp
-# oc build
-RUN git clone --branch release-4.18 https://github.com/openshift/oc.git
-WORKDIR /tmp/oc
-RUN go mod edit -go 1.24.9 &&\
-    go mod edit -require github.com/moby/buildkit@v0.12.5 &&\
-    go mod edit -require github.com/containerd/containerd@v1.7.29&&\
-    go mod edit -require github.com/docker/docker@v27.5.1+incompatible&&\
-    go mod edit -require github.com/opencontainers/runc@v1.2.8&&\
-    go mod edit -require github.com/go-git/go-git/v5@v5.13.0&&\
-    go mod edit -require github.com/opencontainers/selinux@v1.13.0&&\
-    go mod edit -require github.com/ulikunitz/xz@v0.5.15&&\
-    go mod edit -require golang.org/x/net@v0.38.0&&\
-    go mod edit -require github.com/containerd/containerd@v1.7.27&&\
-    go mod edit -require golang.org/x/oauth2@v0.27.0&&\
-    go mod edit -require golang.org/x/crypto@v0.35.0&&\
-    go mod edit -replace github.com/containerd/containerd@v1.7.27=github.com/containerd/containerd@v1.7.29&&\
-    go mod tidy && go mod vendor
+# krkn-chaos/krkn Dockerfile
+FROM python:3.9-slim
 
-RUN make GO_REQUIRED_MIN_VERSION:= oc
-
-# virtctl build
-WORKDIR /tmp
-RUN git clone https://github.com/kubevirt/kubevirt.git
-WORKDIR /tmp/kubevirt
-RUN go mod edit -go 1.24.9 &&\
-    go work use &&\
-    go build -o virtctl ./cmd/virtctl/
-
-FROM fedora:40
 ARG PR_NUMBER
 ARG TAG
+
+# Install system dependencies
+# git, jq, wget, curl, ipmitool, openssh-server: existing requirements
+# gettext-base: for envsubst
+# procps: for verify scripts that might use ps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    jq \
+    wget \
+    curl \
+    ipmitool \
+    openssh-server \
+    gettext-base \
+    procps \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install oc (v4.18.0)
+RUN wget -qO- https://mirror.openshift.com/pub/openshift-v4/clients/oc/4.18.0/linux/oc.tar.gz | tar xvz -C /usr/bin/ oc && \
+    chmod +x /usr/bin/oc
+
+# Install virtctl (v1.7.0)
+RUN wget -qO /usr/bin/virtctl https://github.com/kubevirt/kubevirt/releases/download/v1.7.0/virtctl-v1.7.0-linux-amd64 && \
+    chmod +x /usr/bin/virtctl
+
+# Install yq (v4.40.5)
+RUN wget -qO /usr/bin/yq https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 && \
+    chmod +x /usr/bin/yq
+
+# Create user
 RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
-RUN dnf update -y
 
 ENV KUBECONFIG /home/krkn/.kube/config
 
-
-# This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
-RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
-    git python3.11 jq yq gettext wget which ipmitool openssh-server &&\
-    dnf clean all
-
-# copy oc client binary from oc-build image
-COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
-COPY --from=oc-build /tmp/kubevirt/virtctl /usr/bin/virtctl
-
-# krkn build
-RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken && \
-    mkdir -p /home/krkn/.kube
-
-RUN mkdir -p /home/krkn/.ssh && \
+# Initialize krkn directory
+RUN mkdir -p /home/krkn/kraken && \
+    mkdir -p /home/krkn/.kube && \
+    mkdir -p /home/krkn/.ssh && \
     chmod 700 /home/krkn/.ssh
+
+# Clone repository
+# We clone into a temporary directory first to handle the logic of PRs/Tags if needed, 
+# or just clone directly. The original logic cloned into /home/krkn/kraken.
+# We will preserve the logic of cloning the repo.
+RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken
 
 WORKDIR /home/krkn/kraken
 
-# default behaviour will be to build main
-# if it is a PR trigger the PR itself will be checked out
+# Checkout PR or Tag if specified
 RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER};fi
-# if it is a TAG trigger checkout the tag
 RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 
-RUN python3.11 -m ensurepip --upgrade --default-pip
-RUN python3.11 -m pip install --upgrade pip setuptools==78.1.1
+# Install Python dependencies
+RUN pip install --no-cache-dir --upgrade pip setuptools==78.1.1 && \
+    pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir jsonschema
 
-# removes the the vulnerable versions of setuptools and pip
-RUN rm -rf "$(pip cache dir)"
-RUN rm -rf /tmp/*
-RUN rm -rf /usr/local/lib/python3.11/ensurepip/_bundled
-RUN pip3.11 install -r requirements.txt
-RUN pip3.11 install jsonschema
-
+# Metadata
 LABEL krknctl.title.global="Krkn Base Image"
 LABEL krknctl.description.global="This is the krkn base image."
 LABEL krknctl.input_fields.global='$KRKNCTL_INPUT'
 
-# SSH setup script
-RUN chmod +x /home/krkn/kraken/containers/setup-ssh.sh
+# Setup scripts permissions
+RUN chmod +x /home/krkn/kraken/containers/setup-ssh.sh && \
+    chmod +x /home/krkn/kraken/containers/entrypoint.sh
 
-# Main entrypoint script
-RUN chmod +x /home/krkn/kraken/containers/entrypoint.sh
+# Fix permissions
+RUN chown -R krkn:krkn /home/krkn
 
-RUN chown -R krkn:krkn /home/krkn && chmod 755 /home/krkn
 USER krkn
 
 ENTRYPOINT ["/bin/bash", "/home/krkn/kraken/containers/entrypoint.sh"]
