@@ -41,11 +41,12 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         kill_scenario_config,
                         lib_telemetry
                     )
-                    killed_pods, ret = self.killing_pods(
+                    killed_pods, return_code = self.killing_pods(
                         kill_scenario_config, lib_telemetry.get_lib_kubernetes()
                     )
 
                     # Store killed pods details in telemetry for analysis
+                    # Note: killed_pods_details is a custom extension field supported by ScenarioTelemetry
                     scenario_telemetry.killed_pods_details = [
                         {
                             "namespace": pod.namespace,
@@ -56,14 +57,15 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         }
                         for pod in killed_pods
                     ]
+                    killed_count = len([p for p in killed_pods if p.status == "killed"])
+                    excluded_count = len([p for p in killed_pods if p.status == "excluded"])
                     logging.debug(
-                        f"Killed pods summary - Total: {len(killed_pods)}, "
-                        f"Killed: {len([p for p in killed_pods if p.status == 'killed'])}, "
-                        f"Excluded: {len([p for p in killed_pods if p.status == 'excluded'])}"
+                        f"Pod disruption summary - Total targeted: {len(killed_pods)}, "
+                        f"Killed: {killed_count}, Excluded: {excluded_count}"
                     )
 
-                    # returning 2 if configuration issue and exiting immediately
-                    if ret > 1:
+                    # return code 2+ indicates configuration issue and exit immediately
+                    if return_code > 1:
                         # Cancel the monitoring future since killing_pods already failed
                         logging.info("Cancelling pod monitoring future")
                         future_snapshot.cancel()
@@ -84,16 +86,16 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
                     if len(result.unrecovered) > 0:
-                        logging.info("PodDisruptionScenarioPlugin failed with unrecovered pods")
+                        logging.error("PodDisruptionScenarioPlugin failed: pods did not recover")
                         return 1
 
-                    if ret > 0:
-                        logging.info("PodDisruptionScenarioPlugin failed")
+                    if return_code > 0:
+                        logging.error("PodDisruptionScenarioPlugin failed: pod killing scenario returned error")
                         return 1
                     
         except (RuntimeError, Exception) as e:
             logging.error("Stack trace:\n%s", traceback.format_exc())
-            logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
+            logging.error(f"PodDisruptionScenarioPlugin exiting due to exception: {e}")
             return 1
         else:
             return 0
@@ -274,8 +276,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     ))
 
             return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
-        except Exception as e:
-            raise(e)
+        except Exception:
+            raise
 
         return killed_pods, return_val
 
