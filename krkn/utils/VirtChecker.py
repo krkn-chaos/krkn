@@ -107,7 +107,7 @@ class VirtChecker:
 
     def get_vm_access(self, vm_name: str = '', namespace: str = ''):
         """
-        This method returns True when the VM is access and an error message when it is not, using virtctl protocol
+        This method returns True when the VM is accessible and an error message when it is not, using virtctl protocol
         :param vm_name:
         :param namespace:
         :return: virtctl_status 'True' if successful, or an error message if it fails.

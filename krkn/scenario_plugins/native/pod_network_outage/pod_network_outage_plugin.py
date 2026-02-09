@@ -36,7 +36,7 @@ def get_test_pods(
             - pods matching the label on which network policy
               need to be applied
 
-        namepsace (string)
+        namespace (string)
             - namespace in which the pod is present
 
         kubecli (KrknKubernetes)
