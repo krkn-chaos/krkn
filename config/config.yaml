@@ -52,6 +52,8 @@ kraken:
                - scenarios/kube/node-network-filter.yml
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
+       - aws_s3_replication_scenarios:                    # AWS S3 replication chaos scenarios
+           - scenarios/aws_s3_replication/s3_replication_pause.yaml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
