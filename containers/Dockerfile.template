@@ -3,6 +3,7 @@ FROM python:3.9-slim
 
 ARG PR_NUMBER
 ARG TAG
+ARG TARGETARCH
 
 # Install system dependencies
 # git, jq, wget, curl, ipmitool, openssh-server: existing requirements
@@ -17,6 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-server \
     gettext-base \
     procps \
+    bash \
     && rm -rf /var/lib/apt/lists/*
 
 # Install oc (v4.18.0)
@@ -24,11 +26,11 @@ RUN wget -qO- https://mirror.openshift.com/pub/openshift-v4/clients/oc/4.18.0/li
     chmod +x /usr/bin/oc
 
 # Install virtctl (v1.7.0)
-RUN wget -qO /usr/bin/virtctl https://github.com/kubevirt/kubevirt/releases/download/v1.7.0/virtctl-v1.7.0-linux-amd64 && \
+RUN wget -qO /usr/bin/virtctl https://github.com/kubevirt/kubevirt/releases/download/v1.7.0/virtctl-v1.7.0-linux-$TARGETARCH && \
     chmod +x /usr/bin/virtctl
 
 # Install yq (v4.40.5)
-RUN wget -qO /usr/bin/yq https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_amd64 && \
+RUN wget -qO /usr/bin/yq https://github.com/mikefarah/yq/releases/download/v4.40.5/yq_linux_$TARGETARCH && \
     chmod +x /usr/bin/yq
 
 # Create user
