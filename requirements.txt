@@ -37,6 +37,7 @@ wheel>=0.44.0
 zope.interface==6.1
 colorlog==6.10.1
 
+git+https://github.com/krkn-chaos/krkn-lib@opensearch
 git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
 cryptography>=42.0.4 # not directly required, pinned by Snyk to avoid a vulnerability
 protobuf>=4.25.8 # not directly required, pinned by Snyk to avoid a vulnerability
