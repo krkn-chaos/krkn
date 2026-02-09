@@ -32,7 +32,7 @@ tunings:
 
 telemetry:
     enabled: False                                         # enable/disables the telemetry collection feature
-    archive_path: /tmp                                     # local path where the archive files will be temporarly stored
+    archive_path: /tmp                                     # local path where the archive files will be temporarily stored
     events_backup: False                                   # enables/disables cluster events collection
     logs_backup: False
 
