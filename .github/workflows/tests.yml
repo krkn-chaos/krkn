@@ -85,7 +85,7 @@ jobs:
             yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
             yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
             yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
-            echo "test_app_outages" >> ./CI/tests/functional_tests
+            echo "test_app_outages" > ./CI/tests/functional_tests
             echo "test_container" >> ./CI/tests/functional_tests
             echo "test_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_customapp_pod" >> ./CI/tests/functional_tests
@@ -100,6 +100,8 @@ jobs:
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
             echo "test_pod_server" >> ./CI/tests/functional_tests
             echo "test_time" >> ./CI/tests/functional_tests
+            echo "test_node_network_chaos" >> ./CI/tests/functional_tests
+            echo "test_pod_network_chaos" >> ./CI/tests/functional_tests
             # echo "test_pvc" >> ./CI/tests/functional_tests
 
       # Push on main only steps + all other functional to collect coverage
