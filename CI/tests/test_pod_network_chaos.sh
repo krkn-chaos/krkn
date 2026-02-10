@@ -11,8 +11,7 @@ function functional_test_pod_network_chaos {
   # Deploy nginx workload
   echo "Deploying nginx workload..."
   kubectl create deployment nginx-pod-net-chaos --image=nginx:latest
-  kubectl expose deployment nginx-pod-net-chaos --port=80 --target-port=80 --type=NodePort --name=nginx-pod-net-chaos-svc
-  kubectl patch service nginx-pod-net-chaos-svc -p '{"spec":{"ports":[{"port":80,"nodePort":30080,"targetPort":80}]}}'
+  kubectl expose deployment nginx-pod-net-chaos --port=80 --target-port=80 --name=nginx-pod-net-chaos-svc
 
   # Wait for nginx to be ready
   echo "Waiting for nginx pod to be ready..."
@@ -22,9 +21,15 @@ function functional_test_pod_network_chaos {
   export POD_NAME=$(kubectl get pods -l app=nginx-pod-net-chaos -o jsonpath='{.items[0].metadata.name}')
   echo "Target pod: $POD_NAME"
 
+  # Setup port-forward to access nginx
+  echo "Setting up port-forward to nginx service..."
+  kubectl port-forward service/nginx-pod-net-chaos-svc 8090:80 &
+  PORT_FORWARD_PID=$!
+  sleep 3  # Give port-forward time to start
+
   # Test baseline connectivity
   echo "Testing baseline connectivity..."
-  response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:30080 || echo "000")
+  response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8090 || echo "000")
   if [ "$response" != "200" ]; then
     echo "ERROR: Nginx not responding correctly (got $response, expected 200)"
     kubectl get pods -l app=nginx-pod-net-chaos
@@ -36,7 +41,7 @@ function functional_test_pod_network_chaos {
   # Measure baseline latency
   echo "Measuring baseline latency..."
   baseline_start=$(date +%s%3N)
-  curl -s http://localhost:30080 > /dev/null || true
+  curl -s http://localhost:8090 > /dev/null || true
   baseline_end=$(date +%s%3N)
   baseline_latency=$((baseline_end - baseline_start))
   echo "Baseline latency: ${baseline_latency}ms"
@@ -77,7 +82,7 @@ function functional_test_pod_network_chaos {
   for i in {1..5}; do
     chaos_test_count=$((chaos_test_count + 1))
     chaos_start=$(date +%s%3N)
-    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://localhost:30080 || echo "000")
+    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 http://localhost:8090 || echo "000")
     chaos_end=$(date +%s%3N)
     chaos_latency=$((chaos_end - chaos_start))
 
@@ -108,7 +113,7 @@ function functional_test_pod_network_chaos {
 
   while [ $recovery_attempts -lt $max_recovery_attempts ]; do
     recovery_attempts=$((recovery_attempts + 1))
-    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:30080 || echo "000")
+    response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:8090 || echo "000")
 
     if [ "$response" == "200" ]; then
       echo "Recovery verified: nginx responding normally (attempt $recovery_attempts)"
@@ -128,6 +133,7 @@ function functional_test_pod_network_chaos {
 
   # Cleanup
   echo "Cleaning up test resources..."
+  kill $PORT_FORWARD_PID 2>/dev/null || true
   kubectl delete deployment nginx-pod-net-chaos --ignore-not-found=true
   kubectl delete service nginx-pod-net-chaos-svc --ignore-not-found=true
 

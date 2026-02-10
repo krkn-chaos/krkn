@@ -104,6 +104,7 @@ jobs:
             echo "test_pod_error" >> ./CI/tests/functional_tests
             echo "test_pod" >> ./CI/tests/functional_tests
             # echo "test_pvc" >> ./CI/tests/functional_tests
+          
 
       # Push on main only steps + all other functional to collect coverage
       # for the badge
