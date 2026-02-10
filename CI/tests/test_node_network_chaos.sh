@@ -15,27 +15,27 @@ function functional_test_node_network_chaos {
 
   # Deploy nginx workload on the target node
   echo "Deploying nginx workload on $TARGET_NODE..."
-  kubectl create deployment nginx-test-node --image=nginx:latest
+  kubectl create deployment nginx-node-net-chaos --image=nginx:latest
 
   # Add node selector to ensure pod runs on target node
-  kubectl patch deployment nginx-test-node -p '{"spec":{"template":{"spec":{"nodeSelector":{"kubernetes.io/hostname":"'$TARGET_NODE'"}}}}}'
+  kubectl patch deployment nginx-node-net-chaos -p '{"spec":{"template":{"spec":{"nodeSelector":{"kubernetes.io/hostname":"'$TARGET_NODE'"}}}}}'
 
   # Expose service
-  kubectl expose deployment nginx-test-node --port=80 --target-port=80 --type=NodePort --name=nginx-node-service
-  kubectl patch service nginx-node-service -p '{"spec":{"ports":[{"port":80,"nodePort":30080,"targetPort":80}]}}'
+  kubectl expose deployment nginx-node-net-chaos --port=80 --target-port=80 --type=NodePort --name=nginx-node-net-chaos-svc
+  kubectl patch service nginx-node-net-chaos-svc -p '{"spec":{"ports":[{"port":80,"nodePort":30080,"targetPort":80}]}}'
 
   # Wait for nginx to be ready
   echo "Waiting for nginx pod to be ready on $TARGET_NODE..."
-  kubectl wait --for=condition=ready pod -l app=nginx-test-node --timeout=120s
+  kubectl wait --for=condition=ready pod -l app=nginx-node-net-chaos --timeout=120s
 
   # Verify pod is on correct node
-  export POD_NAME=$(kubectl get pods -l app=nginx-test-node -o jsonpath='{.items[0].metadata.name}')
+  export POD_NAME=$(kubectl get pods -l app=nginx-node-net-chaos -o jsonpath='{.items[0].metadata.name}')
   export POD_NODE=$(kubectl get pod $POD_NAME -o jsonpath='{.spec.nodeName}')
   echo "Pod $POD_NAME is running on node $POD_NODE"
 
   if [ "$POD_NODE" != "$TARGET_NODE" ]; then
     echo "ERROR: Pod is not on target node (expected $TARGET_NODE, got $POD_NODE)"
-    kubectl get pods -l app=nginx-test-node -o wide
+    kubectl get pods -l app=nginx-node-net-chaos -o wide
     exit 1
   fi
 
@@ -44,7 +44,7 @@ function functional_test_node_network_chaos {
   response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:30080 || echo "000")
   if [ "$response" != "200" ]; then
     echo "ERROR: Nginx not responding correctly (got $response, expected 200)"
-    kubectl get pods -l app=nginx-test-node
+    kubectl get pods -l app=nginx-node-net-chaos
     kubectl describe pod $POD_NAME
     exit 1
   fi
@@ -143,15 +143,15 @@ function functional_test_node_network_chaos {
 
   if [ "$response" != "200" ]; then
     echo "ERROR: Service did not recover after chaos (got $response)"
-    kubectl get pods -l app=nginx-test-node
+    kubectl get pods -l app=nginx-node-net-chaos
     kubectl describe pod $POD_NAME
     exit 1
   fi
 
   # Cleanup
   echo "Cleaning up test resources..."
-  kubectl delete deployment nginx-test-node --ignore-not-found=true
-  kubectl delete service nginx-node-service --ignore-not-found=true
+  kubectl delete deployment nginx-node-net-chaos --ignore-not-found=true
+  kubectl delete service nginx-node-net-chaos-svc --ignore-not-found=true
 
   echo "Node network chaos test: Success"
 }
