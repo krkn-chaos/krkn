@@ -160,8 +160,8 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
         # Verify setup was called with node name
         mock_setup.assert_called_once()
         setup_args = mock_setup.call_args[0]
-        # Node name should be passed as target (4th arg) and is_node=True (7th arg)
-        self.assertEqual(setup_args[6], True)  # is_node flag
+        # Node name should be passed as target and is_node=True (8th arg, index 7)
+        self.assertEqual(setup_args[7], True)  # is_node flag
 
         # Verify qdisc was checked
         mock_qdisc_is_simple.assert_called_once()
