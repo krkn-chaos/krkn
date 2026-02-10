@@ -10,16 +10,16 @@ function functional_test_pod_network_chaos {
 
   # Deploy nginx workload
   echo "Deploying nginx workload..."
-  kubectl create deployment nginx-test --image=nginx:latest
-  kubectl expose deployment nginx-test --port=80 --target-port=80 --type=NodePort --name=nginx-service
-  kubectl patch service nginx-service -p '{"spec":{"ports":[{"port":80,"nodePort":30080,"targetPort":80}]}}'
+  kubectl create deployment nginx-pod-net-chaos --image=nginx:latest
+  kubectl expose deployment nginx-pod-net-chaos --port=80 --target-port=80 --type=NodePort --name=nginx-pod-net-chaos-svc
+  kubectl patch service nginx-pod-net-chaos-svc -p '{"spec":{"ports":[{"port":80,"nodePort":30080,"targetPort":80}]}}'
 
   # Wait for nginx to be ready
   echo "Waiting for nginx pod to be ready..."
-  kubectl wait --for=condition=ready pod -l app=nginx-test --timeout=120s
+  kubectl wait --for=condition=ready pod -l app=nginx-pod-net-chaos --timeout=120s
 
   # Get pod name
-  export POD_NAME=$(kubectl get pods -l app=nginx-test -o jsonpath='{.items[0].metadata.name}')
+  export POD_NAME=$(kubectl get pods -l app=nginx-pod-net-chaos -o jsonpath='{.items[0].metadata.name}')
   echo "Target pod: $POD_NAME"
 
   # Test baseline connectivity
@@ -27,7 +27,7 @@ function functional_test_pod_network_chaos {
   response=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:30080 || echo "000")
   if [ "$response" != "200" ]; then
     echo "ERROR: Nginx not responding correctly (got $response, expected 200)"
-    kubectl get pods -l app=nginx-test
+    kubectl get pods -l app=nginx-pod-net-chaos
     kubectl describe pod $POD_NAME
     exit 1
   fi
@@ -121,15 +121,15 @@ function functional_test_pod_network_chaos {
 
   if [ "$response" != "200" ]; then
     echo "ERROR: Service did not recover after chaos (got $response)"
-    kubectl get pods -l app=nginx-test
+    kubectl get pods -l app=nginx-pod-net-chaos
     kubectl describe pod $POD_NAME
     exit 1
   fi
 
   # Cleanup
   echo "Cleaning up test resources..."
-  kubectl delete deployment nginx-test --ignore-not-found=true
-  kubectl delete service nginx-service --ignore-not-found=true
+  kubectl delete deployment nginx-pod-net-chaos --ignore-not-found=true
+  kubectl delete service nginx-pod-net-chaos-svc --ignore-not-found=true
 
   echo "Pod network chaos test: Success"
 }
