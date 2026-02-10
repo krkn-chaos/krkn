@@ -7,6 +7,8 @@ nodes:
         hostPort: 8888
       - containerPort: 30037
         hostPort: 8889
+      - containerPort: 30080
+        hostPort: 30080
   - role: control-plane
   - role: control-plane
   - role: worker
