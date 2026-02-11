@@ -171,8 +171,9 @@ def main(options, command: Optional[str]) -> int:
             # krkn-lib-kubernetes init
             kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
             ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
-        except:
-            kubecli.initialize_clients(None)
+        except Exception as e:
+            logging.error(f"Failed to initialize Kubernetes client: {e}")
+            return -1
 
         distribution = "kubernetes"
         if ocpcli.is_openshift():
