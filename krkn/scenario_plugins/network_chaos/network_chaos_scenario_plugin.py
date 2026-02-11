@@ -199,23 +199,25 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
     # krkn_lib
     def wait_for_job(self, joblst, kubecli: KrknKubernetes, timeout=300):
         waittime = time.time() + timeout
-        count = 0
-        joblen = len(joblst)
-        while count != joblen:
+        completed_jobs = set()
+        total_jobs = len(joblst)
+
+        while len(completed_jobs) < total_jobs:
             for jobname in joblst:
+                if jobname in completed_jobs:
+                    continue
                 try:
                     api_response = kubecli.get_job_status(jobname, namespace="default")
                     if (
                         api_response.status.succeeded is not None
                         or api_response.status.failed is not None
                     ):
-                        count += 1
-                        joblst.remove(jobname)
+                        completed_jobs.add(jobname)
                 except Exception:
                     logging.warning("Exception in getting job status")
                 if time.time() > waittime:
                     raise Exception("Starting pod failed")
-                time.sleep(5)
+            time.sleep(5)
 
     # krkn_lib
     def delete_job(self, joblst, kubecli: KrknKubernetes):
