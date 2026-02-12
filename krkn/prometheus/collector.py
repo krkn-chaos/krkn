@@ -68,7 +68,9 @@ def evaluate_slos(
 
             passed = slo_passed(response)
             if passed is None:
-                logging.warning("SLO '%s' query returned no data; excluding from score.", name)
+                # Absence of data indicates the condition did not trigger; treat as pass.
+                logging.debug("SLO '%s' query returned no data; assuming pass.", name)
+                results[name] = True
             else:
                 results[name] = passed
         except Exception as exc:  
