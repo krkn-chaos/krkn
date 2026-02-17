@@ -237,7 +237,7 @@ class docker_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with container ID: %s has been terminated" % (container_id)
                 )
-                logging.info("node_termination_scenario has been successfuly injected!")
+                logging.info("node_termination_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to terminate node instance. Encountered following exception:"
@@ -264,7 +264,7 @@ class docker_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with container ID: %s has been rebooted" % (container_id)
                 )
-                logging.info("node_reboot_scenario has been successfuly injected!")
+                logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
