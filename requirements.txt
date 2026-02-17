@@ -1,24 +1,23 @@
 aliyun-python-sdk-core==2.13.36
 aliyun-python-sdk-ecs==4.24.25
 arcaflow-plugin-sdk==0.14.0
-boto3==1.28.61
+boto3>=1.34.0  # Updated to support urllib3 2.x
 azure-identity==1.16.1
 azure-keyvault==4.2.0
 azure-mgmt-compute==30.5.0
 azure-mgmt-network==27.0.0
-itsdangerous==2.0.1
 coverage==7.6.12
 datetime==5.4
-docker>=6.0,<7.0  # docker 7.0+ has breaking changes with Unix sockets
+docker>=6.0,<7.0  # docker 7.0+ has breaking changes; works with requests<2.32
 gitpython==3.1.41
 google-auth==2.37.0
 google-cloud-compute==1.22.0
-ibm_cloud_sdk_core==3.18.0
-ibm_vpc==0.20.0
+ibm_cloud_sdk_core>=3.20.0  # Requires urllib3>=2.1.0 (compatible with updated boto3)
+ibm_vpc==0.26.3  # Requires ibm_cloud_sdk_core
 jinja2==3.1.6
-krkn-lib==5.1.13
 lxml==5.1.0
 kubernetes==34.1.0
+krkn-lib==6.0.2
 numpy==1.26.4
 pandas==2.2.0
 openshift-client==1.0.21
@@ -30,12 +29,13 @@ python-ipmi==0.5.4
 python-openstackclient==6.5.0
 requests<2.32  # requests 2.32+ breaks Unix socket support (http+docker scheme)
 requests-unixsocket>=0.4.0  # Required for Docker Unix socket support
+urllib3>=2.1.0,<2.4.0  # Compatible with all dependencies
 service_identity==24.1.0
 PyYAML==6.0.1
 setuptools==78.1.1
-werkzeug==3.1.4
-wheel==0.42.0
-zope.interface==5.4.0
+wheel>=0.44.0
+zope.interface==6.1
+colorlog==6.10.1
 
 git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
 cryptography>=42.0.4 # not directly required, pinned by Snyk to avoid a vulnerability

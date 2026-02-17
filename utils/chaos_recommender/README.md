@@ -1,3 +1,17 @@
+# ⚠️ DEPRECATED - This project has moved
+
+> **All development has moved to [github.com/krkn-chaos/krkn-ai](https://github.com/krkn-chaos/krkn-ai)**
+>
+> This directory is no longer maintained. Please visit the new repository for:
+> - Latest features and updates
+> - Active development and support
+> - Bug fixes and improvements
+> - Documentation and examples
+>
+> See [../README.md](../README.md) for more information.
+
+---
+
 # Chaos Recommendation Tool
 
 This tool, designed for Redhat Kraken, operates through the command line and offers recommendations for chaos testing. It suggests probable chaos test cases that can disrupt application services by analyzing their behavior and assessing their susceptibility to specific fault types.
@@ -32,7 +46,7 @@ To run the recommender with a config file specify the config file path with the 
 You can customize the default values by editing the `recommender_config.yaml` file. The configuration file contains the following options:
 
   - `application`: Specify the application name.
-  - `namespaces`: Specify the namespaces names (separated by coma or space). If you want to profile
+  - `namespaces`: Specify the namespaces names (separated by comma or space). If you want to profile
   - `labels`: Specify the labels (not used).
   - `kubeconfig`: Specify the location of the kubeconfig file (not used).
   - `prometheus_endpoint`: Specify the prometheus endpoint (must).
