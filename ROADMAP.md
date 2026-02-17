@@ -16,5 +16,5 @@ Following are a list of enhancements that we are planning to work on adding supp
 - [x] [Krknctl - client for running Krkn scenarios with ease](https://github.com/krkn-chaos/krknctl)
 - [x] [AI Chat bot to help get started with Krkn and commands](https://github.com/krkn-chaos/krkn-lightspeed)
 - [ ] [Ability to roll back cluster to original state if chaos fails](https://github.com/krkn-chaos/krkn/issues/804)
-- [ ] Add recovery time metrics to each scenario for each better regression analysis
+- [ ] Add recovery time metrics to each scenario for better regression analysis
 - [ ] [Add resiliency scoring to chaos scenarios ran on cluster](https://github.com/krkn-chaos/krkn/issues/125)
