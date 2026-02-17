@@ -743,6 +743,45 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_logging.assert_called()
             self.assertIn("Error on pool multiprocessing", str(mock_logging.call_args))
 
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    def test_inject_node_scenario_excludes_consecutive_nodes(self, mock_common_funcs):
+        """
+        Regression test for issue #1058 - node exclusion was skipping nodes
+        when consecutive nodes appeared in the exclude list.
+        """
+        node_scenario = {
+            "label_selector": "node-role.kubernetes.io/worker",
+            "exclude_label": "node-role.kubernetes.io/infra",
+            "instance_count": 4
+        }
+        action = "node_stop_scenario"
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+
+        # 4 worker nodes, exclude node-A and node-B (consecutive in list)
+        mock_common_funcs.get_node.side_effect = [
+            ["node-A", "node-B", "node-C", "node-D"],
+            ["node-A", "node-B"]
+        ]
+
+        self.plugin.inject_node_scenario(
+            action,
+            node_scenario,
+            mock_scenario_object,
+            self.mock_kubecli,
+            self.mock_scenario_telemetry
+        )
+
+        # only node-C and node-D should be processed
+        self.assertEqual(mock_scenario_object.node_stop_scenario.call_count, 2)
+        calls = mock_scenario_object.node_stop_scenario.call_args_list
+        processed_nodes = [call[0][1] for call in calls]
+        self.assertIn("node-C", processed_nodes)
+        self.assertIn("node-D", processed_nodes)
+        self.assertNotIn("node-A", processed_nodes)
+        self.assertNotIn("node-B", processed_nodes)
+
 
 if __name__ == "__main__":
     unittest.main()
