@@ -49,7 +49,11 @@ class VirtChecker:
         for vmi in self.kube_vm_plugin.vmis_list:
             node_name = vmi.get("status",{}).get("nodeName")
             vmi_name = vmi.get("metadata",{}).get("name")
-            ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
+            interfaces = vmi.get("status",{}).get("interfaces",[])
+            if not interfaces:
+                logging.warning(f"VMI {vmi_name} has no network interfaces, skipping")
+                continue
+            ip_address = interfaces[0].get("ipAddress")
             namespace = vmi.get("metadata",{}).get("namespace")
             # If node_name_list exists, only add if node name is in list
 
@@ -74,7 +78,8 @@ class VirtChecker:
         else:
             logging.debug(f"Disconnected access for {ip_address} on {worker_name} is failed: {output}")
             vmi = self.kube_vm_plugin.get_vmi(vmi_name,self.namespace)
-            new_ip_address = vmi.get("status",{}).get("interfaces",[])[0].get("ipAddress")
+            interfaces = vmi.get("status",{}).get("interfaces",[])
+            new_ip_address = interfaces[0].get("ipAddress") if interfaces else None
             new_node_name = vmi.get("status",{}).get("nodeName")
             # if vm gets deleted, it'll start up with a new ip address
             if new_ip_address != ip_address:
@@ -102,7 +107,7 @@ class VirtChecker:
 
     def get_vm_access(self, vm_name: str = '', namespace: str = ''):
         """
-        This method returns True when the VM is access and an error message when it is not, using virtctl protocol
+        This method returns True when the VM is accessible and an error message when it is not, using virtctl protocol
         :param vm_name:
         :param namespace:
         :return: virtctl_status 'True' if successful, or an error message if it fails.

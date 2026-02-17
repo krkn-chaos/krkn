@@ -93,7 +93,7 @@ telemetry:
     prometheus_pod_name: ""                                 # name of the prometheus pod (if distribution is kubernetes)
     full_prometheus_backup: False                           # if is set to False only the /prometheus/wal folder will be downloaded.
     backup_threads: 5                                       # number of telemetry download/upload threads
-    archive_path: /tmp                                      # local path where the archive files will be temporarly stored
+    archive_path: /tmp                                      # local path where the archive files will be temporarily stored
     max_retries: 0                                          # maximum number of upload retries (if 0 will retry forever)
     run_tag: ''                                             # if set, this will be appended to the run folder in the bucket (useful to group the runs)
     archive_size: 500000
