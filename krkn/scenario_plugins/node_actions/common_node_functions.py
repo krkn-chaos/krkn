@@ -11,7 +11,7 @@ def get_node_by_name(node_name_list, kubecli: KrknKubernetes):
     for node_name in node_name_list:
         if node_name not in killable_nodes:
             logging.info(
-                f"Node with provided ${node_name} does not exist or the node might "
+                f"Node with provided {node_name} does not exist or the node might "
                 "be in NotReady state."
             )
             return
