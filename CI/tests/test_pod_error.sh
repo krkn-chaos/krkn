@@ -1,4 +1,5 @@
 
+
 source CI/tests/common.sh
 
 trap error ERR
@@ -8,7 +9,9 @@ function functional_test_pod_error {
   export scenario_type="pod_disruption_scenarios"
   export scenario_file="scenarios/kind/pod_etcd.yml"
   export post_config=""
+  # this test will check if krkn exits with an error when too many pods are targeted
   yq -i '.[0].config.kill=5' scenarios/kind/pod_etcd.yml
+  yq -i '.[0].config.krkn_pod_recovery_time=1' scenarios/kind/pod_etcd.yml
   envsubst < CI/config/common_test_config.yaml > CI/config/pod_config.yaml
   cat CI/config/pod_config.yaml
 

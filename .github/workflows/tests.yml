@@ -43,11 +43,11 @@ jobs:
 
       - name: Deploy test workloads
         run: |
-          es_pod_name=$(kubectl get pods -l "app=elasticsearch-master" -o name)
-          echo "POD_NAME: $es_pod_name"
-          kubectl --namespace default port-forward $es_pod_name 9200 &
-          prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
-          kubectl --namespace monitoring port-forward $prom_name 9090 &
+          #          es_pod_name=$(kubectl get pods -l "app=elasticsearch-master" -o name)
+          #          echo "POD_NAME: $es_pod_name"
+          #          kubectl --namespace default port-forward $es_pod_name 9200 &
+          #          prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
+          #          kubectl --namespace monitoring port-forward $prom_name 9090 &
 
           # Wait for Elasticsearch to be ready
           echo "Waiting for Elasticsearch to be ready..."
