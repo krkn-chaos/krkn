@@ -6,6 +6,7 @@ trap error ERR
 trap finish EXIT
 
 function functional_test_pvc_fill {
+  kubectl describe node | grep -n10 "Allocated resources"
   export scenario_type="pvc_scenarios"
   export scenario_file="scenarios/kind/pvc_scenario.yaml"
   export post_config=""
