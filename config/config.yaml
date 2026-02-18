@@ -50,8 +50,10 @@ kraken:
        - network_chaos_ng_scenarios:
                - scenarios/kube/pod-network-filter.yml
                - scenarios/kube/node-network-filter.yml
-       -  kubevirt_vm_outage:
+       - kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
+       - http_load_scenarios:
+           - scenarios/kube/http_load_scenario.yml
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
