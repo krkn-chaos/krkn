@@ -50,6 +50,8 @@ kraken:
        - network_chaos_ng_scenarios:
                - scenarios/kube/pod-network-filter.yml
                - scenarios/kube/node-network-filter.yml
+               - scenarios/kube/node-network-chaos.yml
+               - scenarios/kube/pod-network-chaos.yml
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
 

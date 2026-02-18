@@ -1,7 +1,7 @@
 import importlib
 import inspect
 import pkgutil
-from typing import Type, Tuple, Optional
+from typing import Type, Tuple, Optional, Any
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -11,7 +11,7 @@ class ScenarioPluginNotFound(Exception):
 
 class ScenarioPluginFactory:
 
-    loaded_plugins: dict[str, any] = {}
+    loaded_plugins: dict[str, Any] = {}
     failed_plugins: list[Tuple[str, str, str]] = []
     package_name = None
 
