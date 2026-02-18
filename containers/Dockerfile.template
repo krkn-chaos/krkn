@@ -30,7 +30,7 @@ RUN go mod edit -go 1.24.9 &&\
     go work use &&\
     go build -o virtctl ./cmd/virtctl/
 
-FROM python:3.11-slim
+FROM python:3.11-alpine
 
 ARG PR_NUMBER
 ARG TAG
@@ -40,17 +40,18 @@ ARG TARGETARCH
 # git, jq, wget, curl, ipmitool, openssh-server: existing requirements
 # gettext-base: for envsubst
 # procps: for verify scripts that might use ps
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# bash: explicitly required
+RUN apk add --no-cache \
     git \
     jq \
     wget \
     curl \
     ipmitool \
-    openssh-server \
-    gettext-base \
+    openssh \
+    gettext \
     procps \
     bash \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/cache/apk/*
 
 # Copy oc and virtctl from build stage
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
@@ -61,7 +62,7 @@ RUN wget -qO /usr/bin/yq https://github.com/mikefarah/yq/releases/download/v4.40
     chmod +x /usr/bin/yq
 
 # Create user
-RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
+RUN addgroup -g 1001 krkn && adduser -u 1001 -G krkn -D -h /home/krkn krkn
 
 ENV KUBECONFIG /home/krkn/.kube/config
 
