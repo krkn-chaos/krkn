@@ -7,7 +7,8 @@ trap finish EXIT
 
 function functional_test_pod_crash {
   export scenario_type="pod_disruption_scenarios"
-  export scenario_file="scenarios/kind/pod_etcd.yml"
+  export scenario_file="scenarios/kind/pod_path_provisioner.yml"
+
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/pod_config.yaml
 
