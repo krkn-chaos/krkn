@@ -255,7 +255,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -279,7 +278,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -306,7 +304,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -340,7 +337,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -395,7 +391,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -404,8 +399,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             self.assertEqual(result, 1)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status")
-    def test_run_success_with_fallocate(self, mock_publish, mock_sleep):
+    def test_run_success_with_fallocate(self, mock_sleep):
         """Test successful run using fallocate"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
@@ -460,7 +454,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -469,8 +462,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_sleep.assert_called_once_with(1)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status")
-    def test_run_success_with_dd(self, mock_publish, mock_sleep):
+    def test_run_success_with_dd(self, mock_sleep):
         """Test successful run using dd when fallocate is not available"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
@@ -525,7 +517,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -582,7 +573,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -597,7 +587,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
         result = self.plugin.run(
             run_uuid="test-uuid",
             scenario="/non/existent/path.yaml",
-            krkn_config={},
             lib_telemetry=mock_telemetry,
             scenario_telemetry=mock_scenario_telemetry,
         )
@@ -659,14 +648,12 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_scenario_telemetry = MagicMock()
 
             with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
-                with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status"):
-                    result = self.plugin.run(
-                        run_uuid="test-uuid",
-                        scenario=scenario_path,
-                        krkn_config={},
-                        lib_telemetry=mock_telemetry,
-                        scenario_telemetry=mock_scenario_telemetry,
-                    )
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=mock_scenario_telemetry,
+                )
 
             self.assertEqual(result, 0)  
             # get_pod_info should be called with "actual-pod-from-pvc", not "ignored-pod"
@@ -707,7 +694,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -770,7 +756,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )

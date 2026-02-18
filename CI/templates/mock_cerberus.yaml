@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mock-cerberus-server
+  namespace: default
+data:
+  server.py: |
+    #!/usr/bin/env python3
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import json
+    
+    class MockCerberusHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == '/':
+                # Return True to indicate cluster is healthy
+                self.send_response(200)
+                self.send_header('Content-type', 'text/plain')
+                self.end_headers()
+                self.wfile.write(b'True')
+            elif self.path.startswith('/history'):
+                # Return empty history (no failures)
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {
+                    "history": {
+                        "failures": []
+                    }
+                }
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_response(404)
+                self.end_headers()
+        
+        def log_message(self, format, *args):
+            print(f"[MockCerberus] {format % args}")
+    
+    if __name__ == '__main__':
+        server = HTTPServer(('0.0.0.0', 8080), MockCerberusHandler)
+        print("[MockCerberus] Starting mock cerberus server on port 8080...")
+        server.serve_forever()
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mock-cerberus
+  namespace: default
+  labels:
+    app: mock-cerberus
+spec:
+  containers:
+  - name: mock-cerberus
+    image: python:3.9-slim
+    command: ["python3", "/app/server.py"]
+    ports:
+    - containerPort: 8080
+      name: http
+    volumeMounts:
+    - name: server-script
+      mountPath: /app
+  volumes:
+  - name: server-script
+    configMap:
+      name: mock-cerberus-server
+      defaultMode: 0755
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-cerberus
+  namespace: default
+spec:
+  selector:
+    app: mock-cerberus
+  ports:
+  - protocol: TCP
+    port: 8080
+    targetPort: 8080
+  type: ClusterIP
