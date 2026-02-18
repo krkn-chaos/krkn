@@ -1,5 +1,8 @@
 import queue
+import re
 import time
+from fnmatch import fnmatch
+from typing import List, Union
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -112,17 +115,88 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
         return NetworkChaosScenarioType.Node, self.config
 
     def get_targets(self) -> list[str]:
-        if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_nodes(
-                self.base_network_config.label_selector
-            )
-        else:
-            if not self.config.target:
-                raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
-                )
-            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
-            if self.config.target not in node_info:
-                raise Exception(f"node {self.config.target} not found, aborting")
+        kube = self.kubecli.get_lib_kubernetes()
+        candidates: list[str] = []
 
-            return [self.config.target]
+        if self.base_network_config.label_selector:
+            candidates = kube.list_nodes(self.base_network_config.label_selector)
+            if not candidates:
+                raise Exception(
+                    f"no nodes found for selector {self.base_network_config.label_selector}"
+                )
+
+        else:
+            node_info = kube.list_nodes()
+            if not node_info:
+                raise Exception("no nodes found in the cluster, aborting")
+
+            parsed_targets = self._parse_target_spec(node_info)
+            if not parsed_targets:
+                raise Exception("target specification produced an empty node set")
+
+            missing = [node for node in parsed_targets if node not in node_info]
+            if missing:
+                raise Exception(f"nodes {','.join(missing)} not found, aborting")
+
+            candidates = parsed_targets
+
+        if self.config.exclude_label:
+            excluded_nodes = self._resolve_exclude_nodes(kube, self.config.exclude_label)
+            candidates = [node for node in candidates if node not in excluded_nodes]
+            if not candidates:
+                raise Exception("all nodes excluded by exclude_label, aborting")
+
+        return candidates
+
+    def _parse_target_spec(self, available_nodes: list[str]) -> list[str]:
+        raw_target = self.config.target
+        if raw_target is None:
+            return []
+
+        if isinstance(raw_target, list):
+            return raw_target
+
+        target_text = raw_target.strip()
+        if target_text == "*":
+            return available_nodes
+
+        if "," in target_text:
+            return [item.strip() for item in target_text.split(",") if item.strip()]
+
+        if target_text.startswith("regex:"):
+            pattern_text = target_text[len("regex:") :].strip()
+            if not pattern_text:
+                raise Exception("regex pattern cannot be empty")
+            try:
+                pattern = re.compile(pattern_text)
+            except re.error as exc:
+                raise Exception(f"invalid regex pattern {pattern_text}: {exc}") from exc
+            return [node for node in available_nodes if pattern.search(node)]
+
+        if "*" in target_text or "?" in target_text:
+            return [node for node in available_nodes if fnmatch(node, target_text)]
+
+        return [target_text]
+
+    def _resolve_exclude_nodes(
+        self, kube, exclude_spec: Union[str, List[str]]
+    ) -> set[str]:
+        selectors: List[str] = []
+        if isinstance(exclude_spec, str):
+            selectors = self._split_selectors(exclude_spec)
+        elif isinstance(exclude_spec, list):
+            for entry in exclude_spec:
+                if not isinstance(entry, str):
+                    raise Exception("exclude_label list entries must be strings")
+                selectors.extend(self._split_selectors(entry))
+        else:
+            raise Exception("exclude_label must be a string or list of strings")
+
+        excluded = set()
+        for selector in selectors:
+            excluded.update(kube.list_nodes(selector))
+        return excluded
+
+    @staticmethod
+    def _split_selectors(selector_text: str) -> List[str]:
+        return [item.strip() for item in selector_text.split(",") if item.strip()]
