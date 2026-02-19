@@ -17,6 +17,9 @@ from kubernetes.client.api.apiextensions_v1_api import ApiextensionsV1Api
 from kubernetes.client.api.custom_objects_api import CustomObjectsApi
 from . import cerberus
 
+from krkn.rollback.config import RollbackContent   
+from krkn.rollback.handler import RollbackHandler
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 def get_test_pods(
     pod_name: str,
@@ -1057,12 +1060,12 @@ def pod_outage(
 ) -> typing.Tuple[str, typing.Union[PodOutageSuccessOutput, PodOutageErrorOutput]]:
     """
     Function that performs pod outage chaos scenario based
-    on the provided confiapply_net_policyguration
+    on the provided configuration
 
     Args:
         params (InputParams,)
             - The object containing the configuration for the scenario
-
+ 
     Returns
         A 'success' or 'error' message along with their details
     """
@@ -1117,11 +1120,19 @@ def pod_outage(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-
+        # REGISTER ROLLBACK FOR THIS CHAOS
+        rollback_handler = RollbackHandler()
+        rollback_handler.set_rollback_callable(
+            rollback_pod_network_outage,  
+            RollbackContent(
+                namespace=test_namespace,
+                resource_identifier="pod-network-outage"  
+            )
+        )
         for direction, ports in filter_dict.items():
-            pass
+            # this is where the actual chaos is applied , so before this we need to add content to rollback handler
             job_list.extend(
-                apply_outage_policy(
+                apply_outage_policy(  
                     node_dict,
                     ports,
                     job_template,
@@ -1388,7 +1399,15 @@ def pod_egress_shaping(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-
+        # Registering rollback for egress shaping (only once)
+        rollback_handler = RollbackHandler()
+        rollback_handler.set_rollback_callable(
+            rollback_pod_network_outage,
+            RollbackContent(
+                namespace=test_namespace,
+                resource_identifier="pod-egress-shaping"
+            )
+        )
         for mod in mod_lst:
             for node, ips in node_dict.items():
                 job_list.extend(
@@ -1676,8 +1695,17 @@ def pod_ingress_shaping(
         check_bridge_interface(
             list(node_dict.keys())[0], pod_module_template, br_name, kubecli, test_image
         )
-
+        # Registering rollback for ingress shaping (not per node)
+        rollback_handler = RollbackHandler()
+        rollback_handler.set_rollback_callable(
+            rollback_pod_network_outage,
+            RollbackContent(
+                namespace=test_namespace,
+                resource_identifier="pod-ingress-shaping"
+            )
+        )
         for mod in mod_lst:
+
             for node, ips in node_dict.items():
                 job_list.extend(
                     apply_ingress_policy(
@@ -1731,3 +1759,99 @@ def pod_ingress_shaping(
         delete_virtual_interfaces(kubecli, node_dict.keys(), pod_module_template, test_image)
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
+
+
+def rollback_pod_network_outage(
+    rollback_content: RollbackContent,
+    telemetry_ocp: KrknTelemetryOpenshift
+):
+    """
+    Stateless rollback for pod_network_outage scenario.
+
+    Since RollbackContent only gives pod + namespace,
+    we perform safe best-effort cleanup:
+
+    - Remove ALL OpenFlow rules created for outage (priority 65535)
+    - Remove ALL IFB interfaces (unload ifb module)
+    - Delete leftover modtools pods
+    """
+
+    kubecli = telemetry_ocp.get_lib_kubernetes()
+
+    try:
+        logging.info("[Rollback] Starting pod network outage rollback...")
+
+        # --- 1. Find ALL nodes (stateless approach) ---
+        all_nodes = kubecli.list_nodes(label_selector="")
+        if not all_nodes:
+            logging.warning("[Rollback] No nodes found in cluster")
+            return
+
+        # --- 2. Cleanup on each node ---
+        for node in all_nodes:
+            logging.info(f"[Rollback] Cleaning node: {node}")
+
+            cleanup_pod = f"rollback-clean-{random.randint(1000,9999)}"
+            pod_body = {
+                "apiVersion": "v1",
+                "kind": "Pod",
+                "metadata": {"name": cleanup_pod},
+                "spec": {
+                    "hostPID": True,
+                    "hostNetwork": True,
+                    "nodeName": node,
+                    "containers": [{
+                        "name": "cleanup",
+                        "image": "quay.io/krkn-chaos/krkn:tools",
+                        "securityContext": {"privileged": True},
+                        "command": ["sleep", "3600"],
+                    }],
+                    "restartPolicy": "Never"
+                }
+            }
+
+            # Create cleanup pod
+            kubecli.create_pod(pod_body, namespace="default", timeout=300)
+            try :
+                # --- Clean OpenFlow rules ---
+                for bridge in ["br-int", "br0"]:
+                    try:
+                        logging.info(f"[Rollback] - Removing flows on {bridge}")
+                        kubecli.exec_cmd_in_pod(
+                            ["/host", "ovs-ofctl", "-O", "OpenFlow13", "del-flows", bridge, "priority=65535"],
+                            cleanup_pod,
+                            "default",
+                            base_command="chroot"
+                        )
+                    except Exception:
+                        logging.info(f"[Rollback] - Bridge {bridge} may not exist")
+
+                # --- Remove IFB interfaces ---
+                try:
+                    kubecli.exec_cmd_in_pod(
+                        ["/host", "modprobe", "-r", "ifb"],
+                        cleanup_pod,
+                        "default",
+                        base_command="chroot"
+                    )
+                except Exception:
+                    logging.info(f"[Rollback] - IFB module may not be loaded") 
+
+            finally:
+                # Delete cleanup pod
+                kubecli.delete_pod(cleanup_pod, "default")
+
+        # --- 3. Remove leftover modtools pods ---
+        try:
+            pods = kubecli.list_pods(label_selector="", namespace="default")
+            for p in pods:
+                if p.startswith("modtools-"):
+                    logging.info(f"[Rollback] Removing leftover modtools pod: {p}")
+                    kubecli.delete_pod(p, "default")
+        except Exception:
+            logging.info(f"[Rollback] - No leftover modtools pods found")
+
+        logging.info("[Rollback] Pod network outage rollback completed successfully.")
+
+    except Exception as e:
+        logging.error(f"[Rollback] Failure during cleanup: {e}")
