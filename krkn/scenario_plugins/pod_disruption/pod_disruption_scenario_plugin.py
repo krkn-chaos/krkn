@@ -1,6 +1,7 @@
 import logging
 import random
 import time
+import threading
 from asyncio import Future
 import traceback
 import yaml
@@ -16,6 +17,7 @@ from datetime import datetime
 from dataclasses import dataclass
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.signal import signal_handler
 
 @dataclass
 class Pod:
@@ -32,6 +34,9 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
+        # Get stop event for graceful interrupt handling
+        stop_event = signal_handler.get_stop_event()
+        
         try:
             with open(scenario, "r") as f:
                 cont_scenario_config = yaml.full_load(f)
@@ -39,7 +44,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     kill_scenario_config = InputParams(kill_scenario["config"])
                     future_snapshot=self.start_monitoring(
                         kill_scenario_config,
-                        lib_telemetry
+                        lib_telemetry,
+                        stop_event=stop_event
                     )
                     ret = self.killing_pods(
                         kill_scenario_config, lib_telemetry.get_lib_kubernetes()
@@ -72,7 +78,17 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     if ret > 0:
                         logging.info("PodDisruptionScenarioPlugin failed")
                         return 1
-                    
+        except KeyboardInterrupt:
+            # stop_event is already set by signal handler
+            try:
+                # Give the monitoring thread a moment to clean up
+                snapshot = future_snapshot.result(timeout=2)
+                if snapshot:
+                    result = snapshot.get_pods_status()
+                    scenario_telemetry.affected_pods = result
+            except Exception:
+                pass
+            return 1
         except (RuntimeError, Exception) as e:
             logging.error("Stack trace:\n%s", traceback.format_exc())
             logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
@@ -83,7 +99,12 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["pod_disruption_scenarios"]
 
-    def start_monitoring(self, kill_scenario: InputParams, lib_telemetry: KrknTelemetryOpenshift) -> Future:
+    def start_monitoring(
+        self,
+        kill_scenario: InputParams,
+        lib_telemetry: KrknTelemetryOpenshift,
+        stop_event: threading.Event = None
+    ) -> Future:
 
         recovery_time = kill_scenario.krkn_pod_recovery_time
         if (
@@ -96,7 +117,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 namespace_pattern=namespace_pattern,
                 label_selector=label_selector,
                 max_timeout=recovery_time,
-                v1_client=lib_telemetry.get_lib_kubernetes().cli
+                v1_client=lib_telemetry.get_lib_kubernetes().cli,
+                stop_event=stop_event
             )
             logging.info(
                 f"waiting up to {recovery_time} seconds for pod recovery, "
@@ -114,7 +136,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 pod_name_pattern=name_pattern,
                 namespace_pattern=namespace_pattern,
                 max_timeout=recovery_time,
-                v1_client=lib_telemetry.get_lib_kubernetes().cli
+                v1_client=lib_telemetry.get_lib_kubernetes().cli,
+                stop_event=stop_event
             )
             logging.info(
                 f"waiting up to {recovery_time} seconds for pod recovery, "
