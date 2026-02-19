@@ -8,7 +8,7 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and_label, \
     select_and_monitor_by_name_pattern_and_namespace_pattern
 
-from krkn.scenario_plugins.pod_disruption.models.models import InputParams
+from krkn.scenario_plugins.pod_disruption.models.models import InputParams, KilledPodDetail
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.pod_monitor.models import PodsSnapshot
@@ -41,11 +41,31 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         kill_scenario_config,
                         lib_telemetry
                     )
-                    ret = self.killing_pods(
+                    killed_pods, return_code = self.killing_pods(
                         kill_scenario_config, lib_telemetry.get_lib_kubernetes()
                     )
-                    # returning 2 if configuration issue and exiting immediately
-                    if ret > 1:
+
+                    # Store killed pods details in telemetry for analysis
+                    # Note: killed_pods_details is a custom extension field supported by ScenarioTelemetry
+                    scenario_telemetry.killed_pods_details = [
+                        {
+                            "namespace": pod.namespace,
+                            "name": pod.name,
+                            "timestamp": pod.timestamp,
+                            "status": pod.status,
+                            "reason": pod.reason
+                        }
+                        for pod in killed_pods
+                    ]
+                    killed_count = len([p for p in killed_pods if p.status == "killed"])
+                    excluded_count = len([p for p in killed_pods if p.status == "excluded"])
+                    logging.debug(
+                        f"Pod disruption summary - Total targeted: {len(killed_pods)}, "
+                        f"Killed: {killed_count}, Excluded: {excluded_count}"
+                    )
+
+                    # return code 2+ indicates configuration issue and exit immediately
+                    if return_code > 1:
                         # Cancel the monitoring future since killing_pods already failed
                         logging.info("Cancelling pod monitoring future")
                         future_snapshot.cancel()
@@ -61,21 +81,21 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
                         logging.error("PodDisruptionScenarioPlugin failed during setup" + str(result))
                         return 1
-                    
+
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
                     if len(result.unrecovered) > 0:
-                        logging.info("PodDisruptionScenarioPlugin failed with unrecovered pods")
+                        logging.error("PodDisruptionScenarioPlugin failed: pods did not recover")
                         return 1
 
-                    if ret > 0:
-                        logging.info("PodDisruptionScenarioPlugin failed")
+                    if return_code > 0:
+                        logging.error("PodDisruptionScenarioPlugin failed: pod killing scenario returned error")
                         return 1
                     
         except (RuntimeError, Exception) as e:
             logging.error("Stack trace:\n%s", traceback.format_exc())
-            logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
+            logging.error(f"PodDisruptionScenarioPlugin exiting due to exception: {e}")
             return 1
         else:
             return 0
@@ -203,10 +223,17 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         )
     
     def killing_pods(self, config: InputParams, kubecli: KrknKubernetes):
+        """Kill pods matching the specified criteria and track which pods were killed.
+
+        Returns:
+            tuple: (killed_pods_list, return_val) where killed_pods_list contains KilledPodDetail objects
+                   for each pod that was killed or excluded, and return_val is 0 for success, 1 for failure
+        """
         # region Select target pods
+        killed_pods = []
         try:
             namespace = config.namespace_pattern
-            if not namespace: 
+            if not namespace:
                 logging.error('Namespace pattern must be specified')
 
             pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
@@ -221,23 +248,38 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             if len(pods) < config.kill:
                 logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
                         config.kill, len(pods)))
-                return 1
-            
+                return killed_pods, 1
+
             random.shuffle(pods)
+            kill_timestamp = time.time()
             for i in range(config.kill):
                 pod = pods[i]
                 logging.info(pod)
                 if pod[0] in exclude_pods:
                     logging.info(f"Excluding {pod[0]} from chaos")
+                    killed_pods.append(KilledPodDetail(
+                        namespace=pod[1],
+                        name=pod[0],
+                        timestamp=kill_timestamp,
+                        status="excluded",
+                        reason="matched exclude_label"
+                    ))
                 else:
                     logging.info(f'Deleting pod {pod[0]}')
                     kubecli.delete_pod(pod[0], pod[1])
-            
-            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
-        except Exception as e:
-            raise(e)
+                    killed_pods.append(KilledPodDetail(
+                        namespace=pod[1],
+                        name=pod[0],
+                        timestamp=kill_timestamp,
+                        status="killed",
+                        reason=""
+                    ))
 
-        return return_val
+            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+        except Exception:
+            raise
+
+        return killed_pods, return_val
 
     def wait_for_pods(
         self, label_selector, pod_name, namespace, pod_count, duration, wait_timeout, kubecli: KrknKubernetes, node_label_selector, node_names
