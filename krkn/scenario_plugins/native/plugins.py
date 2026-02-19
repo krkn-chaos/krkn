@@ -49,7 +49,7 @@ class Plugins:
     def unserialize_scenario(self, file: str) -> Any:
         return serialization.load_from_file(abspath(file))
 
-    def run(self, file: str, kubeconfig_path: str, kraken_config: str, run_uuid: str):
+    def run(self, file: str, kubeconfig_path: str, run_uuid: str):
         """
         Run executes a series of steps
         """
@@ -93,8 +93,6 @@ class Plugins:
             unserialized_input = step.schema.input.unserialize(entry["config"])
             if "kubeconfig_path" in step.schema.input.properties:
                 unserialized_input.kubeconfig_path = kubeconfig_path
-            if "kraken_config" in step.schema.input.properties:
-                unserialized_input.kraken_config = kraken_config
             output_id, output_data = step.schema(
                 params=unserialized_input, run_id=run_uuid
             )

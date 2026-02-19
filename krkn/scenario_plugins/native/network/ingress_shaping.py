@@ -9,7 +9,6 @@ import random
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
 from . import kubernetes_functions as kube_helper
-from . import cerberus
 import typing
 from arcaflow_plugin_sdk import validation, plugin
 from kubernetes.client.api.core_v1_api import CoreV1Api as CoreV1Api
@@ -100,12 +99,12 @@ class NetworkScenarioConfig:
         default=None,
         metadata={
             "name": "Network Parameters",
-            "description": "The network filters that are applied on the interface. "
-            "The currently supported filters are latency, "
-            "loss and bandwidth",
-        },
+            "description":
+                "The network filters that are applied on the interface. "
+                "The currently supported filters are latency, "
+                "loss and bandwidth"
+        }
     )
-
 
 @dataclass
 class NetworkScenarioSuccessOutput:
@@ -773,8 +772,7 @@ def network_chaos(
                 logging.info("Deleting jobs")
                 delete_jobs(cli, batch_cli, job_list[:])
                 job_list = []
-                logging.info("Waiting for wait_duration : %ss" % cfg.wait_duration)
-                time.sleep(cfg.wait_duration)
+               
                 create_interfaces = False
         else:
 

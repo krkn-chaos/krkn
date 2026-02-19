@@ -12,7 +12,6 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -21,7 +20,6 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
             PLUGINS.run(
                 scenario,
                 lib_telemetry.get_lib_kubernetes().get_kubeconfig_path(),
-                krkn_config,
                 run_uuid,
             )
 

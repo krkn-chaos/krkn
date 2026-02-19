@@ -23,7 +23,7 @@ from krkn.rollback.handler import set_rollback_context_decorator
 class HogsScenarioPlugin(AbstractScenarioPlugin):
     
     @set_rollback_context_decorator
-    def run(self, run_uuid: str, scenario: str, krkn_config: dict[str, any], lib_telemetry: KrknTelemetryOpenshift,
+    def run(self, run_uuid: str, scenario: str, lib_telemetry: KrknTelemetryOpenshift,
             scenario_telemetry: ScenarioTelemetry) -> int:
         try:
             with open(scenario, "r") as f:

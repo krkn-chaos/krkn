@@ -42,11 +42,10 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         self.assertEqual(result, ["cluster_shut_down_scenarios"])
         self.assertEqual(len(result), 1)
 
-    @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.cerberus')
     @patch('time.time')
     @patch('time.sleep')
     @patch('builtins.open', new_callable=mock_open)
-    def test_run_success_aws(self, mock_file, mock_sleep, mock_time, mock_cerberus):
+    def test_run_success_aws(self, mock_file, mock_sleep, mock_time):
         """
         Test successful run of shut down scenario with AWS cloud type
         """
@@ -67,14 +66,12 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
                 result = self.plugin.run(
                     "test-uuid",
                     "/path/to/scenario.yaml",
-                    {},
                     self.mock_lib_telemetry,
                     self.mock_scenario_telemetry
                 )
 
         self.assertEqual(result, 0)
         mock_cluster_shutdown.assert_called_once()
-        mock_cerberus.publish_kraken_status.assert_called_once()
 
     @patch('logging.error')
     @patch('builtins.open', new_callable=mock_open)
@@ -87,7 +84,6 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         result = self.plugin.run(
             "test-uuid",
             "/path/to/scenario.yaml",
-            {},
             self.mock_lib_telemetry,
             self.mock_scenario_telemetry
         )
