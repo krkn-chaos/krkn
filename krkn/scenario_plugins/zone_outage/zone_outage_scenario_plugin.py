@@ -1,3 +1,5 @@
+import base64
+import json
 import logging
 import time
 
@@ -12,6 +14,8 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn_lib.utils import get_yaml_item_value
+from krkn.rollback.config import RollbackCallable, RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.native.network import cerberus
 
@@ -19,6 +23,7 @@ from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
 
 class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -34,15 +39,18 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 cloud_type = scenario_config["cloud_type"]
                 kube_check = get_yaml_item_value(scenario_config, "kube_check", True)
                 start_time = int(time.time())
+                rollback_data = {}
                 if cloud_type.lower() == "aws":
-                    self.cloud_object = AWS()
-                    self.network_based_zone(scenario_config)
+                    # Get region from scenario config or fall back to environment/AWS config
+                    region = get_yaml_item_value(scenario_config, "region", None)
+                    rollback_data["cloud_object"] = self.cloud_object = AWS(region=region)
+                    rollback_data["network_based_zone"] = self.network_based_zone(scenario_config)
                 else:
                     kubecli = lib_telemetry.get_lib_kubernetes()
                     if cloud_type.lower() == "gcp":
                         affected_nodes_status = AffectedNodeStatus()
-                        self.cloud_object = gcp_node_scenarios(kubecli, kube_check, affected_nodes_status)
-                        self.node_based_zone(scenario_config, kubecli)
+                        rollback_data["cloud_object"] = self.cloud_object = gcp_node_scenarios(kubecli, kube_check, affected_nodes_status)
+                        rollback_data["node_based_zone"] = self.node_based_zone(scenario_config, kubecli)
                         affected_nodes_status = self.cloud_object.affected_nodes_status
                         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
                     else:
@@ -51,7 +59,15 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                             "zone outage scenarios" % cloud_type
                         )
                         return 1
-
+                rollback_data["scenario_config"] = scenario_config
+                rollback_payload = base64.b64encode(json.dumps(rollback_data).encode('utf-8')).decode('utf-8')
+                RollbackCallable(
+                    self.rollback_zone_outage,
+                    RollbackContent(
+                        resource_identifier=rollback_payload,
+                        namespace=None,
+                    ),
+                )
                 end_time = int(time.time())
                 cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
         except (RuntimeError, Exception) as e:
@@ -98,8 +114,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
         else:
             return 0
 
-    def network_based_zone(self, scenario_config: dict[str, any]):
-
+    def network_based_zone(self, scenario_config: dict[str, any]) -> dict[dict[str, any], dict[str, any]]:
         vpc_id = scenario_config["vpc_id"]
         subnet_ids = scenario_config["subnet_id"]
         duration = scenario_config["duration"]
@@ -164,6 +179,53 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
         for acl_id in acl_ids_created:
             self.cloud_object.delete_network_acl(acl_id)
 
+        return {
+            "acl_ids_created": acl_ids_created,
+            "ids": ids,
+        }
 
     def get_scenario_types(self) -> list[str]:
         return ["zone_outages_scenarios"]
+    
+    @staticmethod
+    def rollback_zone_outage(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+        try:
+            import base64 # noqa
+            import json # noqa
+            rollback_data = json.loads(base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8'))
+            scenario_config = rollback_data["scenario_config"]
+            cloud_object = rollback_data["cloud_object"]
+            cloud_type = scenario_config["cloud_type"]
+            if cloud_type.lower() == "aws":
+                ZoneOutageScenarioPlugin.rollback_aws_zone_outage(cloud_object, rollback_data["network_based_zone"], lib_telemetry)
+            elif cloud_type.lower() == "gcp":
+                ZoneOutageScenarioPlugin.rollback_gcp_zone_outage(cloud_object, rollback_data["network_based_zone"], lib_telemetry)
+            else:
+                logging.error(f"Unsupported cloud type for rollback: {cloud_type}")
+        except Exception as e:
+            logging.error(f"Failed to rollback zone outage: {e}")
+    
+    @staticmethod
+    def rollback_aws_zone_outage(cloud_object: AWS, network_based_zone: dict[str, any], lib_telemetry: KrknTelemetryOpenshift):
+        try:
+            ids = network_based_zone["ids"]
+            acl_ids_created = network_based_zone["acl_ids_created"]
+            # replace the applied acl with the previous acl in use
+            for new_association_id, original_acl_id in ids.items():
+                cloud_object.replace_network_acl_association(
+                    new_association_id, original_acl_id
+                )
+            logging.info("Replaced the applied ACL with the previous ACL in use")
+            for acl_id in acl_ids_created:
+                cloud_object.delete_network_acl(acl_id)
+            logging.info("Deleted the network ACLs created for the run")
+            logging.info("Zone outage rollback completed successfully")
+        except Exception as e:
+            logging.error(f"Failed to rollback AWS zone outage: {e}")
+
+    @staticmethod
+    def rollback_gcp_zone_outage(cloud_object: gcp_node_scenarios, network_based_zone: dict[str, any], lib_telemetry: KrknTelemetryOpenshift):
+        try:
+            pass
+        except Exception as e:
+            logging.error(f"Failed to rollback GCP zone outage: {e}")
