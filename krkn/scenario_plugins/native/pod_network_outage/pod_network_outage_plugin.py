@@ -1082,8 +1082,14 @@ def pod_outage(
     if params.kraken_config:
         publish = True
 
-    for i in params.direction:
-        filter_dict[i] = eval(f"params.{i}_ports")
+    valid_directions = {"ingress", "egress"}
+    for direction in params.direction:
+        if direction not in valid_directions:
+            raise Exception(
+                f"Invalid direction '{direction}'. Must be one of: "
+                f"{', '.join(sorted(valid_directions))}"
+            )
+        filter_dict[direction] = getattr(params, f"{direction}_ports")
 
     try:
         ip_set = set()
