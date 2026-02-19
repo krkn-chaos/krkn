@@ -1,7 +1,9 @@
+import json
 import logging
 import time
 from multiprocessing.pool import ThreadPool
 from itertools import repeat
+import base64
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -11,6 +13,8 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value, log_exception
 
 from krkn import cerberus, utils
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import aws_node_scenarios
@@ -36,6 +40,7 @@ node_general = False
 
 
 class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -46,13 +51,16 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         with open(scenario, "r") as f:
             node_scenario_config = yaml.full_load(f)
-            for node_scenario in node_scenario_config["node_scenarios"]:
+            node_details = {}
+            for idx , node_scenario in enumerate(node_scenario_config["node_scenarios"]):
+                node_details[idx] = { "node_details": node_scenario , "rollback_action": ""}
                 try:
                     node_scenario_object = self.get_node_scenario_object(
                         node_scenario, lib_telemetry.get_lib_kubernetes()
                     )
                     if node_scenario["actions"]:
                         for action in node_scenario["actions"]:
+                            node_details[idx]["rollback_action"] = action
                             start_time = int(time.time())
                             self.inject_node_scenario(
                                 action,
@@ -64,11 +72,20 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                             end_time = int(time.time())
                             cerberus.get_status(krkn_config, start_time, end_time)
                 except (RuntimeError, Exception) as e:
+                    node_details[idx]["node_details"] = { "status": "failed", "error": str(e) }
                     logging.error("Node Actions exiting due to Exception %s" % e)
+                    self.rollback_handler.set_rollback_callable(
+                        self.rollback_node_action,
+                        RollbackContent(
+                            namespace=None,
+                            resource_identifier=str(base64.b64encode(json.dumps(node_details[idx]).encode('utf-8')).decode('utf-8')),
+                        ),
+                    )
                     return 1
             return 0
 
-    def get_node_scenario_object(self, node_scenario, kubecli: KrknKubernetes):
+    @staticmethod
+    def get_node_scenario_object(node_scenario, kubecli: KrknKubernetes):
         affected_nodes_status = AffectedNodeStatus()
 
         node_action_kube_check = get_yaml_item_value(node_scenario, "kube_check", True)
@@ -323,3 +340,157 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
 
     def get_scenario_types(self) -> list[str]:
         return ["node_scenarios"]
+    
+    @staticmethod
+    def rollback_node_action(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
+        """
+        Rollback function to recover nodes that are in Stopped or NotReady states.
+        
+        :param rollback_content: Rollback content containing serialized node scenario details
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations
+        """
+        try:
+            logging.info("Starting node action rollback...")
+            import json # noqa
+            import base64 # noqa
+            rollback_data = json.loads(base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8'))
+            node_scenario = rollback_data["node_details"]
+            failed_action = rollback_data["rollback_action"]
+            
+            logging.info(f"Attempting rollback for failed action: {failed_action}")
+            
+            no_rollback_actions = [
+                "node_start_scenario",
+                "node_stop_scenario", 
+                "node_termination_scenario",
+                "node_reboot_scenario"
+            ]
+            
+            if failed_action in no_rollback_actions:
+                logging.info(f"Action {failed_action} does not require rollback. Skipping.")
+                return
+            
+            kubecli = lib_telemetry.get_lib_kubernetes()
+            
+            node_name = get_yaml_item_value(node_scenario, "node_name", "")
+            label_selector = get_yaml_item_value(node_scenario, "label_selector", "")
+            instance_count = get_yaml_item_value(node_scenario, "instance_count", 1)
+            timeout = get_yaml_item_value(node_scenario, "timeout", 300)
+            
+            if node_name:
+                node_name_list = node_name.split(",")
+                nodes = node_name_list
+                logging.info(f"Target nodes by name: {nodes}")
+            else:
+                # Get nodes by label selector
+                try:
+                    nodes = common_node_functions.get_node(
+                        label_selector, instance_count, kubecli
+                    )
+                    logging.info(f"Target nodes by label: {nodes}")
+                except Exception as e:
+                    logging.error(f"Could not identify target nodes: {e}")
+                    # Try to get all nodes matching label (even NotReady ones)
+                    nodes = []
+                    all_nodes = kubecli.list_nodes()
+                    for node_obj in all_nodes:
+                        node_name = node_obj.metadata.name
+                        if label_selector:
+                            node_labels = node_obj.metadata.labels or {}
+                            for label in label_selector.split(","):
+                                if "=" in label:
+                                    key, value = label.split("=", 1)
+                                    if node_labels.get(key) == value:
+                                        nodes.append(node_name)
+                                        break
+                    logging.info(f"Found nodes (including NotReady): {nodes}")
+            
+            if not nodes:
+                logging.warning("No target nodes found for rollback")
+                return
+            
+            try:
+
+                cloud_type = node_scenario.get("cloud_type", "generic")
+                node_scenario_object = NodeActionsScenarioPlugin.get_node_scenario_object(node_scenario, kubecli)
+                logging.info(f"Created scenario object for cloud type: {cloud_type}")
+                
+            except Exception as e:
+                logging.error(f"Failed to create node scenario object: {e}")
+                return
+            
+            # Check each node state and recover
+            for node in nodes:
+                try:
+                    logging.info(f"Checking state of node: {node}")
+                    
+                    # Check Kubernetes node status
+                    try:
+                        node_info = kubecli.get_node_info(node)
+                        node_ready = False
+                        
+                        if node_info and node_info.status and node_info.status.conditions:
+                            for condition in node_info.status.conditions:
+                                if condition.type == "Ready":
+                                    node_ready = (condition.status == "True")
+                                    break
+                        
+                        logging.info(f"Node {node} Kubernetes Ready state: {node_ready}")
+                        
+                        if node_ready:
+                            logging.info(f"Node {node} is already in Ready state. No recovery needed.")
+                            continue
+                        
+                        # Node is NotReady - attempt recovery
+                        logging.info(f"Node {node} is NotReady. Attempting to recover...")
+                        
+                        # For Docker/Kind and generic scenarios, try reboot
+                        if cloud_type in ["docker", "generic"]:
+                            logging.info(f"Attempting to restart kubelet on node {node}")
+                            try:
+                                # Try restart kubelet first (less invasive)
+                                node_scenario_object.restart_kubelet_scenario(1, node, timeout)
+                                logging.info(f"Kubelet restart initiated for node {node}")
+                                
+                                # Wait for node to become ready
+                                common_node_functions.wait_for_ready_status(node, timeout, kubecli)
+                                logging.info(f"Node {node} successfully recovered to Ready state")
+                                
+                            except Exception as restart_error:
+                                logging.warning(f"Kubelet restart failed, trying node reboot: {restart_error}")
+                                try:
+                                    node_scenario_object.node_reboot_scenario(1, node, timeout, False)
+                                    logging.info(f"Node reboot initiated for node {node}")
+                                    common_node_functions.wait_for_ready_status(node, timeout, kubecli)
+                                    logging.info(f"Node {node} successfully recovered after reboot")
+                                except Exception as reboot_error:
+                                    logging.error(f"Failed to recover node {node} via reboot: {reboot_error}")
+                        else:
+                            # For other cloud types, try to start the node first
+                            logging.info(f"Attempting to start node {node}")
+                            try:
+                                node_scenario_object.node_start_scenario(1, node, timeout)
+                                common_node_functions.wait_for_ready_status(node, timeout, kubecli)
+                                logging.info(f"Node {node} successfully started and ready")
+                            except Exception as start_error:
+                                logging.warning(f"Node start failed, trying reboot: {start_error}")
+                                node_scenario_object.node_reboot_scenario(1, node, timeout, False)
+                                common_node_functions.wait_for_ready_status(node, timeout, kubecli)
+                                logging.info(f"Node {node} successfully recovered after reboot")
+                        
+                    except Exception as node_check_error:
+                        logging.error(f"Failed to check/recover node {node}: {node_check_error}")
+                        continue
+                        
+                except Exception as node_error:
+                    logging.error(f"Error during rollback for node {node}: {node_error}")
+                    continue
+            
+            logging.info("Node action rollback completed")
+            
+        except json.JSONDecodeError as json_error:
+            logging.error(f"Failed to parse rollback content: {json_error}")
+        except Exception as e:
+            logging.error(f"Node action rollback failed with exception: {e}")
+            import traceback
+            logging.error(traceback.format_exc())
