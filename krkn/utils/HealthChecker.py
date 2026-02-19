@@ -77,7 +77,7 @@ class HealthChecker:
                 success_response = {
                     "url": url,
                     "status": True,
-                    "status_code": response["status_code"],
+                    "status_code": health_check_tracker[url]["status_code"],
                     "start_timestamp": health_check_tracker[url]["start_timestamp"].isoformat(),
                     "end_timestamp": health_check_end_time_stamp.isoformat(),
                     "duration": duration
