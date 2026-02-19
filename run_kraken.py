@@ -28,7 +28,7 @@ from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
-from krkn.utils import TeeLogHandler
+from krkn.utils import TeeLogHandler, ErrorCollectionHandler
 from krkn.utils.HealthChecker import HealthChecker
 from krkn.utils.VirtChecker import VirtChecker
 from krkn.scenario_plugins.scenario_plugin_factory import (
@@ -426,16 +426,22 @@ def main(options, command: Optional[str]) -> int:
             logging.info("collecting Kubernetes cluster metadata....")
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
 
+        # Collect error logs from handler
+        error_logs = error_collection_handler.get_error_logs()
+        if error_logs:
+            logging.info(f"Collected {len(error_logs)} error logs for telemetry")
+            chaos_telemetry.error_logs = error_logs
+        else:
+            logging.info("No error logs collected during chaos run")
+            chaos_telemetry.error_logs = []
+
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
-            elastic_telemetry = ElasticChaosRunTelemetry(
-                chaos_run_telemetry=decoded_chaos_run_telemetry
-            )
             result = elastic_search.push_telemetry(
-                elastic_telemetry, elastic_telemetry_index
+                decoded_chaos_run_telemetry, elastic_telemetry_index
             )
             if result == -1:
                 safe_logger.error(
@@ -660,7 +666,14 @@ if __name__ == "__main__":
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(colored)
     tee_handler.setFormatter(plain)
-    handlers = [file_handler, stream_handler, tee_handler]
+    error_collection_handler = ErrorCollectionHandler(level=logging.ERROR)
+
+    handlers = [
+        file_handler,
+        stream_handler,
+        tee_handler,
+        error_collection_handler,
+    ]
 
     logging.basicConfig(
         level=logging.DEBUG if options.debug else logging.INFO,
