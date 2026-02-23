@@ -18,3 +18,9 @@ Following are a list of enhancements that we are planning to work on adding supp
 - [ ] [Ability to roll back cluster to original state if chaos fails](https://github.com/krkn-chaos/krkn/issues/804)
 - [ ] Add recovery time metrics to each scenario for better regression analysis
 - [ ] [Add resiliency scoring to chaos scenarios ran on cluster](https://github.com/krkn-chaos/krkn/issues/125)
+- [ ] [Add AI-based Chaos Configuration Generator](https://github.com/krkn-chaos/krkn/issues/1166)
+- [ ] [Introduce Security Chaos Engineering Scenarios](https://github.com/krkn-chaos/krkn/issues/1165)
+- [ ] [Add AWS-native Chaos Scenarios (S3, Lambda, Networking)](https://github.com/krkn-chaos/krkn/issues/1164)
+- [ ] [Unify Krkn Ecosystem under krknctl for Enhanced UX](https://github.com/krkn-chaos/krknctl/issues/113)
+- [ ] [Build Web UI for Creating, Monitoring, and Reviewing Chaos Scenarios](https://github.com/krkn-chaos/krkn/issues/1167)
+- [ ] [Add Predefined Chaos Scenario Templates (KRKN Chaos Library)](https://github.com/krkn-chaos/krkn/issues/1168)
