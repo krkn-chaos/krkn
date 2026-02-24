@@ -55,6 +55,10 @@ kraken:
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
 
+resiliency:
+  resiliency_run_mode: standalone  # Options: standalone, controller, disabled
+  resiliency_file: config/alerts.yaml  # Path to SLO definitions, will resolve to performance_monitoring: alert_profile: if not specified
+
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal

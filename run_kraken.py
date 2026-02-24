@@ -22,10 +22,7 @@ from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
 import server as server
 from krkn.resiliency.resiliency import (
-    Resiliency,
-    compute_resiliency,
-    add_scenario_reports,
-    finalize_and_save,
+    Resiliency
 )
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
@@ -61,12 +58,7 @@ def main(options, command: Optional[str]) -> int:
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
 
-    # Determine execution mode (standalone, controller, or disabled)
-    run_mode = (os.getenv("RESILIENCY_ENABLED_MODE") or "standalone").lower().strip()
-    valid_run_modes = {"standalone", "controller", "disabled"}
-    if run_mode not in valid_run_modes:
-        logging.warning("Unknown RESILIENCY_ENABLED_MODE '%s'. Defaulting to 'standalone'", run_mode)
-        run_mode = "standalone"
+    
 
     cfg = options.cfg
     # Parse and read the config
@@ -79,6 +71,7 @@ def main(options, command: Optional[str]) -> int:
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
         kraken_config = cfg
+
         chaos_scenarios = get_yaml_item_value(config["kraken"], "chaos_scenarios", [])
         publish_running_status = get_yaml_item_value(
             config["kraken"], "publish_kraken_status", False
@@ -100,6 +93,14 @@ def main(options, command: Optional[str]) -> int:
             config["kraken"], "signal_address", "0.0.0.0"
         )
         run_signal = get_yaml_item_value(config["kraken"], "signal_state", "RUN")
+        
+        resiliency_config = get_yaml_item_value(config,"resiliency",{})
+        # Determine execution mode (standalone, controller, or disabled)
+        run_mode = get_yaml_item_value(resiliency_config, "resiliency_run_mode", "standalone")
+        valid_run_modes = {"standalone", "detailed", "disabled"}
+        if run_mode not in valid_run_modes:
+            logging.warning("Unknown resiliency_run_mode '%s'. Defaulting to 'standalone'", run_mode)
+            run_mode = "standalone"
         wait_duration = get_yaml_item_value(config["tunings"], "wait_duration", 60)
         iterations = get_yaml_item_value(config["tunings"], "iterations", 1)
         daemon_mode = get_yaml_item_value(config["tunings"], "daemon_mode", False)
@@ -282,8 +283,8 @@ def main(options, command: Optional[str]) -> int:
             except Exception as prom_exc:  
                 logging.error("Prometheus connectivity test failed: %s. Disabling resiliency features as Prometheus is required for SLO evaluation.", prom_exc)
                 run_mode = "disabled"
-
-        resiliency_obj = Resiliency() if run_mode != "disabled" else None  # Initialize resiliency orchestrator
+        resiliency_alerts = get_yaml_item_value(resiliency_config, "resiliency_file", get_yaml_item_value(config['performance_monitoring'],"alert_profile", "config/alerts.yaml"))
+        resiliency_obj = Resiliency(resiliency_alerts) if run_mode != "disabled" else None  # Initialize resiliency orchestrator
         logging.info("Server URL: %s" % kubecli.get_host())
 
         if command == "list-rollback":
@@ -410,8 +411,7 @@ def main(options, command: Optional[str]) -> int:
                         chaos_telemetry.scenarios.extend(scenario_telemetries)
                         batch_window_end_dt = datetime.datetime.utcnow()
                         if resiliency_obj:
-                            add_scenario_reports(
-                                resiliency_obj=resiliency_obj,
+                            resiliency_obj.add_scenario_reports(
                                 scenario_telemetries=scenario_telemetries,
                                 prom_cli=prometheus,
                                 scenario_type=scenario_type,
@@ -490,13 +490,11 @@ def main(options, command: Optional[str]) -> int:
 
         if resiliency_obj:
             try:
-                summary_report, detailed_report = finalize_and_save(
-                    resiliency_obj=resiliency_obj,
+                resiliency_obj.finalize_and_save(
                     prom_cli=prometheus,
                     total_start_time=datetime.datetime.fromtimestamp(start_time),
                     total_end_time=datetime.datetime.fromtimestamp(end_time),
                     run_mode=run_mode,
-                    logger=logging,
                 )
 
             except Exception as e:
@@ -505,7 +503,7 @@ def main(options, command: Optional[str]) -> int:
 
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
-        if resiliency_obj and hasattr(resiliency_obj, "summary"):
+        if resiliency_obj and hasattr(resiliency_obj, "summary") and resiliency_obj.summary is not None:
             summary_dict = resiliency_obj.get_summary()
             decoded_chaos_run_telemetry.overall_resiliency_report = ResiliencyReport(
                 json_object=summary_dict,
