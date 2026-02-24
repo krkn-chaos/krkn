@@ -1,0 +1,7 @@
+# Base pod_disruption scenario (list). Tests load this and patch namespace_pattern with ^<ns>$.
+- id: kill-pods
+  config:
+    namespace_pattern: "^default$"
+    label_selector: app=krkn-pod-disruption-target
+    krkn_pod_recovery_time: 20
+    kill: 1

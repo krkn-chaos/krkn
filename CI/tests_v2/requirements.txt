@@ -1,0 +1,7 @@
+# Additional deps for CI/tests_v2 (pytest functional tests).
+# Install after the main repo requirements.txt.
+# pytest and coverage are provided by the main requirements.txt.
+pytest-rerunfailures>=14.0
+pytest-html>=4.1.0
+pytest-timeout>=2.2.0
+pytest-order>=1.2.0
