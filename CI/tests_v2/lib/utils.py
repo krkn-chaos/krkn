@@ -14,6 +14,18 @@ from kubernetes.client import V1NetworkPolicy, V1NetworkPolicyList, V1Pod, V1Pod
 logger = logging.getLogger(__name__)
 
 
+def _pods(pod_list: Union[V1PodList, List[V1Pod]]) -> List[V1Pod]:
+    """Normalize V1PodList or list of V1Pod to list of V1Pod."""
+    return pod_list.items if hasattr(pod_list, "items") else pod_list
+
+
+def _policies(
+    policy_list: Union[V1NetworkPolicyList, List[V1NetworkPolicy]],
+) -> List[V1NetworkPolicy]:
+    """Normalize V1NetworkPolicyList or list to list of V1NetworkPolicy."""
+    return policy_list.items if hasattr(policy_list, "items") else policy_list
+
+
 def scenario_dir(repo_root: Path, scenario_name: str) -> Path:
     """Return the path to a scenario folder under CI/tests_v2/scenarios/."""
     return repo_root / "CI" / "tests_v2" / "scenarios" / scenario_name
@@ -42,39 +54,6 @@ def patch_namespace_in_docs(docs: list, namespace: str) -> list:
         if isinstance(doc, dict) and doc.get("metadata") is not None:
             doc["metadata"]["namespace"] = namespace
     return docs
-
-
-def wait_for_deployment_ready(k8s_apps, namespace: str, name: str, timeout: int = 120) -> None:
-    """
-    Poll until the deployment has ready_replicas >= spec.replicas.
-    Raises TimeoutError with diagnostic details on failure.
-    """
-    deadline = time.monotonic() + timeout
-    last_dep = None
-    attempts = 0
-    while time.monotonic() < deadline:
-        try:
-            dep = k8s_apps.read_namespaced_deployment(name=name, namespace=namespace)
-        except Exception as e:
-            logger.debug("Deployment %s/%s poll attempt %s failed: %s", namespace, name, attempts, e)
-            time.sleep(2)
-            attempts += 1
-            continue
-        last_dep = dep
-        ready = dep.status.ready_replicas or 0
-        desired = dep.spec.replicas or 1
-        if ready >= desired:
-            logger.debug("Deployment %s/%s ready (%s/%s)", namespace, name, ready, desired)
-            return
-        logger.debug("Deployment %s/%s not ready yet: %s/%s", namespace, name, ready, desired)
-        time.sleep(2)
-        attempts += 1
-    diag = ""
-    if last_dep is not None and last_dep.status:
-        diag = f" ready_replicas={last_dep.status.ready_replicas}, desired={last_dep.spec.replicas}"
-    raise TimeoutError(
-        f"Deployment {namespace}/{name} did not become ready within {timeout}s.{diag}"
-    )
 
 
 def get_pods_list(k8s_core, namespace: str, label_selector: str) -> V1PodList:
@@ -116,15 +95,13 @@ def get_pods_or_skip(
 
 def pod_uids(pod_list: Union[V1PodList, List[V1Pod]]) -> list:
     """Return list of pod UIDs from V1PodList or list of V1Pod."""
-    items = pod_list.items if hasattr(pod_list, "items") else pod_list
-    return [p.metadata.uid for p in items]
+    return [p.metadata.uid for p in _pods(pod_list)]
 
 
 def restart_counts(pod_list: Union[V1PodList, List[V1Pod]]) -> int:
     """Return total restart count across all containers in V1PodList or list of V1Pod."""
-    items = pod_list.items if hasattr(pod_list, "items") else pod_list
     total = 0
-    for p in items:
+    for p in _pods(pod_list):
         if not p.status or not p.status.container_statuses:
             continue
         for cs in p.status.container_statuses:
@@ -142,9 +119,12 @@ def find_network_policy_by_prefix(
     name_prefix: str,
 ) -> Optional[V1NetworkPolicy]:
     """Return the first NetworkPolicy whose name starts with name_prefix, or None."""
-    items = policy_list.items if hasattr(policy_list, "items") else policy_list
-    for policy in items:
-        if policy.metadata and policy.metadata.name and policy.metadata.name.startswith(name_prefix):
+    for policy in _policies(policy_list):
+        if (
+            policy.metadata
+            and policy.metadata.name
+            and policy.metadata.name.startswith(name_prefix)
+        ):
             return policy
     return None
 
@@ -157,9 +137,8 @@ def assert_all_pods_running_and_ready(
     Assert all pods are Running and all containers Ready.
     Include namespace in assertion messages for debugging.
     """
-    items = pod_list.items if hasattr(pod_list, "items") else pod_list
     ns_suffix = f" (namespace={namespace})" if namespace else ""
-    for pod in items:
+    for pod in _pods(pod_list):
         assert pod.status and pod.status.phase == "Running", (
             f"Pod {pod.metadata.name} not Running after scenario: {pod.status}{ns_suffix}"
         )
@@ -176,8 +155,8 @@ def assert_pod_count_unchanged(
     namespace: str = "",
 ) -> None:
     """Assert pod count is unchanged; include namespace in failure message."""
-    before_items = before.items if hasattr(before, "items") else before
-    after_items = after.items if hasattr(after, "items") else after
+    before_items = _pods(before)
+    after_items = _pods(after)
     ns_suffix = f" (namespace={namespace})" if namespace else ""
     assert len(after_items) == len(before_items), (
         f"Pod count changed after scenario: expected {len(before_items)}, got {len(after_items)}.{ns_suffix}"
@@ -200,8 +179,9 @@ def assert_kraken_success(result, context: str = "", tmp_path=None) -> None:
     lines = (result.stdout or "").splitlines()
     tail_stdout = "\n".join(lines[-20:]) if lines else "(empty)"
     context_str = f" {context}" if context else ""
+    path_hint = f"\nFull logs: {tmp_path}/kraken_stdout.log, {tmp_path}/kraken_stderr.log" if tmp_path else ""
     raise AssertionError(
-        f"Krkn failed (rc={result.returncode}){context_str}.\n"
+        f"Krkn failed (rc={result.returncode}){context_str}.{path_hint}\n"
         f"--- stderr ---\n{result.stderr or '(empty)'}\n"
         f"--- stdout (last 20 lines) ---\n{tail_stdout}"
     )

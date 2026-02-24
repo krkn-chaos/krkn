@@ -25,11 +25,10 @@ service_hijacking: marks a test as a service_hijacking scenario test
 **Next steps after scaffolding:**
 
 1. Add the marker to `pytest.ini` as instructed.
-2. Edit `scenario_base.yaml` with the structure your Krkn scenario type expects (see `scenarios/application_outage/scenario_base.yaml` and `scenarios/pod_disruption/scenario_base.yaml` for examples).
-3. In the test file, implement `_load_and_patch_scenario(repo_root, namespace, **overrides)` so it loads `scenario_base.yaml` (via `load_scenario_base(repo_root, "service_hijacking")`), patches namespace and any overrides, and returns the structure. Use `scenario_dir(repo_root, "service_hijacking")` if you need to resolve paths to other files in the folder.
-4. In `test_happy_path`, write the patched scenario to `tmp_path`, call `build_config(scenario_type, scenario_path)`, run Kraken, then assert with `assert_kraken_success`, `assert_pod_count_unchanged`, and `assert_all_pods_running_and_ready`.
-5. Add more test methods (e.g. negative tests with `@pytest.mark.no_workload`) as needed.
-6. Adjust `resource.yaml` if your scenario needs a different workload (e.g. specific image or labels).
+2. Edit `scenario_base.yaml` with the structure your Krkn scenario type expects (see `scenarios/application_outage/scenario_base.yaml` and `scenarios/pod_disruption/scenario_base.yaml` for examples). The top-level key should match `SCENARIO_NAME`.
+3. If your scenario uses a **list** structure (like pod_disruption) instead of a **dict** with a top-level key, set `NAMESPACE_KEY_PATH` (e.g. `[0, "config", "namespace_pattern"]`) and `NAMESPACE_IS_REGEX = True` if the namespace is a regex pattern.
+4. The generated `test_happy_path` already uses `self.run_scenario(self.tmp_path, ns)` and assertions. Add more test methods (e.g. negative tests with `@pytest.mark.no_workload`) as needed.
+5. Adjust `resource.yaml` if your scenario needs a different workload (e.g. specific image or labels).
 
 If your Kraken scenario type string is not `<scenario>_scenarios`, pass it explicitly:
 
@@ -49,13 +48,18 @@ python CI/tests_v2/scaffold.py --scenario node_disruption --scenario-type node_s
    The canonical Krkn scenario structure. Tests will load this, patch namespace (and any overrides), write to `tmp_path`, and pass to `build_config`. See existing scenarios for the format your scenario type expects.
 
 4. **Add test_<scenario>.py**  
-   - Import `BaseScenarioTest` from `lib.base` and helpers from `lib.utils` (including `load_scenario_base`, `scenario_dir` if needed).
+   - Import `BaseScenarioTest` from `lib.base` and helpers from `lib.utils` (e.g. `assert_kraken_success`, `get_pods_list`, `scenario_dir` if needed).
    - Define a class extending `BaseScenarioTest` with:
      - `WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/<scenario_name>/resource.yaml"`
      - `WORKLOAD_IS_PATH = True`
      - `LABEL_SELECTOR = "app=<label>"`
+     - `SCENARIO_NAME = "<scenario_name>"`
+     - `SCENARIO_TYPE = "<scenario_type>"` (e.g. `application_outages_scenarios`)
+     - `NAMESPACE_KEY_PATH`: path to the namespace field (e.g. `["application_outage", "namespace"]` for dict-based, or `[0, "config", "namespace_pattern"]` for list-based)
+     - `NAMESPACE_IS_REGEX = False` (or `True` for regex patterns like pod_disruption)
+     - `OVERRIDES_KEY_PATH = ["<top-level key>"]` if the scenario supports overrides (e.g. duration, block).
    - Add `@pytest.mark.functional` and `@pytest.mark.<scenario>` on the class.
-   - Implement a helper that loads and patches the scenario from `scenario_base.yaml`, then at least one test that builds the scenario, runs Kraken via `build_config` + `run_kraken`, and asserts with `assert_kraken_success`, `assert_pod_count_unchanged`, and `assert_all_pods_running_and_ready`.
+   - In at least one test, call `self.run_scenario(self.tmp_path, self.ns)` and assert with `assert_kraken_success`, `assert_pod_count_unchanged`, and `assert_all_pods_running_and_ready`. Use `self.k8s_core`, `self.tmp_path`, etc. (injected by the base class).
 
 5. **Register the marker**  
    In `CI/tests_v2/pytest.ini`, under `markers`:
@@ -68,8 +72,8 @@ python CI/tests_v2/scaffold.py --scenario node_disruption --scenario-type node_s
 - **Folder-per-scenario**: One directory per scenario under `scenarios/`. All assets (test, resource.yaml, scenario_base.yaml, and any extra YAMLs) live there for easy tracking and onboarding.
 - **Ephemeral namespace**: Every test gets a unique `krkn-test-<uuid>` namespace. The base class deploys the workload into it before the test; no manual deploy is required.
 - **Negative tests**: For tests that don’t need a workload (e.g. invalid scenario, bad namespace), use `@pytest.mark.no_workload`. The test will still get a namespace but no workload will be deployed.
-- **Scenario type**: The string passed to `build_config` must match the key in Kraken’s config (e.g. `application_outages_scenarios`, `pod_disruption_scenarios`). See `CI/config/common_test_config.yaml` and the scenario plugin’s `get_scenario_types()`.
-- **Assertions**: Use `assert_kraken_success(result, context=f"namespace={ns}", tmp_path=tmp_path)` so failures include stdout/stderr and optional log files in `tmp_path`.
+- **Scenario type**: `SCENARIO_TYPE` must match the key in Kraken’s config (e.g. `application_outages_scenarios`, `pod_disruption_scenarios`). See `CI/tests_v2/config/common_test_config.yaml` and the scenario plugin’s `get_scenario_types()`.
+- **Assertions**: Use `assert_kraken_success(result, context=f"namespace={ns}", tmp_path=self.tmp_path)` so failures include stdout/stderr and optional log files.
 - **Timeouts**: Use constants from `lib.base` (`READINESS_TIMEOUT`, `POLICY_WAIT_TIMEOUT`, etc.) instead of magic numbers.
 
 ## Running your new tests

@@ -34,25 +34,15 @@ Functional test for {scenario} scenario.
 Each test runs in its own ephemeral namespace with workload deployed automatically.
 """
 
-import copy
 import pytest
-import yaml
 
-from lib.base import BaseScenarioTest, READINESS_TIMEOUT
+from lib.base import BaseScenarioTest
 from lib.utils import (
     assert_all_pods_running_and_ready,
     assert_kraken_success,
     assert_pod_count_unchanged,
     get_pods_list,
-    load_scenario_base,
 )
-
-
-def _load_and_patch_scenario(repo_root, namespace: str, **overrides):
-    """Load scenario_base.yaml and patch namespace and overrides. Adjust for your scenario structure."""
-    scenario = copy.deepcopy(load_scenario_base(repo_root, "{scenario}"))
-    # TODO: patch scenario with namespace and any overrides expected by your scenario_type
-    return scenario
 
 
 @pytest.mark.functional
@@ -63,28 +53,22 @@ class Test{class_name}(BaseScenarioTest):
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/{scenario}/resource.yaml"
     WORKLOAD_IS_PATH = True
     LABEL_SELECTOR = "app={app_label}"
+    SCENARIO_NAME = "{scenario}"
+    SCENARIO_TYPE = "{scenario_type}"
+    NAMESPACE_KEY_PATH = {namespace_key_path}
+    NAMESPACE_IS_REGEX = {namespace_is_regex}
+    OVERRIDES_KEY_PATH = {overrides_key_path}
 
     @pytest.mark.order(1)
-    def test_happy_path(
-        self, build_config, run_kraken, k8s_core, tmp_path, repo_root
-    ):
+    def test_happy_path(self):
         """Run {scenario} scenario and assert pods remain healthy."""
         ns = self.ns
-        before = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
+        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
 
-        scenario_data = _load_and_patch_scenario(repo_root, ns)
-        scenario_path = tmp_path / "{scenario}_scenario.yaml"
-        with open(scenario_path, "w") as f:
-            yaml.dump(scenario_data, f, default_flow_style=False, sort_keys=False)
+        result = self.run_scenario(self.tmp_path, ns)
+        assert_kraken_success(result, context=f"namespace={{ns}}", tmp_path=self.tmp_path)
 
-        config_path = build_config(
-            "{scenario_type}",
-            str(scenario_path),
-        )
-        result = run_kraken(config_path)
-        assert_kraken_success(result, context=f"namespace={{ns}}", tmp_path=tmp_path)
-
-        after = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
+        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
         assert_pod_count_unchanged(before, after, namespace=ns)
         assert_all_pods_running_and_ready(after, namespace=ns)
 '''
@@ -112,12 +96,20 @@ spec:
         - containerPort: 80
 '''
 
-SCENARIO_BASE_TEMPLATE = '''# Base scenario for {scenario} (used by build_config with scenario_type: {scenario_type}).
-# Edit this file with the structure expected by Krkn. Tests load it and patch namespace/namespace_pattern.
+SCENARIO_BASE_DICT_TEMPLATE = '''# Base scenario for {scenario} (used by build_config with scenario_type: {scenario_type}).
+# Edit this file with the structure expected by Krkn. Top-level key must match SCENARIO_NAME.
 # See scenarios/application_outage/scenario_base.yaml and scenarios/pod_disruption/scenario_base.yaml for examples.
-placeholder:
+{scenario}:
   namespace: default
   # Add fields required by your scenario plugin.
+'''
+
+SCENARIO_BASE_LIST_TEMPLATE = '''# Base scenario for {scenario} (list format). Tests patch config.namespace_pattern with ^<ns>$.
+# Edit with the structure expected by your scenario plugin. See scenarios/pod_disruption/scenario_base.yaml.
+- id: {scenario}-default
+  config:
+    namespace_pattern: "^default$"
+    # Add fields required by your scenario plugin.
 '''
 
 
@@ -133,6 +125,16 @@ def main() -> int:
         default=None,
         help="Kraken scenario_type for build_config (default: <scenario>_scenarios)",
     )
+    parser.add_argument(
+        "--list-based",
+        action="store_true",
+        help="Use list-based scenario (NAMESPACE_KEY_PATH [0, 'config', 'namespace_pattern'], OVERRIDES_KEY_PATH [0, 'config'])",
+    )
+    parser.add_argument(
+        "--regex-namespace",
+        action="store_true",
+        help="Set NAMESPACE_IS_REGEX = True (namespace wrapped in ^...$)",
+    )
     args = parser.parse_args()
 
     scenario = args.scenario.strip().lower()
@@ -144,6 +146,17 @@ def main() -> int:
     class_name = snake_to_camel(scenario)
     marker = scenario
     app_label = scenario.replace("_", "-")
+
+    if args.list_based:
+        namespace_key_path = [0, "config", "namespace_pattern"]
+        namespace_is_regex = True
+        overrides_key_path = [0, "config"]
+        scenario_base_template = SCENARIO_BASE_LIST_TEMPLATE
+    else:
+        namespace_key_path = [scenario, "namespace"]
+        namespace_is_regex = args.regex_namespace
+        overrides_key_path = [scenario]
+        scenario_base_template = SCENARIO_BASE_DICT_TEMPLATE
 
     repo_root = Path(__file__).resolve().parent.parent.parent
     scenario_dir_path = repo_root / "CI" / "tests_v2" / "scenarios" / scenario
@@ -166,9 +179,12 @@ def main() -> int:
         class_name=class_name,
         app_label=app_label,
         scenario_type=scenario_type,
+        namespace_key_path=repr(namespace_key_path),
+        namespace_is_regex=namespace_is_regex,
+        overrides_key_path=repr(overrides_key_path),
     )
     resource_content = RESOURCE_YAML_TEMPLATE.format(scenario=scenario, app_label=app_label)
-    scenario_base_content = SCENARIO_BASE_TEMPLATE.format(
+    scenario_base_content = scenario_base_template.format(
         scenario=scenario,
         scenario_type=scenario_type,
     )
@@ -177,14 +193,35 @@ def main() -> int:
     resource_path.write_text(resource_content, encoding="utf-8")
     scenario_base_path.write_text(scenario_base_content, encoding="utf-8")
 
+    # Auto-add marker to pytest.ini if not already present
+    pytest_ini_path = repo_root / "CI" / "tests_v2" / "pytest.ini"
+    marker_line = f"    {marker}: marks a test as a {scenario} scenario test"
+    if pytest_ini_path.exists():
+        content = pytest_ini_path.read_text(encoding="utf-8")
+        if f"    {marker}:" not in content and f"{marker}: marks" not in content:
+            lines = content.splitlines(keepends=True)
+            insert_at = None
+            for i, line in enumerate(lines):
+                if re.match(r"^    \w+:\s*.+", line):
+                    insert_at = i + 1
+            if insert_at is not None:
+                lines.insert(insert_at, marker_line + "\n")
+                pytest_ini_path.write_text("".join(lines), encoding="utf-8")
+                print("Added marker to pytest.ini")
+            else:
+                print("Could not find markers block in pytest.ini; add manually:")
+                print(marker_line)
+        else:
+            print("Marker already in pytest.ini")
+    else:
+        print("pytest.ini not found; add this marker under 'markers':")
+        print(marker_line)
+
     print(f"Created: {test_path}")
     print(f"Created: {resource_path}")
     print(f"Created: {scenario_base_path}")
     print()
-    print("Add this marker to CI/tests_v2/pytest.ini under 'markers':")
-    print(f"    {marker}: marks a test as a {scenario} scenario test")
-    print()
-    print("Then edit scenario_base.yaml with your scenario structure and _load_and_patch_scenario in the test.")
+    print("Then edit scenario_base.yaml with your scenario structure (top-level key should match SCENARIO_NAME).")
     return 0
 
 

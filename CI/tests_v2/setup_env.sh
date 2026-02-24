@@ -9,8 +9,8 @@
 set -e
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-KIND_CONFIG="${REPO_ROOT}/kind-config.yml"
-CLUSTER_NAME="${KIND_CLUSTER_NAME:-kind}"
+KIND_CONFIG="${KIND_CONFIG:-${REPO_ROOT}/CI/tests_v2/kind-config-dev.yml}"
+CLUSTER_NAME="${KIND_CLUSTER_NAME:-ci-krkn}"
 
 echo "Repository root: $REPO_ROOT"
 cd "$REPO_ROOT"
@@ -19,9 +19,19 @@ cd "$REPO_ROOT"
 command -v kind >/dev/null 2>&1 || { echo "Error: kind is not installed. Install from https://kind.sigs.k8s.io/docs/user/quick-start/"; exit 1; }
 command -v kubectl >/dev/null 2>&1 || { echo "Error: kubectl is not installed."; exit 1; }
 
-# Create cluster if it doesn't exist
-if kind get kubeconfig --name "$CLUSTER_NAME" >/dev/null 2>&1; then
-  echo "KinD cluster '$CLUSTER_NAME' already exists."
+# Python 3.9+
+python3 -c "import sys; exit(0 if sys.version_info >= (3, 9) else 1)" 2>/dev/null || { echo "Error: Python 3.9+ required. Check: python3 --version"; exit 1; }
+
+# Docker running (required for KinD)
+docker info >/dev/null 2>&1 || { echo "Error: Docker is not running. Start Docker Desktop or run: systemctl start docker"; exit 1; }
+
+# Tool versions for reproducibility
+echo "kind: $(kind --version 2>/dev/null || kind version 2>/dev/null)"
+echo "kubectl: $(kubectl version --client --short 2>/dev/null || kubectl version --client 2>/dev/null)"
+
+# Create cluster if it doesn't exist (use "kind get clusters" so we skip when nodes exist even if kubeconfig check would fail)
+if kind get clusters 2>/dev/null | grep -qx "$CLUSTER_NAME"; then
+  echo "KinD cluster '$CLUSTER_NAME' already exists, skipping creation."
 else
   echo "Creating KinD cluster '$CLUSTER_NAME' from $KIND_CONFIG ..."
   kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG"
@@ -49,10 +59,6 @@ if ! kubectl get pods -n local-path-storage -l app=local-path-provisioner -o nam
   echo "KinD usually deploys this by default. Check: kubectl get pods -n local-path-storage"
   exit 1
 fi
-
-echo "Deploying application outage test workload (default namespace, label scenario=outage)..."
-kubectl apply -f "$REPO_ROOT/CI/templates/outage_pod.yaml"
-kubectl wait --for=condition=ready pod -l scenario=outage --timeout=120s
 
 echo ""
 echo "Cluster is ready for CI/tests_v2."

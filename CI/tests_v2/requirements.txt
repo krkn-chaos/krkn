@@ -5,3 +5,4 @@ pytest-rerunfailures>=14.0
 pytest-html>=4.1.0
 pytest-timeout>=2.2.0
 pytest-order>=1.2.0
+pytest-xdist>=3.5.0

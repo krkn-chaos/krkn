@@ -4,7 +4,6 @@ Equivalent to CI/tests/test_app_outages.sh with proper assertions.
 Each test runs in its own ephemeral namespace with workload deployed automatically.
 """
 
-import copy
 import socket
 import subprocess
 import time
@@ -20,6 +19,7 @@ from lib.base import (
     POLICY_WAIT_TIMEOUT,
     READINESS_TIMEOUT,
 )
+from lib.deploy import wait_for_deployment_replicas
 from lib.utils import (
     assert_all_pods_running_and_ready,
     assert_kraken_success,
@@ -27,30 +27,9 @@ from lib.utils import (
     find_network_policy_by_prefix,
     get_network_policies_list,
     get_pods_list,
-    load_scenario_base,
     patch_namespace_in_docs,
     scenario_dir,
-    wait_for_deployment_ready,
 )
-
-
-def _load_and_patch_scenario(repo_root, namespace: str, **overrides):
-    """Load scenario_base.yaml and patch namespace and any overrides (duration, block, exclude_label)."""
-    scenario = copy.deepcopy(load_scenario_base(repo_root, "application_outage"))
-    scenario["application_outage"]["namespace"] = namespace
-    for key, value in overrides.items():
-        if key == "namespace":
-            scenario["application_outage"]["namespace"] = value
-        else:
-            scenario["application_outage"][key] = value
-    return scenario
-
-
-def _write_scenario(tmp_path, scenario_dict, filename="app_outage_scenario.yaml"):
-    path = tmp_path / filename
-    with open(path, "w") as f:
-        yaml.dump(scenario_dict, f, default_flow_style=False, sort_keys=False)
-    return path
 
 
 def _wait_for_network_policy(k8s_networking, namespace: str, prefix: str, timeout: int = 30):
@@ -90,48 +69,44 @@ class TestApplicationOutage(BaseScenarioTest):
     WORKLOAD_IS_PATH = True
     LABEL_SELECTOR = "scenario=outage"
     POLICY_PREFIX = "krkn-deny-"
+    SCENARIO_NAME = "application_outage"
+    SCENARIO_TYPE = "application_outages_scenarios"
+    NAMESPACE_KEY_PATH = ["application_outage", "namespace"]
+    NAMESPACE_IS_REGEX = False
+    OVERRIDES_KEY_PATH = ["application_outage"]
 
     @pytest.mark.order(1)
-    def test_app_outage_block_and_restore(
-        self, build_config, run_kraken, k8s_core, tmp_path, repo_root
-    ):
+    def test_app_outage_block_and_restore(self):
         ns = self.ns
-        before = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
-        before_count = len(before.items)
+        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
 
-        scenario_path = _write_scenario(tmp_path, _load_and_patch_scenario(repo_root, ns))
-        config_path = build_config(
-            "application_outages_scenarios",
-            str(scenario_path),
-            filename="app_outage_config.yaml",
+        result = self.run_scenario(
+            self.tmp_path, ns, config_filename="app_outage_config.yaml"
         )
-        result = run_kraken(config_path)
-        assert_kraken_success(result, context=f"namespace={ns}", tmp_path=tmp_path)
+        assert_kraken_success(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
 
-        after = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
+        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
         assert_pod_count_unchanged(before, after, namespace=ns)
         assert_all_pods_running_and_ready(after, namespace=ns)
 
-    def test_network_policy_created_then_deleted(
-        self, build_config, run_kraken_background, k8s_networking, tmp_path, repo_root
-    ):
+    def test_network_policy_created_then_deleted(self):
         """NetworkPolicy with prefix krkn-deny- is created during run and deleted after."""
         ns = self.ns
-        scenario = _load_and_patch_scenario(repo_root, ns, duration=12)
-        scenario_path = _write_scenario(tmp_path, scenario)
-        config_path = build_config(
-            "application_outages_scenarios", str(scenario_path),
+        scenario = self.load_and_patch_scenario(self.repo_root, ns, duration=12)
+        scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_np_lifecycle")
+        config_path = self.build_config(
+            self.SCENARIO_TYPE, str(scenario_path),
             filename="app_outage_np_lifecycle.yaml",
         )
-        proc = run_kraken_background(config_path)
+        proc = self.run_kraken_background(config_path)
         try:
             policy_name = _wait_for_network_policy(
-                k8s_networking, ns, self.POLICY_PREFIX, timeout=POLICY_WAIT_TIMEOUT
+                self.k8s_networking, ns, self.POLICY_PREFIX, timeout=POLICY_WAIT_TIMEOUT
             )
             assert policy_name.startswith(self.POLICY_PREFIX), (
                 f"Policy name {policy_name!r} should start with {self.POLICY_PREFIX!r} (namespace={ns})"
             )
-            policy_list = get_network_policies_list(k8s_networking, ns)
+            policy_list = get_network_policies_list(self.k8s_networking, ns)
             policy = find_network_policy_by_prefix(policy_list, self.POLICY_PREFIX)
             assert policy is not None and policy.spec is not None, (
                 f"Expected NetworkPolicy with spec (namespace={ns})"
@@ -140,27 +115,17 @@ class TestApplicationOutage(BaseScenarioTest):
             assert policy.spec.policy_types is not None, f"Policy should have policy_types (namespace={ns})"
         finally:
             proc.wait(timeout=KRAKEN_PROC_WAIT_TIMEOUT)
-        _assert_no_network_policy_with_prefix(k8s_networking, ns, self.POLICY_PREFIX)
+        _assert_no_network_policy_with_prefix(self.k8s_networking, ns, self.POLICY_PREFIX)
 
-    def test_traffic_blocked_during_outage(
-        self,
-        build_config,
-        run_kraken_background,
-        k8s_client,
-        k8s_apps,
-        k8s_networking,
-        kubectl,
-        tmp_path,
-        repo_root,
-    ):
+    def test_traffic_blocked_during_outage(self, request):
         """During outage, ingress to target pods is blocked; after run, traffic is restored."""
         ns = self.ns
-        nginx_path = scenario_dir(repo_root, "application_outage") / "nginx_http.yaml"
+        nginx_path = scenario_dir(self.repo_root, "application_outage") / "nginx_http.yaml"
         docs = list(yaml.safe_load_all(nginx_path.read_text()))
         docs = patch_namespace_in_docs(docs, ns)
         try:
             k8s_utils.create_from_yaml(
-                k8s_client,
+                self.k8s_client,
                 yaml_objects=docs,
                 namespace=ns,
             )
@@ -169,14 +134,26 @@ class TestApplicationOutage(BaseScenarioTest):
             raise AssertionError(
                 f"Failed to create nginx resources (namespace={ns}): {'; '.join(msgs)}"
             ) from e
-        wait_for_deployment_ready(k8s_apps, ns, "nginx-outage-http", timeout=READINESS_TIMEOUT)
+        wait_for_deployment_replicas(self.k8s_apps, ns, "nginx-outage-http", timeout=READINESS_TIMEOUT)
         port = _get_free_port()
+        pf_ref = []
+
+        def _kill_port_forward():
+            if pf_ref and pf_ref[0].poll() is None:
+                pf_ref[0].terminate()
+                try:
+                    pf_ref[0].wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    pf_ref[0].kill()
+
+        request.addfinalizer(_kill_port_forward)
         pf = subprocess.Popen(
             ["kubectl", "port-forward", "-n", ns, "service/nginx-outage-http", f"{port}:80"],
-            cwd=repo_root,
+            cwd=self.repo_root,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        pf_ref.append(pf)
         url = f"http://127.0.0.1:{port}/"
         try:
             time.sleep(2)
@@ -192,15 +169,15 @@ class TestApplicationOutage(BaseScenarioTest):
                 time.sleep(1)
             assert baseline_ok, f"Baseline: HTTP request to nginx should succeed (namespace={ns})"
 
-            scenario = _load_and_patch_scenario(repo_root, ns, duration=15)
-            scenario_path = _write_scenario(tmp_path, scenario, "app_outage_traffic.yaml")
-            config_path = build_config(
-                "application_outages_scenarios", str(scenario_path),
+            scenario = self.load_and_patch_scenario(self.repo_root, ns, duration=15)
+            scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_traffic")
+            config_path = self.build_config(
+                self.SCENARIO_TYPE, str(scenario_path),
                 filename="app_outage_traffic_config.yaml",
             )
-            proc = run_kraken_background(config_path)
+            proc = self.run_kraken_background(config_path)
             policy_name = _wait_for_network_policy(
-                k8s_networking, ns, self.POLICY_PREFIX, timeout=POLICY_WAIT_TIMEOUT
+                self.k8s_networking, ns, self.POLICY_PREFIX, timeout=POLICY_WAIT_TIMEOUT
             )
             assert policy_name, f"Expected policy to exist (namespace={ns})"
             time.sleep(2)
@@ -229,70 +206,60 @@ class TestApplicationOutage(BaseScenarioTest):
         [["Ingress"], ["Egress"], ["Ingress", "Egress"]],
         ids=["Ingress", "Egress", "Ingress_Egress"],
     )
-    def test_block_type_variants(
-        self, build_config, run_kraken, k8s_core, tmp_path, block_type, repo_root
-    ):
+    def test_block_type_variants(self, block_type):
         """Scenario runs successfully with Ingress-only, Egress-only, or both."""
         ns = self.ns
-        before = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
-        scenario = _load_and_patch_scenario(repo_root, ns, block=block_type)
+        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
         block_id = "_".join(block_type).lower()
-        scenario_path = _write_scenario(tmp_path, scenario, f"app_outage_block_{block_id}.yaml")
-        config_path = build_config(
-            "application_outages_scenarios", str(scenario_path),
-            filename=f"app_outage_block_{block_id}_config.yaml",
+        result = self.run_scenario(
+            self.tmp_path, ns,
+            overrides={"block": block_type},
+            config_filename=f"app_outage_block_{block_id}_config.yaml",
         )
-        result = run_kraken(config_path)
-        assert_kraken_success(result, context=f"block={block_type} namespace={ns}", tmp_path=tmp_path)
-        after = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
+        assert_kraken_success(
+            result, context=f"block={block_type} namespace={ns}", tmp_path=self.tmp_path
+        )
+        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
         assert_pod_count_unchanged(before, after, namespace=ns)
         assert_all_pods_running_and_ready(after, namespace=ns)
 
-    def test_exclude_label_e2e(
-        self, build_config, run_kraken, k8s_core, tmp_path, repo_root
-    ):
+    def test_exclude_label_e2e(self):
         """Scenario with exclude_label (matchExpressions) runs and restores."""
         ns = self.ns
-        before = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
-        scenario = _load_and_patch_scenario(repo_root, ns, exclude_label={"env": "prod"})
-        scenario_path = _write_scenario(tmp_path, scenario, "app_outage_exclude.yaml")
-        config_path = build_config(
-            "application_outages_scenarios", str(scenario_path),
-            filename="app_outage_exclude_config.yaml",
+        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
+        result = self.run_scenario(
+            self.tmp_path, ns,
+            overrides={"exclude_label": {"env": "prod"}},
+            config_filename="app_outage_exclude_config.yaml",
         )
-        result = run_kraken(config_path)
-        assert_kraken_success(result, context=f"exclude_label namespace={ns}", tmp_path=tmp_path)
-        after = get_pods_list(k8s_core, ns, self.LABEL_SELECTOR)
+        assert_kraken_success(result, context=f"exclude_label namespace={ns}", tmp_path=self.tmp_path)
+        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
         assert_pod_count_unchanged(before, after, namespace=ns)
 
     @pytest.mark.no_workload
-    def test_invalid_scenario_fails(
-        self, build_config, run_kraken, tmp_path
-    ):
+    def test_invalid_scenario_fails(self):
         """Invalid scenario file (missing application_outage) causes Kraken to exit non-zero."""
-        invalid_scenario_path = tmp_path / "invalid_scenario.yaml"
+        invalid_scenario_path = self.tmp_path / "invalid_scenario.yaml"
         invalid_scenario_path.write_text("foo: bar\n")
-        config_path = build_config(
-            "application_outages_scenarios", str(invalid_scenario_path),
+        config_path = self.build_config(
+            self.SCENARIO_TYPE, str(invalid_scenario_path),
             filename="invalid_config.yaml",
         )
-        result = run_kraken(config_path)
+        result = self.run_kraken(config_path)
         assert result.returncode != 0, (
             "Invalid scenario should cause Kraken to fail (namespace=%s)" % self.ns
         )
 
     @pytest.mark.no_workload
-    def test_bad_namespace_fails(
-        self, build_config, run_kraken, tmp_path, repo_root
-    ):
+    def test_bad_namespace_fails(self):
         """Scenario targeting non-existent namespace causes Kraken to exit non-zero."""
-        scenario = _load_and_patch_scenario(repo_root, "nonexistent-namespace-xyz-12345")
-        scenario_path = _write_scenario(tmp_path, scenario, "app_outage_bad_ns.yaml")
-        config_path = build_config(
-            "application_outages_scenarios", str(scenario_path),
+        scenario = self.load_and_patch_scenario(self.repo_root, "nonexistent-namespace-xyz-12345")
+        scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_bad_ns")
+        config_path = self.build_config(
+            self.SCENARIO_TYPE, str(scenario_path),
             filename="app_outage_bad_ns_config.yaml",
         )
-        result = run_kraken(config_path)
+        result = self.run_kraken(config_path)
         assert result.returncode != 0, (
             "Non-existent namespace should cause Kraken to fail (test namespace=%s)" % self.ns
         )
