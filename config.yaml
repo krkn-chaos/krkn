@@ -1,0 +1,19 @@
+tunings:
+  wait_duration: 60
+
+performance_monitoring:
+  prometheus_url: ""
+
+elastic:
+  enable_elastic: false
+
+telemetry:
+  enabled: false
+  archive_path: "/tmp"
+  events_backup: false
+
+kraken:
+  kubeconfig_path: /root/.kube/config
+  chaos_scenarios:
+    - pod_disruption_scenarios:
+        - /config/pod_scenario.yaml

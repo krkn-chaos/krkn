@@ -1,0 +1,6 @@
+- id: kill-pods
+  config:
+    namespace_pattern: "default"
+    label_selector: "app=nginx"
+    kill: 1
+    krkn_pod_recovery_time: 60
