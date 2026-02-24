@@ -32,21 +32,22 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.11'
           architecture: 'x64'
       - name: Install environment
         run: |
           sudo apt-get install build-essential python3-dev
           pip install --upgrade pip
           pip install -r requirements.txt
+          pip install coverage
 
       - name: Deploy test workloads
         run: |
-          es_pod_name=$(kubectl get pods -l "app=elasticsearch-master" -o name)
-          echo "POD_NAME: $es_pod_name"
-          kubectl --namespace default port-forward $es_pod_name 9200 &
-          prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
-          kubectl --namespace monitoring port-forward $prom_name 9090 &
+          #          es_pod_name=$(kubectl get pods -l "app=elasticsearch-master" -o name)
+          #          echo "POD_NAME: $es_pod_name"
+          #          kubectl --namespace default port-forward $es_pod_name 9200 &
+          #          prom_name=$(kubectl get pods -n monitoring -l "app.kubernetes.io/name=prometheus" -o name)
+          #          kubectl --namespace monitoring port-forward $prom_name 9090 &
 
           # Wait for Elasticsearch to be ready
           echo "Waiting for Elasticsearch to be ready..."
@@ -84,7 +85,7 @@ jobs:
             yq -i '.elastic.enable_elastic=False' CI/config/common_test_config.yaml
             yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
             yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
-            echo "test_app_outages" >> ./CI/tests/functional_tests
+            echo "test_app_outages" > ./CI/tests/functional_tests
             echo "test_container" >> ./CI/tests/functional_tests
             echo "test_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_customapp_pod" >> ./CI/tests/functional_tests
@@ -93,13 +94,17 @@ jobs:
             echo "test_namespace" >> ./CI/tests/functional_tests
             echo "test_net_chaos" >> ./CI/tests/functional_tests
             echo "test_node" >> ./CI/tests/functional_tests
-            echo "test_pod" >> ./CI/tests/functional_tests
-            echo "test_pod_error" >> ./CI/tests/functional_tests
+
             echo "test_service_hijacking" >> ./CI/tests/functional_tests
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
             echo "test_pod_server" >> ./CI/tests/functional_tests
             echo "test_time" >> ./CI/tests/functional_tests
+            echo "test_node_network_chaos" >> ./CI/tests/functional_tests
+            echo "test_pod_network_chaos" >> ./CI/tests/functional_tests          
+            echo "test_pod_error" >> ./CI/tests/functional_tests
+            echo "test_pod" >> ./CI/tests/functional_tests
             # echo "test_pvc" >> ./CI/tests/functional_tests
+          
 
       # Push on main only steps + all other functional to collect coverage
       # for the badge
@@ -181,7 +186,7 @@ jobs:
         - name: Set up Python
           uses: actions/setup-python@v4
           with:
-            python-version: 3.9
+            python-version: '3.11'
         - name: Copy badge on GitHub Page Repo
           env:
             COLOR: yellow

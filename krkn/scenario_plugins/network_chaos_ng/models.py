@@ -1,5 +1,7 @@
+import re
 from dataclasses import dataclass
 from enum import Enum
+from typing import TypeVar, Optional
 
 
 class NetworkChaosScenarioType(Enum):
@@ -9,16 +11,21 @@ class NetworkChaosScenarioType(Enum):
 
 @dataclass
 class BaseNetworkChaosConfig:
-    supported_execution = ["serial", "parallel"]
     id: str
+    image: str
     wait_duration: int
     test_duration: int
     label_selector: str
     service_account: str
+    taints: list[str]
+    namespace: str
     instance_count: int
     execution: str
-    namespace: str
-    taints: list[str]
+    supported_execution = ["serial", "parallel"]
+    interfaces: list[str]
+    target: str
+    ingress: bool
+    egress: bool
 
     def validate(self) -> list[str]:
         errors = []
@@ -41,12 +48,7 @@ class BaseNetworkChaosConfig:
 
 @dataclass
 class NetworkFilterConfig(BaseNetworkChaosConfig):
-    ingress: bool
-    egress: bool
-    interfaces: list[str]
-    target: str
     ports: list[int]
-    image: str
     protocols: list[str]
 
     def validate(self) -> list[str]:
@@ -57,4 +59,31 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
             errors.append(
                 f"{self.protocols} contains not allowed protocols only tcp and udp is allowed"
             )
+        return errors
+
+
+@dataclass
+class NetworkChaosConfig(BaseNetworkChaosConfig):
+    latency: Optional[str] = None
+    loss: Optional[str] = None
+    bandwidth: Optional[str] = None
+    force: Optional[bool] = None
+
+    def validate(self) -> list[str]:
+        errors = super().validate()
+        latency_regex = re.compile(r"^(\d+)(us|ms|s)$")
+        bandwidth_regex = re.compile(r"^(\d+)(bit|kbit|mbit|gbit|tbit)$")
+        if self.latency:
+            if not (latency_regex.match(self.latency)):
+                errors.append(
+                    "latency must be a number followed by `us` (microseconds) or `ms` (milliseconds), or `s` (seconds)"
+                )
+        if self.bandwidth:
+            if not (bandwidth_regex.match(self.bandwidth)):
+                errors.append(
+                    "bandwidth must be a number followed by `bit` `kbit` or `mbit` or `tbit`"
+                )
+        if self.loss:
+            if "%" in self.loss or not self.loss.isdigit():
+                errors.append("loss must be a number followed without the `%` symbol")
         return errors

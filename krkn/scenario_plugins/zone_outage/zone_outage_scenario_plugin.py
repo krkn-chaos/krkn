@@ -140,7 +140,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 network_association_ids[0], acl_id
             )
 
-            # capture the orginal_acl_id, created_acl_id and
+            # capture the original_acl_id, created_acl_id and
             # new association_id to use during the recovery
             ids[new_association_id] = original_acl_id
 
@@ -156,7 +156,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 new_association_id, original_acl_id
             )
         logging.info(
-            "Wating for 60 seconds to make sure " "the changes are in place"
+            "Waiting for 60 seconds to make sure " "the changes are in place"
         )
         time.sleep(60)
 
