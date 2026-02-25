@@ -31,7 +31,7 @@ jobs:
 
       - name: Run tests_v2
         run: |
-          KRKN_TEST_COVERAGE=1 python -m pytest CI/tests_v2/ -v --timeout=300 --reruns=2 --reruns-delay=10 \
+          KRKN_TEST_COVERAGE=1 python -m pytest CI/tests_v2/ -v --timeout=300 --reruns=1 --reruns-delay=5 \
             --html=CI/tests_v2/report.html -n auto --junitxml=CI/tests_v2/results.xml
 
       # - name: Upload tests_v2 artifacts

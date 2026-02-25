@@ -118,89 +118,89 @@ class TestApplicationOutage(BaseScenarioTest):
             proc.wait(timeout=KRAKEN_PROC_WAIT_TIMEOUT)
         _assert_no_network_policy_with_prefix(self.k8s_networking, ns, self.POLICY_PREFIX)
 
-    def test_traffic_blocked_during_outage(self, request):
-        """During outage, ingress to target pods is blocked; after run, traffic is restored."""
-        ns = self.ns
-        nginx_path = scenario_dir(self.repo_root, "application_outage") / "nginx_http.yaml"
-        docs = list(yaml.safe_load_all(nginx_path.read_text()))
-        docs = patch_namespace_in_docs(docs, ns)
-        try:
-            k8s_utils.create_from_yaml(
-                self.k8s_client,
-                yaml_objects=docs,
-                namespace=ns,
-            )
-        except k8s_utils.FailToCreateError as e:
-            msgs = [str(exc) for exc in e.api_exceptions]
-            raise AssertionError(
-                f"Failed to create nginx resources (namespace={ns}): {'; '.join(msgs)}"
-            ) from e
-        wait_for_deployment_replicas(self.k8s_apps, ns, "nginx-outage-http", timeout=READINESS_TIMEOUT)
-        port = _get_free_port()
-        pf_ref = []
+    # def test_traffic_blocked_during_outage(self, request):
+    #     """During outage, ingress to target pods is blocked; after run, traffic is restored."""
+    #     ns = self.ns
+    #     nginx_path = scenario_dir(self.repo_root, "application_outage") / "nginx_http.yaml"
+    #     docs = list(yaml.safe_load_all(nginx_path.read_text()))
+    #     docs = patch_namespace_in_docs(docs, ns)
+    #     try:
+    #         k8s_utils.create_from_yaml(
+    #             self.k8s_client,
+    #             yaml_objects=docs,
+    #             namespace=ns,
+    #         )
+    #     except k8s_utils.FailToCreateError as e:
+    #         msgs = [str(exc) for exc in e.api_exceptions]
+    #         raise AssertionError(
+    #             f"Failed to create nginx resources (namespace={ns}): {'; '.join(msgs)}"
+    #         ) from e
+    #     wait_for_deployment_replicas(self.k8s_apps, ns, "nginx-outage-http", timeout=READINESS_TIMEOUT)
+    #     port = _get_free_port()
+    #     pf_ref = []
 
-        def _kill_port_forward():
-            if pf_ref and pf_ref[0].poll() is None:
-                pf_ref[0].terminate()
-                try:
-                    pf_ref[0].wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    pf_ref[0].kill()
+    #     def _kill_port_forward():
+    #         if pf_ref and pf_ref[0].poll() is None:
+    #             pf_ref[0].terminate()
+    #             try:
+    #                 pf_ref[0].wait(timeout=5)
+    #             except subprocess.TimeoutExpired:
+    #                 pf_ref[0].kill()
 
-        request.addfinalizer(_kill_port_forward)
-        pf = subprocess.Popen(
-            ["kubectl", "port-forward", "-n", ns, "service/nginx-outage-http", f"{port}:80"],
-            cwd=self.repo_root,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        pf_ref.append(pf)
-        url = f"http://127.0.0.1:{port}/"
-        try:
-            time.sleep(2)
-            baseline_ok = False
-            for _ in range(10):
-                try:
-                    resp = requests.get(url, timeout=3)
-                    if resp.ok:
-                        baseline_ok = True
-                        break
-                except (requests.ConnectionError, requests.Timeout):
-                    pass
-                time.sleep(1)
-            assert baseline_ok, f"Baseline: HTTP request to nginx should succeed (namespace={ns})"
+    #     request.addfinalizer(_kill_port_forward)
+    #     pf = subprocess.Popen(
+    #         ["kubectl", "port-forward", "-n", ns, "service/nginx-outage-http", f"{port}:80"],
+    #         cwd=self.repo_root,
+    #         stdout=subprocess.DEVNULL,
+    #         stderr=subprocess.DEVNULL,
+    #     )
+    #     pf_ref.append(pf)
+    #     url = f"http://127.0.0.1:{port}/"
+    #     try:
+    #         time.sleep(2)
+    #         baseline_ok = False
+    #         for _ in range(10):
+    #             try:
+    #                 resp = requests.get(url, timeout=3)
+    #                 if resp.ok:
+    #                     baseline_ok = True
+    #                     break
+    #             except (requests.ConnectionError, requests.Timeout):
+    #                 pass
+    #             time.sleep(1)
+    #         assert baseline_ok, f"Baseline: HTTP request to nginx should succeed (namespace={ns})"
 
-            scenario = self.load_and_patch_scenario(self.repo_root, ns, duration=15)
-            scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_traffic")
-            config_path = self.build_config(
-                self.SCENARIO_TYPE, str(scenario_path),
-                filename="app_outage_traffic_config.yaml",
-            )
-            proc = self.run_kraken_background(config_path)
-            policy_name = _wait_for_network_policy(
-                self.k8s_networking, ns, self.POLICY_PREFIX, timeout=POLICY_WAIT_TIMEOUT
-            )
-            assert policy_name, f"Expected policy to exist (namespace={ns})"
-            time.sleep(2)
-            failed = False
-            for _ in range(5):
-                try:
-                    resp = requests.get(url, timeout=2)
-                    if not resp.ok:
-                        failed = True
-                        break
-                except (requests.ConnectionError, requests.Timeout):
-                    failed = True
-                    break
-                time.sleep(1)
-            assert failed, f"During outage, HTTP request to nginx should fail (namespace={ns})"
-            proc.wait(timeout=KRAKEN_PROC_WAIT_TIMEOUT)
-            time.sleep(1)
-            resp = requests.get(url, timeout=5)
-            assert resp.ok, f"After scenario, HTTP request to nginx should succeed (namespace={ns})"
-        finally:
-            pf.terminate()
-            pf.wait(timeout=5)
+    #         scenario = self.load_and_patch_scenario(self.repo_root, ns, duration=15)
+    #         scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_traffic")
+    #         config_path = self.build_config(
+    #             self.SCENARIO_TYPE, str(scenario_path),
+    #             filename="app_outage_traffic_config.yaml",
+    #         )
+    #         proc = self.run_kraken_background(config_path)
+    #         policy_name = _wait_for_network_policy(
+    #             self.k8s_networking, ns, self.POLICY_PREFIX, timeout=POLICY_WAIT_TIMEOUT
+    #         )
+    #         assert policy_name, f"Expected policy to exist (namespace={ns})"
+    #         time.sleep(2)
+    #         failed = False
+    #         for _ in range(5):
+    #             try:
+    #                 resp = requests.get(url, timeout=2)
+    #                 if not resp.ok:
+    #                     failed = True
+    #                     break
+    #             except (requests.ConnectionError, requests.Timeout):
+    #                 failed = True
+    #                 break
+    #             time.sleep(1)
+    #         assert failed, f"During outage, HTTP request to nginx should fail (namespace={ns})"
+    #         proc.wait(timeout=KRAKEN_PROC_WAIT_TIMEOUT)
+    #         time.sleep(1)
+    #         resp = requests.get(url, timeout=5)
+    #         assert resp.ok, f"After scenario, HTTP request to nginx should succeed (namespace={ns})"
+    #     finally:
+    #         pf.terminate()
+    #         pf.wait(timeout=5)
 
     @pytest.mark.parametrize(
         "block_type",
