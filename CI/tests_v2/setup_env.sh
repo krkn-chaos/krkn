@@ -37,9 +37,9 @@ else
   kind create cluster --name "$CLUSTER_NAME" --config "$KIND_CONFIG"
 fi
 
-echo "Pre-pulling test workload images into KinD cluster..."
-docker pull nginx:alpine
-kind load docker-image nginx:alpine --name "$CLUSTER_NAME"
+# echo "Pre-pulling test workload images into KinD cluster..."
+# docker pull nginx:alpine
+# kind load docker-image nginx:alpine --name "$CLUSTER_NAME"
 
 # kind merges into default kubeconfig (~/.kube/config), so kubectl should work in this shell.
 # If you need to use this cluster from another terminal: export KUBECONFIG=~/.kube/config

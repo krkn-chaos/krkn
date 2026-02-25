@@ -1,7 +1,7 @@
 """
 Functional test for application outage scenario (block network to target pods, then restore).
 Equivalent to CI/tests/test_app_outages.sh with proper assertions.
-Each test runs in its own ephemeral namespace with workload deployed automatically.
+The main happy-path test reuses one namespace and workload for multiple scenario runs (default, exclude_label, block variants); other tests use their own ephemeral namespace as needed.
 """
 
 import socket
@@ -77,18 +77,30 @@ class TestApplicationOutage(BaseScenarioTest):
     OVERRIDES_KEY_PATH = ["application_outage"]
 
     @pytest.mark.order(1)
-    def test_app_outage_block_and_restore(self):
+    def test_app_outage_block_restore_and_variants(self):
+        """Default, exclude_label, and block-type variants (Ingress, Egress, both) run successfully in one namespace; each run restores and pods stay ready."""
         ns = self.ns
         before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
 
-        result = self.run_scenario(
-            self.tmp_path, ns, config_filename="app_outage_config.yaml"
-        )
-        assert_kraken_success(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
-
-        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        assert_pod_count_unchanged(before, after, namespace=ns)
-        assert_all_pods_running_and_ready(after, namespace=ns)
+        cases = [
+            ("default", {}, "app_outage_config.yaml"),
+            ("exclude_label", {"exclude_label": {"env": "prod"}}, "app_outage_exclude_config.yaml"),
+            ("block=Ingress", {"block": ["Ingress"]}, "app_outage_block_ingress_config.yaml"),
+            ("block=Egress", {"block": ["Egress"]}, "app_outage_block_egress_config.yaml"),
+            ("block=Ingress,Egress", {"block": ["Ingress", "Egress"]}, "app_outage_block_ingress_egress_config.yaml"),
+        ]
+        for context_name, overrides, config_filename in cases:
+            result = self.run_scenario(
+                self.tmp_path, ns,
+                overrides=overrides if overrides else None,
+                config_filename=config_filename,
+            )
+            assert_kraken_success(
+                result, context=f"{context_name} namespace={ns}", tmp_path=self.tmp_path
+            )
+            after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
+            assert_pod_count_unchanged(before, after, namespace=ns)
+            assert_all_pods_running_and_ready(after, namespace=ns)
 
     def test_network_policy_created_then_deleted(self):
         """NetworkPolicy with prefix krkn-deny- is created during run and deleted after."""
@@ -201,41 +213,6 @@ class TestApplicationOutage(BaseScenarioTest):
     #     finally:
     #         pf.terminate()
     #         pf.wait(timeout=5)
-
-    @pytest.mark.parametrize(
-        "block_type",
-        [["Ingress"], ["Egress"], ["Ingress", "Egress"]],
-        ids=["Ingress", "Egress", "Ingress_Egress"],
-    )
-    def test_block_type_variants(self, block_type):
-        """Scenario runs successfully with Ingress-only, Egress-only, or both."""
-        ns = self.ns
-        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        block_id = "_".join(block_type).lower()
-        result = self.run_scenario(
-            self.tmp_path, ns,
-            overrides={"block": block_type},
-            config_filename=f"app_outage_block_{block_id}_config.yaml",
-        )
-        assert_kraken_success(
-            result, context=f"block={block_type} namespace={ns}", tmp_path=self.tmp_path
-        )
-        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        assert_pod_count_unchanged(before, after, namespace=ns)
-        assert_all_pods_running_and_ready(after, namespace=ns)
-
-    def test_exclude_label_e2e(self):
-        """Scenario with exclude_label (matchExpressions) runs and restores."""
-        ns = self.ns
-        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        result = self.run_scenario(
-            self.tmp_path, ns,
-            overrides={"exclude_label": {"env": "prod"}},
-            config_filename="app_outage_exclude_config.yaml",
-        )
-        assert_kraken_success(result, context=f"exclude_label namespace={ns}", tmp_path=self.tmp_path)
-        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        assert_pod_count_unchanged(before, after, namespace=ns)
 
     @pytest.mark.no_workload
     def test_invalid_scenario_fails(self):
