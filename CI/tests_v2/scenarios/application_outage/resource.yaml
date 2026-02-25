@@ -5,7 +5,6 @@ metadata:
   labels:
     scenario: outage
 spec:
-  hostNetwork: true
   containers:
   - name: fedtools
     image: quay.io/krkn-chaos/krkn:tools

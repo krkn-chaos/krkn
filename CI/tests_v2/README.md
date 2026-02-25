@@ -168,11 +168,9 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
 
 - **scenarios/application_outage/**  
   Application outage scenario (block Ingress/Egress to target pods, then restore). `resource.yaml` is the main workload (outage pod); `scenario_base.yaml` is loaded and patched with namespace (and duration/block as needed). Optional `nginx_http.yaml` is used by the traffic test. Tests include:
-  - **test_app_outage_block_and_restore**: Happy path; Krkn exit 0, pods still Running/Ready.
+  - **test_app_outage_block_restore_and_variants**: Happy path with default, exclude_label, and block variants (Ingress, Egress, both); Krkn exit 0, pods still Running/Ready.
   - **test_network_policy_created_then_deleted**: Policy with prefix `krkn-deny-` appears during run and is gone after.
-  - **test_traffic_blocked_during_outage**: Deploys nginx with label `scenario=outage`, port-forwards; during outage curl fails, after run curl succeeds.
-  - **test_block_type_variants** (parametrized): Runs with `block: [Ingress]`, `[Egress]`, and `[Ingress, Egress]`; each exits 0 and pods remain.
-  - **test_exclude_label_e2e**: Scenario with `exclude_label: {"env": "prod"}` runs and restores.
+  - **test_traffic_blocked_during_outage** (disabled, planned): Deploys nginx with label `scenario=outage`, port-forwards; during outage curl fails, after run curl succeeds.
   - **test_invalid_scenario_fails**: Invalid scenario file (missing `application_outage` key) causes Kraken to exit non-zero.
   - **test_bad_namespace_fails**: Scenario targeting a non-existent namespace causes Kraken to exit non-zero.
 

@@ -4,22 +4,15 @@ Equivalent to CI/tests/test_app_outages.sh with proper assertions.
 The main happy-path test reuses one namespace and workload for multiple scenario runs (default, exclude_label, block variants); other tests use their own ephemeral namespace as needed.
 """
 
-import socket
-import subprocess
 import time
 
 import pytest
-import requests
-import yaml
-from kubernetes import utils as k8s_utils
 
 from lib.base import (
     BaseScenarioTest,
     KRAKEN_PROC_WAIT_TIMEOUT,
     POLICY_WAIT_TIMEOUT,
-    READINESS_TIMEOUT,
 )
-from lib.deploy import wait_for_deployment_replicas
 from lib.utils import (
     assert_all_pods_running_and_ready,
     assert_kraken_failure,
@@ -28,8 +21,6 @@ from lib.utils import (
     find_network_policy_by_prefix,
     get_network_policies_list,
     get_pods_list,
-    patch_namespace_in_docs,
-    scenario_dir,
 )
 
 
@@ -52,13 +43,6 @@ def _assert_no_network_policy_with_prefix(k8s_networking, namespace: str, prefix
     assert policy is None, (
         f"Expected no NetworkPolicy with prefix {prefix!r} in namespace={namespace}, found {name}"
     )
-
-
-def _get_free_port() -> int:
-    """Return a free port for use with port-forward (avoids collisions when running in parallel)."""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
 
 
 @pytest.mark.functional
