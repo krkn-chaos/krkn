@@ -10,7 +10,7 @@ Creates (folder-per-scenario layout):
   - CI/tests_v2/scenarios/<scenario>/test_<scenario>.py (BaseScenarioTest subclass + stub test)
   - CI/tests_v2/scenarios/<scenario>/resource.yaml (placeholder workload)
   - CI/tests_v2/scenarios/<scenario>/scenario_base.yaml (placeholder Krkn scenario; edit for your scenario_type)
-  - Prints the marker line to add to pytest.ini
+  - Adds the scenario marker to pytest.ini (if not already present)
 """
 
 import argparse

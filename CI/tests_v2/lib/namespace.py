@@ -10,6 +10,7 @@ from datetime import datetime
 
 import pytest
 from kubernetes import client
+from kubernetes.client.rest import ApiException
 
 from lib.base import NS_CLEANUP_TIMEOUT
 
@@ -40,7 +41,7 @@ def _wait_for_namespace_gone(k8s_core, name: str, timeout: int = 60):
     while time.monotonic() < deadline:
         try:
             k8s_core.read_namespace(name=name)
-        except client.rest_api.ApiException as e:
+        except ApiException as e:
             if e.status == 404:
                 return
             raise

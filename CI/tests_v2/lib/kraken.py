@@ -4,6 +4,7 @@ Kraken execution and config building fixtures for CI/tests_v2.
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -11,12 +12,14 @@ import yaml
 
 
 def _kraken_cmd(config_path: str, repo_root: Path):
+    """Use the same Python as the test process so venv/.venv and coverage match."""
+    python = sys.executable
     if os.environ.get("KRKN_TEST_COVERAGE", "0") == "1":
         return [
-            "python3", "-m", "coverage", "run", "-a",
+            python, "-m", "coverage", "run", "-a",
             "run_kraken.py", "-c", str(config_path),
         ]
-    return ["python3", "run_kraken.py", "-c", str(config_path)]
+    return [python, "run_kraken.py", "-c", str(config_path)]
 
 
 @pytest.fixture
