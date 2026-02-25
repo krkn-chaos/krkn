@@ -35,7 +35,6 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r CI/tests_v2/requirements.txt
-          pip install coverage
 
       - name: Run tests_v2
         run: |

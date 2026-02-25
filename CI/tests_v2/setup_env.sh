@@ -2,7 +2,7 @@
 # Setup environment for CI/tests_v2 pytest functional tests.
 # Run from the repository root: ./CI/tests_v2/setup_env.sh
 #
-# - Creates a KinD cluster using the repo's kind-config.yml (if not already present).
+# - Creates a KinD cluster using kind-config-dev.yml (override with KIND_CONFIG=...).
 # - Waits for the cluster and for local-path-provisioner pods (required by pod disruption test).
 # - Does not install Python deps; use a venv and pip install -r requirements.txt and CI/tests_v2/requirements.txt yourself.
 

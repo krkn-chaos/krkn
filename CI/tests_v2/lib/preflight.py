@@ -22,6 +22,7 @@ def _preflight_checks(repo_root):
         import pytest_html  # noqa: F401
         import pytest_timeout  # noqa: F401
         import pytest_order  # noqa: F401
+        import xdist  # noqa: F401
     except ImportError as e:
         pytest.skip(
             f"Missing test dependency: {e}. "

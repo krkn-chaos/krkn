@@ -68,7 +68,7 @@ def wait_for_pods_running(k8s_core):
                     namespace=namespace,
                     label_selector=label_selector,
                 )
-            except Exception as e:
+            except Exception:
                 time.sleep(min(interval, max_interval))
                 interval = min(interval * 2, max_interval)
                 continue

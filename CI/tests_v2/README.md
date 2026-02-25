@@ -24,7 +24,7 @@ Without a cluster, tests that need one will **skip** with a clear message (e.g. 
 From the repository root, with `kind` and `kubectl` installed:
 
 ```bash
-# Create KinD cluster (uses kind-config.yml)
+# Create KinD cluster (defaults to CI/tests_v2/kind-config-dev.yml; override with KIND_CONFIG=...)
 ./CI/tests_v2/setup_env.sh
 ```
 
