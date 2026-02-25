@@ -503,7 +503,7 @@ def main(options, command: Optional[str]) -> int:
 
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
-        if resiliency_obj and hasattr(resiliency_obj, "summary"):
+        if resiliency_obj and hasattr(resiliency_obj, "summary") and resiliency_obj.summary is not None:
             summary_dict = resiliency_obj.get_summary()
             decoded_chaos_run_telemetry.overall_resiliency_report = ResiliencyReport(
                 json_object=summary_dict,

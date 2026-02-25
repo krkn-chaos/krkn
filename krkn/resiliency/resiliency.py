@@ -174,13 +174,13 @@ class Resiliency:
 
     def get_summary(self) -> Dict[str, Any]:
         """Return the concise resiliency_summary structure."""
-        if not hasattr(self, "summary"):
+        if not hasattr(self, "summary") or self.summary is None:
             raise RuntimeError("finalize_report() must be called first")
         return self.summary
 
     def get_detailed_report(self) -> Dict[str, Any]:
         """Return the full resiliency-report structure."""
-        if not hasattr(self, "detailed_report"):
+        if not hasattr(self, "detailed_report") or self.detailed_report is None:
             raise RuntimeError("finalize_report() must be called first")
         return self.detailed_report
 
