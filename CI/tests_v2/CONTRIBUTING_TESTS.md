@@ -76,6 +76,14 @@ python CI/tests_v2/scaffold.py --scenario node_disruption --scenario-type node_s
 - **Assertions**: Use `assert_kraken_success(result, context=f"namespace={ns}", tmp_path=self.tmp_path)` so failures include stdout/stderr and optional log files.
 - **Timeouts**: Use constants from `lib.base` (`READINESS_TIMEOUT`, `POLICY_WAIT_TIMEOUT`, etc.) instead of magic numbers.
 
+## Exit Code Handling
+
+Kraken uses the following exit codes: **0** = success; **1** = scenario failure (e.g. post scenarios still failing); **2** = critical alerts fired; **3+** = health check / KubeVirt check failures; **-1** = infrastructure error (bad config, no kubeconfig).
+
+- **Happy-path tests**: Use `assert_kraken_success(result, ...)`. By default only exit code 0 is accepted.
+- **Alert-aware tests**: If you enable `check_critical_alerts` and expect alerts, use `assert_kraken_success(result, allowed_codes=(0, 2), ...)` so exit code 2 is treated as acceptable.
+- **Expected-failure tests**: Use `assert_kraken_failure(result, context=..., tmp_path=self.tmp_path)` for negative tests (invalid scenario, bad namespace, etc.). This gives the same diagnostic quality (log dump, tmp_path hint) as success assertions. Prefer this over a bare `assert result.returncode != 0`.
+
 ## Running your new tests
 
 ```bash
@@ -159,3 +167,9 @@ Follow these conventions so the framework stays consistent as new scenarios are 
 - The scenario marker name matches the folder name exactly.
 - Behavioral modifiers use plain descriptive names: `no_workload`, `order`.
 - Register all custom markers in `pytest.ini` to avoid warnings.
+
+## Adding Dependencies
+
+- **Runtime (Kraken needs it)**: Add to the **root** `requirements.txt`. Pin a version (e.g. `package==1.2.3` or `package>=1.2,<2`).
+- **Test-only (only CI/tests_v2 needs it)**: Add to **`CI/tests_v2/requirements.txt`**. Pin a version there as well.
+- After changing either file, run `make setup` (or `make -f CI/tests_v2/Makefile setup`) from the repo root to verify both files install cleanly together.

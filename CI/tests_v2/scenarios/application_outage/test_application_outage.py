@@ -22,6 +22,7 @@ from lib.base import (
 from lib.deploy import wait_for_deployment_replicas
 from lib.utils import (
     assert_all_pods_running_and_ready,
+    assert_kraken_failure,
     assert_kraken_success,
     assert_pod_count_unchanged,
     find_network_policy_by_prefix,
@@ -246,8 +247,8 @@ class TestApplicationOutage(BaseScenarioTest):
             filename="invalid_config.yaml",
         )
         result = self.run_kraken(config_path)
-        assert result.returncode != 0, (
-            "Invalid scenario should cause Kraken to fail (namespace=%s)" % self.ns
+        assert_kraken_failure(
+            result, context=f"namespace={self.ns}", tmp_path=self.tmp_path
         )
 
     @pytest.mark.no_workload
@@ -260,6 +261,8 @@ class TestApplicationOutage(BaseScenarioTest):
             filename="app_outage_bad_ns_config.yaml",
         )
         result = self.run_kraken(config_path)
-        assert result.returncode != 0, (
-            "Non-existent namespace should cause Kraken to fail (test namespace=%s)" % self.ns
+        assert_kraken_failure(
+            result,
+            context=f"test namespace={self.ns}",
+            tmp_path=self.tmp_path,
         )

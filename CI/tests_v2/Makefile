@@ -51,6 +51,7 @@ setup: $(VENV)/.installed
 $(VENV)/.installed: $(REPO_ROOT)/requirements.txt $(TESTS_DIR)/requirements.txt
 	@if [ ! -d "$(VENV)" ]; then python3 -m venv $(VENV); echo "Created venv at $(VENV)"; fi
 	$(PYTHON) -m pip install -q --upgrade pip
+	# Root = Kraken runtime; tests_v2 = test-only plugins; both required for functional tests.
 	$(PIP) install -q -r $(REPO_ROOT)/requirements.txt
 	$(PIP) install -q -r $(TESTS_DIR)/requirements.txt
 	@touch $(VENV)/.installed

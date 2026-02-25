@@ -39,6 +39,7 @@ import pytest
 from lib.base import BaseScenarioTest
 from lib.utils import (
     assert_all_pods_running_and_ready,
+    assert_kraken_failure,
     assert_kraken_success,
     assert_pod_count_unchanged,
     get_pods_list,

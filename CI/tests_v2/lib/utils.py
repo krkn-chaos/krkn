@@ -163,12 +163,13 @@ def assert_pod_count_unchanged(
     )
 
 
-def assert_kraken_success(result, context: str = "", tmp_path=None) -> None:
+def assert_kraken_success(result, context: str = "", tmp_path=None, allowed_codes=(0,)) -> None:
     """
-    Assert Kraken run succeeded (returncode 0). On failure, include stdout and stderr
+    Assert Kraken run succeeded (returncode in allowed_codes). On failure, include stdout and stderr
     in the assertion message and optionally write full output to tmp_path.
+    Default allowed_codes=(0,). For alert-aware tests, use allowed_codes=(0, 2).
     """
-    if result.returncode == 0:
+    if result.returncode in allowed_codes:
         return
     if tmp_path is not None:
         try:
@@ -182,6 +183,30 @@ def assert_kraken_success(result, context: str = "", tmp_path=None) -> None:
     path_hint = f"\nFull logs: {tmp_path}/kraken_stdout.log, {tmp_path}/kraken_stderr.log" if tmp_path else ""
     raise AssertionError(
         f"Krkn failed (rc={result.returncode}){context_str}.{path_hint}\n"
+        f"--- stderr ---\n{result.stderr or '(empty)'}\n"
+        f"--- stdout (last 20 lines) ---\n{tail_stdout}"
+    )
+
+
+def assert_kraken_failure(result, context: str = "", tmp_path=None) -> None:
+    """
+    Assert Kraken run failed (returncode != 0). On failure (Kraken unexpectedly succeeded),
+    raise AssertionError with stdout/stderr and optional tmp_path log files for diagnostics.
+    """
+    if result.returncode != 0:
+        return
+    if tmp_path is not None:
+        try:
+            (tmp_path / "kraken_stdout.log").write_text(result.stdout or "")
+            (tmp_path / "kraken_stderr.log").write_text(result.stderr or "")
+        except Exception as e:
+            logger.warning("Could not write Kraken logs to tmp_path: %s", e)
+    lines = (result.stdout or "").splitlines()
+    tail_stdout = "\n".join(lines[-20:]) if lines else "(empty)"
+    context_str = f" {context}" if context else ""
+    path_hint = f"\nFull logs: {tmp_path}/kraken_stdout.log, {tmp_path}/kraken_stderr.log" if tmp_path else ""
+    raise AssertionError(
+        f"Expected Krkn to fail but it succeeded (rc=0){context_str}.{path_hint}\n"
         f"--- stderr ---\n{result.stderr or '(empty)'}\n"
         f"--- stdout (last 20 lines) ---\n{tail_stdout}"
     )

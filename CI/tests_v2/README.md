@@ -61,6 +61,17 @@ pip install -r CI/tests_v2/requirements.txt
 
 This adds `pytest-rerunfailures`, `pytest-html`, `pytest-timeout`, and `pytest-order` (pytest and coverage come from the main `requirements.txt`).
 
+## Dependency Management
+
+Dependencies are split into two files:
+
+- **Root `requirements.txt`** — Kraken runtime (cloud SDKs, Kubernetes client, krkn-lib, pytest, coverage, etc.). Required to run Kraken.
+- **`CI/tests_v2/requirements.txt`** — Test-only pytest plugins (rerunfailures, html, timeout, order, xdist). Not needed by Kraken itself.
+
+**Rule of thumb:** If Kraken needs it at runtime, add to root. If only the functional tests need it, add to `CI/tests_v2/requirements.txt`.
+
+Running `make -f CI/tests_v2/Makefile setup` (or `make setup` from `CI/tests_v2`) creates the venv and installs **both** files automatically; you do not need to install them separately. The Makefile re-installs when either file changes (via the `.installed` sentinel).
+
 ## Run tests
 
 All commands below are from the **repository root**.
@@ -170,7 +181,7 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
 - **pytest.ini**: Markers (`functional`, `pod_disruption`, `application_outage`, `no_workload`). Use `--timeout=300`, `--reruns=2`, `--reruns-delay=10` on the command line for full runs.
 - **conftest.py**: Re-exports fixtures from `lib/k8s.py`, `lib/namespace.py`, `lib/deploy.py`, `lib/kraken.py` (e.g. `test_namespace`, `deploy_workload`, `k8s_core`, `wait_for_pods_running`, `run_kraken`, `build_config`). Configs are built from `CI/tests_v2/config/common_test_config.yaml` with monitoring disabled for local runs. Timeout constants in `lib/base.py` can be overridden via env vars.
 - **Cluster access**: Reads and applies use the Kubernetes Python client; `kubectl` is still used for `port-forward` and for running Kraken.
-- **utils.py**: Pod/network policy helpers and assertion helpers (`assert_all_pods_running_and_ready`, `assert_pod_count_unchanged`, `assert_kraken_success`, `patch_namespace_in_docs`).
+- **utils.py**: Pod/network policy helpers and assertion helpers (`assert_all_pods_running_and_ready`, `assert_pod_count_unchanged`, `assert_kraken_success`, `assert_kraken_failure`, `patch_namespace_in_docs`).
 
 ## Relationship to existing CI
 
@@ -186,3 +197,4 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
 - **`ModuleNotFoundError: pytest_rerunfailures`** — Missing test deps. Run `pip install -r CI/tests_v2/requirements.txt` (or `make setup`).
 - **Stale `krkn-test-*` namespaces** — Left over from a previous crashed run. They are auto-cleaned at session start (older than 30 min). To remove cluster and reports: `make -f CI/tests_v2/Makefile clean`.
 - **Wrong cluster targeted** — Multiple kube contexts. Use `--require-kind` to skip unless context is kind/minikube, or set context explicitly: `kubectl config use-context kind-ci-krkn`.
+- **`OSError: [Errno 48] Address already in use` when running tests in parallel** — Kraken normally starts an HTTP status server on port 8081. With `-n auto` (pytest-xdist), multiple Kraken processes would all try to bind to 8081. The test framework disables this server (`publish_kraken_status: False`) in the generated config, so parallel runs should not hit this. If you see it, ensure you're using the framework's `build_config` and not a config that has `publish_kraken_status: True`.

@@ -74,6 +74,9 @@ def build_config(repo_root, tmp_path):
         content = content.replace("$post_config", "")
 
         config = yaml.safe_load(content)
+        if "kraken" in config:
+            # Disable status server so parallel test workers don't all bind to port 8081
+            config["kraken"]["publish_kraken_status"] = False
         if "performance_monitoring" in config:
             config["performance_monitoring"]["check_critical_alerts"] = False
             config["performance_monitoring"]["enable_alerts"] = False
