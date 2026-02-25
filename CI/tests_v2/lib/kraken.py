@@ -83,6 +83,8 @@ def build_config(repo_root, tmp_path):
             config["performance_monitoring"]["enable_metrics"] = False
         if "elastic" in config:
             config["elastic"]["enable_elastic"] = False
+        if "tunings" in config:
+            config["tunings"]["wait_duration"] = 1
 
         out_path = tmp_path / filename
         with open(out_path, "w") as f:

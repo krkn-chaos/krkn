@@ -12,8 +12,6 @@ import pytest
 from kubernetes import client
 from kubernetes.client.rest import ApiException
 
-from lib.base import NS_CLEANUP_TIMEOUT
-
 logger = logging.getLogger(__name__)
 
 STALE_NS_AGE_MINUTES = 30
@@ -72,10 +70,9 @@ def test_namespace(request, k8s_core):
     try:
         k8s_core.delete_namespace(
             name=name,
-            body=client.V1DeleteOptions(propagation_policy="Foreground"),
+            body=client.V1DeleteOptions(propagation_policy="Background"),
         )
-        _wait_for_namespace_gone(k8s_core, name, timeout=NS_CLEANUP_TIMEOUT)
-        logger.debug("Deleted test namespace: %s", name)
+        logger.debug("Scheduled background deletion for namespace: %s", name)
     except Exception as e:
         logger.warning("Failed to delete namespace %s: %s", name, e)
 
