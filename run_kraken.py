@@ -93,10 +93,11 @@ def main(options, command: Optional[str]) -> int:
             config["kraken"], "signal_address", "0.0.0.0"
         )
         run_signal = get_yaml_item_value(config["kraken"], "signal_state", "RUN")
-
+        
+        resiliency_config = get_yaml_item_value(config,"resiliency",{})
         # Determine execution mode (standalone, controller, or disabled)
-        run_mode = get_yaml_item_value(config["resiliency"], "resiliency_run_mode", "standalone")
-        valid_run_modes = {"standalone", "controller", "disabled"}
+        run_mode = get_yaml_item_value(resiliency_config, "resiliency_run_mode", "standalone")
+        valid_run_modes = {"standalone", "detailed", "disabled"}
         if run_mode not in valid_run_modes:
             logging.warning("Unknown resiliency_run_mode '%s'. Defaulting to 'standalone'", run_mode)
             run_mode = "standalone"
@@ -282,7 +283,7 @@ def main(options, command: Optional[str]) -> int:
             except Exception as prom_exc:  
                 logging.error("Prometheus connectivity test failed: %s. Disabling resiliency features as Prometheus is required for SLO evaluation.", prom_exc)
                 run_mode = "disabled"
-        resiliency_alerts = get_yaml_item_value(config['resiliency'], "resiliency_file", get_yaml_item_value(config['performance_monitoring'],"alert_profile", "config/alerts.yaml"))
+        resiliency_alerts = get_yaml_item_value(resiliency_config, "resiliency_file", get_yaml_item_value(config['performance_monitoring'],"alert_profile", "config/alerts.yaml"))
         resiliency_obj = Resiliency(resiliency_alerts) if run_mode != "disabled" else None  # Initialize resiliency orchestrator
         logging.info("Server URL: %s" % kubecli.get_host())
 
