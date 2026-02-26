@@ -77,7 +77,6 @@ RUN mkdir -p /home/krkn/kraken && \
 # or just clone directly. The original logic cloned into /home/krkn/kraken.
 # We will preserve the logic of cloning the repo.
 RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken
-RUN sed -i 's/exec python3\.9/exec python3/' /home/krkn/kraken/containers/entrypoint.sh
 
 WORKDIR /home/krkn/kraken
 
