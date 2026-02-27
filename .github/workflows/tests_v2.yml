@@ -49,4 +49,5 @@ jobs:
           path: |
             CI/tests_v2/report.html
             CI/tests_v2/results.xml
+            CI/tests_v2/assets/
           if-no-files-found: ignore
