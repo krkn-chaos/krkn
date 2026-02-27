@@ -40,13 +40,13 @@ class VirtChecker:
             self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=krkn_lib)
 
-            self.kube_vm_plugin.get_vmis(vmi_name_match,self.namespace)
+            self.vmis_list = self.kube_vm_plugin.k8s_client.get_vmis(vmi_name_match,self.namespace)
         except Exception as e:
             logging.error('Virt Check init exception: ' + str(e))
             return
         # See if multiple node names exist
         node_name_list = [node_name for node_name in self.node_names.split(',') if node_name]
-        for vmi in self.kube_vm_plugin.vmis_list:
+        for vmi in self.vmis_list:
             node_name = vmi.get("status",{}).get("nodeName")
             vmi_name = vmi.get("metadata",{}).get("name")
             interfaces = vmi.get("status",{}).get("interfaces",[])
