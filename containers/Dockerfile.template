@@ -34,7 +34,6 @@ FROM python:3.11-alpine
 
 ARG PR_NUMBER
 ARG TAG
-ARG TARGETARCH
 
 # Install system dependencies
 # git, jq, wget, curl, ipmitool, openssh-server: existing requirements
