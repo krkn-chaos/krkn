@@ -294,7 +294,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -330,7 +329,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -359,7 +357,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -385,7 +382,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -411,7 +407,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -437,7 +432,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )

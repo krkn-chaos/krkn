@@ -11,7 +11,6 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string, get_yaml_item_value, log_exception
 from kubernetes.client import ApiException
 
-from krkn import cerberus, utils
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -20,7 +19,6 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -28,7 +26,6 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             with open(scenario, "r") as f:
                 scenario_config = yaml.full_load(f)
                 for time_scenario in scenario_config["time_scenarios"]:
-                    start_time = int(time.time())
                     object_type, object_names = self.skew_time(
                         time_scenario, lib_telemetry.get_lib_kubernetes()
                     )
@@ -39,11 +36,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     )
                     if len(not_reset) > 0:
                         logging.info("Object times were not reset")
-                    end_time = int(time.time())
-                    cerberus.publish_kraken_status(
-                        krkn_config, not_reset, start_time, end_time
-                    )
-        except (RuntimeError, Exception) as e:
+        except (RuntimeError, Exception):
             logging.error(
                 f"TimeActionsScenarioPlugin scenario {scenario} failed with exception: {e}"
             )

@@ -14,6 +14,7 @@ import queue
 import threading
 from typing import Optional
 
+from krkn import cerberus
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
@@ -144,6 +145,9 @@ def main(options, command: Optional[str]) -> int:
             )
             return -1
         logging.info("Initializing client to talk to the Kubernetes cluster")
+
+        # Set Cerberus url if enabled
+        cerberus.set_url(config)
 
         # Generate uuid for the run
         if run_uuid:
