@@ -79,6 +79,7 @@ elastic:
     metrics_index: "krkn-metrics"
     alerts_index: "krkn-alerts"
     telemetry_index: "krkn-telemetry"
+    run_tag: ""
 
 tunings:
     wait_duration: 1                                      # Duration to wait between each chaos scenario

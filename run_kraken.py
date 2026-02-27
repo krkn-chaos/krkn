@@ -103,7 +103,7 @@ def main(options, command: Optional[str]) -> int:
         )
         # elastic search
         enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
-
+        elastic_run_tag = get_yaml_item_value(config["elastic"], "run_tag", "")
         elastic_url = get_yaml_item_value(config["elastic"], "elastic_url", "")
 
         elastic_verify_certs = get_yaml_item_value(
@@ -293,6 +293,7 @@ def main(options, command: Optional[str]) -> int:
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
+        chaos_telemetry.tag = elastic_run_tag
         scenario_plugin_factory = ScenarioPluginFactory()
         classes_and_types: dict[str, list[str]] = {}
         for loaded in scenario_plugin_factory.loaded_plugins.keys():
