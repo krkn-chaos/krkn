@@ -19,7 +19,7 @@ function functional_test_telemetry {
   yq -i '.telemetry.run_tag=env(RUN_TAG)' CI/config/common_test_config.yaml
 
   export scenario_type="pod_disruption_scenarios"
-  export scenario_file="scenarios/kind/pod_etcd.yml"
+  export scenario_file="scenarios/kind/pod_path_provisioner.yml"
 
   export post_config=""
   envsubst < CI/config/common_test_config.yaml > CI/config/telemetry.yaml

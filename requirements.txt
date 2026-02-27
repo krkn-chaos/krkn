@@ -17,7 +17,7 @@ ibm_vpc==0.26.3  # Requires ibm_cloud_sdk_core
 jinja2==3.1.6
 lxml==5.1.0
 kubernetes==34.1.0
-krkn-lib==6.0.3
+krkn-lib==6.0.5
 numpy==1.26.4
 pandas==2.2.0
 openshift-client==1.0.21

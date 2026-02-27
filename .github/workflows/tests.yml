@@ -94,13 +94,13 @@ jobs:
             echo "test_namespace" >> ./CI/tests/functional_tests
             echo "test_net_chaos" >> ./CI/tests/functional_tests
             echo "test_node" >> ./CI/tests/functional_tests
-
             echo "test_service_hijacking" >> ./CI/tests/functional_tests
             echo "test_pod_network_filter" >> ./CI/tests/functional_tests
             echo "test_pod_server" >> ./CI/tests/functional_tests
             echo "test_time" >> ./CI/tests/functional_tests
             echo "test_node_network_chaos" >> ./CI/tests/functional_tests
             echo "test_pod_network_chaos" >> ./CI/tests/functional_tests          
+            echo "test_cerberus_unhealthy" >> ./CI/tests/functional_tests
             echo "test_pod_error" >> ./CI/tests/functional_tests
             echo "test_pod" >> ./CI/tests/functional_tests
             # echo "test_pvc" >> ./CI/tests/functional_tests
