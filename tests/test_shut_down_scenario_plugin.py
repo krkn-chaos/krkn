@@ -9,6 +9,7 @@ Usage:
 Assisted By: Claude Code
 """
 
+import itertools
 import unittest
 from unittest.mock import Mock, patch, mock_open
 
@@ -447,8 +448,8 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         self.mock_kubecli.list_nodes.return_value = ["node1"]
         affected_nodes_status = AffectedNodeStatus()
 
-        # Simulate time progression - provide enough values for all time.time() calls
-        mock_time.side_effect = [1000, 1050, 1100, 1150, 1200]
+        # Simulate time progression - use itertools.count() to avoid StopIteration
+        mock_time.side_effect = (1000 + x * 50 for x in itertools.count())
 
         with patch.object(self.plugin, 'multiprocess_nodes'):
             self.plugin.cluster_shut_down(shut_down_config, self.mock_kubecli, affected_nodes_status)

@@ -10,11 +10,10 @@ Or with coverage:
 Generated with help from Claude Code
 """
 
+import itertools
 import unittest
-from unittest.mock import patch, MagicMock, Mock, call
-import time
+from unittest.mock import patch, Mock
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 
@@ -161,13 +160,13 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
         """Test that cerberus.publish_kraken_status receives correct timestamps"""
         mock_signal_ctx.return_value.__enter__ = Mock()
         mock_signal_ctx.return_value.__exit__ = Mock(return_value=False)
-        
-        # Mock time progression
-        time_sequence = [1000.0, 1000.5, 1010.0]  # start, intermediate, end
-        mock_time.side_effect = time_sequence
+
+        # Mock time progression - use itertools.count() to avoid StopIteration
+        # Start at 1000.0 and increment by 0.5 for each call
+        mock_time.side_effect = (x * 0.5 + 1000.0 for x in itertools.count())
 
         scenarios_list = ["scenario1.yaml"]
-        
+
         failed_scenarios, telemetries = self.plugin.run_scenarios(
             "test-uuid",
             scenarios_list,

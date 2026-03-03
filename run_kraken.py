@@ -27,12 +27,10 @@ import pyfiglet
 import uuid
 import time
 import queue
-import threading
 from typing import Optional, Dict
 
 from krkn import cerberus
 from krkn_lib.elastic.krkn_elastic import KrknElastic
-from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
@@ -50,8 +48,7 @@ from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
 from krkn.utils import TeeLogHandler, ErrorCollectionHandler
-from krkn.utils.HealthChecker import HealthChecker
-from krkn.utils.VirtChecker import VirtChecker
+from krkn.health_checks import HealthCheckFactory
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
@@ -175,8 +172,6 @@ def main(options, command: Optional[str]) -> int:
         )
         telemetry_api_url = config["telemetry"].get("api_url", "")
         telemetry_enabled = config["telemetry"].get("enabled", True)
-        health_check_config = get_yaml_item_value(config, "health_checks",{})
-        kubevirt_check_config = get_yaml_item_value(config, "kubevirt_checks", {})
         
         # Initialize clients
         if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
@@ -362,6 +357,7 @@ def main(options, command: Optional[str]) -> int:
         chaos_telemetry.run_uuid = run_uuid
         chaos_telemetry.tag = elastic_run_tag
         scenario_plugin_factory = ScenarioPluginFactory()
+        health_check_factory = HealthCheckFactory()
         classes_and_types: dict[str, list[str]] = {}
         for loaded in scenario_plugin_factory.loaded_plugins.keys():
             if (
@@ -393,15 +389,25 @@ def main(options, command: Optional[str]) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}\n")
-        health_check_telemetry_queue = queue.Queue()
-        health_checker = HealthChecker(iterations)
-        health_check_worker = threading.Thread(target=health_checker.run_health_check,
-                                               args=(health_check_config, health_check_telemetry_queue))
-        health_check_worker.start()
 
-        kubevirt_check_telemetry_queue = queue.SimpleQueue()
-        kubevirt_checker = VirtChecker(kubevirt_check_config, iterations=iterations, krkn_lib=kubecli)
-        kubevirt_checker.batch_list(kubevirt_check_telemetry_queue)
+        # Log loaded health check plugins
+        logging.info(
+            "📣 `HealthCheckFactory`: Available health check plugins: "
+            f"{list(health_check_factory.loaded_plugins.keys())}"
+        )
+        if len(health_check_factory.failed_plugins) > 0:
+            logging.info("Failed to load Health Check Plugins:\n")
+            for failed in health_check_factory.failed_plugins:
+                module_name, class_name, error = failed
+                logging.error(f"⛔ Class: {class_name} Module: {module_name}")
+                logging.error(f"⚠️ {error}\n")
+
+        # Start all health check plugins discovered via config_key_map.
+        # Returns list of (plugin, worker_thread, telemetry_queue);
+        # worker_thread is None for self-threading plugins (e.g. virt).
+        generic_health_checkers = health_check_factory.start_all(
+            config, iterations=iterations, krkn_lib=kubecli
+        )
 
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
@@ -477,39 +483,46 @@ def main(options, command: Optional[str]) -> int:
                                 break
 
             iteration += 1
-            health_checker.current_iterations += 1
-            kubevirt_checker.increment_iterations()
+            health_check_factory.increment_all_iterations()
         # telemetry
         # in order to print decoded telemetry data even if telemetry collection
         # is disabled, it's necessary to serialize the ChaosRunTelemetry object
         # to json, and recreate a new object from it.
         end_time = int(time.time())
-        health_check_worker.join()
-        health_checker.close()
-        try:
-            chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
-        except queue.Empty:
-            chaos_telemetry.health_checks = None
-        
-        kubevirt_checker.thread_join()
-        kubevirt_check_telem = []
-        while not kubevirt_check_telemetry_queue.empty():
-            kubevirt_check_telem.extend(kubevirt_check_telemetry_queue.get_nowait())
-        chaos_telemetry.virt_checks = kubevirt_check_telem
-        
-        post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
-        chaos_telemetry.post_virt_checks = post_kubevirt_check
-        # Collect cluster metadata only when telemetry is enabled
-        # (listing all k8s objects is very slow on large clusters)
-        if telemetry_enabled:
-            if distribution == "openshift":
-                logging.info(
-                    "collecting OCP cluster metadata, this may take few minutes...."
-                )
-                telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
+
+        # Signal all health check plugins to stop (handles early exit due to STOP/alerts/daemon mode)
+        health_check_factory.stop_all()
+
+        # Collect telemetry from all health check plugins.
+        # worker=None means the plugin manages its own threads (virt); use thread_join() + SimpleQueue drain.
+        # worker=Thread means it ran in an external thread; use worker.join() + Queue.get_nowait().
+        all_health_check_telemetry = []
+        chaos_telemetry.virt_checks = []
+        chaos_telemetry.post_virt_checks = []
+        for plugin, worker, tq in generic_health_checkers:
+            if worker is None:
+                # Virt plugin: join its internal threads then drain its SimpleQueue
+                plugin.thread_join()
+                virt_telem = []
+                while not tq.empty():
+                    virt_telem.extend(tq.get_nowait())
+                chaos_telemetry.virt_checks = virt_telem
+                chaos_telemetry.post_virt_checks = plugin.gather_post_virt_checks(virt_telem)
             else:
-                logging.info("collecting Kubernetes cluster metadata....")
-                telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
+                worker.join()
+                try:
+                    all_health_check_telemetry.extend(tq.get_nowait())
+                except queue.Empty:
+                    pass
+        chaos_telemetry.health_checks = all_health_check_telemetry if all_health_check_telemetry else None
+        # if platform is openshift will be collected
+        # Cloud platform and network plugins metadata
+        # through OCP specific APIs
+        if distribution == "openshift":
+            logging.info(
+                "collecting OCP cluster metadata, this may take few minutes...."
+            )
+            telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
         else:
             logging.info("telemetry disabled, skipping cluster metadata collection")
 
@@ -553,9 +566,6 @@ def main(options, command: Optional[str]) -> int:
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
-            elastic_telemetry = ElasticChaosRunTelemetry( 
-                chaos_run_telemetry=decoded_chaos_run_telemetry
-            )
             result = elastic_search.push_telemetry(
                 decoded_chaos_run_telemetry, elastic_telemetry_index
             )
@@ -660,27 +670,27 @@ def main(options, command: Optional[str]) -> int:
                 telemetry_json
             )
 
-        # want to exit with 1 first to show failure of scenario 
-        # even if alerts failing
+        # Exit code priority (lowest wins, checked first):
+        #   1 = post-scenario failure
+        #   2 = critical Prometheus alerts
+        #   3+ = health check plugin failure
         if failed_post_scenarios:
             logging.error(
                 "Post scenarios are still failing at the end of all iterations"
             )
-            # sys.exit(1)
             return 1
+
+        for plugin, _, _ in generic_health_checkers:
+            if plugin.get_return_value() != 0:
+                if hasattr(plugin, 'gather_post_virt_checks'):
+                    logging.error("Kubevirt check still had failed VMIs at end of run, Please check; exiting")
+                else:
+                    logging.error("Health check failed for the applications, Please check; exiting")
+                return plugin.get_return_value()
 
         if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
-            # sys.exit(2)
             return 2
-
-        if health_checker.ret_value != 0:
-            logging.error("Health check failed for the applications, Please check; exiting")
-            return health_checker.ret_value
-
-        if kubevirt_checker.ret_value != 0:
-            logging.error("Kubevirt check still had failed VMIs at end of run, Please check; exiting")
-            return kubevirt_checker.ret_value
 
         logging.info(
             "Successfully finished running Kraken. UUID for the run: "
