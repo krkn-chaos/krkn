@@ -290,7 +290,10 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
-            
+
+            if not hasattr(self, 'affected_pod') or self.affected_pod is None:
+                self.affected_pod = AffectedPod(pod_name=vm_name, namespace=namespace)
+
             if self.original_vmi:
                 logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
                 

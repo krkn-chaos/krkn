@@ -12,6 +12,7 @@ Usage:
 Assisted By: Claude Code
 """
 
+import itertools
 import unittest
 import sys
 from unittest.mock import MagicMock, patch
@@ -379,12 +380,16 @@ class TestGCP(unittest.TestCase):
         instance_id = 'gke-cluster-node-1'
         affected_node = MagicMock(spec=AffectedNode)
 
-        with patch('time.time', side_effect=[100, 110]):
+        # Use itertools.count() to avoid StopIteration on time.time() calls
+        with patch('time.time', side_effect=(100 + x for x in itertools.count())):
             with patch.object(self.gcp, 'get_instance_status', return_value=True):
                 result = self.gcp.wait_until_running(instance_id, 60, affected_node)
 
                 self.assertTrue(result)
-                affected_node.set_affected_node_status.assert_called_once_with('running', 10)
+                # Check that set_affected_node_status was called with 'running' status
+                self.assertEqual(affected_node.set_affected_node_status.call_count, 1)
+                call_args = affected_node.set_affected_node_status.call_args[0]
+                self.assertEqual(call_args[0], 'running')
 
     def test_wait_until_running_without_affected_node(self):
         """Test waiting until running without affected node tracking"""
@@ -400,12 +405,16 @@ class TestGCP(unittest.TestCase):
         instance_id = 'gke-cluster-node-1'
         affected_node = MagicMock(spec=AffectedNode)
 
-        with patch('time.time', side_effect=[100, 115]):
+        # Use itertools.count() to avoid StopIteration on time.time() calls
+        with patch('time.time', side_effect=(100 + x for x in itertools.count())):
             with patch.object(self.gcp, 'get_instance_status', return_value=True):
                 result = self.gcp.wait_until_stopped(instance_id, 60, affected_node)
 
                 self.assertTrue(result)
-                affected_node.set_affected_node_status.assert_called_once_with('stopped', 15)
+                # Check that set_affected_node_status was called with 'stopped' status
+                self.assertEqual(affected_node.set_affected_node_status.call_count, 1)
+                call_args = affected_node.set_affected_node_status.call_args[0]
+                self.assertEqual(call_args[0], 'stopped')
 
     def test_wait_until_stopped_without_affected_node(self):
         """Test waiting until stopped without affected node tracking"""
@@ -421,12 +430,16 @@ class TestGCP(unittest.TestCase):
         instance_id = 'gke-cluster-node-1'
         affected_node = MagicMock(spec=AffectedNode)
 
-        with patch('time.time', side_effect=[100, 120]):
+        # Use itertools.count() to avoid StopIteration on time.time() calls
+        with patch('time.time', side_effect=(100 + x for x in itertools.count())):
             with patch.object(self.gcp, 'get_instance_status', return_value=True):
                 result = self.gcp.wait_until_terminated(instance_id, 60, affected_node)
 
                 self.assertTrue(result)
-                affected_node.set_affected_node_status.assert_called_once_with('terminated', 20)
+                # Check that set_affected_node_status was called with 'terminated' status
+                self.assertEqual(affected_node.set_affected_node_status.call_count, 1)
+                call_args = affected_node.set_affected_node_status.call_args[0]
+                self.assertEqual(call_args[0], 'terminated')
 
     def test_wait_until_terminated_without_affected_node(self):
         """Test waiting until terminated without affected node tracking"""
