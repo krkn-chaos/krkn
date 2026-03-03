@@ -3,6 +3,26 @@
 Test script for the Health Check Factory integration.
 
 This script verifies that the health check plugin system is working correctly.
+
+How to run:
+    # Run directly (no dependencies required for simple_health_check plugin)
+    python3 tests/test_health_check_factory.py
+
+    # Run from project root
+    cd /path/to/kraken
+    python3 tests/test_health_check_factory.py
+
+    # Run with pytest (if available)
+    pytest tests/test_health_check_factory.py -v
+
+    # Run with unittest
+    python3 -m unittest tests/test_health_check_factory.py -v
+
+Note:
+    - This test checks the factory loading mechanism
+    - Tests simple_health_check plugin (no external dependencies)
+    - HTTP and Virt plugins may fail to load if dependencies are missing
+    - Check factory.failed_plugins for details on any failures
 """
 
 import logging

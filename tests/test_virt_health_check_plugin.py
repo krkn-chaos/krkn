@@ -9,9 +9,37 @@ This test file provides comprehensive coverage for the virt health check plugin:
 - Telemetry collection
 - Disconnected SSH access checking
 
-Usage:
-    python -m pytest tests/test_virt_health_check_plugin.py -v
-    python -m unittest tests/test_virt_health_check_plugin.py -v
+How to run:
+    # Run directly (requires full krkn environment with dependencies)
+    python3 tests/test_virt_health_check_plugin.py
+
+    # Run from project root
+    cd /path/to/kraken
+    python3 tests/test_virt_health_check_plugin.py
+
+    # Run with pytest
+    pytest tests/test_virt_health_check_plugin.py -v
+
+    # Run with unittest
+    python3 -m unittest tests/test_virt_health_check_plugin.py -v
+
+    # Run specific test
+    python3 -m unittest tests.test_virt_health_check_plugin.TestVirtHealthCheckPlugin.test_plugin_creation -v
+
+    # Run with coverage
+    coverage run -m pytest tests/test_virt_health_check_plugin.py -v
+    coverage report
+
+Requirements:
+    - krkn_lib library (pip install krkn-lib)
+    - All scenario plugin dependencies
+    - All dependencies in requirements.txt
+
+Note:
+    - Tests will be skipped if virt_health_check plugin fails to load
+    - Plugin may fail to load if 'krkn_lib' module is not installed
+    - Use a virtual environment with all dependencies installed
+    - Some tests mock KubeVirt components for unit testing
 
 Migrated from test_virt_checker.py to use the plugin architecture.
 """
@@ -144,33 +172,37 @@ class TestVirtHealthCheckPlugin(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(len(self.plugin.vm_list), 2)
 
-    @patch('krkn.invoke.command.invoke_no_exit')
+    @patch('krkn.health_checks.virt_health_check_plugin.invoke_no_exit')
     def test_check_disconnected_access_success(self, mock_invoke):
         """Test disconnected SSH access check succeeds"""
-        mock_invoke.return_value = "Permission"
+        # First call logs output, second call checks for 'True'
+        mock_invoke.side_effect = ["Permission denied", "True"]
 
-        # Mock the get_vmi method
-        with patch.object(self.plugin, 'kube_vm_plugin') as mock_vm_plugin:
-            result, new_ip, new_node = self.plugin.check_disconnected_access(
-                "10.0.0.1",
-                "worker-1",
-                "test-vm"
-            )
+        # Mock kube_vm_plugin to avoid None error
+        self.plugin.kube_vm_plugin = MagicMock()
+        self.plugin.namespace = "default"
 
-            self.assertTrue(result)
-            self.assertIsNone(new_ip)
-            self.assertIsNone(new_node)
+        result, new_ip, new_node = self.plugin.check_disconnected_access(
+            "10.0.0.1",
+            "worker-1",
+            "test-vm"
+        )
 
-    @patch('krkn.invoke.command.invoke_no_exit')
+        self.assertTrue(result)
+        self.assertIsNone(new_ip)
+        self.assertIsNone(new_node)
+
+    @patch('krkn.health_checks.virt_health_check_plugin.invoke_no_exit')
     def test_get_vm_access_success(self, mock_invoke):
         """Test VM access check via virtctl succeeds"""
-        mock_invoke.return_value = "denied\nTrue"
+        # Return value must contain 'True' to pass the check
+        mock_invoke.return_value = "Permission denied\nTrue"
 
         result = self.plugin.get_vm_access("test-vm", "default")
 
         self.assertTrue(result)
 
-    @patch('krkn.invoke.command.invoke_no_exit')
+    @patch('krkn.health_checks.virt_health_check_plugin.invoke_no_exit')
     def test_get_vm_access_failure(self, mock_invoke):
         """Test VM access check via virtctl fails"""
         mock_invoke.return_value = "False"

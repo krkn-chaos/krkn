@@ -10,9 +10,36 @@ This test file provides comprehensive coverage for the HTTP health check plugin:
 - Exit on failure behavior
 - Telemetry collection
 
-Usage:
-    python -m pytest tests/test_http_health_check_plugin.py -v
-    python -m unittest tests/test_http_health_check_plugin.py -v
+How to run:
+    # Run directly (requires full krkn environment with dependencies)
+    python3 tests/test_http_health_check_plugin.py
+
+    # Run from project root
+    cd /path/to/kraken
+    python3 tests/test_http_health_check_plugin.py
+
+    # Run with pytest
+    pytest tests/test_http_health_check_plugin.py -v
+
+    # Run with unittest
+    python3 -m unittest tests/test_http_health_check_plugin.py -v
+
+    # Run specific test
+    python3 -m unittest tests.test_http_health_check_plugin.TestHttpHealthCheckPlugin.test_make_request_success -v
+
+    # Run with coverage
+    coverage run -m pytest tests/test_http_health_check_plugin.py -v
+    coverage report
+
+Requirements:
+    - requests library (pip install requests)
+    - krkn_lib library (pip install krkn-lib)
+    - All dependencies in requirements.txt
+
+Note:
+    - Tests will be skipped if http_health_check plugin fails to load
+    - Plugin may fail to load if 'requests' module is not installed
+    - Use a virtual environment with all dependencies installed
 
 Migrated from test_health_checker.py to use the plugin architecture.
 """
