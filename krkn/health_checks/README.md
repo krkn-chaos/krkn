@@ -2,6 +2,8 @@
 
 The health check plugin system provides a flexible, extensible architecture for implementing health checks in krkn. This system is modeled after the scenario plugin architecture and allows you to create reusable, independently testable health check implementations.
 
+> **Note:** This is the current architecture for health checks in krkn. Legacy `HealthChecker` and `VirtChecker` classes have been removed and replaced with the plugin system. See [HEALTH_CHECK_MIGRATION_GUIDE.md](../../HEALTH_CHECK_MIGRATION_GUIDE.md) for migration details.
+
 ## Architecture Overview
 
 The health check plugin system consists of three main components:
@@ -18,9 +20,8 @@ krkn/health_checks/
 ├── abstract_health_check_plugin.py      # Abstract base class
 ├── health_check_factory.py              # Plugin factory
 ├── http_health_check_plugin.py          # HTTP health check implementation
+├── virt_health_check_plugin.py          # KubeVirt VM health check implementation
 ├── simple_health_check_plugin.py        # Simple test plugin
-├── HealthChecker.py                     # Legacy implementation (to be migrated)
-├── VirtChecker.py                       # Legacy implementation (to be migrated)
 └── README.md                            # This file
 ```
 
@@ -253,32 +254,47 @@ class TestMyHealthCheckPlugin(unittest.TestCase):
         self.assertEqual(plugin.current_iterations, 1)
 ```
 
-## Migrating Existing Health Checkers
+## Using Health Check Plugins
 
-### Current Architecture (Legacy)
-
-```python
-# Direct instantiation
-health_checker = HealthChecker(iterations=5)
-health_check_worker = threading.Thread(
-    target=health_checker.run_health_check,
-    args=(health_check_config, health_check_telemetry_queue)
-)
-```
-
-### New Plugin Architecture
+The plugin-based architecture is the standard way to use health checks in krkn:
 
 ```python
-# Factory-based instantiation
+from krkn.health_checks import HealthCheckFactory
+import threading
+import queue
+
+# Create factory instance
 factory = HealthCheckFactory()
+
+# Create health check plugin
 health_checker = factory.create_plugin(
     health_check_type="http_health_check",
     iterations=5
 )
+
+# Create telemetry queue
+health_check_telemetry_queue = queue.Queue()
+
+# Run in background thread
 health_check_worker = threading.Thread(
     target=health_checker.run_health_check,
     args=(health_check_config, health_check_telemetry_queue)
 )
+health_check_worker.start()
+
+# In main loop
+for iteration in range(iterations):
+    # Run chaos scenarios...
+
+    # Increment health check iteration
+    health_checker.increment_iterations()
+
+# Wait for completion
+health_check_worker.join()
+
+# Check results
+if health_checker.get_return_value() != 0:
+    logging.error("Health check failed")
 ```
 
 ## Benefits of Plugin Architecture
@@ -317,4 +333,17 @@ If two plugins return the same health check type from `get_health_check_types()`
 
 See the following implementations for reference:
 - [http_health_check_plugin.py](http_health_check_plugin.py) - HTTP endpoint monitoring
+- [virt_health_check_plugin.py](virt_health_check_plugin.py) - KubeVirt VM health monitoring with SSH access checks
 - [simple_health_check_plugin.py](simple_health_check_plugin.py) - Minimal example for testing
+
+## Available Plugins
+
+### HTTP Health Check Plugin
+- **Types:** `http_health_check`
+- **Purpose:** Monitor HTTP/HTTPS endpoints
+- **Features:** Basic auth, bearer tokens, SSL verification, failure detection
+
+### Virt Health Check Plugin
+- **Types:** `virt_health_check`, `kubevirt_health_check`, `vm_health_check`
+- **Purpose:** Monitor KubeVirt virtual machine accessibility
+- **Features:** virtctl access checks, disconnected SSH checks, VM migration tracking, batch processing
