@@ -345,6 +345,7 @@ def main(options, command: Optional[str]) -> int:
         health_check_worker = None
 
         # Create HTTP health check plugin if configured
+        # HTTP checker runs continuously in a background thread
         if health_check_config and health_check_config.get("config"):
             try:
                 health_checker = health_check_factory.create_plugin(
@@ -360,6 +361,7 @@ def main(options, command: Optional[str]) -> int:
                 logging.warning("HTTP health check plugin not found, skipping")
 
         # Create virt health check plugin if configured
+        # Virt checker spawns its own worker threads internally (no separate thread needed)
         kubevirt_check_telemetry_queue = queue.SimpleQueue()
         kubevirt_checker = None
 
@@ -370,7 +372,8 @@ def main(options, command: Optional[str]) -> int:
                     iterations=iterations,
                     krkn_lib=kubecli
                 )
-                kubevirt_checker.batch_list(kubevirt_check_telemetry_queue)
+                # run_health_check() initializes from config and spawns worker threads
+                kubevirt_checker.run_health_check(kubevirt_check_config, kubevirt_check_telemetry_queue)
             except HealthCheckPluginNotFound:
                 logging.warning("Virt health check plugin not found, skipping")
 

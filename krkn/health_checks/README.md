@@ -192,6 +192,38 @@ if plugin.get_return_value() != 0:
     sys.exit(plugin.get_return_value())
 ```
 
+## Plugin Threading Models
+
+Health check plugins have different threading models depending on their implementation:
+
+### HTTP Health Check Plugin (Continuous Monitoring)
+The HTTP plugin runs continuously in a **background thread** and checks endpoints periodically:
+
+```python
+# HTTP plugin must run in a separate thread
+health_check_worker = threading.Thread(
+    target=health_checker.run_health_check,
+    args=(health_check_config, health_check_telemetry_queue)
+)
+health_check_worker.start()
+```
+
+### Virt Health Check Plugin (Batch Processing)
+The virt plugin **spawns its own worker threads** internally and returns immediately:
+
+```python
+# Virt plugin spawns threads internally - no wrapper thread needed
+kubevirt_checker.run_health_check(kubevirt_check_config, kubevirt_check_telemetry_queue)
+# Returns immediately after spawning worker threads
+```
+
+**Important:** When using the virt plugin, call `run_health_check()` directly (not `batch_list()`). The `run_health_check()` method:
+1. Initializes from config (`_initialize_from_config()`)
+2. Spawns worker threads (`batch_list()`)
+3. Returns immediately while workers run in background
+
+Calling `batch_list()` directly will fail because `vm_list` and `batch_size` are only populated during initialization.
+
 ## Configuration Format
 
 Health check configuration in `config.yaml`:
@@ -342,8 +374,10 @@ See the following implementations for reference:
 - **Types:** `http_health_check`
 - **Purpose:** Monitor HTTP/HTTPS endpoints
 - **Features:** Basic auth, bearer tokens, SSL verification, failure detection
+- **Threading:** Runs continuously in a background thread
 
 ### Virt Health Check Plugin
 - **Types:** `virt_health_check`, `kubevirt_health_check`, `vm_health_check`
 - **Purpose:** Monitor KubeVirt virtual machine accessibility
 - **Features:** virtctl access checks, disconnected SSH checks, VM migration tracking, batch processing
+- **Threading:** Spawns worker threads internally (no wrapper thread needed)

@@ -175,10 +175,21 @@ class TestVirtHealthCheckPlugin(unittest.TestCase):
     @patch('krkn.health_checks.virt_health_check_plugin.invoke_no_exit')
     def test_check_disconnected_access_success(self, mock_invoke):
         """Test disconnected SSH access check succeeds"""
-        # First call logs output, second call checks for 'True'
-        mock_invoke.side_effect = ["Permission denied", "True"]
+        # Mock returns values that match the expected output format
+        # First call is debug output, second call is the actual check
+        # The check looks for "True" in the output to indicate success
+        def side_effect_fn(*args, **kwargs):
+            cmd = args[0] if args else ""
+            if "2>&1 | grep Permission" in cmd and "echo 'True'" in cmd:
+                # This is the actual check command
+                return "True"
+            else:
+                # This is the debug command
+                return "Permission denied (publickey)"
 
-        # Mock kube_vm_plugin to avoid None error
+        mock_invoke.side_effect = side_effect_fn
+
+        # Mock kube_vm_plugin to avoid None error (shouldn't be needed if returning early)
         self.plugin.kube_vm_plugin = MagicMock()
         self.plugin.namespace = "default"
 
