@@ -433,8 +433,9 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.get_vmi.side_effect = [None, None, running_vmi]
 
         with patch('time.sleep'):
-            # time.time() called: start_time (0), while loop iteration 1 (1), iteration 2 (2), iteration 3 (3), end_time (3)
-            with patch('time.time', side_effect=[0, 1, 2, 3, 3]):
+            # Use itertools.count() to avoid StopIteration on time.time() calls
+            # time.time() called for: start_time, while loop checks, end_time, and potentially logging
+            with patch('time.time', side_effect=(x for x in itertools.count(0))):
                 result = self.plugin.wait_for_running("test-vm", "default", 120)
 
         self.assertEqual(result, 0)

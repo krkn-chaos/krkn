@@ -178,19 +178,33 @@ class TestVirtHealthCheckPlugin(unittest.TestCase):
         # Mock returns values that match the expected output format
         # First call is debug output, second call is the actual check
         # The check looks for "True" in the output to indicate success
+
+        # Track call count to differentiate between first and second invoke
+        call_count = [0]
         def side_effect_fn(*args, **kwargs):
+            call_count[0] += 1
             cmd = args[0] if args else ""
-            if "2>&1 | grep Permission" in cmd and "echo 'True'" in cmd:
-                # This is the actual check command
-                return "True"
+
+            # Second call has the check command with grep and echo
+            if call_count[0] == 2 and ("grep Permission" in cmd or "2>&1" in cmd):
+                # Return string containing "True" to indicate success
+                return "Permission denied (publickey)\nTrue"
             else:
-                # This is the debug command
+                # First call is debug - return permission denied message
                 return "Permission denied (publickey)"
 
         mock_invoke.side_effect = side_effect_fn
 
         # Mock kube_vm_plugin to avoid None error (shouldn't be needed if returning early)
-        self.plugin.kube_vm_plugin = MagicMock()
+        # But set it up properly in case the check fails and tries to get VMI info
+        mock_vm_plugin = MagicMock()
+        mock_vm_plugin.get_vmi.return_value = {
+            "status": {
+                "interfaces": [{"ipAddress": "10.0.0.1"}],
+                "nodeName": "worker-1"
+            }
+        }
+        self.plugin.kube_vm_plugin = mock_vm_plugin
         self.plugin.namespace = "default"
 
         result, new_ip, new_node = self.plugin.check_disconnected_access(
@@ -202,16 +216,24 @@ class TestVirtHealthCheckPlugin(unittest.TestCase):
         self.assertTrue(result)
         self.assertIsNone(new_ip)
         self.assertIsNone(new_node)
+        # Verify invoke was called twice (debug + actual check)
+        self.assertEqual(mock_invoke.call_count, 2)
+        # Verify we didn't need to call get_vmi (check succeeded on first try)
+        mock_vm_plugin.get_vmi.assert_not_called()
 
     @patch('krkn.health_checks.virt_health_check_plugin.invoke_no_exit')
     def test_get_vm_access_success(self, mock_invoke):
         """Test VM access check via virtctl succeeds"""
-        # Return value must contain 'True' to pass the check
-        mock_invoke.return_value = "Permission denied\nTrue"
+        # The method tries two different virtctl commands
+        # Either one can return "True" to indicate success
+        # Return output that contains "True" to simulate permission denied but accessible
+        mock_invoke.return_value = "Permission denied (publickey).\nTrue"
 
         result = self.plugin.get_vm_access("test-vm", "default")
 
         self.assertTrue(result)
+        # Verify invoke was called (may be called 1 or 2 times depending on first result)
+        self.assertGreaterEqual(mock_invoke.call_count, 1)
 
     @patch('krkn.health_checks.virt_health_check_plugin.invoke_no_exit')
     def test_get_vm_access_failure(self, mock_invoke):
