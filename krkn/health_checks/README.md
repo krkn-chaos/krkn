@@ -2,8 +2,6 @@
 
 The health check plugin system provides a flexible, extensible architecture for implementing health checks in krkn. This system is modeled after the scenario plugin architecture and allows you to create reusable, independently testable health check implementations.
 
-> **Note:** This is the current architecture for health checks in krkn. Legacy `HealthChecker` and `VirtChecker` classes have been removed and replaced with the plugin system. See [HEALTH_CHECK_MIGRATION_GUIDE.md](../../HEALTH_CHECK_MIGRATION_GUIDE.md) for migration details.
-
 ## Architecture Overview
 
 The health check plugin system consists of three main components:
