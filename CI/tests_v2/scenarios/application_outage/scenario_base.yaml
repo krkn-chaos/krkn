@@ -1,0 +1,10 @@
+# Base application_outage scenario. Tests load this and patch namespace (and optionally duration, block, exclude_label).
+application_outage:
+  duration: 10
+  namespace: default
+  pod_selector:
+    scenario: outage
+  block:
+  - Ingress
+  - Egress
+  exclude_label: ""

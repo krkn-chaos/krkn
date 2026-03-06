@@ -1,0 +1,53 @@
+name: Tests v2 (pytest functional)
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+jobs:
+  tests-v2:
+    name: Tests v2 (pytest functional)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Create KinD cluster
+        uses: redhat-chaos/actions/kind@main
+
+      - name: Pre-load test images into KinD
+        run: |
+          docker pull nginx:alpine
+          kind load docker-image nginx:alpine
+          docker pull quay.io/krkn-chaos/krkn:tools
+          kind load docker-image quay.io/krkn-chaos/krkn:tools
+
+      - name: Install Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          architecture: 'x64'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y build-essential python3-dev
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r CI/tests_v2/requirements.txt
+
+      - name: Run tests_v2
+        run: |
+          KRKN_TEST_COVERAGE=1 python -m pytest CI/tests_v2/ -v --timeout=300 --reruns=1 --reruns-delay=5 \
+            --html=CI/tests_v2/report.html -n auto --junitxml=CI/tests_v2/results.xml
+
+      - name: Upload tests_v2 artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tests-v2-results
+          path: |
+            CI/tests_v2/report.html
+            CI/tests_v2/results.xml
+            CI/tests_v2/assets/
+          if-no-files-found: ignore

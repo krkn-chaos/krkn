@@ -1,0 +1,15 @@
+# Pytest plugin deps for CI/tests_v2 functional tests.
+#
+# Kept separate from the root requirements.txt because:
+#   - Root deps are Kraken runtime (cloud SDKs, K8s client, etc.)
+#   - These are test-only plugins not needed by Kraken itself
+#   - Merging would bloat installs for users who don't run functional tests
+#   - Separate files reduce version-conflict risk between test and runtime deps
+#
+# pytest and coverage are already in root requirements.txt; do NOT duplicate here.
+# The Makefile installs both files automatically via `make setup`.
+pytest-rerunfailures>=14.0
+pytest-html>=4.1.0
+pytest-timeout>=2.2.0
+pytest-order>=1.2.0
+pytest-xdist>=3.5.0
