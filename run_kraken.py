@@ -369,11 +369,12 @@ def main(options, command: Optional[str]) -> int:
                             )
                             sys.exit(-1)
 
-                        failed_post_scenarios, scenario_telemetries = (
+                        failed_scenarios_current, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
                                 run_uuid, scenarios_list, config, telemetry_ocp
                             )
                         )
+                        failed_post_scenarios.extend(failed_scenarios_current)
                         chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         post_critical_alerts = 0
