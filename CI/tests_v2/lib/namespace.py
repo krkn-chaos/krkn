@@ -54,7 +54,18 @@ def test_namespace(request, k8s_core):
     --keep-ns-on-fail is set and the test failed.
     """
     name = f"krkn-test-{uuid.uuid4().hex[:8]}"
-    ns = client.V1Namespace(metadata=client.V1ObjectMeta(name=name))
+    ns = client.V1Namespace(
+        metadata=client.V1ObjectMeta(
+            name=name,
+            labels={
+                "pod-security.kubernetes.io/audit": "privileged",
+                "pod-security.kubernetes.io/enforce": "privileged",
+                "pod-security.kubernetes.io/enforce-version": "v1.24",
+                "pod-security.kubernetes.io/warn": "privileged",
+                "security.openshift.io/scc.podSecurityLabelSync": "false",
+            },
+        )
+    )
     k8s_core.create_namespace(body=ns)
     logger.info("Created test namespace: %s", name)
 
