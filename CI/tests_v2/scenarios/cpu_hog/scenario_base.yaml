@@ -1,0 +1,12 @@
+# Base CPU hog scenario for CI/tests_v2. Tests patch namespace and optionally node-selector, duration.
+duration: 30
+# Integer required: plugin uses config.workers in arithmetic (cpu % calculation).
+workers: 1
+hog-type: cpu
+image: quay.io/krkn-chaos/krkn-hog
+namespace: default
+cpu-load-percentage: 50
+cpu-method: all
+node-selector: "kubernetes.io/os=linux"
+number-of-nodes: 1
+taints: []
