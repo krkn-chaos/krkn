@@ -42,8 +42,7 @@ class ManagedClusterScenarioPlugin(AbstractScenarioPlugin):
                                 % e
                             )
                             return 1
-                        else:
-                            return 0
+            return 0
 
     def inject_managedcluster_scenario(
         self,
