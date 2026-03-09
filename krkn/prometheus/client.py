@@ -214,7 +214,7 @@ def metrics(
                     end_time=datetime.datetime.fromtimestamp(end_time), granularity=30
                 )
             else: 
-                logging.info('didnt match keys')
+                logging.info("didn't match keys")
                 continue
             
             for returned_metric in metrics_result:

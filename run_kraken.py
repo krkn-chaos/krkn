@@ -6,6 +6,7 @@ import sys
 import yaml
 import logging
 import optparse
+from colorlog import ColoredFormatter
 import pyfiglet
 import uuid
 import time
@@ -13,6 +14,7 @@ import queue
 import threading
 from typing import Optional
 
+from krkn import cerberus
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic import ElasticChaosRunTelemetry
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
@@ -27,7 +29,7 @@ from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.utils import SafeLogger
 from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
 
-from krkn.utils import TeeLogHandler
+from krkn.utils import TeeLogHandler, ErrorCollectionHandler
 from krkn.utils.HealthChecker import HealthChecker
 from krkn.utils.VirtChecker import VirtChecker
 from krkn.scenario_plugins.scenario_plugin_factory import (
@@ -101,7 +103,7 @@ def main(options, command: Optional[str]) -> int:
         )
         # elastic search
         enable_elastic = get_yaml_item_value(config["elastic"], "enable_elastic", False)
-
+        elastic_run_tag = get_yaml_item_value(config["elastic"], "run_tag", "")
         elastic_url = get_yaml_item_value(config["elastic"], "elastic_url", "")
 
         elastic_verify_certs = get_yaml_item_value(
@@ -143,6 +145,9 @@ def main(options, command: Optional[str]) -> int:
             )
             return -1
         logging.info("Initializing client to talk to the Kubernetes cluster")
+
+        # Set Cerberus url if enabled
+        cerberus.set_url(config)
 
         # Generate uuid for the run
         if run_uuid:
@@ -288,6 +293,7 @@ def main(options, command: Optional[str]) -> int:
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
+        chaos_telemetry.tag = elastic_run_tag
         scenario_plugin_factory = ScenarioPluginFactory()
         classes_and_types: dict[str, list[str]] = {}
         for loaded in scenario_plugin_factory.loaded_plugins.keys():
@@ -363,11 +369,12 @@ def main(options, command: Optional[str]) -> int:
                             )
                             sys.exit(-1)
 
-                        failed_post_scenarios, scenario_telemetries = (
+                        failed_scenarios_current, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
                                 run_uuid, scenarios_list, config, telemetry_ocp
                             )
                         )
+                        failed_post_scenarios.extend(failed_scenarios_current)
                         chaos_telemetry.scenarios.extend(scenario_telemetries)
 
                         post_critical_alerts = 0
@@ -425,16 +432,22 @@ def main(options, command: Optional[str]) -> int:
             logging.info("collecting Kubernetes cluster metadata....")
             telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
 
+        # Collect error logs from handler
+        error_logs = error_collection_handler.get_error_logs()
+        if error_logs:
+            logging.info(f"Collected {len(error_logs)} error logs for telemetry")
+            chaos_telemetry.error_logs = error_logs
+        else:
+            logging.info("No error logs collected during chaos run")
+            chaos_telemetry.error_logs = []
+
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
         if enable_elastic:
-            elastic_telemetry = ElasticChaosRunTelemetry(
-                chaos_run_telemetry=decoded_chaos_run_telemetry
-            )
             result = elastic_search.push_telemetry(
-                elastic_telemetry, elastic_telemetry_index
+                decoded_chaos_run_telemetry, elastic_telemetry_index
             )
             if result == -1:
                 safe_logger.error(
@@ -656,15 +669,30 @@ if __name__ == "__main__":
     # If no command or regular execution, continue with existing logic
     report_file = options.output
     tee_handler = TeeLogHandler()
+
+    fmt = "%(asctime)s [%(levelname)s] %(message)s"
+    plain = logging.Formatter(fmt)
+    colored = ColoredFormatter(
+        "%(asctime)s [%(log_color)s%(levelname)s%(reset)s] %(message)s",
+        log_colors={'DEBUG': 'white', 'INFO': 'white', 'WARNING': 'yellow', 'ERROR': 'red', 'CRITICAL': 'bold_red'},
+        reset=True, style='%'
+    )
+    file_handler = logging.FileHandler(report_file, mode="w")
+    file_handler.setFormatter(plain)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setFormatter(colored)
+    tee_handler.setFormatter(plain)
+    error_collection_handler = ErrorCollectionHandler(level=logging.ERROR)
+
     handlers = [
-        logging.FileHandler(report_file, mode="w"),
-        logging.StreamHandler(),
+        file_handler,
+        stream_handler,
         tee_handler,
+        error_collection_handler,
     ]
 
     logging.basicConfig(
         level=logging.DEBUG if options.debug else logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=handlers,
     )
     option_error = False

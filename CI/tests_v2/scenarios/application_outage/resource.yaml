@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: outage
+  labels:
+    scenario: outage
+spec:
+  containers:
+  - name: fedtools
+    image: quay.io/krkn-chaos/krkn:tools
+    command:
+    - /bin/sh
+    - -c
+    - |
+      sleep infinity

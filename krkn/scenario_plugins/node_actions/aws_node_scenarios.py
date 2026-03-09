@@ -379,7 +379,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with instance ID: %s has been terminated" % (instance_id)
                 )
-                logging.info("node_termination_scenario has been successfuly injected!")
+                logging.info("node_termination_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to terminate node instance. Encountered following exception:"
@@ -408,7 +408,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with instance ID: %s has been rebooted" % (instance_id)
                 )
-                logging.info("node_reboot_scenario has been successfuly injected!")
+                logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"

@@ -50,6 +50,8 @@ kraken:
        - network_chaos_ng_scenarios:
                - scenarios/kube/pod-network-filter.yml
                - scenarios/kube/node-network-filter.yml
+               - scenarios/kube/node-network-chaos.yml
+               - scenarios/kube/pod-network-chaos.yml
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
 
@@ -77,6 +79,7 @@ elastic:
     metrics_index: "krkn-metrics"
     alerts_index: "krkn-alerts"
     telemetry_index: "krkn-telemetry"
+    run_tag: ""
 
 tunings:
     wait_duration: 1                                      # Duration to wait between each chaos scenario
