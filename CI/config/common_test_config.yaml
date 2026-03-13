@@ -72,3 +72,5 @@ health_checks:                                              # Utilizing health c
           bearer_token:                                     # Bearer token for authentication if any
           auth:                                             # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
           exit_on_failure:                                  # If value is True exits when health check failed for application, values can be True/False
+
+

@@ -1,0 +1,17 @@
+http_load:
+  target_url: ""
+  target_service: "my-service"
+  target_port: 80
+  target_ingress: ""
+  target_route: ""
+  target_path: ""
+  namespace: "default"
+  duration: 30
+  concurrency: 10
+  requests_per_second: 0
+  http_method: "GET"
+  number_of_pods: 1
+  request_body: ""
+  content_type: ""
+  headers: {}
+  image: "williamyeh/hey:latest"
