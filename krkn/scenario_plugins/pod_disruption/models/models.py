@@ -1,6 +1,15 @@
 from dataclasses import dataclass
 
 @dataclass
+class KilledPodDetail:
+    """Represents a pod that was killed or excluded during chaos injection."""
+    namespace: str
+    name: str
+    timestamp: float
+    status: str  # "killed" or "excluded"
+    reason: str = ""  # Optional reason for exclusion
+
+@dataclass
 class InputParams:
     def __init__(self, config: dict[str,any] = None):
         if config:
