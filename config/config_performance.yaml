@@ -59,6 +59,9 @@ telemetry:
     username: username                                      # telemetry service username
     password: password                                      # telemetry service password
     prometheus_backup: True                                 # enables/disables prometheus data collection
+    prometheus_backup_use_api: True                         # if True, uses Prometheus HTTP API for faster collection (recommended). If False, uses filesystem backup
+    prometheus_time_window_minutes_before: 10               # minutes before test start to collect prometheus metrics (used with API method)
+    prometheus_time_window_minutes_after: 10                # minutes after test end to collect prometheus metrics (used with API method)
     full_prometheus_backup: False                           # if is set to False only the /prometheus/wal folder will be downloaded.
     backup_threads: 5                                       # number of telemetry download/upload threads
     archive_path: /tmp                                      # local path where the archive files will be temporarily stored
