@@ -164,6 +164,15 @@
     "required": "false"
   },
   {
+    "name": "es-run-tag",
+    "short_description": "Elasticsearch run tag",
+    "description": "Elasticsearch run tag to compare similar runs",
+    "variable": "ES_RUN_TAG",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
     "name": "es-server",
     "short_description": "Elasticsearch instance URL",
     "description": "Elasticsearch instance URL",
