@@ -260,7 +260,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
 
         # Run recovery with mocked time.sleep and time.time
         with patch('time.sleep'):
-            with patch('time.time', side_effect=[0, 301, 310]):
+            # Use itertools.count() to avoid StopIteration on time.time() calls
+            with patch('time.time', side_effect=(x for x in itertools.count(0))):
                 result = self.plugin.recover("test-vm", "default", False)
 
         self.assertEqual(result, 0)
@@ -304,8 +305,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         # Mock that get_vmi always returns VMI with same creationTimestamp (never gets recreated)
         self.k8s_client.get_vmi.return_value = self.mock_vmi
 
-        # Simulate timeout by making time.time return values that exceed the timeout
-        with patch('time.sleep'), patch('time.time', side_effect=[0, 10, 20, 130, 130, 130, 130, 140]):
+        # Simulate timeout by using itertools.count() - increment by 10 to eventually trigger timeout
+        with patch('time.sleep'), patch('time.time', side_effect=(x * 10 for x in itertools.count(0))):
             result = self.plugin.delete_vmi("test-vm", "default", False)
 
         self.assertEqual(result, 1)
@@ -415,7 +416,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.get_vmi.return_value = pending_vmi
 
         with patch('time.sleep'):
-            with patch('time.time', side_effect=[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 121]):
+            # Use itertools.count() to avoid StopIteration - increment by 10 to simulate timeout
+            with patch('time.time', side_effect=(x * 10 for x in itertools.count(0))):
                 result = self.plugin.wait_for_running("test-vm", "default", 120)
 
         self.assertEqual(result, 1)
@@ -433,8 +435,9 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.get_vmi.side_effect = [None, None, running_vmi]
 
         with patch('time.sleep'):
-            # time.time() called: start_time (0), while loop iteration 1 (1), iteration 2 (2), iteration 3 (3), end_time (3)
-            with patch('time.time', side_effect=[0, 1, 2, 3, 3]):
+            # Use itertools.count() to avoid StopIteration on time.time() calls
+            # time.time() called for: start_time, while loop checks, end_time, and potentially logging
+            with patch('time.time', side_effect=(x for x in itertools.count(0))):
                 result = self.plugin.wait_for_running("test-vm", "default", 120)
 
         self.assertEqual(result, 0)
@@ -462,7 +465,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.get_vmi.return_value = None
 
         with patch('time.sleep'):
-            with patch('time.time', side_effect=[0, 301]):
+            # Use itertools.count() to avoid StopIteration on time.time() calls
+            with patch('time.time', side_effect=(x for x in itertools.count(0))):
                 result = self.plugin.recover("test-vm", "default", False)
 
         self.assertEqual(result, 1)
