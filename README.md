@@ -9,7 +9,7 @@
 Chaos and resiliency testing tool for Kubernetes.
 Kraken injects deliberate failures into Kubernetes clusters to check if it is resilient to turbulent conditions.
 
-## 🚀 New Feature: Chaos Library
+## New Feature: Chaos Library
 
 KRKN now includes a **Chaos Library** with pre-defined scenario templates for quick execution:
 
@@ -34,7 +34,7 @@ krkn run-template pod-failure --param kill=2 --param namespace_pattern=^prod$
 krkn validate-template pod-failure
 ```
 
-📖 **[Learn more about the Chaos Library](docs/chaos-library.md)**
+**[Learn more about the Chaos Library](docs/chaos-library.md)**
 
 
 ### Workflow
