@@ -1,0 +1,40 @@
+name: network-latency
+description: Introduces network latency to test application performance under degraded network conditions
+target: kubernetes-network
+risk_level: medium
+category: performance
+tags:
+  - network
+  - latency
+  - performance
+  - bandwidth
+  - chaos
+parameters:
+  - name: latency
+    type: string
+    description: Network latency to introduce (e.g., "100ms")
+    default: "100ms"
+  - name: jitter
+    type: string
+    description: Latency variation (e.g., "10ms")
+    default: "10ms"
+  - name: bandwidth
+    type: string
+    description: Bandwidth limit (e.g., "10mbit")
+    default: "10mbit"
+  - name: target
+    type: string
+    description: Target type pod, node, or service
+    default: pod
+  - name: namespace_pattern
+    type: string
+    description: Target namespace pattern
+    default: "^default$"
+  - name: name_pattern
+    type: string
+    description: Target pod/service name pattern
+    default: "^app-.*$"
+  - name: duration
+    type: integer
+    description: Duration of network chaos in seconds
+    default: 60

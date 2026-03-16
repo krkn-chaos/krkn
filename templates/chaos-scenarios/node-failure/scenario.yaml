@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# Node Failure Chaos Scenario Template
+# Simulates node failure to test cluster resiliency
+- id: node-failure
+  config:
+    node_name: ""  # Leave empty to select random node, or specify node name
+    instance_type: ""  # For cloud environments (e.g., "m5.large")
+    label_selector: "node-role.kubernetes.io/worker="  # Target nodes by label
+    wait_duration: 300  # Time to wait for node recovery (seconds)
+    # Optional: Force node termination instead of graceful shutdown
+    force_termination: false
+    # Optional: Number of nodes to impact
+    node_count: 1

@@ -1,0 +1,44 @@
+name: disk-stress
+description: Applies disk I/O stress to test application performance under high disk load
+target: kubernetes-node
+risk_level: medium
+category: performance
+tags:
+  - disk
+  - io
+  - stress
+  - performance
+  - storage
+parameters:
+  - name: duration
+    type: integer
+    description: Duration of disk stress in seconds
+    default: 60
+  - name: workers
+    type: string
+    description: Number of worker processes (empty for auto-detection)
+    default: ""
+  - name: io-load-percentage
+    type: integer
+    description: Target I/O load percentage
+    default: 80
+  - name: io-file-size
+    type: string
+    description: Size of test files for I/O operations
+    default: "1G"
+  - name: io-block-size
+    type: string
+    description: Block size for I/O operations
+    default: "4K"
+  - name: node-selector
+    type: string
+    description: Node selector for targeting specific nodes
+    default: "node-role.kubernetes.io/worker="
+  - name: number-of-nodes
+    type: integer
+    description: Number of nodes to stress
+    default: 1
+  - name: taints
+    type: array
+    description: Node taints to consider/exclude
+    default: []

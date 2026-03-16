@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# Network Latency Chaos Scenario Template
+# Introduces network latency to test application performance under degraded network conditions
+- id: network-latency
+  config:
+    latency: "100ms"  # Network latency to introduce
+    jitter: "10ms"  # Latency variation
+    bandwidth: "10mbit"  # Bandwidth limit
+    target: "pod"  # Target type: pod, node, or service
+    namespace_pattern: "^default$"  # Target namespace pattern
+    name_pattern: "^app-.*$"  # Target pod/service name pattern
+    duration: 60  # Duration of network chaos (seconds)
+    # Optional: Specify specific ports to affect
+    # ports: [80, 443]
+    # Optional: Network interface to target
+    # interface: "eth0"

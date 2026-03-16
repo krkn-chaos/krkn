@@ -1,0 +1,40 @@
+name: cpu-stress
+description: Applies CPU stress to test application performance under high CPU load
+target: kubernetes-node
+risk_level: medium
+category: performance
+tags:
+  - cpu
+  - stress
+  - performance
+  - load
+  - resource
+parameters:
+  - name: duration
+    type: integer
+    description: Duration of CPU stress in seconds
+    default: 60
+  - name: workers
+    type: string
+    description: Number of worker processes (empty for auto-detection)
+    default: ""
+  - name: cpu-load-percentage
+    type: integer
+    description: Target CPU load percentage
+    default: 90
+  - name: cpu-method
+    type: string
+    description: CPU stress method (all, single, or specific core)
+    default: "all"
+  - name: node-selector
+    type: string
+    description: Node selector for targeting specific nodes
+    default: "node-role.kubernetes.io/worker="
+  - name: number-of-nodes
+    type: integer
+    description: Number of nodes to stress
+    default: 1
+  - name: taints
+    type: array
+    description: Node taints to consider/exclude
+    default: []

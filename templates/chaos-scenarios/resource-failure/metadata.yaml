@@ -1,0 +1,36 @@
+name: resource-failure
+description: Simulates Kubernetes resource failures to test cluster resiliency and recovery mechanisms
+target: kubernetes-resource
+risk_level: medium
+category: availability
+tags:
+  - resource
+  - failure
+  - kubernetes
+  - deployment
+  - service
+parameters:
+  - name: resource_type
+    type: string
+    description: Resource type deployment, service, configmap, secret, etc.
+    default: deployment
+  - name: name_pattern
+    type: string
+    description: Regex pattern to match resource names
+    default: ^app-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespace names
+    default: ^default$
+  - name: failure_action
+    type: string
+    description: Failure action delete, modify, or corrupt
+    default: delete
+  - name: failure_duration
+    type: integer
+    description: Duration of resource failure in seconds
+    default: 300
+  - name: resource_count
+    type: integer
+    description: Number of resources to impact
+    default: 1

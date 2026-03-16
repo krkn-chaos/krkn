@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# Disk Stress Chaos Scenario Template
+# Applies disk I/O stress to test application performance under high disk load
+- id: disk-stress
+  config:
+    duration: 60
+    workers: ''  # Leave empty for auto-detection
+    hog-type: io
+    image: quay.io/krkn-chaos/krkn-hog
+    namespace: default
+    io-load-percentage: 80
+    io-file-size: "1G"
+    io-block-size: "4K"
+    # node-name: "worker-0"  # Uncomment to target a specific node
+    node-selector: "node-role.kubernetes.io/worker="
+    number-of-nodes: 1
+    taints: []  # Example: ["node-role.kubernetes.io/master:NoSchedule"]

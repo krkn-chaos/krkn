@@ -1,0 +1,27 @@
+name: pod-failure
+description: Simulates pod crash to test application resiliency
+target: kubernetes-pod
+risk_level: medium
+category: availability
+tags:
+  - pod
+  - failure
+  - availability
+  - kubernetes
+parameters:
+  - name: name_pattern
+    type: string
+    description: Regex pattern to match pod names
+    default: ^app-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespace names
+    default: ^default$
+  - name: kill
+    type: integer
+    description: Number of pods to terminate
+    default: 1
+  - name: krkn_pod_recovery_time
+    type: integer
+    description: Time to wait for pod recovery in seconds
+    default: 120

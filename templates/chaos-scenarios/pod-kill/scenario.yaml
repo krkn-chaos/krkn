@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# Pod Kill Chaos Scenario Template
+# Forcefully kills pods to test application resiliency and recovery
+- id: pod-kill
+  config:
+    name_pattern: ^app-.*$  # Target pods with this name pattern
+    namespace_pattern: ^default$  # Target namespace
+    kill: 1  # Number of pods to kill
+    kill_mode: "force"  # Kill mode: force, graceful, or signal
+    signal: "SIGKILL"  # Signal to send (for signal mode)
+    krkn_pod_recovery_time: 120  # Time to wait for pod recovery (seconds)
+    # Optional: Specify exact pod names instead of patterns
+    # pod_names: ["app-pod-1", "app-pod-2"]
+    # Optional: Wait for specific duration before killing
+    # wait_before_kill: 30

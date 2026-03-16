@@ -1,0 +1,32 @@
+name: vm-outage
+description: Simulates VM outage for OpenShift Virtualization environments to test virtual machine resiliency
+target: openshift-vm
+risk_level: high
+category: availability
+tags:
+  - vm
+  - outage
+  - virtualization
+  - openshift
+  - kubevirt
+parameters:
+  - name: vm_name_pattern
+    type: string
+    description: Regex pattern to match VM names
+    default: ^vm-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespace names
+    default: ^default$
+  - name: outage_type
+    type: string
+    description: Outage type stop, pause, or force-stop
+    default: stop
+  - name: outage_duration
+    type: integer
+    description: Duration of VM outage in seconds
+    default: 300
+  - name: vm_count
+    type: integer
+    description: Number of VMs to impact
+    default: 1

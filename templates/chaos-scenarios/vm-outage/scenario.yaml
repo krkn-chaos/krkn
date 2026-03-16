@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# VM Outage Chaos Scenario Template
+# Simulates VM outage for OpenShift Virtualization environments
+- id: vm-outage
+  config:
+    vm_name_pattern: ^vm-.*$  # Target VMs with this name pattern
+    namespace_pattern: ^default$  # Target namespace
+    outage_type: "stop"  # Outage type: stop, pause, or force-stop
+    outage_duration: 300  # Duration of VM outage (seconds)
+    vm_count: 1  # Number of VMs to impact
+    # Optional: Specify exact VM names instead of patterns
+    # vm_names: ["vm-1", "vm-2"]
+    # Optional: Wait for specific duration before outage
+    # wait_before_outage: 30

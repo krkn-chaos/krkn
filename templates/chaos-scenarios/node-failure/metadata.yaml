@@ -1,0 +1,36 @@
+name: node-failure
+description: Simulates node failure to test cluster resiliency and failover mechanisms
+target: kubernetes-node
+risk_level: high
+category: availability
+tags:
+  - node
+  - failure
+  - availability
+  - cluster
+  - failover
+parameters:
+  - name: node_name
+    type: string
+    description: Specific node name to target (empty for random selection)
+    default: ""
+  - name: instance_type
+    type: string
+    description: Cloud instance type filter (for cloud environments)
+    default: ""
+  - name: label_selector
+    type: string
+    description: Label selector to target nodes
+    default: "node-role.kubernetes.io/worker="
+  - name: wait_duration
+    type: integer
+    description: Time to wait for node recovery in seconds
+    default: 300
+  - name: force_termination
+    type: boolean
+    description: Force node termination instead of graceful shutdown
+    default: false
+  - name: node_count
+    type: integer
+    description: Number of nodes to impact
+    default: 1

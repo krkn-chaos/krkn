@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# Pod Failure Chaos Scenario Template
+# Simulates pod crash to test application resiliency
+- id: pod-failure
+  config:
+    name_pattern: ^app-.*$  # Target pods with this name pattern
+    namespace_pattern: ^default$  # Target namespace
+    kill: 1  # Number of pods to kill
+    krkn_pod_recovery_time: 120  # Time to wait for pod recovery (seconds)
+    # Optional: Specify exact pod names instead of patterns
+    # pod_names: ["app-pod-1", "app-pod-2"]
+    # Optional: Wait for specific duration before killing
+    # wait_before_kill: 30

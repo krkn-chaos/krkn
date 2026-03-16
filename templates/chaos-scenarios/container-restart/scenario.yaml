@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# Container Restart Chaos Scenario Template
+# Restarts containers within pods to test application resiliency
+- id: container-restart
+  config:
+    name_pattern: ^app-.*$  # Target pods with this name pattern
+    namespace_pattern: ^default$  # Target namespace
+    container_name: ""  # Specific container name (empty for all containers)
+    restart_count: 1  # Number of restarts to perform
+    wait_between_restarts: 30  # Wait time between restarts (seconds)
+    krkn_container_recovery_time: 120  # Time to wait for container recovery (seconds)
+    # Optional: Specify exact pod names instead of patterns
+    # pod_names: ["app-pod-1", "app-pod-2"]

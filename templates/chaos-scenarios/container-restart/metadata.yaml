@@ -1,0 +1,36 @@
+name: container-restart
+description: Restarts containers within pods to test application resiliency and recovery
+target: kubernetes-container
+risk_level: medium
+category: availability
+tags:
+  - container
+  - restart
+  - availability
+  - recovery
+  - pod
+parameters:
+  - name: name_pattern
+    type: string
+    description: Regex pattern to match pod names
+    default: ^app-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespace names
+    default: ^default$
+  - name: container_name
+    type: string
+    description: Specific container name (empty for all containers)
+    default: ""
+  - name: restart_count
+    type: integer
+    description: Number of restarts to perform
+    default: 1
+  - name: wait_between_restarts
+    type: integer
+    description: Wait time between restarts in seconds
+    default: 30
+  - name: krkn_container_recovery_time
+    type: integer
+    description: Time to wait for container recovery in seconds
+    default: 120

@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../../../plugin.schema.json
+# Resource Failure Chaos Scenario Template
+# Simulates Kubernetes resource failures to test cluster resiliency
+- id: resource-failure
+  config:
+    resource_type: "deployment"  # Resource type: deployment, service, configmap, secret, etc.
+    name_pattern: ^app-.*$  # Target resources with this name pattern
+    namespace_pattern: ^default$  # Target namespace
+    failure_action: "delete"  # Failure action: delete, modify, or corrupt
+    failure_duration: 300  # Duration of resource failure (seconds)
+    resource_count: 1  # Number of resources to impact
+    # Optional: Specify exact resource names instead of patterns
+    # resource_names: ["app-deployment", "app-service"]
+    # Optional: For modify action, specify modifications
+    # modifications: {"replicas": 0}
