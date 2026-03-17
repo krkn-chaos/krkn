@@ -1,0 +1,37 @@
+name: vm-outage
+description: Simulates VM outage for OpenShift Virtualization environments to test VM resilience
+target: openshift-virtualization
+risk_level: high
+category: availability
+version: "1.0"
+author: KRKN Team
+tags:
+  - vm
+  - outage
+  - openshift
+  - virtualization
+  - kubevirt
+estimated_duration: "5-10 minutes"
+dependencies:
+  - openshift_virtualization  # Requires OpenShift Virtualization/KubeVirt
+parameters:
+  - name: vm_name_pattern
+    type: string
+    description: Regex pattern to match VM names
+    default: ^.*-vm-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespaces
+    default: ^.*$
+  - name: action
+    type: string
+    description: VM action (stop, restart, pause)
+    default: stop
+  - name: timeout
+    type: integer
+    description: Timeout for VM action in seconds
+    default: 300
+  - name: recovery_time
+    type: integer
+    description: VM recovery monitoring time in seconds
+    default: 180

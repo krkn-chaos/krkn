@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../../plugin.schema.json
+# Pod Kill Chaos Scenario Template
+# Forcefully terminates pods to test application recovery and restart policies
+- id: pod-kill
+  config:
+    name_pattern: ^nginx-.*$
+    namespace_pattern: ^default$
+    kill: 1
+    force: true
+    krkn_pod_recovery_time: 120
+    # Optional: Target specific pods by label
+    # label_selector: "app=nginx"
+    # Optional: Grace period before force kill
+    # grace_period: 0
+    # Optional: Kill all matching pods
+    # kill_all: false

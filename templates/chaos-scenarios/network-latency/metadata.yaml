@@ -1,0 +1,41 @@
+name: network-latency
+description: Introduces network latency to test application performance under poor network conditions
+target: kubernetes-network
+risk_level: low
+category: performance
+version: "1.0"
+author: KRKN Team
+tags:
+  - network
+  - latency
+  - performance
+  - chaos
+  - testing
+estimated_duration: "2-5 minutes"
+dependencies:
+  - network_chaos_engine  # Requires network chaos injection capabilities
+parameters:
+  - name: duration
+    type: integer
+    description: Duration of latency injection in seconds
+    default: 60
+  - name: latency
+    type: string
+    description: Amount of latency to inject (e.g., "100ms")
+    default: "100ms"
+  - name: jitter
+    type: string
+    description: Jitter variation in latency
+    default: "10ms"
+  - name: correlation
+    type: string
+    description: Correlation percentage for latency patterns
+    default: "25%"
+  - name: egress
+    type: boolean
+    description: Apply latency to outgoing traffic
+    default: true
+  - name: ingress
+    type: boolean
+    description: Apply latency to incoming traffic
+    default: true

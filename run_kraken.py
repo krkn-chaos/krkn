@@ -54,6 +54,26 @@ report_file = ""
 
 # Main function
 def main(options, command: Optional[str]) -> int:
+    # Handle template commands - check before krkn_lib import
+    if command in ['list', 'show', 'run']:
+        try:
+            from krkn.template_manager import main as template_main
+            # Override sys.argv to pass template command
+            import sys
+            original_argv = sys.argv
+            sys.argv = ['krkn'] + ([command] + original_argv[2:] if len(original_argv) > 2 else [command])
+            try:
+                template_main()
+            finally:
+                sys.argv = original_argv
+            return 0
+        except ImportError as e:
+            print(f"Error: Template manager not available - {e}")
+            return 1
+        except Exception as e:
+            print(f"Error running template command: {e}")
+            return 1
+    
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")

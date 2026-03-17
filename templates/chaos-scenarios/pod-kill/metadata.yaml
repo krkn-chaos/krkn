@@ -1,0 +1,36 @@
+name: pod-kill
+description: Forcefully terminates pods to test application recovery and restart policies
+target: kubernetes-pod
+risk_level: medium
+category: availability
+version: "1.0"
+author: KRKN Team
+tags:
+  - pod
+  - kill
+  - termination
+  - availability
+  - recovery
+estimated_duration: "2-5 minutes"
+dependencies: []
+parameters:
+  - name: name_pattern
+    type: string
+    description: Regex pattern to match pod names
+    default: ^.*-deployment-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespaces
+    default: ^default$
+  - name: kill
+    type: integer
+    description: Number of pods to kill
+    default: 1
+  - name: force
+    type: boolean
+    description: Force kill without grace period
+    default: true
+  - name: krkn_pod_recovery_time
+    type: integer
+    description: Recovery time in seconds
+    default: 120
