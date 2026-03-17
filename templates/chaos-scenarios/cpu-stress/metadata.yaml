@@ -1,0 +1,41 @@
+name: cpu-stress
+description: Applies CPU stress to test application performance under high CPU load
+target: kubernetes-node
+risk_level: medium
+category: performance
+version: "1.0"
+author: KRKN Team
+tags:
+  - cpu
+  - stress
+  - performance
+  - load
+  - resource
+estimated_duration: "2-5 minutes"
+dependencies:
+  - krkn-hog_image  # CPU stress container image
+parameters:
+  - name: duration
+    type: integer
+    description: Duration of CPU stress in seconds
+    default: 60
+  - name: cpu-load-percentage
+    type: integer
+    description: Target CPU load percentage (0-100)
+    default: 80
+  - name: workers
+    type: string
+    description: Number of worker processes (empty for auto-detect)
+    default: ""
+  - name: cpu-method
+    type: string
+    description: CPU stress method (all, single, multiple)
+    default: all
+  - name: number-of-nodes
+    type: integer
+    description: Number of nodes to stress
+    default: 1
+  - name: node-selector
+    type: string
+    description: Label selector to identify target nodes
+    default: "node-role.kubernetes.io/worker="
