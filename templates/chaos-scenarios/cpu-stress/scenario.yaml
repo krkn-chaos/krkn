@@ -1,19 +1,31 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 # yaml-language-server: $schema=../../plugin.schema.json
 # CPU Stress Chaos Scenario Template
 # Applies CPU stress to test application performance under high CPU load
-- id: cpu-stress
-  config:
-    duration: 60
-    workers: ''  # Auto-detect CPU cores
-    hog-type: cpu
-    image: quay.io/krkn-chaos/krkn-hog
-    namespace: default
-    cpu-load-percentage: 80
-    cpu-method: all
-    node-selector: "node-role.kubernetes.io/worker="
-    number-of-nodes: 1
-    taints: []
-    # Optional: Target specific node
-    # node-name: "worker-0"
-    # Optional: Specific CPU cores
-    # cpu-cores: "0,1,2,3"
+duration: 60
+workers: ''  # Auto-detect CPU cores
+hog-type: cpu
+image: quay.io/krkn-chaos/krkn-hog
+namespace: default
+cpu-load-percentage: 80
+cpu-method: all
+node-selector: "node-role.kubernetes.io/worker="
+number-of-nodes: 1
+taints: []
+# Optional: Target specific node
+# node-name: "worker-0"
+# Optional: Specific CPU cores
+# cpu-cores: "0,1,2,3"

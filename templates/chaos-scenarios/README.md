@@ -4,7 +4,7 @@ This directory contains the KRKN Chaos Template Library - a collection of pre-co
 
 ## Available Templates
 
-### 📦 Availability Templates
+### Availability Templates
 
 #### [pod-failure](pod-failure/)
 - **Description**: Simulates pod crash to test application resiliency
@@ -42,7 +42,7 @@ This directory contains the KRKN Chaos Template Library - a collection of pre-co
 - **Target**: Kubernetes Resources
 - **Use Case**: Test resource recreation procedures
 
-### ⚡ Performance Templates
+### Performance Templates
 
 #### [network-latency](network-latency/)
 - **Description**: Introduces network latency to test performance
