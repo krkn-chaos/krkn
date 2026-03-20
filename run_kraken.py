@@ -496,6 +496,8 @@ def main(options, command: Optional[str]) -> int:
                     total_end_time=datetime.datetime.fromtimestamp(end_time),
                     run_mode=run_mode,
                 )
+                if run_mode == "detailed":
+                    logging.info(f"KRKN_RESILIENCY_REPORT_JSON: {json.dumps(resiliency_obj.get_detailed_report())}")
 
             except Exception as e:
                 logging.error("Failed to finalize resiliency scoring: %s", e)
