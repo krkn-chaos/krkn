@@ -1,4 +1,4 @@
-duration: 60
+duration: 10
 workers: '' # leave it empty '' node cpu auto-detection
 hog-type: cpu
 image: quay.io/krkn-chaos/krkn-hog

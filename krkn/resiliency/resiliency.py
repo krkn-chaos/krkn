@@ -320,7 +320,7 @@ class Resiliency:
             )
             detailed = self.get_detailed_report()
 
-            if run_mode == "controller":
+            if run_mode == "detailed":
                 # krknctl expects the detailed report on stdout in a special format
                 try:
                     detailed_json = json.dumps(detailed)

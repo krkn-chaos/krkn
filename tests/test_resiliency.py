@@ -597,7 +597,7 @@ class TestFinalizeAndSave(unittest.TestCase):
             prom_cli=self.mock_prom,
             total_start_time=self.start,
             total_end_time=self.end,
-            run_mode="controller",
+            run_mode="detailed",
         )
 
         mock_print.assert_called()
