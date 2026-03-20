@@ -558,5 +558,23 @@
     "separator": ",",
     "default": "False",
     "required": "false"
+  },
+  {
+    "name": "resiliency-score",
+    "short_description": "Enable resiliency score calculation",
+    "description": "Enable resiliency score calculation",
+    "variable": "RESILIENCY_SCORE",
+    "type": "boolean",
+    "required": "false"
+  },
+  {
+    "name": "resiliency-file",
+    "short_description": "Resiliency Score metrics file",
+    "description": "Custom Resiliency score file",
+    "variable": "RESILIENCY_FILE",
+    "type": "file",
+    "required": "false",
+    "mount_path": "/home/krkn/resiliency-file.yaml"
   }
+
 ]
