@@ -562,8 +562,16 @@
   {
     "name": "resiliency-score",
     "short_description": "Enable resiliency score calculation",
-    "description": "Enable resiliency score calculation",
+    "description": "The system outputs a detailed resiliency score as a single-line JSON object, facilitating easy aggregation across multiple test scenarios.",
     "variable": "RESILIENCY_SCORE",
+    "type": "boolean",
+    "required": "false"
+  },
+  {
+    "name": "disable-resiliency-score",
+    "short_description": "Disable resiliency score calculation",
+    "description": "Disable resiliency score calculation",
+    "variable": "DISABLE_RESILIENCY_SCORE",
     "type": "boolean",
     "required": "false"
   },
