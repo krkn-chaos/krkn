@@ -11,9 +11,8 @@ from krkn_lib.models.k8s import AffectedNodeStatus
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn_lib.utils import get_yaml_item_value
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
-from krkn.scenario_plugins.native.network import cerberus
+from krkn_lib.utils import get_yaml_item_value
 
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
@@ -23,7 +22,6 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -52,8 +50,6 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                         )
                         return 1
 
-                end_time = int(time.time())
-                cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
         except (RuntimeError, Exception) as e:
             logging.error(
                 f"ZoneOutageScenarioPlugin scenario {scenario} failed with exception: {e}"
@@ -140,7 +136,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 network_association_ids[0], acl_id
             )
 
-            # capture the orginal_acl_id, created_acl_id and
+            # capture the original_acl_id, created_acl_id and
             # new association_id to use during the recovery
             ids[new_association_id] = original_acl_id
 
@@ -156,7 +152,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 new_association_id, original_acl_id
             )
         logging.info(
-            "Wating for 60 seconds to make sure " "the changes are in place"
+            "Waiting for 60 seconds to make sure " "the changes are in place"
         )
         time.sleep(60)
 
