@@ -14,7 +14,7 @@ kraken:
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
     cerberus_url:                                          # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
-    check_applicaton_routes: False                         # When enabled will look for application unavailability using the routes specified in the cerberus config and fails the run
+    check_application_routes: False                         # When enabled will look for application unavailability using the routes specified in the cerberus config and fails the run
 
 performance_monitoring:
     prometheus_url:                                       # The prometheus url/route is automatically obtained in case of OpenShift, please set it when the distribution is Kubernetes.

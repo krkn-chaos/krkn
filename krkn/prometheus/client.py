@@ -46,7 +46,7 @@ def alerts(
             sys.exit(1)
 
         for alert in profile_yaml:
-            if list(alert.keys()).sort() != ["expr", "description", "severity"].sort():
+            if sorted(alert.keys()) != sorted(["expr", "description", "severity"]):
                 logging.error(f"wrong alert {alert}, skipping")
                 continue
 
@@ -205,8 +205,8 @@ def metrics(
                    query
                 )
             elif (
-                list(metric_query.keys()).sort()
-                == ["query", "metricName"].sort()
+                sorted(metric_query.keys())
+                == sorted(["query", "metricName"])
             ):
                 metrics_result = prom_cli.process_prom_query_in_range(
                     query,
@@ -214,7 +214,7 @@ def metrics(
                     end_time=datetime.datetime.fromtimestamp(end_time), granularity=30
                 )
             else: 
-                logging.info('didnt match keys')
+                logging.info("didn't match keys")
                 continue
             
             for returned_metric in metrics_result:

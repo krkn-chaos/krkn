@@ -1,0 +1,21 @@
+# Single-pod deployment targeted by pod disruption scenario.
+# Namespace is patched at deploy time by the test framework.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-pod-disruption-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: krkn-pod-disruption-target
+  template:
+    metadata:
+      labels:
+        app: krkn-pod-disruption-target
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80

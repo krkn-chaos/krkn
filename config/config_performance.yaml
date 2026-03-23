@@ -35,7 +35,7 @@ kraken:
 cerberus:
     cerberus_enabled: True                                # Enable it when cerberus is previously installed
     cerberus_url: http://0.0.0.0:8080                     # When cerberus_enabled is set to True, provide the url where cerberus publishes go/no-go signal
-    check_applicaton_routes: False                        # When enabled will look for application unavailability using the routes specified in the cerberus config and fails the run
+    check_application_routes: False                        # When enabled will look for application unavailability using the routes specified in the cerberus config and fails the run
 
 performance_monitoring:
     deploy_dashboards: True                               # Install a mutable grafana and load the performance dashboards. Enable this only when running on OpenShift
@@ -61,7 +61,7 @@ telemetry:
     prometheus_backup: True                                 # enables/disables prometheus data collection
     full_prometheus_backup: False                           # if is set to False only the /prometheus/wal folder will be downloaded.
     backup_threads: 5                                       # number of telemetry download/upload threads
-    archive_path: /tmp                                      # local path where the archive files will be temporarly stored
+    archive_path: /tmp                                      # local path where the archive files will be temporarily stored
     max_retries: 0                                          # maximum number of upload retries (if 0 will retry forever)
     run_tag: ''                                             # if set, this will be appended to the run folder in the bucket (useful to group the runs)
     archive_size: 500000                                     # the size of the prometheus data archive size in KB. The lower the size of archive is
