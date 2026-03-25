@@ -1,5 +1,6 @@
 import queue
 import time
+from typing import Tuple
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -11,14 +12,16 @@ from krkn.scenario_plugins.network_chaos_ng.models import (
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
-from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import (
+    log_info,
+    deploy_network_chaos_ng_pod,
+    get_pod_default_interface,
+)
 
 from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
-    deploy_network_filter_pod,
     apply_network_rules,
     clean_network_rules,
     generate_rules,
-    get_default_interface,
 )
 
 
@@ -41,7 +44,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             )
 
             pod_name = f"node-filter-{get_random_string(5)}"
-            deploy_network_filter_pod(
+            deploy_network_chaos_ng_pod(
                 self.config,
                 target,
                 pod_name,
@@ -50,7 +53,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
 
             if len(self.config.interfaces) == 0:
                 interfaces = [
-                    get_default_interface(
+                    get_pod_default_interface(
                         pod_name,
                         self.config.namespace,
                         self.kubecli.get_lib_kubernetes(),
@@ -108,21 +111,8 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
         super().__init__(config, kubecli)
         self.config = config
 
-    def get_config(self) -> (NetworkChaosScenarioType, BaseNetworkChaosConfig):
+    def get_config(self) -> Tuple[NetworkChaosScenarioType, BaseNetworkChaosConfig]:
         return NetworkChaosScenarioType.Node, self.config
 
     def get_targets(self) -> list[str]:
-        if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_nodes(
-                self.base_network_config.label_selector
-            )
-        else:
-            if not self.config.target:
-                raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
-                )
-            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
-            if self.config.target not in node_info:
-                raise Exception(f"node {self.config.target} not found, aborting")
-
-            return [self.config.target]
+        return self.get_node_targets(self.config)
