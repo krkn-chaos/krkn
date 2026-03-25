@@ -43,14 +43,15 @@ class TestGCP(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         # Mock google.auth before creating GCP instance
-        self.auth_patcher = patch('google.auth.default')
-        self.compute_patcher = patch('google.cloud.compute_v1.InstancesClient')
+        self.auth_patcher = patch('krkn.scenario_plugins.node_actions.gcp_node_scenarios.google.auth.default')
+        self.compute_patcher = patch('krkn.scenario_plugins.node_actions.gcp_node_scenarios.compute_v1.InstancesClient')
 
         self.mock_auth = self.auth_patcher.start()
         self.mock_compute_client = self.compute_patcher.start()
 
         # Configure auth mock to return credentials and project_id
-        self.mock_auth.return_value = (MagicMock(), 'test-project-123')
+        mock_credentials = MagicMock()
+        self.mock_auth.return_value = (mock_credentials, 'test-project-123')
 
         # Create GCP instance with mocked dependencies
         self.gcp = GCP()
@@ -67,7 +68,7 @@ class TestGCP(unittest.TestCase):
 
     def test_gcp_init_failure(self):
         """Test GCP class initialization failure"""
-        with patch('google.auth.default', side_effect=Exception("Auth error")):
+        with patch('krkn.scenario_plugins.node_actions.gcp_node_scenarios.google.auth.default', side_effect=Exception("Auth error")):
             with self.assertRaises(Exception):
                 GCP()
 

@@ -229,7 +229,7 @@ class bm_node_scenarios(abstract_node_scenarios):
                     nodeaction.wait_for_unknown_status(node, timeout, self.kubecli, affected_node)
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info("Node with bmc address: %s has been rebooted" % (bmc_addr))
-                logging.info("node_reboot_scenario has been successfuly injected!")
+                logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"

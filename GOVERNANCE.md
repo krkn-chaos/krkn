@@ -26,7 +26,7 @@ Here is an excerpt:
 ## Maintainer Levels
 
 ### Contributor
-Contributors contributor to the community. Anyone can become a contributor by participating in discussions, reporting bugs, or contributing code or documentation.
+Contributors contribute to the community. Anyone can become a contributor by participating in discussions, reporting bugs, or contributing code or documentation.
 
 #### Responsibilities:
 
@@ -80,4 +80,4 @@ Represent the project in the broader open-source community.
 
 
 # Credits
-Sections of this documents have been borrowed from [Kubernetes governance](https://github.com/kubernetes/community/blob/master/governance.md)
+Sections of this document have been borrowed from [Kubernetes governance](https://github.com/kubernetes/community/blob/master/governance.md)
