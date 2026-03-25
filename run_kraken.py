@@ -65,8 +65,6 @@ def main(options, command: Optional[str]) -> int:
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
             config = yaml.full_load(f)
-        global kubeconfig_path, wait_duration, kraken_config
-
         kubeconfig_path = os.path.expanduser(
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
