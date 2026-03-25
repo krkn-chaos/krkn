@@ -23,7 +23,7 @@ from krkn.rollback.handler import set_rollback_context_decorator
 class HogsScenarioPlugin(AbstractScenarioPlugin):
     
     @set_rollback_context_decorator
-    def run(self, run_uuid: str, scenario: str, krkn_config: dict[str, any], lib_telemetry: KrknTelemetryOpenshift,
+    def run(self, run_uuid: str, scenario: str, lib_telemetry: KrknTelemetryOpenshift,
             scenario_telemetry: ScenarioTelemetry) -> int:
         try:
             with open(scenario, "r") as f:
@@ -53,7 +53,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                     raise Exception("no available nodes to schedule workload")
 
                 if not has_selector:
-                    available_nodes = [available_nodes[random.randint(0, len(available_nodes))]]
+                    available_nodes = [available_nodes[random.randint(0, len(available_nodes) - 1)]]
 
             if scenario_config.number_of_nodes and len(available_nodes) > scenario_config.number_of_nodes:
                 available_nodes = random.sample(available_nodes, scenario_config.number_of_nodes)

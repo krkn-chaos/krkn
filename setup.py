@@ -7,7 +7,7 @@ from setuptools import setup
 try:
     require("setuptools>=38.3")
 except VersionConflict:
-    print("Error: version of setuptools is too old (<38.3)!")
+    print("Error: version of setuptools is too old! Please install version 38.3 or newer.")
     sys.exit(1)
 
 
