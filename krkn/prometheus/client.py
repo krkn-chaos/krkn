@@ -251,7 +251,7 @@ def metrics(
                         for k,v in pod.items():
                             metric[k] = v
                             metric['timestamp'] = str(datetime.datetime.now())
-                        print('adding pod' + str(metric))
+                        logging.debug("adding pod %s", metric)
                         metrics_list.append(metric.copy())
             for affected_node in scenario["affected_nodes"]:
                 metric_name = "affected_nodes_recovery"
