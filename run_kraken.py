@@ -95,7 +95,7 @@ def main(options, command: Optional[str]) -> int:
         run_signal = get_yaml_item_value(config["kraken"], "signal_state", "RUN")
         
         resiliency_config = get_yaml_item_value(config,"resiliency",{})
-        # Determine execution mode (standalone, controller, or disabled)
+        # Determine execution mode (standalone, detailed, or disabled)
         run_mode = get_yaml_item_value(resiliency_config, "resiliency_run_mode", "standalone")
         valid_run_modes = {"standalone", "detailed", "disabled"}
         if run_mode not in valid_run_modes:
