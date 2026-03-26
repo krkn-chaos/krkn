@@ -171,7 +171,7 @@ class VirtChecker:
                             if new_node_name and vm.node_name != new_node_name:
                                 vm.node_name = new_node_name
                 except Exception:
-                    logging.info('Exception in get vm status')
+                    logging.exception("Exception in get vm status")
                     vm_status = False
 
                 if vm.vm_name not in virt_check_tracker:
