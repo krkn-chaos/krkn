@@ -36,7 +36,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     )
                     if len(not_reset) > 0:
                         logging.info("Object times were not reset")
-        except (RuntimeError, Exception):
+        except (RuntimeError, Exception) as e:
             logging.error(
                 f"TimeActionsScenarioPlugin scenario {scenario} failed with exception: {e}"
             )
