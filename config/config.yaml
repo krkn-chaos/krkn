@@ -56,7 +56,7 @@ kraken:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
 
 resiliency:
-  resiliency_run_mode: standalone  # Options: standalone, controller, disabled
+  resiliency_run_mode: standalone  # Options: standalone, detailed, disabled
   resiliency_file: config/alerts.yaml  # Path to SLO definitions, will resolve to performance_monitoring: alert_profile: if not specified
 
 cerberus:

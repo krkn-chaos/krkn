@@ -306,7 +306,7 @@ class Resiliency:
             prom_cli: Pre-configured KrknPrometheus instance.
             total_start_time: Start time for the full test window.
             total_end_time: End time for the full test window.
-            run_mode: "controller" or "standalone" mode.
+            run_mode: "detailed" or "standalone" mode.
 
         Returns:
             (detailed_report)
