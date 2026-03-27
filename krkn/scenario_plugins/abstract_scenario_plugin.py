@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from abc import ABC, abstractmethod
 from krkn_lib.models.telemetry import ScenarioTelemetry
@@ -86,6 +87,16 @@ class AbstractScenarioPlugin(ABC):
             scenario_telemetry.scenario = scenario_config
             scenario_telemetry.scenario_type = self.get_scenario_types()[0]
             scenario_telemetry.start_timestamp = time.time()
+            if not os.path.exists(scenario_config):
+                logging.error(
+                    f"scenario file not found: '{scenario_config}' -- "
+                    f"check that the path is correct relative to the working directory: {os.getcwd()}"
+                )
+                failed_scenarios.append(scenario_config)
+                scenario_telemetry.exit_status = 1
+                scenario_telemetry.end_timestamp = time.time()
+                scenario_telemetries.append(scenario_telemetry)
+                continue
             parsed_scenario_config = telemetry.set_parameters_base64(
                 scenario_telemetry, scenario_config
             )
