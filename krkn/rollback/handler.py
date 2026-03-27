@@ -147,7 +147,7 @@ def execute_rollback_version_files(
     :param scenario_type: Type of the scenario being rolled back.
     :param ignore_auto_rollback_config: Flag to ignore auto rollback configuration. Will be set to True for manual execute-rollback calls.
     """
-    if not ignore_auto_rollback_config and RollbackConfig().auto == False:
+    if not ignore_auto_rollback_config and RollbackConfig().auto is False:
         logger.warning(f"Auto rollback is disabled, skipping execution for run_uuid={run_uuid or '*'}, scenario_type={scenario_type or '*'}")
         return
 
