@@ -15,7 +15,6 @@
 # limitations under the License.
 
 import logging
-import time
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -44,7 +43,6 @@ class ManagedClusterScenarioPlugin(AbstractScenarioPlugin):
                 )
                 if managedcluster_scenario["actions"]:
                     for action in managedcluster_scenario["actions"]:
-                        start_time = int(time.time())
                         try:
                             self.inject_managedcluster_scenario(
                                 action,
@@ -60,6 +58,7 @@ class ManagedClusterScenarioPlugin(AbstractScenarioPlugin):
                             return 1
                         else:
                             return 0
+            return 0
 
     def inject_managedcluster_scenario(
         self,
