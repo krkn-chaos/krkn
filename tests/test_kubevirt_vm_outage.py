@@ -176,7 +176,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.delete_vmi.return_value = None
 
         with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-            result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+            result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 0)
         self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
@@ -196,7 +196,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.delete_vmi.side_effect = ApiException(status=500)
 
         with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-            result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+            result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 1)
         self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
@@ -234,7 +234,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.delete_vmi.return_value = None
 
         with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-            result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+            result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         self.assertEqual(result, 0)
         # Verify patch_vm was called to disable auto-restart
@@ -278,7 +278,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.get_vmi.return_value = None
 
         with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
-            result = self.plugin.run("test-uuid", self.scenario_file, {}, self.telemetry, self.scenario_telemetry)
+            result = self.plugin.run("test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry)
 
         # When validation fails, run() returns 1 due to exception handling
         self.assertEqual(result, 1)

@@ -1,8 +1,7 @@
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import random
-import re
 import yaml
 from kubernetes.client.rest import ApiException
 from krkn_lib.k8s import KrknKubernetes
@@ -35,7 +34,6 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -60,7 +58,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             return 0
         except Exception as e:
             logging.error(f"KubeVirt VM Outage scenario failed: {e}")
-            log_exception(e)
+            log_exception(str(e))
             return 1
 
     def init_clients(self, k8s_client: KrknKubernetes):
@@ -143,7 +141,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             
         except Exception as e:
             logging.error(f"Error executing KubeVirt VM outage scenario: {e}")
-            log_exception(e)
+            log_exception(str(e))
             return self.pods_status
 
     def validate_environment(self, vm_name: str, namespace: str) -> bool:
@@ -243,7 +241,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             
         except Exception as e:
             logging.error(f"Error deleting VMI {vm_name}: {e}")
-            log_exception(e)
+            log_exception(str(e))
             self.pods_status.unrecovered.append(self.affected_pod)
             return 1
 
@@ -304,7 +302,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                     
                 except Exception as e:
                     logging.error(f"Error recreating VMI {vm_name}: {e}")
-                    log_exception(e)
+                    log_exception(str(e))
                     return 1
             else:
                 logging.error(f"Failed to recover VMI {vm_name}: No original state captured and auto-recovery did not occur")
@@ -312,5 +310,5 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 
         except Exception as e:
             logging.error(f"Unexpected error recovering VMI {vm_name}: {e}")
-            log_exception(e)
+            log_exception(str(e))
             return 1
