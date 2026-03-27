@@ -34,8 +34,20 @@ def set_url(config):
         global cerberus_url
         cerberus_url = get_yaml_item_value(config["cerberus"],"cerberus_url", "")
         global check_application_routes
-        check_application_routes = \
-            get_yaml_item_value(config["cerberus"],"check_application_routes","")
+        # Read correct key first; fall back to legacy misspelled key for older configs
+        check_application_routes = get_yaml_item_value(
+            config["cerberus"], "check_application_routes", ""
+        )
+        if not check_application_routes:
+            legacy = get_yaml_item_value(
+                config["cerberus"], "check_applicaton_routes", ""
+            )
+            if legacy:
+                logging.warning(
+                    "Config key 'check_applicaton_routes' is deprecated and will be "
+                    "removed in a future release. Please rename it to 'check_application_routes'."
+                )
+                check_application_routes = legacy
 
 def get_status(start_time, end_time):
     """
@@ -57,7 +69,6 @@ def get_status(start_time, end_time):
         # experience downtime during the chaos
         if check_application_routes:
             application_routes_status, unavailable_routes = application_status(
-                cerberus_url,
                 start_time,
                 end_time
             )

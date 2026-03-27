@@ -75,7 +75,7 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
                         self.run_parallel(targets, network_chaos)
                     else:
                         self.run_serial(targets, network_chaos)
-                    if len(config) > 1:
+                    if len(scenario_config) > 1:
                         logging.info(
                             f"waiting {network_chaos_config.wait_duration} seconds before running the next "
                             f"Network Chaos NG Module"

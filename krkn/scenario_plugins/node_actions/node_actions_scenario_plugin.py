@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
+import json
 import logging
 import time
 from multiprocessing.pool import ThreadPool
@@ -24,9 +26,11 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.models.k8s import AffectedNodeStatus
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-from krkn_lib.utils import get_yaml_item_value, log_exception
+from krkn_lib.utils import get_yaml_item_value
 
-from krkn import cerberus, utils
+from krkn import cerberus
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import aws_node_scenarios
@@ -44,14 +48,24 @@ from krkn.scenario_plugins.node_actions.vmware_node_scenarios import (
 from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import (
     ibm_node_scenarios,
 )
-
 from krkn.scenario_plugins.node_actions.ibmcloud_power_node_scenarios import (
-     ibmcloud_power_node_scenarios,
+    ibmcloud_power_node_scenarios,
 )
+
 node_general = False
+
+# Maps each reversible action to its compensating (inverse) action.
+# Only these actions register a rollback entry; irreversible actions
+# (terminate, crash, reboot, disk-detach) are intentionally excluded.
+REVERSIBLE_ACTIONS = {
+    "node_stop_scenario": "node_start_scenario",
+    "stop_kubelet_scenario": "restart_kubelet_scenario",
+}
 
 
 class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
+
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -83,6 +97,157 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     return 1
             return 0
 
+    def _register_rollback(
+        self,
+        action: str,
+        node: str,
+        node_scenario: dict,
+    ) -> None:
+        """
+        Register a rollback callable for a reversible node action.
+
+        Only actions present in REVERSIBLE_ACTIONS are registered. All data
+        needed by the rollback callable is encoded as base64 JSON in
+        ``resource_identifier`` so the serialized rollback file is fully
+        self-contained and requires no external state.
+
+        This must be called *before* the action is executed so that a rollback
+        entry exists even if the action itself raises an exception mid-flight.
+
+        :param action: The action about to be performed (e.g. "node_stop_scenario").
+        :param node: The target node name.
+        :param node_scenario: The full scenario config dict from the YAML file.
+        """
+        if action not in REVERSIBLE_ACTIONS:
+            return
+
+        logging.info(
+            "Registering rollback for action '%s' on node '%s'", action, node
+        )
+
+        # Encode all data the rollback callable needs into resource_identifier.
+        # Explicit type casts guard against get_yaml_item_value returning a
+        # non-serialisable type in unusual environments (e.g. unit tests).
+        payload = {
+            "node": node,
+            "cloud_type": str(node_scenario.get("cloud_type", "generic")),
+            "reverse_action": REVERSIBLE_ACTIONS[action],
+            "timeout": int(get_yaml_item_value(node_scenario, "timeout", 120)),
+            "poll_interval": int(get_yaml_item_value(node_scenario, "poll_interval", 15)),
+            "disable_ssl_verification": bool(
+                get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
+            ),
+        }
+        resource_identifier = base64.b64encode(
+            json.dumps(payload).encode()
+        ).decode()
+
+        self.rollback_handler.set_rollback_callable(
+            NodeActionsScenarioPlugin.rollback_node_action,
+            RollbackContent(resource_identifier=resource_identifier),
+        )
+
+    @staticmethod
+    def rollback_node_action(
+        rollback_content: RollbackContent,
+        lib_telemetry: KrknTelemetryOpenshift,
+    ) -> None:
+        """
+        Execute the compensating action for a previously performed node action.
+
+        The ``resource_identifier`` field of *rollback_content* holds a
+        base64-encoded JSON payload written by ``_register_rollback()``.  This
+        method decodes it, reconstructs the appropriate cloud-provider scenario
+        object, and calls the inverse action (e.g. ``node_start_scenario`` for
+        a stopped node, ``restart_kubelet_scenario`` for a stopped kubelet).
+
+        WHY local imports?
+        The rollback framework (``serialization.py`` + ``version_template.j2``)
+        serialises this function's source verbatim into a standalone Python
+        script.  That script only has ``logging``, ``os``, and ``krkn_lib``
+        available at module level.  Every other name used here must therefore
+        be imported *inside* the function body so the serialised script is
+        self-contained and executable without the rest of krkn on the path.
+
+        :param rollback_content: Contains the base64-encoded node/action metadata.
+        :param lib_telemetry: Provides access to the Kubernetes client.
+        """
+        # --- local imports (required for serialisation, see docstring) ---
+        import base64
+        import json
+        from krkn_lib.models.k8s import AffectedNodeStatus
+        from krkn.scenario_plugins.node_actions.aws_node_scenarios import aws_node_scenarios
+        from krkn.scenario_plugins.node_actions.az_node_scenarios import azure_node_scenarios
+        from krkn.scenario_plugins.node_actions.docker_node_scenarios import docker_node_scenarios
+        from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
+        from krkn.scenario_plugins.node_actions.general_cloud_node_scenarios import general_node_scenarios
+        from krkn.scenario_plugins.node_actions.vmware_node_scenarios import vmware_node_scenarios
+        from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import ibm_node_scenarios
+        from krkn.scenario_plugins.node_actions.ibmcloud_power_node_scenarios import ibmcloud_power_node_scenarios
+
+        try:
+            payload = json.loads(
+                base64.b64decode(rollback_content.resource_identifier).decode()
+            )
+            node = payload["node"]
+            cloud_type = payload.get("cloud_type", "generic")
+            reverse_action = payload["reverse_action"]
+            timeout = payload.get("timeout", 120)
+            poll_interval = payload.get("poll_interval", 15)
+            disable_ssl = payload.get("disable_ssl_verification", True)
+
+            logging.info(
+                "Rollback triggered: executing '%s' on node '%s' (cloud_type='%s')",
+                reverse_action, node, cloud_type,
+            )
+
+            kubecli = lib_telemetry.get_lib_kubernetes()
+            affected_nodes_status = AffectedNodeStatus()
+
+            # Reconstruct the cloud-provider scenario object.
+            # Unknown / generic cloud types all fall through to general_node_scenarios.
+            cloud_type_lower = cloud_type.lower()
+            known_cloud_types = {
+                "aws", "gcp", "azure", "az", "docker",
+                "vsphere", "vmware", "ibm", "ibmcloud",
+                "ibmpower", "ibmcloudpower",
+            }
+            if cloud_type_lower not in known_cloud_types:
+                scenario_obj = general_node_scenarios(kubecli, True, affected_nodes_status)
+            elif cloud_type_lower == "aws":
+                scenario_obj = aws_node_scenarios(kubecli, True, affected_nodes_status)
+            elif cloud_type_lower == "gcp":
+                scenario_obj = gcp_node_scenarios(kubecli, True, affected_nodes_status)
+            elif cloud_type_lower in ("azure", "az"):
+                scenario_obj = azure_node_scenarios(kubecli, True, affected_nodes_status)
+            elif cloud_type_lower == "docker":
+                scenario_obj = docker_node_scenarios(kubecli, True, affected_nodes_status)
+            elif cloud_type_lower in ("vsphere", "vmware"):
+                scenario_obj = vmware_node_scenarios(kubecli, True, affected_nodes_status)
+            elif cloud_type_lower in ("ibm", "ibmcloud"):
+                scenario_obj = ibm_node_scenarios(kubecli, True, affected_nodes_status, disable_ssl)
+            else:  # ibmpower / ibmcloudpower
+                scenario_obj = ibmcloud_power_node_scenarios(kubecli, True, affected_nodes_status, disable_ssl)
+
+            # Execute the compensating action.
+            if reverse_action == "node_start_scenario":
+                scenario_obj.node_start_scenario(1, node, timeout, poll_interval)
+            elif reverse_action == "restart_kubelet_scenario":
+                scenario_obj.restart_kubelet_scenario(1, node, timeout)
+            else:
+                logging.warning(
+                    "Rollback: no handler for reverse action '%s' on node '%s', skipping",
+                    reverse_action, node,
+                )
+                return
+
+            logging.info(
+                "Rollback completed successfully: '%s' on node '%s'",
+                reverse_action, node,
+            )
+        except Exception as e:
+            logging.error("Rollback failed for node action: %s", e)
+
     def get_node_scenario_object(self, node_scenario, kubecli: KrknKubernetes):
         affected_nodes_status = AffectedNodeStatus()
 
@@ -108,7 +273,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             from krkn.scenario_plugins.node_actions.openstack_node_scenarios import (
                 openstack_node_scenarios,
             )
-
             return openstack_node_scenarios(
                 kubecli, node_action_kube_check, affected_nodes_status
             )
@@ -126,7 +290,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             from krkn.scenario_plugins.node_actions.alibaba_node_scenarios import (
                 alibaba_node_scenarios,
             )
-
             return alibaba_node_scenarios(
                 kubecli, node_action_kube_check, affected_nodes_status
             )
@@ -134,7 +297,6 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             from krkn.scenario_plugins.node_actions.bm_node_scenarios import (
                 bm_node_scenarios,
             )
-
             return bm_node_scenarios(
                 node_scenario.get("bmc_info"),
                 node_scenario.get("bmc_user", None),
@@ -158,14 +320,22 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             node_scenario["cloud_type"].lower() == "ibm"
             or node_scenario["cloud_type"].lower() == "ibmcloud"
         ):
-            disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
-            return ibm_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
+            disable_ssl_verification = get_yaml_item_value(
+                node_scenario, "disable_ssl_verification", True
+            )
+            return ibm_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification
+            )
         elif (
             node_scenario["cloud_type"].lower() == "ibmpower"
             or node_scenario["cloud_type"].lower() == "ibmcloudpower"
         ):
-            disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
-            return ibmcloud_power_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
+            disable_ssl_verification = get_yaml_item_value(
+                node_scenario, "disable_ssl_verification", True
+            )
+            return ibmcloud_power_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification
+            )
         else:
             logging.error(
                 "Cloud type "
@@ -190,16 +360,13 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         kubecli: KrknKubernetes,
         scenario_telemetry: ScenarioTelemetry,
     ):
-
-        # Get the node scenario configurations for setting nodes
-
         instance_kill_count = get_yaml_item_value(node_scenario, "instance_count", 1)
         node_name = get_yaml_item_value(node_scenario, "node_name", "")
         label_selector = get_yaml_item_value(node_scenario, "label_selector", "")
         exclude_label = get_yaml_item_value(node_scenario, "exclude_label", "")
         parallel_nodes = get_yaml_item_value(node_scenario, "parallel", False)
 
-        # Get the node to apply the scenario
+        # Resolve the target node list
         if node_name:
             node_name_list = node_name.split(",")
             nodes = common_node_functions.get_node_by_name(node_name_list, kubecli)
@@ -217,20 +384,22 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     )
                 nodes = [node for node in nodes if node not in exclude_nodes]
 
-        # GCP api doesn't support multiprocessing calls, will only actually run 1
+        # GCP API doesn't support multiprocessing calls; will only actually run 1.
+        # NOTE: rollback registration is intentionally done inside run_node() rather
+        # than here so that each node gets its own rollback entry regardless of
+        # whether nodes are processed sequentially or in parallel.
         if parallel_nodes:
             self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
         else:
             for single_node in nodes:
                 self.run_node(single_node, node_scenario_object, action, node_scenario)
+
         affected_nodes_status = node_scenario_object.affected_nodes_status
         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
 
     def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
         try:
-            # pool object with number of element
             pool = ThreadPool(processes=len(nodes))
-
             pool.starmap(
                 self.run_node,
                 zip(
@@ -240,13 +409,11 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     repeat(node_scenario),
                 ),
             )
-
             pool.close()
         except Exception as e:
             logging.info("Error on pool multiprocessing: " + str(e))
 
     def run_node(self, single_node, node_scenario_object, action, node_scenario):
-        # Get the scenario specifics for running action nodes
         run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
         duration = get_yaml_item_value(node_scenario, "duration", 120)
         poll_interval = get_yaml_item_value(node_scenario, "poll_interval", 15)
@@ -270,6 +437,12 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     run_kill_count, single_node, timeout, poll_interval
                 )
             elif action == "node_stop_scenario":
+                # Register rollback *before* stopping so a restart entry exists
+                # even if the stop call itself raises mid-flight.
+                self._register_rollback(action, single_node, node_scenario)
+                logging.info(
+                    "Performing '%s' on node '%s'", action, single_node
+                )
                 node_scenario_object.node_stop_scenario(
                     run_kill_count, single_node, timeout, poll_interval
                 )
@@ -298,6 +471,12 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     run_kill_count, single_node, timeout
                 )
             elif action == "stop_kubelet_scenario":
+                # Register rollback *before* stopping so a restart entry exists
+                # even if the stop call itself raises mid-flight.
+                self._register_rollback(action, single_node, node_scenario)
+                logging.info(
+                    "Performing '%s' on node '%s'", action, single_node
+                )
                 node_scenario_object.stop_kubelet_scenario(
                     run_kill_count, single_node, timeout
                 )

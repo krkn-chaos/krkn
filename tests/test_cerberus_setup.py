@@ -194,11 +194,27 @@ class TestCerberusSetup(unittest.TestCase):
         cerberus_setup.exit_on_failure = True
         mock_get_status.return_value = True
 
-        with self.assertRaises(SystemExit) as cm:
-            cerberus_setup.publish_kraken_status(0, 100)
-        
-        self.assertEqual(cm.exception.code, 1)
+        # Healthy cluster should NOT exit regardless of exit_on_failure
+        cerberus_setup.publish_kraken_status(0, 100)
+
         mock_get_status.assert_called_once_with(0, 100)
+
+    def test_set_url_legacy_misspelled_key_fallback(self):
+        """Test set_url falls back to legacy misspelled key check_applicaton_routes"""
+        config = {
+            "kraken": {"exit_on_failure": False},
+            "cerberus": {
+                "cerberus_enabled": True,
+                "cerberus_url": "http://cerberus.example.com",
+                "check_applicaton_routes": "legacy-route"  # old misspelled key
+            }
+        }
+
+        with self.assertLogs(level="WARNING") as log:
+            cerberus_setup.set_url(config)
+
+        self.assertEqual(cerberus_setup.check_application_routes, "legacy-route")
+        self.assertTrue(any("deprecated" in msg for msg in log.output))
 
     @patch('krkn.cerberus.setup.get_status')
     def test_publish_kraken_status_unhealthy_exit_on_failure_false(self, mock_get_status):

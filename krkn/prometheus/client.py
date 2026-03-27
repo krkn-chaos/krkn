@@ -181,8 +181,10 @@ def critical_alerts(
 
     if not firing_alerts:
         logging.info("No critical alerts are firing!!")
-    
-   
+
+    return firing_alerts
+
+
 def metrics(
     prom_cli: KrknPrometheus,
     elastic: KrknElastic,
