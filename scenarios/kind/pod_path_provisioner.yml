@@ -1,0 +1,6 @@
+- id: kill-pods
+  config:
+    namespace_pattern: "local-path-storage"
+    label_selector: "app=local-path-provisioner"
+    krkn_pod_recovery_time: 20
+    kill: 1

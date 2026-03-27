@@ -1,0 +1,8 @@
+# Lean KinD config for local dev (faster than full 5-node). Use KIND_CONFIG to override.
+# No extraPortMappings so setup works when 9090/30080 are in use (e.g. local Prometheus).
+# For Prometheus/ES port mapping, use the repo root kind-config.yml.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+  - role: worker

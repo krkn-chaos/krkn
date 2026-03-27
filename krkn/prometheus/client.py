@@ -46,7 +46,7 @@ def alerts(
             sys.exit(1)
 
         for alert in profile_yaml:
-            if list(alert.keys()).sort() != ["expr", "description", "severity"].sort():
+            if sorted(alert.keys()) != sorted(["expr", "description", "severity"]):
                 logging.error(f"wrong alert {alert}, skipping")
                 continue
 
@@ -205,8 +205,8 @@ def metrics(
                    query
                 )
             elif (
-                list(metric_query.keys()).sort()
-                == ["query", "metricName"].sort()
+                sorted(metric_query.keys())
+                == sorted(["query", "metricName"])
             ):
                 metrics_result = prom_cli.process_prom_query_in_range(
                     query,
@@ -251,7 +251,7 @@ def metrics(
                         for k,v in pod.items():
                             metric[k] = v
                             metric['timestamp'] = str(datetime.datetime.now())
-                        print('adding pod' + str(metric))
+                        logging.debug("adding pod %s", metric)
                         metrics_list.append(metric.copy())
             for affected_node in scenario["affected_nodes"]:
                 metric_name = "affected_nodes_recovery"

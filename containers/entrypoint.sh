@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 # Run SSH setup
 ./containers/setup-ssh.sh
 # Change to kraken directory

@@ -50,8 +50,14 @@ kraken:
        - network_chaos_ng_scenarios:
                - scenarios/kube/pod-network-filter.yml
                - scenarios/kube/node-network-filter.yml
+               - scenarios/kube/node-network-chaos.yml
+               - scenarios/kube/pod-network-chaos.yml
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
+
+resiliency:
+  resiliency_run_mode: standalone  # Options: standalone, detailed, disabled
+  resiliency_file: config/alerts.yaml  # Path to SLO definitions, will resolve to performance_monitoring: alert_profile: if not specified
 
 cerberus:
     cerberus_enabled: False                                # Enable it when cerberus is previously installed
@@ -77,6 +83,7 @@ elastic:
     metrics_index: "krkn-metrics"
     alerts_index: "krkn-alerts"
     telemetry_index: "krkn-telemetry"
+    run_tag: ""
 
 tunings:
     wait_duration: 1                                      # Duration to wait between each chaos scenario
@@ -129,3 +136,4 @@ kubevirt_checks:                                            # Utilizing virt che
     ssh_node: ""                                            # If set, will be a backup way to ssh to a node. Will want to set to a node that isn't targeted in chaos
     node_names: ""
     exit_on_failure:                                        # If value is True and VMI's are failing post chaos returns failure, values can be True/False
+    
