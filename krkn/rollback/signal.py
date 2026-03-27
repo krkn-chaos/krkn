@@ -42,7 +42,7 @@ class SignalHandler:
         cls._local.run_uuid = run_uuid
         cls._local.scenario_type = scenario_type
         cls._local.telemetry_ocp = telemetry_ocp
-        logger.debug(f"Set signal context set for thread {threading.current_thread().name} - run_uuid={run_uuid}, scenario_type={scenario_type}")
+        logger.debug(f"Signal context set for thread {threading.current_thread().name} - run_uuid={run_uuid}, scenario_type={scenario_type}")
 
     @classmethod
     def _get_context(cls) -> tuple[Optional[str], Optional[str], Optional[KrknTelemetryOpenshift]]:

@@ -35,14 +35,13 @@ def set_url(config):
         cerberus_url = get_yaml_item_value(config["cerberus"],"cerberus_url", "")
         global check_application_routes
         check_application_routes = \
-            get_yaml_item_value(config["cerberus"],"check_applicaton_routes","")
+            get_yaml_item_value(config["cerberus"],"check_application_routes","")
 
 def get_status(start_time, end_time):
     """
     Get cerberus status
     """
     cerberus_status = True
-    check_application_routes = False
     application_routes_status = True
     if cerberus_enabled:
         if not cerberus_url:
@@ -99,26 +98,12 @@ def publish_kraken_status( start_time, end_time):
     if not cerberus_status:
         if exit_on_failure:
             logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing, exiting kraken run"
+                "Cerberus status is not healthy, exiting kraken run"
             )
             sys.exit(1)
         else:
             logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing"
-            )
-    else:
-        if exit_on_failure:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing, exiting kraken run"
-            )
-            sys.exit(1)
-        else:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing"
+                "Cerberus status is not healthy"
             )
 
 

@@ -159,12 +159,6 @@ class TestRollbackScenarioPlugin:
         simple_rollback_scenario_plugin.run(
             run_uuid=run_uuid,
             scenario="test_scenario",
-            krkn_config={
-                "key1": "value",
-                "key2": False,
-                "key3": 123,
-                "key4": ["value1", "value2", "value3"],
-            },
             lib_telemetry=lib_telemetry,
             scenario_telemetry=scenario_telemetry,
         )
@@ -256,7 +250,7 @@ class TestRollbackAbstractScenarioPlugin:
         
         # Create a test scenario plugin
         class TestScenarioPlugin(AbstractScenarioPlugin):
-            def run(self, run_uuid: str, scenario: str, krkn_config: dict, lib_telemetry, scenario_telemetry):
+            def run(self, run_uuid: str, scenario: str, lib_telemetry, scenario_telemetry):
                 return 1 if scenario_should_fail else 0
             
             def get_scenario_types(self) -> list[str]:

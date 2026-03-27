@@ -49,7 +49,7 @@ class TestCerberusSetup(unittest.TestCase):
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus.example.com",
-                "check_applicaton_routes": "route1,route2"
+                "check_application_routes": "route1,route2"
             }
         }
 

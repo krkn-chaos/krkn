@@ -39,14 +39,12 @@ class SimpleRollbackScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
         logger.info(
             f"Setting rollback callable for run {run_uuid} with scenario {scenario}."
         )
-        logger.debug(f"Krkn config: {krkn_config}")
         self.rollback_handler.set_rollback_callable(
             self.rollback_callable,
             RollbackContent(

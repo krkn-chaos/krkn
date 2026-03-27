@@ -241,7 +241,8 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                             container_ready.append(killed_container)
             if len(container_ready) != 0:
                 for item in container_ready:
-                    killed_container_list = killed_container_list.remove(item)
+                    killed_container_list.remove(item)
+                container_ready = []
             if killed_container_list is None or len(killed_container_list) == 0:
                 return []
             timer += 5

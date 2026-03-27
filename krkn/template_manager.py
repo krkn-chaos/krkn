@@ -34,7 +34,6 @@ from typing import Any, Dict, List, Optional
 import yaml
 
 # Local imports
-from optparse import Values
 
 
 class TemplateManager:
@@ -201,9 +200,9 @@ class TemplateManager:
                 'signal_state': 'RUN',
                 'signal_address': '0.0.0.0',
                 'port': 8081,
-                'chaos_scenarios': {
-                    'template_scenarios': [scenario_config]
-                }
+                'chaos_scenarios': [
+                    {'template_scenarios': [scenario_config]}
+                ]
             },
             'cerberus': {
                 'cerberus_enabled': False,
@@ -526,16 +525,17 @@ def run_template_command(args) -> int:
                 print(f"   {key}: {value}")
         
         # Create options object for kraken
-        options = Values({
-            'cfg': config_path,
-            'output': args.output or f"krkn-{args.template}.report",
-            'debug': args.debug,
-            'junit_testcase': None,
-            'junit_testcase_path': None,
-            'junit_testcase_version': None,
-            'run_uuid': None,
-            'scenario_type': None,
-        })
+        import types
+        options = types.SimpleNamespace(
+            cfg=config_path,
+            output=args.output or f"krkn-{args.template}.report",
+            debug=args.debug,
+            junit_testcase=None,
+            junit_testcase_path=None,
+            junit_testcase_version=None,
+            run_uuid=None,
+            scenario_type=None,
+        )
         
         # Import and run main kraken function
         try:

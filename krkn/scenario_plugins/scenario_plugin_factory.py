@@ -27,11 +27,9 @@ class ScenarioPluginNotFound(Exception):
 
 class ScenarioPluginFactory:
 
-    loaded_plugins: dict[str, Any] = {}
-    failed_plugins: list[Tuple[str, str, str]] = []
-    package_name = None
-
     def __init__(self, package_name: str = "krkn.scenario_plugins"):
+        self.loaded_plugins: dict[str, Any] = {}
+        self.failed_plugins: list[Tuple[str, str, str]] = []
         self.package_name = package_name
         self.__load_plugins(AbstractScenarioPlugin)
 

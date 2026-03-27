@@ -359,8 +359,6 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
-            import base64 # noqa
-            import json # noqa
             decoded_data = base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8')
             rollback_data = json.loads(decoded_data)
             pod_name = rollback_data["pod_name"]

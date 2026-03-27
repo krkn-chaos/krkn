@@ -16,7 +16,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, TYPE_CHECKING, Optional
 from typing_extensions import TypeAlias
 import time
@@ -26,14 +26,6 @@ import logging
 from krkn_lib.utils import get_random_string
 
 logger = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-
-RollbackCallable: TypeAlias = Callable[
-    ["RollbackContent", "KrknTelemetryOpenshift"], None
-]
-
 
 if TYPE_CHECKING:
     from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -243,8 +235,8 @@ class RollbackConfig(metaclass=SingletonMeta):
 class Version:
     scenario_type: str
     rollback_context: RollbackContext
-    timestamp: int = time.time_ns()  # Get current timestamp in nanoseconds
-    hash_suffix: str = get_random_string(8)  # Generate a random string of 8 characters
+    timestamp: int = field(default_factory=time.time_ns)
+    hash_suffix: str = field(default_factory=lambda: get_random_string(8))
 
     @property
     def version_file_name(self) -> str:

@@ -36,6 +36,7 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
             PLUGINS.run(
                 scenario,
                 lib_telemetry.get_lib_kubernetes().get_kubeconfig_path(),
+                lib_telemetry.get_telemetry_config().get("kraken_config", ""),
                 run_uuid,
             )
 

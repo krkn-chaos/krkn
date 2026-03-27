@@ -29,9 +29,9 @@ from krkn_lib.utils.functions import get_yaml_item_value
 
 
 class VirtChecker:
-    current_iterations: int = 0
-    ret_value = 0
     def __init__(self, kubevirt_check_config, iterations, krkn_lib: KrknKubernetes, threads_limit=20):
+        self.current_iterations: int = 0
+        self.ret_value = 0
         self.iterations = iterations
         self.namespace = get_yaml_item_value(kubevirt_check_config, "namespace", "")
         self.vm_list = []
