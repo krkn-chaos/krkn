@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: check-license-header
+        name: Check Apache 2.0 license header
+        language: python
+        entry: python scripts/check_license.py
+        types: [python]
+        exclude: ^tests/|/test_|CI/
