@@ -73,3 +73,8 @@ CI/tests_v2/assets/
 #env
 chaos/*
 
+
+# Kraken Dashboard (Web UI)
+kraken-dashboard/frontend/node_modules/
+kraken-dashboard/backend/node_modules/
+kraken-dashboard/frontend/dist/
