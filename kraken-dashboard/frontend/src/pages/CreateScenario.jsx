@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
-import { Sliders, Code2, Send, Info } from "lucide-react";
+import { Sliders, Code2, Send, Info, RefreshCw } from "lucide-react";
 import { api } from "../services/api";
 
 const CHAOS_TYPES = {
@@ -48,7 +48,10 @@ export default function CreateScenario() {
     namespace: "default",
     duration: 60,
   });
+  // Bug fix #2: track whether user has manually edited the YAML
+  // so we never silently overwrite their edits
   const [yaml, setYaml] = useState(DEFAULT_YAML);
+  const [yamlDirty, setYamlDirty] = useState(false);
 
   const availableChaosTypes = CHAOS_TYPES[form.type] || [];
 
@@ -56,20 +59,33 @@ export default function CreateScenario() {
     const type = e.target.value;
     const firstChaos = CHAOS_TYPES[type]?.[0] || "";
     setForm((f) => ({ ...f, type, chaosType: firstChaos }));
+    // Do NOT auto-regenerate YAML — user may have edited it
   }
 
   function handleChange(e) {
     const { name, value } = e.target;
-    setForm((f) => {
-      const updated = { ...f, [name]: value };
-      if (mode === "advanced") setYaml(generateYaml(updated));
-      return updated;
-    });
+    // Bug fix #2: basic field changes never overwrite YAML in advanced mode
+    setForm((f) => ({ ...f, [name]: value }));
   }
 
+  // Bug fix #2: switching to advanced only generates YAML if user
+  // hasn't manually edited it yet
   function switchMode(m) {
+    if (m === "advanced" && !yamlDirty) {
+      setYaml(generateYaml(form));
+    }
     setMode(m);
-    if (m === "advanced") setYaml(generateYaml(form));
+  }
+
+  // Explicit "Regenerate from form" — user intentionally overwrites YAML
+  function regenerateYaml() {
+    setYaml(generateYaml(form));
+    setYamlDirty(false);
+  }
+
+  function handleYamlChange(e) {
+    setYaml(e.target.value);
+    setYamlDirty(true); // mark as manually edited
   }
 
   async function handleSubmit(e) {
@@ -84,6 +100,8 @@ export default function CreateScenario() {
         duration: parseInt(form.duration, 10) || 60,
         ...(mode === "advanced" ? { yamlConfig: yaml } : {}),
       };
+      // Bug fix #1: api is imported from ../services/api which exports
+      // createScenario(payload) returning { id, ...scenarioFields }
       const scenario = await api.createScenario(payload);
       toast.success("Scenario launched!");
       navigate(`/scenarios/${scenario.id}`);
@@ -122,7 +140,7 @@ export default function CreateScenario() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Basic fields — always visible */}
+        {/* Basic fields — always visible in both modes */}
         <div className="card space-y-4">
           <div>
             <label className="label">Scenario Name *</label>
@@ -194,13 +212,30 @@ export default function CreateScenario() {
           </div>
         </div>
 
-        {/* YAML editor for advanced mode */}
+        {/* YAML editor — advanced mode only */}
         {mode === "advanced" && (
-          <div className="card">
-            <label className="label mb-2">YAML Configuration</label>
+          <div className="card space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="label mb-0">YAML Configuration</label>
+              {/* Bug fix #2: explicit regenerate button — user controls when
+                  form values overwrite their YAML edits */}
+              <button
+                type="button"
+                onClick={regenerateYaml}
+                className="btn-secondary text-xs flex items-center gap-1.5"
+                title="Regenerate YAML from form values above"
+              >
+                <RefreshCw size={12} /> Regenerate from form
+              </button>
+            </div>
+            {yamlDirty && (
+              <p className="text-xs text-amber-400 flex items-center gap-1">
+                <Info size={11} /> YAML has been manually edited — form changes won't overwrite it
+              </p>
+            )}
             <textarea
               value={yaml}
-              onChange={(e) => setYaml(e.target.value)}
+              onChange={handleYamlChange}
               className="input font-mono text-xs resize-none"
               rows={14}
               spellCheck={false}
@@ -208,12 +243,12 @@ export default function CreateScenario() {
           </div>
         )}
 
-        <button type="submit" disabled={loading} className="btn-primary w-full flex items-center justify-center gap-2 py-3">
-          {loading ? (
-            <span className="animate-spin">⟳</span>
-          ) : (
-            <Send size={16} />
-          )}
+        <button
+          type="submit"
+          disabled={loading}
+          className="btn-primary w-full flex items-center justify-center gap-2 py-3"
+        >
+          {loading ? <span className="animate-spin">⟳</span> : <Send size={16} />}
           {loading ? "Launching..." : "Launch Scenario"}
         </button>
       </form>
