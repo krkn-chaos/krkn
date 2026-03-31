@@ -63,6 +63,19 @@ class NetworkFilterConfig(BaseNetworkChaosConfig):
 
 
 @dataclass
+class InterfaceDownConfig(BaseNetworkChaosConfig):
+    ingress: bool = True
+    egress: bool = True
+    recovery_time: int = 0
+
+    def validate(self) -> list[str]:
+        errors = super().validate()
+        if not isinstance(self.recovery_time, int) or self.recovery_time < 0:
+            errors.append("recovery_time must be a non-negative integer (seconds)")
+        return errors
+
+
+@dataclass
 class NetworkChaosConfig(BaseNetworkChaosConfig):
     latency: Optional[str] = None
     loss: Optional[str] = None

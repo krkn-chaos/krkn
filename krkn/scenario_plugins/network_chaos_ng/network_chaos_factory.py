@@ -3,9 +3,13 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn.scenario_plugins.network_chaos_ng.models import (
     NetworkFilterConfig,
     NetworkChaosConfig,
+    InterfaceDownConfig,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
+)
+from krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down import (
+    NodeInterfaceDownModule,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos import (
     NodeNetworkChaosModule,
@@ -25,6 +29,7 @@ supported_modules = [
     "pod_network_filter",
     "pod_network_chaos",
     "node_network_chaos",
+    "node_interface_down",
 ]
 
 
@@ -63,5 +68,11 @@ class NetworkChaosFactory:
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
             return NodeNetworkChaosModule(scenario_config, kubecli)
+        if config["id"] == "node_interface_down":
+            scenario_config = InterfaceDownConfig(**config)
+            errors = scenario_config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return NodeInterfaceDownModule(scenario_config, kubecli)
         else:
             raise Exception(f"invalid network chaos id {config['id']}")

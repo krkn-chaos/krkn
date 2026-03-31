@@ -1,0 +1,27 @@
+- id: node_interface_down
+  # Container image used to run the chaos workload pod on the target node
+  image: quay.io/krkn-chaos/krkn-network-chaos:latest
+  # Kubernetes namespace where the chaos workload pod is deployed
+  namespace: default
+  # Service account to use for the chaos workload pod (leave empty for default)
+  service_account: ""
+  # Node label selector - selects worker nodes to target.
+  # Leave label_selector empty and set target to a specific node name instead.
+  label_selector: "node-role.kubernetes.io/worker="
+  # Specific node name to target. Used when label_selector is not set.
+  target: ""
+  # Number of nodes to target (0 means all matched nodes)
+  instance_count: 1
+  # Execution mode: serial (one node at a time) or parallel (all nodes simultaneously)
+  execution: serial
+  # Network interfaces to bring down. Leave empty to auto-detect the default interface.
+  interfaces: []
+  # Duration in seconds the interface(s) remain down before being restored
+  test_duration: 60
+  # Optional wait time in seconds after the interface is brought back up,
+  # to allow the node to fully recover before the workload pod is removed
+  recovery_time: 30
+  # Time in seconds to wait before running the next module in the list
+  wait_duration: 0
+  # Node taints to tolerate (format: "key=value:Effect" or "key:Effect")
+  taints: []
