@@ -26,6 +26,10 @@ class TestPodDisruptionScenarioPlugin(unittest.TestCase):
         """
         self.plugin = PodDisruptionScenarioPlugin()
 
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
+
     def test_get_scenario_types(self):
         """
         Test get_scenario_types returns correct scenario type
