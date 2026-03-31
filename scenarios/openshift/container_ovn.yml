@@ -1,0 +1,8 @@
+scenarios:
+- name: "kill ovn container"
+  namespace: "openshift-ovn-kubernetes"
+  label_selector: "app=ovnkube-node"
+  container_name: "ovn-controller"
+  action: 1
+  count: 1
+  expected_recovery_time: 120
