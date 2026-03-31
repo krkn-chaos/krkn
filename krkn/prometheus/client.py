@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+#
 # Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -178,8 +180,6 @@ def critical_alerts(
 
     if not firing_alerts:
         logging.info("No critical alerts are firing!!")
-    
-   
 def metrics(
     prom_cli: KrknPrometheus,
     elastic: KrknElastic,
