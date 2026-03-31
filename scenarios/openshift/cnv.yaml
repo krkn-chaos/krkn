@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=../plugin.schema.json
+- id: kill-pods
+  config:
+    namespace_pattern: ^openshift-cnv$
+    label_selector: kubevirt.io=virt-operator
+    krkn_pod_recovery_time: 120
+    exclude_label: "" # excludes pods marked with this label from chaos
+

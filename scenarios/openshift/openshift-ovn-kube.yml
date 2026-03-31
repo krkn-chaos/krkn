@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../plugin.schema.json
+- id: kill-pods
+  config:
+    namespace_pattern: ^openshift-ovn-kubernetes$
+    label_selector: app=ovnkube-node
+    krkn_pod_recovery_time: 120
+

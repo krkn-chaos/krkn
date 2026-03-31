@@ -1,0 +1,5 @@
+- id: kill-pods
+  config:
+    namespace_pattern: submariner-operator
+    label_selector: app=submariner-routeagent
+    krkn_pod_recovery_time: 120

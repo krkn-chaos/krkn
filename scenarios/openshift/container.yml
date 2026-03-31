@@ -1,0 +1,9 @@
+scenarios:
+- name: "kill etcd container"
+  namespace: "kube-system"
+  label_selector: "app=kindnet"
+  container_name: ""
+  action: 1
+  count: 1
+  expected_recovery_time: 120
+  exclude_label: ""

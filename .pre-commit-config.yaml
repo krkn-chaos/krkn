@@ -6,4 +6,4 @@ repos:
         language: python
         entry: python scripts/check_license.py
         types: [python]
-        exclude: ^tests/|/test_|CI/
+        exclude: ^tests/|/test_|^CI/
