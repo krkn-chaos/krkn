@@ -1,3 +1,19 @@
+#!/usr/bin/env python
+#
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Test suite for krkn/cerberus/setup.py
 
@@ -27,13 +43,13 @@ class TestCerberusSetup(unittest.TestCase):
         cerberus_setup.check_application_routes = ""
 
     def test_set_url_with_cerberus_enabled(self):
-        """Test set_url when cerberus is enabled"""
+        """Test set_url when cerberus is enabled with correct key"""
         config = {
             "kraken": {"exit_on_failure": True},
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus.example.com",
-                "check_applicaton_routes": "route1,route2"
+                "check_application_routes": "route1,route2"
             }
         }
 
@@ -43,6 +59,23 @@ class TestCerberusSetup(unittest.TestCase):
         self.assertTrue(cerberus_setup.exit_on_failure)
         self.assertTrue(cerberus_setup.cerberus_enabled)
         self.assertEqual(cerberus_setup.check_application_routes, "route1,route2")
+
+    def test_set_url_legacy_misspelled_key_fallback(self):
+        """Test set_url falls back to legacy misspelled key check_applicaton_routes"""
+        config = {
+            "kraken": {"exit_on_failure": False},
+            "cerberus": {
+                "cerberus_enabled": True,
+                "cerberus_url": "http://cerberus.example.com",
+                "check_applicaton_routes": "legacy-route"  # old misspelled key
+            }
+        }
+
+        with self.assertLogs(level="WARNING") as log:
+            cerberus_setup.set_url(config)
+
+        self.assertEqual(cerberus_setup.check_application_routes, "legacy-route")
+        self.assertTrue(any("deprecated" in msg for msg in log.output))
 
     def test_set_url_with_cerberus_disabled(self):
         """Test set_url when cerberus is disabled"""
@@ -178,10 +211,9 @@ class TestCerberusSetup(unittest.TestCase):
         cerberus_setup.exit_on_failure = True
         mock_get_status.return_value = True
 
-        with self.assertRaises(SystemExit) as cm:
-            cerberus_setup.publish_kraken_status(0, 100)
-        
-        self.assertEqual(cm.exception.code, 1)
+        # Healthy cluster should NOT exit regardless of exit_on_failure
+        cerberus_setup.publish_kraken_status(0, 100)
+
         mock_get_status.assert_called_once_with(0, 100)
 
     @patch('krkn.cerberus.setup.get_status')
