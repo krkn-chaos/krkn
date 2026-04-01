@@ -56,6 +56,10 @@ class BaseNetworkChaosConfig:
             errors.append("wait_duration must be an int")
         if not isinstance(self.test_duration, int):
             errors.append("test_duration must be an int")
+        if not isinstance(self.instance_count, int):
+            errors.append("instance_count must be an int")
+        elif self.instance_count < 0:
+            errors.append("instance_count must be >= 0")
         return errors
 
 
