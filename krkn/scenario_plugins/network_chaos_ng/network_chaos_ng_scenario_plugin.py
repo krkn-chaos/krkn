@@ -1,3 +1,19 @@
+#!/usr/bin/env python
+#
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import logging
 import queue
 import random
@@ -52,8 +68,8 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
                         )
 
                     if (
-                        network_chaos_config.instance_count != 0
-                        and network_chaos_config.instance_count > len(targets)
+                        network_chaos_config.instance_count > 0
+                        and len(targets) > network_chaos_config.instance_count
                     ):
                         targets = random.sample(
                             targets, network_chaos_config.instance_count
@@ -63,7 +79,7 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
                         self.run_parallel(targets, network_chaos)
                     else:
                         self.run_serial(targets, network_chaos)
-                    if len(config) > 1:
+                    if len(scenario_config) > 1:
                         logging.info(
                             f"waiting {network_chaos_config.wait_duration} seconds before running the next "
                             f"Network Chaos NG Module"
