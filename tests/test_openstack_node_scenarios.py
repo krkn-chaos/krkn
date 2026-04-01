@@ -30,6 +30,10 @@ class TestOPENSTACKCLOUD(unittest.TestCase):
         """Set up test fixtures"""
         self.openstack = OPENSTACKCLOUD()
 
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.openstack = None
+
     def test_openstackcloud_init(self):
         """Test OPENSTACKCLOUD class initialization"""
         self.assertEqual(self.openstack.Wait, 30)
@@ -275,6 +279,13 @@ class TestOpenstackNodeScenarios(unittest.TestCase):
                 node_action_kube_check=True,
                 affected_nodes_status=self.affected_nodes_status
             )
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.scenario = None
+        self.kubecli = None
+        self.mock_openstack = None
+        self.affected_nodes_status = None
 
     @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_ready_status')
     def test_node_start_scenario_success(self, mock_wait_ready):
