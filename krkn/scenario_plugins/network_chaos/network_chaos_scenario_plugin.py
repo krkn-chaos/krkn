@@ -192,6 +192,12 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
         pods_list = kubecli.list_pods(
             label_selector=pod_label_selector, namespace="default"
         )
+        if not pods_list:
+            raise Exception(
+                f"No pods found matching label selector '{pod_label_selector}' "
+                f"in namespace 'default'. The job pod may not have started or "
+                f"the label selector may be incorrect."
+            )
         return pods_list[0]
 
     # krkn_lib
@@ -231,8 +237,8 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                     )
                     pod_log = pod_log_response.data.decode("utf-8")
                     logging.error(pod_log)
-            except Exception:
-                logging.warning("Exception in getting job status")
+            except Exception as e:
+                logging.warning(f"Exception in getting job status: {e}")
             kubecli.delete_job(name=jobname, namespace="default")
 
     def get_egress_cmd(self, execution, test_interface, mod, vallst, duration=30):
