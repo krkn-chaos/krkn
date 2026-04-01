@@ -35,6 +35,39 @@ class TestNetworkChaosScenarioPlugin(unittest.TestCase):
         self.assertEqual(result, ["network_chaos_scenarios"])
         self.assertEqual(len(result), 1)
 
+    def test_get_job_pods_empty_list_raises_exception(self):
+        """
+        Test get_job_pods raises descriptive error when no pods match the label selector
+        """
+        mock_kubecli = MagicMock(spec=KrknKubernetes)
+        mock_kubecli.list_pods.return_value = []
+
+        mock_api_response = MagicMock()
+        mock_api_response.metadata.labels = {"controller-uid": "test-uid-123"}
+
+        with self.assertRaises(Exception) as context:
+            self.plugin.get_job_pods(mock_api_response, mock_kubecli)
+
+        self.assertIn("No pods found matching label selector", str(context.exception))
+        self.assertIn("controller-uid=test-uid-123", str(context.exception))
+
+    def test_get_job_pods_returns_first_pod(self):
+        """
+        Test get_job_pods returns the first pod when pods are found
+        """
+        mock_kubecli = MagicMock(spec=KrknKubernetes)
+        mock_kubecli.list_pods.return_value = ["pod-1", "pod-2"]
+
+        mock_api_response = MagicMock()
+        mock_api_response.metadata.labels = {"controller-uid": "test-uid-456"}
+
+        result = self.plugin.get_job_pods(mock_api_response, mock_kubecli)
+
+        self.assertEqual(result, "pod-1")
+        mock_kubecli.list_pods.assert_called_once_with(
+            label_selector="controller-uid=test-uid-456", namespace="default"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
