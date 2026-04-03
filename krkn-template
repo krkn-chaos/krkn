@@ -15,4 +15,5 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from krkn.template_manager import main
 
 if __name__ == "__main__":
-    main()
+    # ✅ FIX ISSUE #3: Propagate exit code from main()
+    sys.exit(main())
