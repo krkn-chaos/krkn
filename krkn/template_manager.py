@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-#
 # Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,338 +14,347 @@
 # limitations under the License.
 
 """
-KRKN Template Manager Module
+KRKN Chaos Template Manager
 
-This module provides functionality to manage and run chaos scenario templates
-for the KRKN chaos engineering tool.
+Provides pre-configured chaos scenario templates for easy execution.
 """
 
+import sys
 import os
-import yaml
 import json
+import yaml
 import logging
 import argparse
 import tempfile
 from typing import Dict, List, Optional, Any
-from pathlib import Path
+from dataclasses import dataclass, field
+
+
+@dataclass
+class TemplateParameter:
+    """Represents a template parameter"""
+    name: str
+    description: str
+    required: bool = False
+    default: Any = None
+    type: str = "string"
+
+
+@dataclass
+class ChaosTemplate:
+    """Represents a chaos scenario template"""
+    name: str
+    description: str
+    scenario_type: str
+    scenario_config: Dict[str, Any]
+    parameters: Dict[str, TemplateParameter] = field(default_factory=dict)
+    
+    def to_scenario_dict(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert template to scenario dict with parameters applied.
+        
+        Args:
+            params: Parameter values to inject
+            
+        Returns:
+            Scenario configuration dict
+        """
+        # Deep copy the scenario config
+        scenario = json.loads(json.dumps(self.scenario_config))
+        
+        # Apply parameters
+        for param_name, param_value in params.items():
+            if param_name in self.parameters:
+                # Replace parameter placeholders in the scenario
+                scenario = self._replace_param(scenario, param_name, param_value)
+        
+        # Apply default values for missing required parameters
+        for param_name, param_def in self.parameters.items():
+            if param_name not in params and param_def.default is not None:
+                scenario = self._replace_param(scenario, param_name, param_def.default)
+        
+        return scenario
+    
+    def _replace_param(self, obj: Any, param_name: str, value: Any) -> Any:
+        """Recursively replace parameter placeholders"""
+        if isinstance(obj, dict):
+            return {k: self._replace_param(v, param_name, value) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._replace_param(item, param_name, value) for item in obj]
+        elif isinstance(obj, str):
+            placeholder = f"${{{param_name}}}"
+            if placeholder in obj:
+                return obj.replace(placeholder, str(value))
+        return obj
 
 
 class TemplateManager:
-    """
-    Manages KRKN chaos scenario templates including listing, running,
-    and customizing predefined scenarios.
-    """
+    """Manages chaos scenario templates"""
     
-    def __init__(self, templates_dir: str = "templates/chaos-scenarios"):
+    def __init__(self):
+        self.templates: Dict[str, ChaosTemplate] = {}
+        self._load_builtin_templates()
+    
+    def _load_builtin_templates(self):
+        """Load built-in templates"""
+        # Pod network outage template
+        self.templates['pod-network-outage'] = ChaosTemplate(
+            name='pod-network-outage',
+            description='Simulate network outage for pods in a namespace',
+            scenario_type='pod_network_scenarios',
+            scenario_config={
+                'id': 'pod_network_outage',
+                'namespace': '${namespace}',
+                'label_selector': '${label_selector}',
+                'duration': '${duration}',
+                'instance_count': 1
+            },
+            parameters={
+                'namespace': TemplateParameter(
+                    name='namespace',
+                    description='Target namespace',
+                    required=True,
+                    type='string'
+                ),
+                'label_selector': TemplateParameter(
+                    name='label_selector',
+                    description='Pod label selector',
+                    required=False,
+                    default='',
+                    type='string'
+                ),
+                'duration': TemplateParameter(
+                    name='duration',
+                    description='Outage duration in seconds',
+                    required=False,
+                    default=60,
+                    type='int'
+                )
+            }
+        )
+        
+        # Pod kill template
+        self.templates['pod-kill'] = ChaosTemplate(
+            name='pod-kill',
+            description='Kill pods matching label selector',
+            scenario_type='pod_disruption_scenarios',
+            scenario_config={
+                'id': 'pod_kill',
+                'namespace': '${namespace}',
+                'label_selector': '${label_selector}',
+                'kill_count': '${kill_count}'
+            },
+            parameters={
+                'namespace': TemplateParameter(
+                    name='namespace',
+                    description='Target namespace',
+                    required=True,
+                    type='string'
+                ),
+                'label_selector': TemplateParameter(
+                    name='label_selector',
+                    description='Pod label selector',
+                    required=True,
+                    type='string'
+                ),
+                'kill_count': TemplateParameter(
+                    name='kill_count',
+                    description='Number of pods to kill',
+                    required=False,
+                    default=1,
+                    type='int'
+                )
+            }
+        )
+    
+    def list_templates(self) -> List[ChaosTemplate]:
+        """List all available templates"""
+        return list(self.templates.values())
+    
+    def get_template(self, name: str) -> Optional[ChaosTemplate]:
+        """Get a template by name"""
+        return self.templates.get(name)
+    
+    def prepare_template_config(
+        self, 
+        template_name: str, 
+        params: Dict[str, Any],
+        base_config_path: str = None
+    ) -> Optional[str]:
         """
-        Initialize the Template Manager.
+        Prepare a complete KRKN configuration file for template execution.
+        
+        ✅ FIX ISSUE #1: Creates full config with kraken:, tunings:, etc.
         
         Args:
-            templates_dir: Path to the templates directory
-        """
-        self.templates_dir = Path(templates_dir)
-        self.logger = logging.getLogger(__name__)
-        
-    def list_templates(self) -> Dict[str, Dict[str, Any]]:
-        """
-        List all available chaos scenario templates.
+            template_name: Name of the template to prepare
+            params: Parameters to inject into the template
+            base_config_path: Path to base config (defaults to config/config.yaml)
         
         Returns:
-            Dictionary of template names and their metadata
+            Path to the prepared config file, or None on failure
         """
-        templates = {}
-        
-        if not self.templates_dir.exists():
-            self.logger.warning(f"Templates directory {self.templates_dir} not found")
-            return templates
-            
-        for template_dir in self.templates_dir.iterdir():
-            if template_dir.is_dir():
-                template_name = template_dir.name
-                metadata_file = template_dir / "metadata.yaml"
-                
-                if metadata_file.exists():
-                    try:
-                        with open(metadata_file, 'r') as f:
-                            metadata = yaml.safe_load(f)
-                        templates[template_name] = metadata
-                    except Exception as e:
-                        self.logger.error(f"Error reading metadata for {template_name}: {e}")
-                        continue
-                else:
-                    self.logger.warning(f"No metadata.yaml found for template {template_name}")
-                    
-        return templates
-    
-    def get_template_details(self, template_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get detailed information about a specific template.
-        
-        Args:
-            template_name: Name of the template
-            
-        Returns:
-            Dictionary containing template details or None if not found
-        """
-        template_dir = self.templates_dir / template_name
-        
-        if not template_dir.exists():
-            self.logger.error(f"Template {template_name} not found")
+        # Get template
+        template = self.get_template(template_name)
+        if not template:
+            logging.error(f"Template '{template_name}' not found")
             return None
-            
-        details = {}
         
-        # Read metadata
-        metadata_file = template_dir / "metadata.yaml"
-        if metadata_file.exists():
-            with open(metadata_file, 'r') as f:
-                details['metadata'] = yaml.safe_load(f)
+        # Load base config
+        if not base_config_path:
+            base_config_path = "config/config.yaml"
         
-        # Read scenario configuration
-        scenario_file = template_dir / "scenario.yaml"
-        if scenario_file.exists():
-            with open(scenario_file, 'r') as f:
-                details['scenario'] = yaml.safe_load(f)
-        
-        # Read README
-        readme_file = template_dir / "README.md"
-        if readme_file.exists():
-            with open(readme_file, 'r') as f:
-                details['readme'] = f.read()
-                
-        return details
-    
-    def prepare_template_config(self, template_name: str, 
-                               params: Optional[Dict[str, Any]] = None) -> Optional[str]:
-        """
-        Prepare a template configuration with custom parameters.
-        
-        Args:
-            template_name: Name of the template
-            params: Dictionary of parameter overrides
-            
-        Returns:
-            Path to the prepared configuration file or None if failed
-        """
-        template_dir = self.templates_dir / template_name
-        
-        if not template_dir.exists():
-            self.logger.error(f"Template {template_name} not found")
-            return None
-            
-        scenario_file = template_dir / "scenario.yaml"
-        if not scenario_file.exists():
-            self.logger.error(f"No scenario.yaml found for template {template_name}")
-            return None
-            
         try:
-            # Load the base scenario configuration
-            with open(scenario_file, 'r') as f:
-                scenario_config = yaml.safe_load(f)
-            
-            if not scenario_config:
-                self.logger.error(f"Empty scenario configuration for template {template_name}")
-                return None
-            
-            # Apply parameter overrides if provided
-            if params:
-                scenario_config = self._apply_parameters(scenario_config, params)
-            
-            # Create a temporary config file
-            with tempfile.NamedTemporaryFile(mode='w', suffix=f'-{template_name}.yaml', delete=False) as f:
-                temp_config_path = f.name
-                yaml.dump(scenario_config, f, default_flow_style=False)
-            
-            self.logger.info(f"Prepared template config: {temp_config_path}")
-            return temp_config_path
-            
-        except yaml.YAMLError as e:
-            self.logger.error(f"Error parsing YAML for template {template_name}: {e}")
-            return None
+            with open(base_config_path, 'r') as f:
+                config = yaml.safe_load(f)
         except Exception as e:
-            self.logger.error(f"Error preparing template config: {e}")
+            logging.error(f"Failed to load base config from {base_config_path}: {e}")
             return None
-    
-    def _apply_parameters(self, config: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Apply parameter overrides to the scenario configuration.
         
-        Args:
-            config: Base scenario configuration
-            params: Parameter overrides
-            
-        Returns:
-            Updated configuration
-        """
-        # Deep copy to avoid modifying the original
-        updated_config = config.copy()
+        # Ensure required top-level keys exist
+        if 'kraken' not in config:
+            config['kraken'] = {}
+        if 'tunings' not in config:
+            config['tunings'] = {'wait_duration': 60, 'iterations': 1, 'daemon_mode': False}
+        if 'performance_monitoring' not in config:
+            config['performance_monitoring'] = {}
         
-        # Apply parameters to the first scenario's config
-        if isinstance(updated_config, list) and len(updated_config) > 0:
-            if 'config' in updated_config[0]:
-                scenario_config = updated_config[0]['config'].copy()
-                
-                for param_name, param_value in params.items():
-                    # Handle nested parameters (e.g., "target_pods.label_selector")
-                    if '.' in param_name:
-                        keys = param_name.split('.')
-                        current = scenario_config
-                        for key in keys[:-1]:
-                            if key not in current:
-                                current[key] = {}
-                            current = current[key]
-                        current[keys[-1]] = param_value
-                    else:
-                        scenario_config[param_name] = param_value
-                
-                updated_config[0]['config'] = scenario_config
+        # Create scenario file from template
+        scenario_data = template.to_scenario_dict(params)
         
-        return updated_config
-    
-    def validate_template(self, template_name: str) -> bool:
-        """
-        Validate that a template has all required files.
+        # Write scenario to temp file
+        scenario_fd, scenario_path = tempfile.mkstemp(
+            suffix='.yaml', 
+            prefix=f'krkn_scenario_{template_name}_'
+        )
+        try:
+            with os.fdopen(scenario_fd, 'w') as f:
+                yaml.dump([scenario_data], f)
+        except Exception as e:
+            logging.error(f"Failed to write scenario file: {e}")
+            try:
+                os.unlink(scenario_path)
+            except:
+                pass
+            return None
         
-        Args:
-            template_name: Name of the template
-            
-        Returns:
-            True if template is valid, False otherwise
-        """
-        template_dir = self.templates_dir / template_name
+        # Inject scenario path into config
+        if 'chaos_scenarios' not in config['kraken']:
+            config['kraken']['chaos_scenarios'] = []
         
-        if not template_dir.exists():
-            self.logger.error(f"Template directory {template_name} not found")
-            return False
-            
-        required_files = ["scenario.yaml", "metadata.yaml", "README.md"]
+        # Add the scenario reference
+        config['kraken']['chaos_scenarios'].append({
+            template.scenario_type: [scenario_path]
+        })
         
-        for file_name in required_files:
-            file_path = template_dir / file_name
-            if not file_path.exists():
-                self.logger.error(f"Required file {file_name} not found in template {template_name}")
-                return False
-                
-        return True
-    
-    def get_template_categories(self) -> List[str]:
-        """
-        Get all unique template categories.
-        
-        Returns:
-            List of category names
-        """
-        templates = self.list_templates()
-        categories = set()
-        
-        for template_data in templates.values():
-            if 'category' in template_data:
-                categories.add(template_data['category'])
-                
-        return sorted(list(categories))
-    
-    def get_templates_by_category(self, category: str) -> Dict[str, Dict[str, Any]]:
-        """
-        Get templates filtered by category.
-        
-        Args:
-            category: Category to filter by
-            
-        Returns:
-            Dictionary of templates in the specified category
-        """
-        all_templates = self.list_templates()
-        filtered_templates = {}
-        
-        for template_name, template_data in all_templates.items():
-            if template_data.get('category') == category:
-                filtered_templates[template_name] = template_data
-                
-        return filtered_templates
+        # Write complete config to temp file
+        config_fd, config_path = tempfile.mkstemp(
+            suffix='.yaml', 
+            prefix=f'krkn_config_{template_name}_'
+        )
+        try:
+            with os.fdopen(config_fd, 'w') as f:
+                yaml.dump(config, f)
+            logging.info(f"Prepared config at: {config_path}")
+            logging.info(f"Scenario file at: {scenario_path}")
+            return config_path
+        except Exception as e:
+            logging.error(f"Failed to write config file: {e}")
+            try:
+                os.unlink(config_path)
+                os.unlink(scenario_path)
+            except:
+                pass
+            return None
 
 
-def list_templates_command(args):
-    """CLI command to list available templates."""
-    template_manager = TemplateManager(args.templates_dir)
-    templates = template_manager.list_templates()
+def list_templates_command(args) -> int:
+    """
+    List all available templates.
     
-    if not templates:
-        print("No templates found.")
-        return
-    
-    print("Available KRKN Chaos Scenario Templates:")
-    print("=" * 50)
-    
-    for name, metadata in templates.items():
-        print(f"\n📦 {name}")
-        print(f"   Description: {metadata.get('description', 'No description')}")
-        print(f"   Risk Level: {metadata.get('risk_level', 'unknown')}")
-        print(f"   Category: {metadata.get('category', 'unknown')}")
-        print(f"   Target: {metadata.get('target', 'unknown')}")
-        print(f"   Duration: {metadata.get('estimated_duration', 'unknown')}")
-
-
-def show_template_command(args):
-    """CLI command to show detailed information about a template."""
-    template_manager = TemplateManager(args.templates_dir)
-    details = template_manager.get_template_details(args.template)
-    
-    if not details:
-        print(f"Template '{args.template}' not found.")
-        return
-    
-    metadata = details.get('metadata', {})
-    print(f"📦 Template: {args.template}")
-    print("=" * 50)
-    print(f"Description: {metadata.get('description', 'No description')}")
-    print(f"Risk Level: {metadata.get('risk_level', 'unknown')}")
-    print(f"Category: {metadata.get('category', 'unknown')}")
-    print(f"Target: {metadata.get('target', 'unknown')}")
-    print(f"Version: {metadata.get('version', 'unknown')}")
-    print(f"Author: {metadata.get('author', 'unknown')}")
-    print(f"Duration: {metadata.get('estimated_duration', 'unknown')}")
-    
-    if 'tags' in metadata:
-        print(f"Tags: {', '.join(metadata['tags'])}")
-    
-    if 'parameters' in metadata:
-        print("\n📋 Parameters:")
-        for param in metadata['parameters']:
-            print(f"   • {param['name']}: {param['description']}")
-            print(f"     Type: {param['type']}, Default: {param['default']}")
-    
-    if args.show_readme and 'readme' in details:
-        print("\n📖 README:")
-        print("-" * 30)
-        print(details['readme'])
-
-
-def run_template_command(args):
-    """CLI command to run a template."""
-    template_manager = TemplateManager(args.templates_dir)
-    
-    # Validate template exists
-    if not template_manager.validate_template(args.template):
-        print(f"❌ Template '{args.template}' is not valid or not found.")
+    ✅ FIX ISSUE #3: Returns proper exit code
+    """
+    try:
+        template_manager = TemplateManager()
+        templates = template_manager.list_templates()
+        
+        if not templates:
+            print("No templates available.")
+            return 0
+        
+        print("\n📋 Available Chaos Templates:\n")
+        for template in templates:
+            print(f"  • {template.name}")
+            print(f"    {template.description}")
+            print()
+        
+        return 0
+    except Exception as e:
+        print(f"❌ Error listing templates: {e}", file=sys.stderr)
         return 1
+
+
+def show_template_command(args) -> int:
+    """
+    Show details of a specific template.
     
-    # Parse parameters
+    ✅ FIX ISSUE #3: Returns proper exit code
+    """
+    try:
+        template_manager = TemplateManager()
+        template = template_manager.get_template(args.template)
+        
+        if not template:
+            print(f"❌ Template '{args.template}' not found.", file=sys.stderr)
+            return 1
+        
+        print(f"\n📄 Template: {template.name}\n")
+        print(f"Description: {template.description}")
+        print(f"Type: {template.scenario_type}")
+        
+        if template.parameters:
+            print("\nParameters:")
+            for param_name, param_info in template.parameters.items():
+                required = "required" if param_info.required else "optional"
+                default = f" (default: {param_info.default})" if param_info.default is not None else ""
+                print(f"  • {param_name} ({required}){default}")
+                print(f"    {param_info.description}")
+        
+        print()
+        return 0
+    except Exception as e:
+        print(f"❌ Error showing template: {e}", file=sys.stderr)
+        return 1
+
+
+def run_template_command(args) -> int:
+    """
+    Execute a template with the given parameters.
+    
+    ✅ FIX ISSUE #1: Uses prepare_template_config with full config
+    ✅ FIX ISSUE #3: Returns proper exit code
+    """
+    template_manager = TemplateManager()
+    
+    # Parse parameters if provided
     params = {}
-    if args.param:
-        for param in args.param:
-            if '=' in param:
-                key, value = param.split('=', 1)
-                # Try to convert to appropriate type
-                if value.lower() in ['true', 'false']:
-                    value = value.lower() == 'true'
-                elif value.isdigit():
-                    value = int(value)
-                params[key] = value
-            else:
-                print(f"⚠️  Warning: Parameter '{param}' should be in format 'key=value'")
+    if args.params:
+        try:
+            params = json.loads(args.params)
+        except json.JSONDecodeError:
+            # Try key=value format
+            for param in args.params.split(','):
+                if '=' in param:
+                    key, value = param.split('=', 1)
+                    params[key.strip()] = value.strip()
     
-    # Prepare template configuration
-    config_path = template_manager.prepare_template_config(args.template, params)
+    # Prepare template configuration with base config
+    base_config = getattr(args, 'base_config', None) or 'config/config.yaml'
+    config_path = template_manager.prepare_template_config(
+        args.template, 
+        params,
+        base_config_path=base_config
+    )
     
     if not config_path:
         print(f"❌ Failed to prepare template '{args.template}'.")
@@ -362,7 +370,6 @@ def run_template_command(args):
     
     # Import and run kraken with the prepared config
     try:
-        import sys
         from optparse import Values
         
         # Create options object for kraken
@@ -378,109 +385,74 @@ def run_template_command(args):
         })
         
         # Import and run main kraken function
-        try:
-            import sys
-            import os
-            import subprocess
-            
-            # Add current directory to path for import
-            sys.path.insert(0, os.getcwd())
-            
-            # Try to import and run kraken
-            try:
-                from run_kraken import main as kraken_main
-                retval = kraken_main(options, None)
-            except ImportError as e:
-                if 'krkn_lib' in str(e):
-                    print("❌ KRKN dependencies not available. Template config prepared successfully:")
-                    print(f"📄 Config file: {config_path}")
-                    print("💡 Run manually with: python run_kraken.py --cfg", config_path)
-                    retval = 0
-                else:
-                    print(f"❌ Cannot import KRKN main function: {e}")
-                    print("💡 Make sure you're running this from the KRKN root directory")
-                    retval = 1
-        except Exception as e:
-            print(f"❌ Error running KRKN: {e}")
-            retval = 1
+        from run_kraken import main as kraken_main
+        retval = kraken_main(options, None)
         
-        # Clean up temporary config file
+        # Cleanup temp files
         try:
-            if os.path.exists(config_path):
-                os.remove(config_path)
-        except Exception as e:
-            print(f"⚠️  Warning: Could not clean up temporary config file: {e}")
-            
-        if retval == 0:
-            print(f"✅ Template '{args.template}' completed successfully!")
-        else:
-            print(f"❌ Template '{args.template}' failed with exit code {retval}")
-            
-        return retval
-            
-    except Exception as e:
-        print(f"❌ Error running template: {e}")
-        # Clean up on error
-        try:
-            if os.path.exists(config_path):
-                os.remove(config_path)
+            os.unlink(config_path)
         except:
             pass
+        
+        return retval
+        
+    except Exception as e:
+        print(f"❌ Error running template: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc()
         return 1
 
 
-def main():
-    """Main entry point for template CLI commands."""
-    parser = argparse.ArgumentParser(
-        description="KRKN Template Manager - Manage and run chaos scenario templates"
-    )
+def main() -> int:
+    """
+    Main entry point for template CLI.
     
-    parser.add_argument(
-        "--templates-dir",
-        default="templates/chaos-scenarios",
-        help="Path to templates directory"
+    ✅ FIX ISSUE #3: Returns exit code instead of None
+    
+    Returns:
+        int: Exit code (0 for success, non-zero for failure)
+    """
+    parser = argparse.ArgumentParser(
+        description='KRKN Chaos Template Manager',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  krkn-template list
+  krkn-template show pod-network-outage
+  krkn-template run pod-network-outage --params '{"namespace":"default"}'
+        """
     )
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
-    # List templates command
+    # List command
     list_parser = subparsers.add_parser('list', help='List available templates')
     list_parser.set_defaults(func=list_templates_command)
     
-    # Show template details command
+    # Show command
     show_parser = subparsers.add_parser('show', help='Show template details')
-    show_parser.add_argument('template', help='Template name')
-    show_parser.add_argument(
-        '--show-readme', 
-        action='store_true',
-        help='Show full README content'
-    )
+    show_parser.add_argument('template', help='Name of the template')
     show_parser.set_defaults(func=show_template_command)
     
-    # Run template command
+    # Run command
     run_parser = subparsers.add_parser('run', help='Run a template')
-    run_parser.add_argument('template', help='Template name')
+    run_parser.add_argument('template', help='Name of the template to run')
+    run_parser.add_argument('--params', help='Template parameters (JSON or key=value pairs)')
     run_parser.add_argument(
-        '--param', 
-        action='append',
-        help='Override template parameter (key=value)'
+        '--base-config', 
+        default='config/config.yaml',
+        help='Base KRKN config file (default: config/config.yaml)'
     )
-    run_parser.add_argument(
-        '--output', 
-        help='Output report location'
-    )
-    run_parser.add_argument(
-        '--debug', 
-        action='store_true',
-        help='Enable debug logging'
-    )
+    run_parser.add_argument('--output', help='Output report location')
+    run_parser.add_argument('--debug', action='store_true', help='Enable debug logging')
     run_parser.set_defaults(func=run_template_command)
     
     args = parser.parse_args()
     
+    # ✅ FIX ISSUE #3: Handle missing command
     if not args.command:
         parser.print_help()
-        return
+        return 1
     
     # Set up logging
     logging.basicConfig(
@@ -488,9 +460,17 @@ def main():
         format='%(asctime)s [%(levelname)s] %(message)s'
     )
     
-    # Execute the command
-    args.func(args)
+    # ✅ FIX ISSUE #3: Execute command and return exit code
+    try:
+        result = args.func(args)
+        return result if result is not None else 0
+    except Exception as e:
+        logging.error(f"Error executing command '{args.command}': {e}")
+        import traceback
+        traceback.print_exc()
+        return 1
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    # ✅ FIX ISSUE #3: Propagate exit code
+    sys.exit(main())

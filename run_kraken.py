@@ -76,10 +76,11 @@ def main(options, command: Optional[str]) -> int:
             original_argv = sys.argv
             sys.argv = ['krkn'] + ([command] + original_argv[2:] if len(original_argv) > 2 else [command])
             try:
-                template_main()
+                # ✅ FIX ISSUE #3: Capture and return exit code
+                exit_code = template_main()
+                return exit_code if exit_code is not None else 0
             finally:
                 sys.argv = original_argv
-            return 0
         except ImportError as e:
             print(f"Error: Template manager not available - {e}")
             return 1
