@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import abc
 import logging
 import queue
@@ -60,7 +57,7 @@ class AbstractNetworkChaosModule(abc.ABC):
 
     def get_node_targets(self, config: BaseNetworkChaosConfig):
         if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_nodes(
+            return self.kubecli.get_lib_kubernetes().list_ready_nodes(
                 self.base_network_config.label_selector
             )
         else:
@@ -68,9 +65,9 @@ class AbstractNetworkChaosModule(abc.ABC):
                 raise Exception(
                     "neither node selector nor node_name (target) specified, aborting."
                 )
-            node_info = self.kubecli.get_lib_kubernetes().list_nodes()
-            if config.target not in node_info:
-                raise Exception(f"node {config.target} not found, aborting")
+            ready_nodes = self.kubecli.get_lib_kubernetes().list_ready_nodes()
+            if config.target not in ready_nodes:
+                raise Exception(f"node {config.target} not found or not Ready, aborting")
 
             return [config.target]
 

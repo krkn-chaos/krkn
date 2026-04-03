@@ -67,7 +67,10 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
                             f"with target type {network_chaos_type}"
                         )
 
-                    if network_chaos_config.instance_count != 0 and len(targets) > network_chaos_config.instance_count:
+                    if (
+                        network_chaos_config.instance_count > 0
+                        and len(targets) > network_chaos_config.instance_count
+                    ):
                         targets = random.sample(
                             targets, network_chaos_config.instance_count
                         )

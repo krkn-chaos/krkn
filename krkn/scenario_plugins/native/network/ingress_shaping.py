@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 from dataclasses import dataclass, field
 import yaml
 import logging
@@ -24,11 +21,9 @@ import re
 import random
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
-from . import kubernetes_functions as kube_helper
+from krkn_lib.k8s import KrknKubernetes
 import typing
 from arcaflow_plugin_sdk import validation, plugin
-from kubernetes.client.api.core_v1_api import CoreV1Api as CoreV1Api
-from kubernetes.client.api.batch_v1_api import BatchV1Api as BatchV1Api
 
 
 @dataclass
@@ -166,7 +161,7 @@ class NetworkScenarioErrorOutput:
     )
 
 
-def get_default_interface(node: str, pod_template, cli: CoreV1Api, image: str) -> str:
+def get_default_interface(node: str, pod_template, kubecli: KrknKubernetes, image: str) -> str:
     """
     Function that returns a random interface from a node
 
@@ -178,20 +173,20 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api, image: str) -
             - The YAML template used to instantiate a pod to query
               the node's interface
 
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
     Returns:
         Default interface (string) belonging to the node
     """
     pod_name_regex = str(random.randint(0, 10000))
-    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
     logging.info("Creating pod to query interface on node %s" % node)
-    kube_helper.create_pod(cli, pod_body, "default", 300)
+    kubecli.create_pod(pod_body, "default", 300)
     pod_name = f"fedtools-{pod_name_regex}"
     try:
         cmd = ["ip", "r"]
-        output = kube_helper.exec_cmd_in_pod(cli, cmd, pod_name, "default")
+        output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
         if not output:
             logging.error("Exception occurred while executing command in pod")
@@ -207,13 +202,13 @@ def get_default_interface(node: str, pod_template, cli: CoreV1Api, image: str) -
 
     finally:
         logging.info("Deleting pod to query interface on node")
-        kube_helper.delete_pod(cli, pod_name, "default")
+        kubecli.delete_pod(pod_name, "default")
 
     return interfaces
 
 
 def verify_interface(
-    input_interface_list: typing.List[str], node: str, pod_template, cli: CoreV1Api, image: str
+    input_interface_list: typing.List[str], node: str, pod_template, kubecli: KrknKubernetes, image: str
 ) -> typing.List[str]:
     """
     Function that verifies whether a list of interfaces is present in the node.
@@ -230,21 +225,21 @@ def verify_interface(
             - The YAML template used to instantiate a pod to query
               the node's interfaces
 
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
     Returns:
         The interface list for the node
     """
     pod_name_regex = str(random.randint(0, 10000))
-    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
     logging.info("Creating pod to query interface on node %s" % node)
-    kube_helper.create_pod(cli, pod_body, "default", 300)
+    kubecli.create_pod(pod_body, "default", 300)
     pod_name = f"fedtools-{pod_name_regex}"
     try:
         if input_interface_list == []:
             cmd = ["ip", "r"]
-            output = kube_helper.exec_cmd_in_pod(cli, cmd, pod_name, "default")
+            output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
             if not output:
                 logging.error("Exception occurred while executing command in pod")
@@ -260,7 +255,7 @@ def verify_interface(
 
         else:
             cmd = ["ip", "-br", "addr", "show"]
-            output = kube_helper.exec_cmd_in_pod(cli, cmd, pod_name, "default")
+            output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
             if not output:
                 logging.error("Exception occurred while executing command in pod")
@@ -283,7 +278,7 @@ def verify_interface(
                     )
     finally:
         logging.info("Deleting pod to query interface on node")
-        kube_helper.delete_pod(cli, pod_name, "default")
+        kubecli.delete_pod(pod_name, "default")
 
     return input_interface_list
 
@@ -293,7 +288,7 @@ def get_node_interfaces(
     label_selector: str,
     instance_count: int,
     pod_template,
-    cli: CoreV1Api,
+    kubecli: KrknKubernetes,
     image: str
 ) -> typing.Dict[str, typing.List[str]]:
     """
@@ -321,8 +316,8 @@ def get_node_interfaces(
             - The YAML template used to instantiate a pod to query
               the node's interfaces
 
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
     Returns:
         Filtered dictionary containing the test nodes and their test interfaces
@@ -333,22 +328,22 @@ def get_node_interfaces(
                 "If node names and interfaces aren't provided, "
                 "then the label selector must be provided"
             )
-        nodes = kube_helper.get_node(None, label_selector, instance_count, cli)
+        nodes = kubecli.get_node(None, label_selector, instance_count)
         node_interface_dict = {}
         for node in nodes:
-            node_interface_dict[node] = get_default_interface(node, pod_template, cli, image)
+            node_interface_dict[node] = get_default_interface(node, pod_template, kubecli, image)
     else:
         node_name_list = node_interface_dict.keys()
         filtered_node_list = []
 
         for node in node_name_list:
             filtered_node_list.extend(
-                kube_helper.get_node(node, label_selector, instance_count, cli)
+                kubecli.get_node(node, label_selector, instance_count)
             )
 
         for node in filtered_node_list:
             node_interface_dict[node] = verify_interface(
-                node_interface_dict[node], node, pod_template, cli, image
+                node_interface_dict[node], node, pod_template, kubecli, image
             )
 
     return node_interface_dict
@@ -360,11 +355,10 @@ def apply_ingress_filter(
     node: str,
     pod_template,
     job_template,
-    batch_cli: BatchV1Api,
-    cli: CoreV1Api,
+    kubecli: KrknKubernetes,
     create_interfaces: bool = True,
     param_selector: str = "all",
-    image:str = "quay.io/krkn-chaos/krkn:tools",
+    image: str = "quay.io/krkn-chaos/krkn:tools",
 ) -> str:
     """
     Function that applies the filters to shape incoming traffic to
@@ -390,11 +384,8 @@ def apply_ingress_filter(
             - The YAML template used to instantiate a job to apply and remove
               the filters on the interfaces
 
-        batch_cli
-            - Object to interact with Kubernetes Python client's BatchV1 API
-
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
         param_selector (string)
             - Used to specify what kind of filter to apply. Useful during
@@ -410,7 +401,7 @@ def apply_ingress_filter(
         network_params = {param_selector: cfg.network_params[param_selector]}
 
     if create_interfaces:
-        create_virtual_interfaces(cli, interface_list, node, pod_template, image)
+        create_virtual_interfaces(kubecli, interface_list, node, pod_template, image)
 
     exec_cmd = get_ingress_cmd(
         interface_list, network_params, duration=cfg.test_duration
@@ -419,7 +410,7 @@ def apply_ingress_filter(
     job_body = yaml.safe_load(
         job_template.render(jobname=str(hash(node))[:5], nodename=node, image=image, cmd=exec_cmd)
     )
-    api_response = kube_helper.create_job(batch_cli, job_body)
+    api_response = kubecli.create_job(job_body)
 
     if api_response is None:
         raise Exception("Error creating job")
@@ -428,15 +419,15 @@ def apply_ingress_filter(
 
 
 def create_virtual_interfaces(
-    cli: CoreV1Api, interface_list: typing.List[str], node: str, pod_template, image: str
+    kubecli: KrknKubernetes, interface_list: typing.List[str], node: str, pod_template, image: str
 ) -> None:
     """
     Function that creates a privileged pod and uses it to create
     virtual interfaces on the node
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
         interface_list (List of strings)
             - The list of interfaces on the node for which virtual interfaces
@@ -450,36 +441,33 @@ def create_virtual_interfaces(
               virtual interfaces on the node
     """
     pod_name_regex = str(random.randint(0, 10000))
-    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
-    kube_helper.create_pod(cli, pod_body, "default", 300)
+    pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
+    kubecli.create_pod(pod_body, "default", 300)
     logging.info(
         "Creating {0} virtual interfaces on node {1} using a pod".format(
             len(interface_list), node
         )
     )
     pod_name = f"modtools-{pod_name_regex}"
-    create_ifb(cli, len(interface_list), pod_name)
+    create_ifb(kubecli, len(interface_list), pod_name)
     logging.info("Deleting pod used to create virtual interfaces")
-    kube_helper.delete_pod(cli, pod_name, "default")
+    kubecli.delete_pod(pod_name, "default")
 
 
 def delete_virtual_interfaces(
-    cli: CoreV1Api, node_list: typing.List[str], pod_template, image: str
+    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template, image: str
 ):
     """
     Function that creates a privileged pod and uses it to delete all
     virtual interfaces on the specified nodes
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
         node_list (List of strings)
             - The list of nodes on which the list of virtual interfaces are
               to be deleted
-
-        node (string)
-            - The node on which the virtual interfaces are created
 
         pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to delete
@@ -488,46 +476,45 @@ def delete_virtual_interfaces(
 
     for node in node_list:
         pod_name_regex = str(random.randint(0, 10000))
-        pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex,nodename=node, image=image))
-        kube_helper.create_pod(cli, pod_body, "default", 300)
+        pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
+        kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
         pod_name = f"modtools-{pod_name_regex}"
-        delete_ifb(cli, pod_name)
-        kube_helper.delete_pod(cli, pod_name, "default")
+        delete_ifb(kubecli, pod_name)
+        kubecli.delete_pod(pod_name, "default")
 
 
-def create_ifb(cli: CoreV1Api, number: int, pod_name: str):
+def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
     """
     Function that creates virtual interfaces in a pod.
     Makes use of modprobe commands
     """
 
-    exec_command = ["chroot", "/host", "modprobe", "ifb", "numifbs=" + str(number)]
-    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
+    exec_command = ["/host", "modprobe", "ifb", "numifbs=" + str(number)]
+    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
     for i in range(0, number):
-        exec_command = ["chroot", "/host", "ip", "link", "set", "dev"]
-        exec_command += ["ifb" + str(i), "up"]
-        kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
+        exec_command = ["/host", "ip", "link", "set", "dev", "ifb" + str(i), "up"]
+        kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
 
-def delete_ifb(cli: CoreV1Api, pod_name: str):
+def delete_ifb(kubecli: KrknKubernetes, pod_name: str):
     """
     Function that deletes all virtual interfaces in a pod.
     Makes use of modprobe command
     """
 
-    exec_command = ["chroot", "/host", "modprobe", "-r", "ifb"]
-    kube_helper.exec_cmd_in_pod(cli, exec_command, pod_name, "default")
+    exec_command = ["/host", "modprobe", "-r", "ifb"]
+    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
 
-def get_job_pods(cli: CoreV1Api, api_response):
+def get_job_pods(kubecli: KrknKubernetes, api_response):
     """
     Function that gets the pod corresponding to the job
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
         api_response
             - The API response for the job status
@@ -538,22 +525,22 @@ def get_job_pods(cli: CoreV1Api, api_response):
 
     controllerUid = api_response.metadata.labels["controller-uid"]
     pod_label_selector = "controller-uid=" + controllerUid
-    pods_list = kube_helper.list_pods(
-        cli, label_selector=pod_label_selector, namespace="default"
+    pods_list = kubecli.list_pods(
+        label_selector=pod_label_selector, namespace="default"
     )
 
     return pods_list[0]
 
 
 def wait_for_job(
-    batch_cli: BatchV1Api, job_list: typing.List[str], timeout: int = 300
+    kubecli: KrknKubernetes, job_list: typing.List[str], timeout: int = 300
 ) -> None:
     """
     Function that waits for a list of jobs to finish within a time period
 
     Args:
-        batch_cli (BatchV1Api)
-            - Object to interact with Kubernetes Python client's BatchV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
         job_list (List of strings)
             - The list of jobs to check for completion
@@ -568,9 +555,7 @@ def wait_for_job(
     while count != job_len:
         for job_name in job_list:
             try:
-                api_response = kube_helper.get_job_status(
-                    batch_cli, job_name, namespace="default"
-                )
+                api_response = kubecli.get_job_status(job_name, namespace="default")
                 if (
                     api_response.status.succeeded is not None
                     or api_response.status.failed is not None
@@ -587,16 +572,13 @@ def wait_for_job(
             time.sleep(5)
 
 
-def delete_jobs(cli: CoreV1Api, batch_cli: BatchV1Api, job_list: typing.List[str]):
+def delete_jobs(kubecli: KrknKubernetes, job_list: typing.List[str]):
     """
     Function that deletes jobs
 
     Args:
-        cli (CoreV1Api)
-            - Object to interact with Kubernetes Python client's CoreV1 API
-
-        batch_cli (BatchV1Api)
-            - Object to interact with Kubernetes Python client's BatchV1 API
+        kubecli (KrknKubernetes)
+            - Object to interact with Kubernetes Python client
 
         job_list (List of strings)
             - The list of jobs to delete
@@ -604,23 +586,19 @@ def delete_jobs(cli: CoreV1Api, batch_cli: BatchV1Api, job_list: typing.List[str
 
     for job_name in job_list:
         try:
-            api_response = kube_helper.get_job_status(
-                batch_cli, job_name, namespace="default"
-            )
+            api_response = kubecli.get_job_status(job_name, namespace="default")
             if api_response.status.failed is not None:
-                pod_name = get_job_pods(cli, api_response)
-                pod_stat = kube_helper.read_pod(cli, name=pod_name, namespace="default")
+                pod_name = get_job_pods(kubecli, api_response)
+                pod_stat = kubecli.read_pod(name=pod_name, namespace="default")
                 logging.error(pod_stat.status.container_statuses)
-                pod_log_response = kube_helper.get_pod_log(
-                    cli, name=pod_name, namespace="default"
+                pod_log_response = kubecli.get_pod_log(
+                    name=pod_name, namespace="default"
                 )
                 pod_log = pod_log_response.data.decode("utf-8")
                 logging.error(pod_log)
         except Exception as e:
             logging.warning("Exception in getting job status: %s" % str(e))
-        api_response = kube_helper.delete_job(
-            batch_cli, name=job_name, namespace="default"
-        )
+        kubecli.delete_job(name=job_name, namespace="default")
 
 
 def get_ingress_cmd(
@@ -731,7 +709,7 @@ def network_chaos(
     job_template = env.get_template("job.j2")
     pod_interface_template = env.get_template("pod_interface.j2")
     pod_module_template = env.get_template("pod_module.j2")
-    cli, batch_cli = kube_helper.setup_kubernetes(cfg.kubeconfig_path)
+    kubecli = KrknKubernetes(kubeconfig_path=cfg.kubeconfig_path)
     test_image = cfg.image
     logging.info("Starting Ingress Network Chaos")
     try:
@@ -740,7 +718,7 @@ def network_chaos(
             cfg.label_selector,
             cfg.instance_count,
             pod_interface_template,
-            cli,
+            kubecli,
             test_image
         )
     except Exception:
@@ -757,13 +735,12 @@ def network_chaos(
                         node,
                         pod_module_template,
                         job_template,
-                        batch_cli,
-                        cli,
-                        test_image
+                        kubecli,
+                        image=test_image
                     )
                 )
             logging.info("Waiting for parallel job to finish")
-            wait_for_job(batch_cli, job_list[:], cfg.test_duration + 100)
+            wait_for_job(kubecli, job_list[:], cfg.test_duration + 100)
 
         elif cfg.execution_type == "serial":
             create_interfaces = True
@@ -776,22 +753,20 @@ def network_chaos(
                             node,
                             pod_module_template,
                             job_template,
-                            batch_cli,
-                            cli,
+                            kubecli,
                             create_interfaces=create_interfaces,
                             param_selector=param,
                             image=test_image
                         )
                     )
                 logging.info("Waiting for serial job to finish")
-                wait_for_job(batch_cli, job_list[:], cfg.test_duration + 100)
+                wait_for_job(kubecli, job_list[:], cfg.test_duration + 100)
                 logging.info("Deleting jobs")
-                delete_jobs(cli, batch_cli, job_list[:])
+                delete_jobs(kubecli, job_list[:])
                 job_list = []
-               
+
                 create_interfaces = False
         else:
-
             return "error", NetworkScenarioErrorOutput(
                 "Invalid execution type - serial and parallel are "
                 "the only accepted types"
@@ -806,6 +781,6 @@ def network_chaos(
         logging.error("Ingress Network Chaos exiting due to Exception - %s" % e)
         return "error", NetworkScenarioErrorOutput(format_exc())
     finally:
-        delete_virtual_interfaces(cli, node_interface_dict.keys(), pod_module_template, test_image)
+        delete_virtual_interfaces(kubecli, node_interface_dict.keys(), pod_module_template, test_image)
         logging.info("Deleting jobs(if any)")
-        delete_jobs(cli, batch_cli, job_list[:])
+        delete_jobs(kubecli, job_list[:])

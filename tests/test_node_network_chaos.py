@@ -93,7 +93,7 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
         """
         self.config.label_selector = ""
         self.config.target = "worker-1"
-        self.mock_kubernetes.list_nodes.return_value = ["worker-1", "worker-2"]
+        self.mock_kubernetes.list_ready_nodes.return_value = ["worker-1", "worker-2"]
 
         targets = self.module.get_targets()
 
@@ -104,12 +104,12 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
         Test get_targets with label selector
         """
         self.config.label_selector = "node-role.kubernetes.io/worker="
-        self.mock_kubernetes.list_nodes.return_value = ["worker-1", "worker-2"]
+        self.mock_kubernetes.list_ready_nodes.return_value = ["worker-1", "worker-2"]
 
         targets = self.module.get_targets()
 
         self.assertEqual(targets, ["worker-1", "worker-2"])
-        self.mock_kubernetes.list_nodes.assert_called_once_with(
+        self.mock_kubernetes.list_ready_nodes.assert_called_once_with(
             "node-role.kubernetes.io/worker="
         )
 
@@ -119,7 +119,7 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
         """
         self.config.label_selector = ""
         self.config.target = "non-existent-node"
-        self.mock_kubernetes.list_nodes.return_value = ["worker-1", "worker-2"]
+        self.mock_kubernetes.list_ready_nodes.return_value = ["worker-1", "worker-2"]
 
         with self.assertRaises(Exception) as context:
             self.module.get_targets()

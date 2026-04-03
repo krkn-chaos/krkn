@@ -82,9 +82,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.cleanup_rollback_version_files')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_publish_called_after_successful_scenario(
-        self, mock_sleep, mock_signal_ctx, mock_collect_logs, mock_cleanup, mock_cerberus_publish
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs, mock_cleanup, mock_cerberus_publish
     ):
         """Test that cerberus.publish_kraken_status is called after a successful scenario"""
         mock_signal_ctx.return_value.__enter__ = Mock()
@@ -113,9 +114,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.execute_rollback_version_files')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_publish_called_after_failed_scenario(
-        self, mock_sleep, mock_signal_ctx, mock_collect_logs, mock_rollback, mock_cerberus_publish
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs, mock_rollback, mock_cerberus_publish
     ):
         """Test that cerberus.publish_kraken_status is called even after a failed scenario"""
         mock_signal_ctx.return_value.__enter__ = Mock()
@@ -138,9 +140,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.cleanup_rollback_version_files')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_publish_called_for_multiple_scenarios(
-        self, mock_sleep, mock_signal_ctx, mock_collect_logs, mock_cleanup, mock_cerberus_publish
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs, mock_cleanup, mock_cerberus_publish
     ):
         """Test that cerberus.publish_kraken_status is called for each scenario"""
         mock_signal_ctx.return_value.__enter__ = Mock()
@@ -164,10 +167,11 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.execute_rollback_version_files')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     @patch('time.time')
     def test_cerberus_publish_timing(
-        self, mock_time, mock_sleep, mock_signal_ctx, mock_collect_logs, 
+        self, mock_time, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs,
         mock_rollback, mock_cleanup, mock_cerberus_publish
     ):
         """Test that cerberus.publish_kraken_status receives correct timestamps"""
@@ -197,9 +201,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.cleanup_rollback_version_files')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_publish_exception_does_not_break_flow(
-        self, mock_sleep, mock_signal_ctx, mock_collect_logs, mock_cleanup, mock_cerberus_publish
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs, mock_cleanup, mock_cerberus_publish
     ):
         """Test that exceptions in cerberus.publish_kraken_status don't break scenario execution"""
         mock_signal_ctx.return_value.__enter__ = Mock()
@@ -226,9 +231,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.execute_rollback_version_files')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_publish_called_for_mixed_success_and_failure(
-        self, mock_sleep, mock_signal_ctx, mock_collect_logs, mock_rollback, 
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs, mock_rollback,
         mock_cleanup, mock_cerberus_publish
     ):
         """Test cerberus publish is called for both successful and failed scenarios"""
@@ -266,9 +272,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.cerberus.publish_kraken_status')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_not_called_for_deprecated_post_scenarios(
-        self, mock_sleep, mock_signal_ctx, mock_collect_logs, mock_cerberus_publish
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs, mock_cerberus_publish
     ):
         """Test that cerberus is not called for deprecated post scenarios (list format)"""
         mock_signal_ctx.return_value.__enter__ = Mock()
@@ -293,9 +300,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.populate_cluster_events')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_called_with_events_backup_enabled(
-        self, mock_sleep, mock_signal_ctx, mock_populate_events, 
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_populate_events,
         mock_collect_logs, mock_cleanup, mock_cerberus_publish
     ):
         """Test that cerberus is called even when events_backup is enabled"""
@@ -324,9 +332,10 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.execute_rollback_version_files')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
     @patch('time.sleep')
     def test_cerberus_called_after_exception_in_run(
-        self, mock_sleep, mock_signal_ctx, mock_collect_logs, 
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs,
         mock_rollback, mock_cerberus_publish
     ):
         """Test that cerberus is called even if run() raises an uncaught exception"""
@@ -359,6 +368,74 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
         # Verify the scenario was marked as failed
         self.assertEqual(len(failed_scenarios), 1)
         self.assertEqual(telemetries[0].exit_status, 1)
+
+
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.cerberus.publish_kraken_status')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=False)
+    @patch('time.sleep')
+    def test_missing_scenario_file_logs_error_and_marks_failed(
+        self, mock_sleep, mock_exists, mock_cerberus_publish
+    ):
+        """Test that a missing scenario file logs a clear error and is marked as failed without crashing"""
+        scenarios_list = ["scenarios/openshift/cnv.yml"]
+
+        with self.assertLogs('root', level='ERROR') as log_ctx:
+            failed_scenarios, telemetries = self.plugin.run_scenarios(
+                "test-uuid",
+                scenarios_list,
+                self.krkn_config,
+                self.mock_telemetry,
+            )
+
+        # scenario is marked failed and returned in failed list
+        self.assertEqual(len(failed_scenarios), 1)
+        self.assertEqual(failed_scenarios[0], "scenarios/openshift/cnv.yml")
+
+        # telemetry recorded with exit_status=1
+        self.assertEqual(len(telemetries), 1)
+        self.assertEqual(telemetries[0].exit_status, 1)
+
+        # error message contains the missing path
+        self.assertTrue(
+            any("scenarios/openshift/cnv.yml" in msg for msg in log_ctx.output),
+            f"Expected file path in error log, got: {log_ctx.output}",
+        )
+
+        # set_parameters_base64 and cerberus should not be called
+        self.mock_telemetry.set_parameters_base64.assert_not_called()
+        mock_cerberus_publish.assert_not_called()
+
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.cerberus.publish_kraken_status')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.cleanup_rollback_version_files')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists')
+    @patch('time.sleep')
+    def test_missing_scenario_file_skipped_others_continue(
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs,
+        mock_cleanup, mock_cerberus_publish
+    ):
+        """Test that a missing file is skipped and remaining scenarios still run"""
+        mock_signal_ctx.return_value.__enter__ = Mock()
+        mock_signal_ctx.return_value.__exit__ = Mock(return_value=False)
+        # first file missing, second exists
+        mock_exists.side_effect = [False, True]
+
+        scenarios_list = ["missing.yml", "scenario2.yaml"]
+
+        with self.assertLogs('root', level='ERROR'):
+            failed_scenarios, telemetries = self.plugin.run_scenarios(
+                "test-uuid",
+                scenarios_list,
+                self.krkn_config,
+                self.mock_telemetry,
+            )
+
+        self.assertIn("missing.yml", failed_scenarios)
+        self.assertNotIn("scenario2.yaml", failed_scenarios)
+        self.assertEqual(len(telemetries), 2)
+        # cerberus called only for the scenario that ran
+        self.assertEqual(mock_cerberus_publish.call_count, 1)
 
 
 if __name__ == '__main__':

@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-#
 # Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 import logging
 
 import yaml
@@ -42,22 +39,26 @@ class ManagedClusterScenarioPlugin(AbstractScenarioPlugin):
                     lib_telemetry.get_lib_kubernetes()
                 )
                 if managedcluster_scenario["actions"]:
+                    
                     for action in managedcluster_scenario["actions"]:
-                        try:
-                            self.inject_managedcluster_scenario(
-                                action,
-                                managedcluster_scenario,
-                                managedcluster_scenario_object,
-                                lib_telemetry.get_lib_kubernetes(),
-                            )
-                        except Exception as e:
-                            logging.error(
-                                "ManagedClusterScenarioPlugin exiting due to Exception %s"
-                                % e
-                            )
-                            return 1
-                        else:
-                            return 0
+                            try:
+                                self.inject_managedcluster_scenario(
+                                    action,
+                                    managedcluster_scenario,
+                                    managedcluster_scenario_object,
+                                    lib_telemetry.get_lib_kubernetes(),
+                                )
+                            except Exception as e:
+                                logging.error(
+                                    "ManagedClusterScenarioPlugin exiting due to Exception %s"
+                                    % e
+                                )
+                                return 1
+                else:
+                    logging.error(
+                        "ManagedClusterScenarioPlugin: 'actions' must be defined and non-empty in the scenario config"
+                    )
+                    return 1
             return 0
 
     def inject_managedcluster_scenario(

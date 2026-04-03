@@ -55,7 +55,7 @@ MANIFEST
 # Per-project virtualenvs
 .venv*/
 venv*/
-kraken.report
+*.report
 collected-metrics/*
 inspect.local.*
 

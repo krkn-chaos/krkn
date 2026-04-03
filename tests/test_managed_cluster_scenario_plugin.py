@@ -51,6 +51,187 @@ class TestManagedClusterScenarioPlugin(unittest.TestCase):
         self.assertEqual(result, ["managedcluster_scenarios"])
         self.assertEqual(len(result), 1)
 
+    @patch('time.time')
+    @patch('builtins.open', create=True)
+    @patch('yaml.full_load')
+    @patch('krkn.cerberus.get_status')
+    def test_run_multiple_actions_executes_all(self, mock_cerberus, mock_yaml, mock_open, mock_time):
+        """
+        Test that run() executes all actions, not just the first one
+        This tests the fix for the early return bug
+        """
+        mock_time.return_value = 1234567890
+        
+        # Setup mock scenario config with multiple actions
+        mock_yaml.return_value = {
+            "managedcluster_scenarios": [
+                {
+                    "actions": [
+                        "managedcluster_start_scenario",
+                        "managedcluster_stop_scenario",
+                        "managedcluster_reboot_scenario"
+                    ],
+                    "managedcluster_name": "test-cluster",
+                    "runs": 1,
+                    "instance_count": 1,
+                    "timeout": 120
+                }
+            ]
+        }
+        
+        mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
+        mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
+        
+        mock_scenario_telemetry = Mock()
+        
+        # Mock inject_managedcluster_scenario to track calls
+        call_tracker = []
+        original_inject = self.plugin.inject_managedcluster_scenario
+        def track_inject(action, *args, **kwargs):
+            call_tracker.append(action)
+        
+        with patch.object(self.plugin, 'inject_managedcluster_scenario', side_effect=track_inject):
+            # Execute the run method
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario="test_scenario.yaml",
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry
+            )
+        
+        # Assert all three actions were called
+        self.assertEqual(result, 0)
+        self.assertEqual(len(call_tracker), 3)
+        self.assertIn("managedcluster_start_scenario", call_tracker)
+        self.assertIn("managedcluster_stop_scenario", call_tracker)
+        self.assertIn("managedcluster_reboot_scenario", call_tracker)
+
+
+    @patch('time.time')
+    @patch('builtins.open', create=True)
+    @patch('yaml.full_load')
+    def test_run_stops_on_first_error(self, mock_yaml, mock_open, mock_time):
+        """
+        Test that run() returns 1 and stops executing on first error
+        """
+        mock_time.return_value = 1234567890
+        
+        # Setup mock scenario config with multiple actions
+        mock_yaml.return_value = {
+            "managedcluster_scenarios": [
+                {
+                    "actions": [
+                        "managedcluster_start_scenario",
+                        "managedcluster_stop_scenario",
+                        "managedcluster_reboot_scenario"
+                    ],
+                    "managedcluster_name": "test-cluster",
+                    "runs": 1,
+                    "instance_count": 1,
+                    "timeout": 120
+                }
+            ]
+        }
+        
+        mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
+        mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
+        
+        mock_scenario_telemetry = Mock()
+        
+        # Mock inject_managedcluster_scenario to raise exception on first call
+        call_tracker = []
+        def track_inject_with_error(action, *args, **kwargs):
+            call_tracker.append(action)
+            if action == "managedcluster_start_scenario":
+                raise Exception("Test failure")
+        
+        with patch.object(self.plugin, 'inject_managedcluster_scenario', side_effect=track_inject_with_error):
+            # Execute the run method
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario="test_scenario.yaml",
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry
+            )
+        
+        # Assert failure and only first action was attempted
+        self.assertEqual(result, 1)
+        self.assertEqual(len(call_tracker), 1)
+        self.assertEqual(call_tracker[0], "managedcluster_start_scenario")
+
+
+    @patch('builtins.open', create=True)
+    @patch('yaml.full_load')
+    def test_run_returns_error_when_actions_empty(self, mock_yaml, _mock_open):
+        """
+        Test that run() returns 1 and logs an error when actions is an empty list
+        """
+        mock_yaml.return_value = {
+            "managedcluster_scenarios": [
+                {
+                    "actions": [],
+                    "managedcluster_name": "test-cluster",
+                    "runs": 1,
+                    "instance_count": 1,
+                    "timeout": 120
+                }
+            ]
+        }
+
+        mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
+        mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
+        mock_scenario_telemetry = Mock()
+
+        with self.assertLogs('root', level='ERROR') as log_ctx:
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario="test_scenario.yaml",
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
+        self.assertTrue(
+            any("actions" in msg for msg in log_ctx.output),
+            f"Expected 'actions' in error log, got: {log_ctx.output}",
+        )
+
+    @patch('builtins.open', create=True)
+    @patch('yaml.full_load')
+    def test_run_returns_error_when_actions_none(self, mock_yaml, _mock_open):
+        """
+        Test that run() returns 1 and logs an error when actions is None
+        """
+        mock_yaml.return_value = {
+            "managedcluster_scenarios": [
+                {
+                    "actions": None,
+                    "managedcluster_name": "test-cluster",
+                    "runs": 1,
+                    "instance_count": 1,
+                    "timeout": 120
+                }
+            ]
+        }
+
+        mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
+        mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
+        mock_scenario_telemetry = Mock()
+
+        with self.assertLogs('root', level='ERROR') as log_ctx:
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario="test_scenario.yaml",
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
+        self.assertTrue(
+            any("actions" in msg for msg in log_ctx.output),
+            f"Expected 'actions' in error log, got: {log_ctx.output}",
+        )
+
 
 class TestCommonFunctions(unittest.TestCase):
     """
