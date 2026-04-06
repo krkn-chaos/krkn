@@ -50,22 +50,28 @@ def set_url(config):
                 )
                 check_application_routes = legacy
             else:
-                check_application_routes = ""
+                # Fix Issue 3: Use False instead of empty string as default
+                check_application_routes = False
+    else:
+        # Fix Issue 3: Use False instead of empty string when cerberus is disabled
+        check_application_routes = False
 
 
-def get_status(start_time, end_time):
+def get_status(start_time, end_time) -> tuple[bool, bool]:
     """
     Get cerberus status — returns (cerberus_ok, routes_ok) booleans.
     Never calls sys.exit(); callers decide whether to exit.
+    
+    Returns:
+        tuple[bool, bool]: (cerberus_status, application_routes_status)
     """
     cerberus_status = True
+    # Fix Issue 1: Initialize application_routes_status at the top of the function
     application_routes_status = True
     if cerberus_enabled:
         if not cerberus_url:
-            logging.error(
-                "url where Cerberus publishes True/False signal "
-                "is not provided."
-            )
+            # Fix Issue 2: Add logging before returning False
+            logging.error("cerberus_url is not set in config. Cannot fetch Cerberus status.")
             return False, False
         cerberus_status = requests.get(cerberus_url, timeout=60).content
         cerberus_status = True if cerberus_status == b"True" else False
@@ -118,6 +124,9 @@ def publish_kraken_status(start_time, end_time):
             sys.exit(1)
         else:
             logging.info("Cerberus status is not healthy")
+    else:
+        # Fix Issue 5: Add log message when cluster is healthy
+        logging.info("Cerberus status is healthy. Test passed.")
 
 
 def application_status(start_time, end_time):

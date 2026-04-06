@@ -212,6 +212,34 @@ class TestCerberusSetup(unittest.TestCase):
             cerberus_setup.application_status(0, 6000)
         self.assertEqual(cm.exception.code, 1)
 
+    @patch('krkn.cerberus.setup.application_status')
+    @patch('krkn.cerberus.setup.requests.get')
+    def test_get_status_with_route_check_enabled(self, mock_get, mock_app_status):
+        """
+        Fix Issue 6: Test that application_status is called when check_application_routes is True
+        """
+        cerberus_setup.cerberus_enabled = True
+        cerberus_setup.cerberus_url = "http://fake-cerberus:8080"
+        cerberus_setup.check_application_routes = True
+        
+        # Mock cerberus status endpoint to return healthy
+        mock_response = MagicMock()
+        mock_response.content = b"True"
+        mock_get.return_value = mock_response
+        
+        # Mock application_status to return healthy with no failed routes
+        mock_app_status.return_value = (True, [])
+        
+        # Call get_status
+        cerberus_status, app_routes_status = cerberus_setup.get_status(0, 100)
+        
+        # Assert application_status was called once with correct parameters
+        mock_app_status.assert_called_once_with(0, 100)
+        
+        # Assert return values are both True
+        self.assertTrue(cerberus_status)
+        self.assertTrue(app_routes_status)
+
 
 if __name__ == '__main__':
     unittest.main()
