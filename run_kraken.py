@@ -12,10 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import datetime
 import json
 import os
+import shutil
 import sys
+import tempfile
 import yaml
 import logging
 import optparse
@@ -88,17 +91,27 @@ def main(options, command: Optional[str]) -> int:
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
+        rollback_versions_dir = get_yaml_item_value(
+            config["kraken"],
+            "rollback_versions_directory",
+            ""
+        )
+        if not rollback_versions_dir:
+            rollback_versions_dir = os.path.join(
+                os.path.expanduser("~"), ".krkn", "rollback"
+            )
+            os.makedirs(rollback_versions_dir, mode=0o700, exist_ok=True)
+            logging.info(
+                "Using secure default rollback directory: %s",
+                rollback_versions_dir,
+            )
         RollbackConfig.register(
             auto=get_yaml_item_value(
                 config["kraken"],
                 "auto_rollback",
                 False
             ),
-            versions_directory=get_yaml_item_value(
-                config["kraken"],
-                "rollback_versions_directory",
-                "/tmp/kraken-rollback"
-            ),
+            versions_directory=rollback_versions_dir,
         )
         signal_address = get_yaml_item_value(
             config["kraken"], "signal_address", "0.0.0.0"
@@ -185,6 +198,17 @@ def main(options, command: Optional[str]) -> int:
         else:
             run_uuid = str(uuid.uuid4())
             logging.info("Generated a uuid for the run: %s" % run_uuid)
+
+        # Ensure archive_path uses a secure temp directory if not explicitly set
+        archive_path = config["telemetry"].get("archive_path")
+        if not archive_path:
+            archive_path = tempfile.mkdtemp(prefix="krkn-archive-")
+            config["telemetry"]["archive_path"] = archive_path
+            atexit.register(shutil.rmtree, archive_path, ignore_errors=True)
+            logging.info(
+                "Using secure temp directory for telemetry archives: %s",
+                archive_path,
+            )
 
         # request_id for telemetry is generated once here and used everywhere
         telemetry_request_id = f"{int(time.time())}-{run_uuid}"
