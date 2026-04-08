@@ -17,6 +17,11 @@ from prometheus_api_client import PrometheusConnect
 import pandas as pd
 import urllib3
 
+from krkn.chaos_recommender.validators import (
+    validate_namespace,
+    validate_pod_name,
+    validate_scrape_duration,
+)
 
 saved_metrics_path = "./utilisation.txt"
 
@@ -54,6 +59,7 @@ def convert_data_limits(data, node_data, service, prometheus):
 def get_node_capacity(node_data, pod_name, prometheus):
 
     # Get the node name on which the pod is running
+    validate_pod_name(pod_name)
     query = f'kube_pod_info{{pod="{pod_name}"}}'
     result = prometheus.custom_query(query)
     if not result:
@@ -130,6 +136,11 @@ def fetch_utilization_from_prometheus(
     prometheus_endpoint, auth_token, namespaces, scrape_duration
 ):
     urllib3.disable_warnings()
+
+    validate_scrape_duration(scrape_duration)
+    for ns in namespaces:
+        validate_namespace(ns)
+
     prometheus = PrometheusConnect(
         url=prometheus_endpoint,
         headers={"Authorization": "Bearer {}".format(auth_token)},
