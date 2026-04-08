@@ -266,6 +266,16 @@ def metrics(
                             metric['timestamp'] = str(datetime.datetime.now())
                         logging.debug("adding pod %s", metric)
                         metrics_list.append(metric.copy())
+            for k,v in scenario.get("affected_vmis", {}).items():
+                metric_name = "affected_vmis_recovery"
+                metric = {"metricName": metric_name, "type": k}
+                if type(v) is list:
+                    for vmi in v:
+                        for k,v in vmi.items():
+                            metric[k] = v
+                            metric['timestamp'] = str(datetime.datetime.now())
+                        logging.debug("adding vmi %s", metric)
+                        metrics_list.append(metric.copy())
             for affected_node in scenario["affected_nodes"]:
                 metric_name = "affected_nodes_recovery"
                 metric = {"metricName": metric_name}
