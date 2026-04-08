@@ -148,6 +148,9 @@ class TestIssue25NoPrintInClient(unittest.TestCase):
                 "affected_pods": {
                     "disrupted": [{"name": "pod-1", "namespace": "default"}]
                 },
+                "affected_vmis": {
+                    "recovered": [{"vmi_name": "vm-1", "namespace": "default"}]
+                },
                 "affected_nodes": [],
             }],
             "health_checks": [],
