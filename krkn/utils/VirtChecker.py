@@ -1,3 +1,16 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import time
 import logging
@@ -171,7 +184,7 @@ class VirtChecker:
                             if new_node_name and vm.node_name != new_node_name:
                                 vm.node_name = new_node_name
                 except Exception:
-                    logging.info('Exception in get vm status')
+                    logging.exception("Exception in get vm status")
                     vm_status = False
 
                 if vm.vm_name not in virt_check_tracker:

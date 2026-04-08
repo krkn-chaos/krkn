@@ -1,4 +1,18 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import logging
+import os
 import time
 from abc import ABC, abstractmethod
 from krkn_lib.models.telemetry import ScenarioTelemetry
@@ -86,6 +100,16 @@ class AbstractScenarioPlugin(ABC):
             scenario_telemetry.scenario = scenario_config
             scenario_telemetry.scenario_type = self.get_scenario_types()[0]
             scenario_telemetry.start_timestamp = time.time()
+            if not os.path.exists(scenario_config):
+                logging.error(
+                    f"scenario file not found: '{scenario_config}' -- "
+                    f"check that the path is correct relative to the working directory: {os.getcwd()}"
+                )
+                failed_scenarios.append(scenario_config)
+                scenario_telemetry.exit_status = 1
+                scenario_telemetry.end_timestamp = time.time()
+                scenario_telemetries.append(scenario_telemetry)
+                continue
             parsed_scenario_config = telemetry.set_parameters_base64(
                 scenario_telemetry, scenario_config
             )
@@ -147,7 +171,7 @@ class AbstractScenarioPlugin(ABC):
                 failed_scenarios.append(scenario_config)
             scenario_telemetries.append(scenario_telemetry)
             cerberus.publish_kraken_status(start_time,end_time)
-            logging.info(f"wating {wait_duration} before running the next scenario")
+            logging.info(f"waiting {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
             
         return failed_scenarios, scenario_telemetries

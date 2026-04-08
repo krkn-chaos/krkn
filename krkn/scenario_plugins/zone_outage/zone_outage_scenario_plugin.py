@@ -1,3 +1,18 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+import base64
+import json
 import logging
 import time
 
@@ -13,11 +28,15 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn_lib.utils import get_yaml_item_value
+from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import set_rollback_context_decorator
 
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
 
+
 class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -34,13 +53,17 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 start_time = int(time.time())
                 if cloud_type.lower() == "aws":
                     self.cloud_object = AWS()
-                    self.network_based_zone(scenario_config)
+                    result = self.network_based_zone(scenario_config)
+                    if result != 0:
+                        return 1
                 else:
                     kubecli = lib_telemetry.get_lib_kubernetes()
                     if cloud_type.lower() == "gcp":
                         affected_nodes_status = AffectedNodeStatus()
                         self.cloud_object = gcp_node_scenarios(kubecli, kube_check, affected_nodes_status)
-                        self.node_based_zone(scenario_config, kubecli)
+                        result = self.node_based_zone(scenario_config, kubecli)
+                        if result != 0:
+                            return result
                         affected_nodes_status = self.cloud_object.affected_nodes_status
                         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
                     else:
@@ -57,22 +80,37 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             return 1
         else:
             return 0
-        
-    def node_based_zone(self, scenario_config: dict[str, any], kubecli: KrknKubernetes ):
+
+    def node_based_zone(self, scenario_config: dict[str, any], kubecli: KrknKubernetes):
         zone = scenario_config["zone"]
         duration = get_yaml_item_value(scenario_config, "duration", 60)
         timeout = get_yaml_item_value(scenario_config, "timeout", 180)
+        kube_check = get_yaml_item_value(scenario_config, "kube_check", True)
         label_selector = f"topology.kubernetes.io/zone={zone}"
-        try: 
+        try:
             # get list of nodes in zone/region
             nodes = kubecli.list_killable_nodes(label_selector)
-            # stop nodes in parallel 
-            pool = ThreadPool(processes=len(nodes))
-    
-            pool.starmap(
-                self.cloud_object.node_stop_scenario,zip(repeat(1), nodes, repeat(timeout))
+
+            # set rollback callable before stopping nodes
+            rollback_data = {
+                "nodes": nodes,
+                "timeout": timeout,
+                "kube_check": kube_check,
+            }
+            encoded = base64.b64encode(
+                json.dumps(rollback_data).encode("utf-8")
+            ).decode("utf-8")
+            self.rollback_handler.set_rollback_callable(
+                self.rollback_gcp_zone_outage,
+                RollbackContent(resource_identifier=encoded),
             )
 
+            # stop nodes in parallel
+            pool = ThreadPool(processes=len(nodes))
+            pool.starmap(
+                self.cloud_object.node_stop_scenario,
+                zip(repeat(1), nodes, repeat(timeout), repeat(None)),
+            )
             pool.close()
 
             logging.info(
@@ -80,10 +118,11 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             )
             time.sleep(duration)
 
-            # start nodes in parallel 
+            # start nodes in parallel
             pool = ThreadPool(processes=len(nodes))
             pool.starmap(
-                self.cloud_object.node_start_scenario,zip(repeat(1), nodes, repeat(timeout))
+                self.cloud_object.node_start_scenario,
+                zip(repeat(1), nodes, repeat(timeout), repeat(None)),
             )
             pool.close()
         except Exception as e:
@@ -94,72 +133,130 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
         else:
             return 0
 
-    def network_based_zone(self, scenario_config: dict[str, any]):
+    @staticmethod
+    def rollback_gcp_zone_outage(
+        rollback_content: RollbackContent,
+        lib_telemetry: KrknTelemetryOpenshift,
+    ):
+        """Rollback function to restart stopped nodes after a GCP zone outage
+        scenario failure.
 
-        vpc_id = scenario_config["vpc_id"]
-        subnet_ids = scenario_config["subnet_id"]
-        duration = scenario_config["duration"]
-        # Add support for user-provided default network ACL
-        default_acl_id = scenario_config.get("default_acl_id")
-        ids = {}
-        acl_ids_created = []
-        for subnet_id in subnet_ids:
-            logging.info("Targeting subnet_id")
-            network_association_ids = []
-            associations, original_acl_id = self.cloud_object.describe_network_acls(
-                vpc_id, subnet_id
+        :param rollback_content: Rollback content containing encoded node
+            list and config.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for
+            Kubernetes operations.
+        """
+        try:
+            import json
+            import base64
+            from krkn_lib.models.k8s import AffectedNodeStatus
+            from krkn.scenario_plugins.node_actions.gcp_node_scenarios import (
+                gcp_node_scenarios,
             )
-            for entry in associations:
-                if entry["SubnetId"] == subnet_id:
-                    network_association_ids.append(
-                        entry["NetworkAclAssociationId"]
-                    )
+
+            decoded = base64.b64decode(
+                rollback_content.resource_identifier.encode("utf-8")
+            ).decode("utf-8")
+            rollback_data = json.loads(decoded)
+            nodes = rollback_data["nodes"]
+            timeout = rollback_data["timeout"]
+            kube_check = rollback_data["kube_check"]
+
+            kubecli = lib_telemetry.get_lib_kubernetes()
+            affected_nodes_status = AffectedNodeStatus()
+            cloud_object = gcp_node_scenarios(
+                kubecli, kube_check, affected_nodes_status
+            )
+
             logging.info(
-                "Network association ids associated with "
-                "the subnet %s: %s" % (subnet_id, network_association_ids)
+                "Rolling back GCP zone outage: starting %d stopped nodes"
+                % len(nodes)
             )
-            
-            # Use provided default ACL if available, otherwise create a new one
-            if default_acl_id:
-                acl_id = default_acl_id
-                logging.info(
-                    "Using provided default ACL ID %s - this ACL will not be deleted after the scenario", 
-                    default_acl_id
+            for node in nodes:
+                try:
+                    cloud_object.node_start_scenario(1, node, timeout, None)
+                except Exception as node_error:
+                    logging.error(
+                        "Failed to start node %s during rollback: %s"
+                        % (node, node_error)
+                    )
+            logging.info("GCP zone outage rollback completed.")
+        except Exception as e:
+            logging.error("Failed to rollback GCP zone outage: %s" % e)
+            raise
+
+    def network_based_zone(self, scenario_config: dict[str, any]):
+        try:
+            vpc_id = scenario_config["vpc_id"]
+            subnet_ids = scenario_config["subnet_id"]
+            duration = scenario_config["duration"]
+            # Add support for user-provided default network ACL
+            default_acl_id = scenario_config.get("default_acl_id")
+            ids = {}
+            acl_ids_created = []
+            for subnet_id in subnet_ids:
+                logging.info("Targeting subnet_id")
+                network_association_ids = []
+                associations, original_acl_id = self.cloud_object.describe_network_acls(
+                    vpc_id, subnet_id
                 )
-                # Don't add to acl_ids_created since we don't want to delete user-provided ACLs at cleanup
-            else:
-                acl_id = self.cloud_object.create_default_network_acl(vpc_id)
-                logging.info("Created new default ACL %s", acl_id)
-                acl_ids_created.append(acl_id)
+                for entry in associations:
+                    if entry["SubnetId"] == subnet_id:
+                        network_association_ids.append(
+                            entry["NetworkAclAssociationId"]
+                        )
+                logging.info(
+                    "Network association ids associated with "
+                    "the subnet %s: %s" % (subnet_id, network_association_ids)
+                )
 
-            new_association_id = self.cloud_object.replace_network_acl_association(
-                network_association_ids[0], acl_id
+                # Use provided default ACL if available, otherwise create a new one
+                if default_acl_id:
+                    acl_id = default_acl_id
+                    logging.info(
+                        "Using provided default ACL ID %s - this ACL will not be deleted after the scenario",
+                        default_acl_id
+                    )
+                    # Don't add to acl_ids_created since we don't want to delete user-provided ACLs at cleanup
+                else:
+                    acl_id = self.cloud_object.create_default_network_acl(vpc_id)
+                    logging.info("Created new default ACL %s", acl_id)
+                    acl_ids_created.append(acl_id)
+
+                new_association_id = self.cloud_object.replace_network_acl_association(
+                    network_association_ids[0], acl_id
+                )
+
+                # capture the orginal_acl_id, created_acl_id and
+                # new association_id to use during the recovery
+                ids[new_association_id] = original_acl_id
+
+            # wait for the specified duration
+            logging.info(
+                "Waiting for the specified duration " "in the config: %s" % duration
             )
+            time.sleep(duration)
 
-            # capture the original_acl_id, created_acl_id and
-            # new association_id to use during the recovery
-            ids[new_association_id] = original_acl_id
-
-        # wait for the specified duration
-        logging.info(
-            "Waiting for the specified duration " "in the config: %s" % duration
-        )
-        time.sleep(duration)
-
-        # replace the applied acl with the previous acl in use
-        for new_association_id, original_acl_id in ids.items():
-            self.cloud_object.replace_network_acl_association(
-                new_association_id, original_acl_id
+            # replace the applied acl with the previous acl in use
+            for new_association_id, original_acl_id in ids.items():
+                self.cloud_object.replace_network_acl_association(
+                    new_association_id, original_acl_id
+                )
+            logging.info(
+                "Wating for 60 seconds to make sure " "the changes are in place"
             )
-        logging.info(
-            "Waiting for 60 seconds to make sure " "the changes are in place"
-        )
-        time.sleep(60)
+            time.sleep(60)
 
-        # delete the network acl created for the run
-        for acl_id in acl_ids_created:
-            self.cloud_object.delete_network_acl(acl_id)
-
+            # delete the network acl created for the run
+            for acl_id in acl_ids_created:
+                self.cloud_object.delete_network_acl(acl_id)
+        except Exception as e:
+            logging.error(
+                f"Network based zone outage scenario failed with exception: {e}"
+            )
+            return 1
+        
+        return 0
 
     def get_scenario_types(self) -> list[str]:
         return ["zone_outages_scenarios"]

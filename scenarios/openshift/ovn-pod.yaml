@@ -1,0 +1,7 @@
+# yaml-language-server: $schema=../plugin.schema.json
+- id: kill-pods
+  config:
+    namespace_pattern: openshift-ovn-kubernetes
+    krkn_pod_recovery_time: 120
+    label_selector: app=ovnkube-node
+    exclude_label: "" # excludes pods marked with this label from chaos
