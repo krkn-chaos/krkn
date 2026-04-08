@@ -59,13 +59,11 @@ node_general = False
 # (terminate, crash, reboot, disk-detach) are intentionally excluded.
 REVERSIBLE_ACTIONS = {
     "node_stop_scenario": "node_start_scenario",
-    "stop_kubelet_scenario": "restart_kubelet_scenario",
+    "stop_kubelet_scenario": "node_reboot_scenario",
 }
 
 
 class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
-
-    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -132,6 +130,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             "node": node,
             "cloud_type": str(node_scenario.get("cloud_type", "generic")),
             "reverse_action": REVERSIBLE_ACTIONS[action],
+            "action": REVERSIBLE_ACTIONS[action],
             "timeout": int(get_yaml_item_value(node_scenario, "timeout", 120)),
             "poll_interval": int(get_yaml_item_value(node_scenario, "poll_interval", 15)),
             "disable_ssl_verification": bool(
@@ -143,7 +142,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         ).decode()
 
         self.rollback_handler.set_rollback_callable(
-            NodeActionsScenarioPlugin.rollback_node_action,
+            self.rollback_node_action,
             RollbackContent(resource_identifier=resource_identifier),
         )
 
@@ -514,6 +513,84 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     "There is no node action that matches %s, skipping scenario"
                     % action
                 )
+
+    def rollback_node_action(
+        self,
+        rollback_content: RollbackContent,
+        lib_telemetry: "KrknTelemetryOpenshift",
+    ):
+        """Rollback function to execute the reverse action for a node scenario.
+
+        :param rollback_content: Rollback content containing encoded rollback data in resource_identifier.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
+        """
+        try:
+            payload = json.loads(
+                base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8')
+            )
+            node = payload["node"]
+            cloud_type = payload.get("cloud_type", "generic")
+            reverse_action = payload.get("reverse_action", payload.get("action"))
+            timeout = payload.get("timeout", 120)
+            poll_interval = payload.get("poll_interval", 15)
+            disable_ssl = payload.get("disable_ssl_verification", True)
+
+            logging.info(
+                f"Executing rollback action: {reverse_action} on node: {node}"
+            )
+
+            kubecli = lib_telemetry.get_lib_kubernetes()
+            affected_nodes_status = AffectedNodeStatus()
+
+            cloud_type_lower = cloud_type.lower()
+            if cloud_type_lower in ("aws",):
+                node_scenario_object = aws_node_scenarios(
+                    kubecli, True, affected_nodes_status
+                )
+            elif cloud_type_lower in ("gcp",):
+                node_scenario_object = gcp_node_scenarios(
+                    kubecli, True, affected_nodes_status
+                )
+            elif cloud_type_lower in ("azure", "az"):
+                node_scenario_object = azure_node_scenarios(
+                    kubecli, True, affected_nodes_status
+                )
+            elif cloud_type_lower == "docker":
+                node_scenario_object = docker_node_scenarios(
+                    kubecli, True, affected_nodes_status
+                )
+            elif cloud_type_lower in ("vsphere", "vmware"):
+                node_scenario_object = vmware_node_scenarios(
+                    kubecli, True, affected_nodes_status
+                )
+            elif cloud_type_lower in ("ibm", "ibmcloud"):
+                node_scenario_object = ibm_node_scenarios(
+                    kubecli, True, affected_nodes_status, disable_ssl
+                )
+            elif cloud_type_lower in ("ibmpower", "ibmcloudpower"):
+                node_scenario_object = ibmcloud_power_node_scenarios(
+                    kubecli, True, affected_nodes_status, disable_ssl
+                )
+            else:
+                node_scenario_object = general_node_scenarios(
+                    kubecli, True, affected_nodes_status
+                )
+
+            if reverse_action == "node_start_scenario":
+                node_scenario_object.node_start_scenario(
+                    1, node, timeout, poll_interval
+                )
+            elif reverse_action == "node_reboot_scenario":
+                node_scenario_object.node_reboot_scenario(
+                    1, node, timeout
+                )
+            else:
+                logging.error(
+                    f"Unknown rollback action: {reverse_action}"
+                )
+        except Exception as e:
+            logging.error(f"Failed to execute rollback action: {e}")
+            raise
 
     def get_scenario_types(self) -> list[str]:
         return ["node_scenarios"]
