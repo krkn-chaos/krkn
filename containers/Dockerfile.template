@@ -63,7 +63,7 @@ RUN wget -qO /usr/bin/yq https://github.com/mikefarah/yq/releases/download/v4.40
 # Create user
 RUN addgroup -g 1001 krkn && adduser -u 1001 -G krkn -D -h /home/krkn krkn
 
-ENV KUBECONFIG /home/krkn/.kube/config
+ENV KUBECONFIG=/home/krkn/.kube/config
 
 # Initialize krkn directory
 RUN mkdir -p /home/krkn/kraken && \
