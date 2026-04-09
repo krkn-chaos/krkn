@@ -55,6 +55,8 @@ kraken:
                - scenarios/kube/node_interface_down.yaml
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
+       - http_load_scenarios:
+              - scenarios/kube/http_load_scenario.yml
 
 resiliency:
   resiliency_run_mode: standalone  # Options: standalone, detailed, disabled
