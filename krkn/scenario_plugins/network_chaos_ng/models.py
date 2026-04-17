@@ -66,8 +66,14 @@ class BaseNetworkChaosConfig:
 
 @dataclass
 class NetworkFilterConfig(BaseNetworkChaosConfig):
-    ports: list[int]
-    protocols: list[str]
+    ports: list[int] = None
+    protocols: list[str] = None
+
+    def __post_init__(self):
+        if self.ports is None:
+            self.ports = []
+        if self.protocols is None:
+            self.protocols = ["tcp", "udp"]
 
     def validate(self) -> list[str]:
         errors = super().validate()
