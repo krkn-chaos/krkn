@@ -25,17 +25,29 @@ def generate_rules(
     input_rules = []
     output_rules = []
     for interface in interfaces:
-        for port in config.ports:
+        if config.ports:
+            for port in config.ports:
+                if config.egress:
+                    for protocol in set(config.protocols):
+                        output_rules.append(
+                            f"iptables -I OUTPUT 1 -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        )
+                if config.ingress:
+                    for protocol in set(config.protocols):
+                        input_rules.append(
+                            f"iptables -I INPUT 1 -i {interface} -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        )
+        else:
+            # empty ports means block all traffic on all ports
             if config.egress:
                 for protocol in set(config.protocols):
                     output_rules.append(
-                        f"iptables -I OUTPUT 1 -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        f"iptables -I OUTPUT 1 -p {protocol} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
                     )
-
             if config.ingress:
                 for protocol in set(config.protocols):
                     input_rules.append(
-                        f"iptables -I INPUT 1 -i {interface} -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        f"iptables -I INPUT 1 -i {interface} -p {protocol} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
                     )
     return input_rules, output_rules
 
@@ -115,3 +127,64 @@ def generate_namespaced_rules(
         namespaced_output_rules.extend(ns_output_rules)
 
     return namespaced_input_rules, namespaced_output_rules
+
+
+def apply_tc_vmi_chaos(
+    kubecli: KrknKubernetes,
+    chaos_pod_name: str,
+    namespace: str,
+    pid: str,
+    iface: str,
+    parallel: bool,
+    vmi_name: str,
+):
+    """Block all traffic on the VMI's tap interface using tc.
+
+    Targets tap0 (the VM-facing end of the KubeVirt bridge) rather than the
+    bridge slave (ovn-udn1-nic).  Blocking the bridge slave also cuts OVN's
+    BFD heartbeats and causes a node-wide network reconvergence; tap0 only
+    connects to QEMU so blocking it isolates only this VMI.
+
+    tc operates at the device layer below iptables and works without br_netfilter:
+      - root netem loss 100%  -> drops traffic sent toward the VM
+      - ingress + matchall    -> drops traffic sent by the VM
+    Only one pid is needed because all processes in the container share a netns.
+    """
+    ns = f"nsenter --target {pid} --net --"
+    log_info(f"applying tc block on {iface} (egress netem + ingress drop)", parallel, vmi_name)
+    kubecli.exec_cmd_in_pod(
+        [f"{ns} tc qdisc add dev {iface} root netem loss 100%"],
+        chaos_pod_name,
+        namespace,
+    )
+    kubecli.exec_cmd_in_pod(
+        [f"{ns} tc qdisc add dev {iface} ingress"],
+        chaos_pod_name,
+        namespace,
+    )
+    kubecli.exec_cmd_in_pod(
+        [f"{ns} tc filter add dev {iface} parent ffff: protocol all matchall action drop"],
+        chaos_pod_name,
+        namespace,
+    )
+
+
+def clean_tc_vmi_chaos(
+    kubecli: KrknKubernetes,
+    chaos_pod_name: str,
+    namespace: str,
+    pid: str,
+    iface: str,
+):
+    """Remove tc qdiscs applied by apply_tc_vmi_chaos."""
+    ns = f"nsenter --target {pid} --net --"
+    for cmd in [
+        f"{ns} tc qdisc del dev {iface} root",
+        f"{ns} tc qdisc del dev {iface} ingress",
+    ]:
+        try:
+            kubecli.exec_cmd_in_pod([cmd], chaos_pod_name, namespace)
+        except Exception:
+            pass
+
+
