@@ -24,12 +24,31 @@ from krkn_lib.models.telemetry.models import HealthCheck
 class HealthChecker:
     current_iterations: int = 0
     ret_value = 0
+
     def __init__(self, iterations):
         self.iterations = iterations
+        self.http_session = requests.Session()
+
+    def close(self):
+        """Close the HTTP session and release resources.
+
+        Idempotent: safe to call multiple times (second call is a no-op).
+        """
+        if self.http_session:
+            self.http_session.close()
+            self.http_session = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
 
     def make_request(self, url, auth=None, headers=None, verify=True):
         response_data = {}
-        response = requests.get(url, auth=auth, headers=headers, verify=verify, timeout=3)
+        if self.http_session is None:
+            raise RuntimeError("HealthChecker session is closed")
+        response = self.http_session.get(url, auth=auth, headers=headers, verify=verify, timeout=3)
         response_data["url"] = url
         response_data["status"] = response.status_code == 200
         response_data["status_code"] = response.status_code
