@@ -1,3 +1,4 @@
+// Copyright 2026 Red Hat, Inc.
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,10 +17,38 @@ import "gopkg.in/yaml.v3"
 
 // KrknConfig represents the root of the Kraken configuration
 type KrknConfig struct {
-	Scenarios []Scenario `yaml:"scenarios"`
+	Kraken                KrakenSection                `yaml:"kraken"`
+	Tunings               TuningsSection               `yaml:"tunings"`
+	PerformanceMonitoring PerformanceMonitoringSection `yaml:"performance_monitoring"`
+	Elastic               ElasticSection               `yaml:"elastic"`
+	Telemetry             TelemetrySection             `yaml:"telemetry"`
 }
 
-// Scenario represents a single chaos experiment scenario
+type KrakenSection struct {
+	ChaosScenarios []interface{} `yaml:"chaos_scenarios"`
+	KubeconfigPath string        `yaml:"kubeconfig_path"`
+}
+
+type TuningsSection struct {
+	WaitDuration int  `yaml:"wait_duration"`
+	Iterations   int  `yaml:"iterations"`
+	DaemonMode   bool `yaml:"daemon_mode"`
+}
+
+type PerformanceMonitoringSection struct {
+	EnableAlerts  bool `yaml:"enable_alerts"`
+	EnableMetrics bool `yaml:"enable_metrics"`
+}
+
+type ElasticSection struct {
+	EnableElastic bool `yaml:"enable_elastic"`
+}
+
+type TelemetrySection struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+// Scenario represents a single chaos experiment scenario (legacy/simplified)
 type Scenario struct {
 	Type      string   `yaml:"type"`
 	Namespace string   `yaml:"namespace,omitempty"`
@@ -44,4 +73,3 @@ func (c *KrknConfig) ToYAML() (string, error) {
 	}
 	return string(data), nil
 }
-

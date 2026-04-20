@@ -1,6 +1,6 @@
 module github.com/krkn-chaos/krkn-ai
 
-go 1.25.0
+go 1.21.0
 
 require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect

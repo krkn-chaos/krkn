@@ -71,6 +71,29 @@ report_file = ""
 
 # Main function
 def main(options, command: Optional[str]) -> int:
+    if command == "generate-config":
+        if not options.prompt and not (options.target_component or options.cluster_type or options.slo):
+            logging.error("Please provide a prompt or structured inputs (--target-component, --cluster-type, --slo) for config generation")
+            return -1
+        try:
+            generator = ChaosGenerator(provider_type=options.ai_provider)
+            generated_config = generator.generate(
+                options.prompt or "",
+                cluster_type=options.cluster_type,
+                target_component=options.target_component,
+                slo=options.slo
+            )
+            output_file = options.output_config or "generated_config.yaml"
+            with open(output_file, "w") as f:
+                f.write(generated_config)
+            logging.info(f"Generated configuration saved to {output_file}")
+            logging.info("\n--- Generated Config ---\n" + generated_config + "\n------------------------")
+            logging.info("Please review the generated configuration before running it with: python3 run_kraken.py -c " + output_file)
+            return 0
+        except Exception as e:
+            logging.error(f"Failed to generate configuration: {e}")
+            return -1
+
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
@@ -335,28 +358,6 @@ def main(options, command: Optional[str]) -> int:
                     telemetry_ocp, options.run_uuid, options.scenario_type
                 )
             )
-        elif command == "generate-config":
-            if not options.prompt and not (options.target_component or options.cluster_type or options.slo):
-                logging.error("Please provide a prompt or structured inputs (--target-component, --cluster-type, --slo) for config generation")
-                return -1
-            try:
-                generator = ChaosGenerator(provider_type=options.ai_provider)
-                generated_config = generator.generate(
-                    options.prompt or "",
-                    cluster_type=options.cluster_type,
-                    target_component=options.target_component,
-                    slo=options.slo
-                )
-                output_file = options.output_config or "generated_config.yaml"
-                with open(output_file, "w") as f:
-                    f.write(generated_config)
-                logging.info(f"Generated configuration saved to {output_file}")
-                logging.info("\n--- Generated Config ---\n" + generated_config + "\n------------------------")
-                logging.info("Please review the generated configuration before running it with: python3 run_kraken.py -c " + output_file)
-                return 0
-            except Exception as e:
-                logging.error(f"Failed to generate configuration: {e}")
-                return -1
 
         # Initialize the start iteration to 0
         iteration = 0

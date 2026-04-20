@@ -1,3 +1,4 @@
+// Copyright 2026 Red Hat, Inc.
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -19,6 +20,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 type OpenAIProvider struct {
@@ -27,8 +29,8 @@ type OpenAIProvider struct {
 }
 
 type openAIChatRequest struct {
-	Model    string                  `json:"model"`
-	Messages []openAIChatMessage     `json:"messages"`
+	Model          string                `json:"model"`
+	Messages       []openAIChatMessage   `json:"messages"`
 	ResponseFormat *openAIResponseFormat `json:"response_format,omitempty"`
 }
 
@@ -55,7 +57,7 @@ type openAIChatResponse struct {
 func NewOpenAIProvider() *OpenAIProvider {
 	return &OpenAIProvider{
 		APIKey: os.Getenv("OPENAI_API_KEY"),
-		Model:  "gpt-4-turbo-preview", // Updated model
+		Model:  "gpt-4-turbo-preview",
 	}
 }
 
@@ -71,14 +73,18 @@ func (p *OpenAIProvider) GenerateConfig(prompt string) (string, error) {
 	systemPrompt := `You are an expert Chaos Engineering assistant for the Kraken (krkn-chaos) tool.
 Your task is to convert natural language descriptions of chaos experiments into a JSON object matching the Kraken configuration schema.
 
-The schema requires a root object with "scenarios" which is a list.
-Each scenario must have:
-- type (e.g., pod_scenario, node_scenario, network_scenario)
-- namespace (optional, for pod scenarios)
-- actions (list of strings, e.g., kill_pods, hog_cpu, block_network)
-- interval (int, seconds between actions)
-- duration (int, total duration in seconds)
-- checks (optional list of {name, condition, threshold})
+The schema requires a root object with these sections:
+- kraken: 
+    chaos_scenarios: (list of scenario objects)
+    kubeconfig_path: (string, default "~/.kube/config")
+- tunings:
+    wait_duration: (int)
+    iterations: (int)
+- performance_monitoring:
+    enable_alerts: (bool)
+    enable_metrics: (bool)
+
+Each scenario in chaos_scenarios MUST be a dictionary with a single key identifying the scenario type (e.g. "pod_disruption_scenarios", "node_scenarios") and its value being a list of scenario data.
 
 IMPORTANT: 
 - Return ONLY the JSON object. 
@@ -108,7 +114,10 @@ IMPORTANT:
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
 
-	client := &http.Client{}
+	// Added 30s timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
@@ -139,4 +148,3 @@ IMPORTANT:
 
 	return aiResp.Choices[0].Message.Content, nil
 }
-

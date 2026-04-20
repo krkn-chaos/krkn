@@ -1,3 +1,4 @@
+# Copyright 2026 Red Hat, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -36,19 +37,33 @@ class OpenAIProvider(AIProvider):
         if self.client is None:
             raise ValueError("openai library is not installed.")
 
+        cluster_type = kwargs.get("cluster_type", "kubernetes")
+        target_component = kwargs.get("target_component", "")
+        slo = kwargs.get("slo", "")
+
+        context_info = f"Cluster type: {cluster_type}. "
+        if target_component:
+            context_info += f"Target component: {target_component}. "
+        if slo:
+            context_info += f"SLO to maintain: {slo}. "
+
         system_prompt = (
             "You are a chaos engineering expert for the Krkn (Kraken) framework. "
             "Your task is to translate natural language descriptions of chaos scenarios "
-            "into valid Krkn YAML configurations. "
+            "into valid, COMPLETE Krkn YAML configurations. "
+            "The configuration MUST include all required top-level keys: kraken, tunings, performance_monitoring, elastic, and telemetry. "
+            "Ensure the output is a valid YAML that can be directly run by Kraken. "
             "Always return ONLY the YAML configuration without any markdown blocks or explanation."
         )
+
+        user_input = f"Context: {context_info}\nPrompt: {prompt}\nGenerate a complete Krkn config."
 
         try:
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": f"Generate a Krkn config for: {prompt}"}
+                    {"role": "user", "content": user_input}
                 ],
                 temperature=0.2,
             )
@@ -66,4 +81,3 @@ class OpenAIProvider(AIProvider):
         except Exception as e:
             logging.error(f"Error calling OpenAI API: {e}")
             raise
-

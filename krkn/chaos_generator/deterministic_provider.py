@@ -1,3 +1,4 @@
+# Copyright 2026 Red Hat, Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
@@ -23,6 +24,7 @@ class DeterministicProvider(AIProvider):
         """
         cluster_type = kwargs.get("cluster_type", "kubernetes").lower()
         target_component = kwargs.get("target_component", "").lower()
+        slo = kwargs.get("slo", "")
         
         prompt = prompt.lower() if prompt else ""
         
@@ -38,55 +40,74 @@ class DeterministicProvider(AIProvider):
                 target_component = "network"
 
         if target_component == "pod":
-            return self._pod_kill_config(cluster_type)
+            scenarios = self._pod_kill_scenarios(cluster_type)
         elif target_component == "node":
-            return self._node_scenario_config(cluster_type)
+            scenarios = self._node_scenarios(cluster_type)
         elif target_component == "hog":
-            return self._hog_scenario_config(cluster_type)
+            scenarios = self._hog_scenarios(cluster_type)
         elif target_component == "network":
-            return self._network_scenario_config(cluster_type)
+            scenarios = self._network_scenarios(cluster_type)
+        else:
+            # Default fallback
+            scenarios = self._pod_kill_scenarios(cluster_type)
         
-        # Default fallback
-        return self._pod_kill_config(cluster_type)
+        return self._assemble_full_config(scenarios, slo)
 
-    def _pod_kill_config(self, cluster_type: str) -> str:
+    def _assemble_full_config(self, scenarios: list, slo: str) -> str:
+        # If SLO is provided, we can add a comment or adjust tunings
+        slo_comment = f"# Targeted SLO: {slo}" if slo else ""
+        
+        full_config = f"""# Copyright 2026 Red Hat, Inc.
+# Licensed under the Apache License, Version 2.0 (the "License");
+{slo_comment}
+kraken:
+    chaos_scenarios:
+{self._indent_list(scenarios, 8)}
+    kubeconfig_path: ~/.kube/config
+    publish_kraken_status: false
+    port: 8081
+
+tunings:
+    wait_duration: 60
+    iterations: 1
+    daemon_mode: false
+
+performance_monitoring:
+    enable_alerts: false
+    enable_metrics: false
+
+elastic:
+    enable_elastic: false
+
+telemetry:
+    enabled: false
+"""
+        return full_config
+
+    def _indent_list(self, items: list, indent: int) -> str:
+        spaces = " " * indent
+        return "\n".join([f"{spaces}- {item}" for item in items])
+
+    def _pod_kill_scenarios(self, cluster_type: str) -> list:
         scenario_path = "scenarios/kube/pod.yml"
         if cluster_type == "openshift":
             scenario_path = "scenarios/openshift/etcd.yml"
-            
-        return f"""kraken:
-    chaos_scenarios:
-        - pod_disruption_scenarios:
-            - {scenario_path}
-"""
+        return [f"pod_disruption_scenarios:\n                - {scenario_path}"]
 
-    def _node_scenario_config(self, cluster_type: str) -> str:
+    def _node_scenarios(self, cluster_type: str) -> list:
         scenario_path = "scenarios/kube/node-network-chaos.yml"
         if cluster_type == "openshift":
             scenario_path = "scenarios/openshift/aws_node_scenarios.yml"
-            
-        return f"""kraken:
-    chaos_scenarios:
-        - node_scenarios:
-            - {scenario_path}
-"""
+        return [f"node_scenarios:\n                - {scenario_path}"]
 
-    def _hog_scenario_config(self, cluster_type: str) -> str:
-        return f"""kraken:
-    chaos_scenarios:
-        - hog_scenarios:
-            - scenarios/kube/cpu-hog.yml
-            - scenarios/kube/memory-hog.yml
-"""
+    def _hog_scenarios(self, cluster_type: str) -> list:
+        return [
+            "hog_scenarios:\n                - scenarios/kube/cpu-hog.yml",
+            "hog_scenarios:\n                - scenarios/kube/memory-hog.yml"
+        ]
 
-    def _network_scenario_config(self, cluster_type: str) -> str:
+    def _network_scenarios(self, cluster_type: str) -> list:
         scenario_path = "scenarios/kube/pod-network-chaos.yml"
         if cluster_type == "openshift":
             scenario_path = "scenarios/openshift/network_chaos.yaml"
-            
-        return f"""kraken:
-    chaos_scenarios:
-        - network_chaos_scenarios:
-            - {scenario_path}
-"""
-
+        return [f"network_chaos_scenarios:\n                - {scenario_path}"]
