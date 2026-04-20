@@ -21,6 +21,13 @@ Kraken injects deliberate failures into Kubernetes clusters to check if it is re
 ### How to Get Started
 Instructions on how to setup, configure and run Kraken can be found in the [documentation](https://krkn-chaos.dev/docs/).
 
+### AI-Based Configuration Generation (New!)
+Generate valid Krkn chaos configurations using natural language prompts:
+```bash
+python run_kraken.py generate-config --prompt "kill 2 pods in the default namespace" --ai-provider openai
+```
+*Note: Requires `OPENAI_API_KEY` environment variable.*
+
 
 ### Blogs, podcasts and interviews
 Additional resources, including blog posts, podcasts, and community interviews, can be found on the [website](https://krkn-chaos.dev/blog)
