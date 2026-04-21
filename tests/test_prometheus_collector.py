@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Tests for krkn.prometheus.collector module.
 
