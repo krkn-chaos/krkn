@@ -27,6 +27,10 @@ class TestSynFloodScenarioPlugin(unittest.TestCase):
         """
         self.plugin = SynFloodScenarioPlugin()
 
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
+
     def test_get_scenario_types(self):
         """
         Test get_scenario_types returns correct scenario type
@@ -62,6 +66,10 @@ class TestIsNodeAffinityCorrect(unittest.TestCase):
 
     def setUp(self):
         self.plugin = SynFloodScenarioPlugin()
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
 
     def test_valid_node_affinity(self):
         """Test valid node affinity configuration"""
@@ -109,6 +117,10 @@ class TestParseConfig(unittest.TestCase):
 
     def setUp(self):
         self.plugin = SynFloodScenarioPlugin()
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
 
     def _create_scenario_file(self, tmp_path, config=None):
         """Helper to create a temporary scenario YAML file"""
@@ -294,7 +306,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -330,7 +341,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -359,7 +369,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -385,7 +394,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -411,7 +419,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -437,7 +444,6 @@ class TestSynFloodRun(unittest.TestCase):
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
                 scenario=scenario_file,
-                krkn_config={},
                 lib_telemetry=mock_lib_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )

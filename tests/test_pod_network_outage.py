@@ -1,13 +1,31 @@
+#!/usr/bin/env python3
+
+"""
+Test suite for pod network outage plugin
+
+This test suite covers the get_test_pods function in pod_network_outage_plugin
+using mocks to avoid needing actual Kubernetes infrastructure.
+
+Test Coverage:
+- get_test_pods with exclude_label filters
+- get_test_pods with pod_name taking precedence over label filters
+- get_test_pods with both pod_name and exclude_label
+
+IMPORTANT: These tests use mocking and do NOT require any Kubernetes cluster.
+All Kubernetes API calls are mocked via unittest.mock.
+
+Usage:
+    python -m unittest tests/test_pod_network_outage.py -v
+
+    # Run with coverage
+    python -m coverage run -a -m unittest tests/test_pod_network_outage.py -v
+
+Assisted By: Claude Code
+"""
+
 import unittest
-from unittest.mock import MagicMock, patch
-import sys
-import os
+from unittest.mock import MagicMock
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from krkn.scenario_plugins.native.pod_network_outage.kubernetes_functions import (
-    list_pods,
-)
 from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin import (
     get_test_pods,
 )
@@ -15,35 +33,32 @@ from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin i
 
 class TestPodNetworkOutage(unittest.TestCase):
     def test_list_pods_with_exclude_label(self):
-        """Test that list_pods correctly excludes pods with matching exclude_label"""
-        # Create mock pod items
-        pod1 = MagicMock()
-        pod1.metadata.name = "pod1"
-        pod1.metadata.labels = {"app": "test", "skip": "true"}
+        """Test that get_test_pods passes exclude_label to kubecli.list_pods"""
+        mock_kubecli = MagicMock()
+        mock_kubecli.list_pods.return_value = ["pod2", "pod3"]
 
-        pod2 = MagicMock()
-        pod2.metadata.name = "pod2"
-        pod2.metadata.labels = {"app": "test"}
+        result = get_test_pods(None, "app=test", "test-namespace", mock_kubecli, "skip=true")
 
-        pod3 = MagicMock()
-        pod3.metadata.name = "pod3"
-        pod3.metadata.labels = {"app": "test", "skip": "false"}
-
-        # Create mock API response
-        mock_response = MagicMock()
-        mock_response.items = [pod1, pod2, pod3]
-
-        # Create mock client
-        mock_cli = MagicMock()
-        mock_cli.list_namespaced_pod.return_value = mock_response
-
-        # Test without exclude_label
-        result = list_pods(mock_cli, "test-namespace", "app=test")
-        self.assertEqual(result, ["pod1", "pod2", "pod3"])
-
-        # Test with exclude_label
-        result = list_pods(mock_cli, "test-namespace", "app=test", "skip=true")
+        mock_kubecli.list_pods.assert_called_once_with(
+            label_selector="app=test",
+            namespace="test-namespace",
+            exclude_label="skip=true",
+        )
         self.assertEqual(result, ["pod2", "pod3"])
+
+    def test_list_pods_without_exclude_label(self):
+        """Test that get_test_pods works without exclude_label"""
+        mock_kubecli = MagicMock()
+        mock_kubecli.list_pods.return_value = ["pod1", "pod2", "pod3"]
+
+        result = get_test_pods(None, "app=test", "test-namespace", mock_kubecli)
+
+        mock_kubecli.list_pods.assert_called_once_with(
+            label_selector="app=test",
+            namespace="test-namespace",
+            exclude_label=None,
+        )
+        self.assertEqual(result, ["pod1", "pod2", "pod3"])
 
     def test_get_test_pods_with_exclude_label(self):
         """Test that get_test_pods passes exclude_label to list_pods correctly"""

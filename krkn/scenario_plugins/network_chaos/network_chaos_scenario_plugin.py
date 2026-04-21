@@ -1,3 +1,16 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import logging
 import os
 import random
@@ -10,7 +23,6 @@ from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value, log_exception
 
-from krkn import cerberus, utils
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
@@ -20,7 +32,6 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
@@ -112,33 +123,20 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                                 return 1
                         if test_execution == "serial":
                             logging.info("Waiting for serial job to finish")
-                            start_time = int(time.time())
                             self.wait_for_job(
                                 joblst[:],
                                 lib_telemetry.get_lib_kubernetes(),
                                 test_duration + 300,
                             )
 
-                            end_time = int(time.time())
-                            cerberus.publish_kraken_status(
-                                krkn_config,
-                                None,
-                                start_time,
-                                end_time,
-                            )
                         if test_execution == "parallel":
                             break
                     if test_execution == "parallel":
                         logging.info("Waiting for parallel job to finish")
-                        start_time = int(time.time())
                         self.wait_for_job(
                             joblst[:],
                             lib_telemetry.get_lib_kubernetes(),
                             test_duration + 300,
-                        )
-                        end_time = int(time.time())
-                        cerberus.publish_kraken_status(
-                            krkn_config, [], start_time, end_time
                         )
                 except Exception as e:
                     logging.error(
@@ -194,6 +192,12 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
         pods_list = kubecli.list_pods(
             label_selector=pod_label_selector, namespace="default"
         )
+        if not pods_list:
+            raise Exception(
+                f"No pods found matching label selector '{pod_label_selector}' "
+                f"in namespace 'default'. The job pod may not have started or "
+                f"the label selector may be incorrect."
+            )
         return pods_list[0]
 
     # krkn_lib
@@ -233,8 +237,8 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                     )
                     pod_log = pod_log_response.data.decode("utf-8")
                     logging.error(pod_log)
-            except Exception:
-                logging.warning("Exception in getting job status")
+            except Exception as e:
+                logging.warning(f"Exception in getting job status: {e}")
             kubecli.delete_job(name=jobname, namespace="default")
 
     def get_egress_cmd(self, execution, test_interface, mod, vallst, duration=30):

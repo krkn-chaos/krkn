@@ -1,20 +1,47 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import logging
 import requests
 import sys
 import json
+from krkn_lib.utils.functions import get_yaml_item_value
 
+check_application_routes = ""
+cerberus_url = None
+exit_on_failure = False
+cerberus_enabled = False
 
-def get_status(config, start_time, end_time):
+def set_url(config):
+    global exit_on_failure
+    exit_on_failure = get_yaml_item_value(config["kraken"], "exit_on_failure", False)
+    global cerberus_enabled
+    cerberus_enabled = get_yaml_item_value(config["cerberus"],"cerberus_enabled", False)
+    if cerberus_enabled:
+        global cerberus_url
+        cerberus_url = get_yaml_item_value(config["cerberus"],"cerberus_url", "")
+        global check_application_routes
+        check_application_routes = \
+            get_yaml_item_value(config["cerberus"],"check_applicaton_routes","")
+
+def get_status(start_time, end_time):
     """
     Get cerberus status
     """
     cerberus_status = True
     check_application_routes = False
     application_routes_status = True
-    if config["cerberus"]["cerberus_enabled"]:
-        cerberus_url = config["cerberus"]["cerberus_url"]
-        check_application_routes = \
-            config["cerberus"]["check_application_routes"]
+    if cerberus_enabled:
         if not cerberus_url:
             logging.error(
                 "url where Cerberus publishes True/False signal "
@@ -61,40 +88,38 @@ def get_status(config, start_time, end_time):
     return cerberus_status
 
 
-def publish_kraken_status(config, failed_post_scenarios, start_time, end_time):
+def publish_kraken_status( start_time, end_time):
     """
     Publish kraken status to cerberus
     """
-    cerberus_status = get_status(config, start_time, end_time)
+    cerberus_status = get_status(start_time, end_time)
     if not cerberus_status:
-        if failed_post_scenarios:
-            if config["kraken"]["exit_on_failure"]:
-                logging.info(
-                    "Cerberus status is not healthy and post action scenarios "
-                    "are still failing, exiting kraken run"
-                )
-                sys.exit(1)
-            else:
-                logging.info(
-                    "Cerberus status is not healthy and post action scenarios "
-                    "are still failing"
-                )
+        if exit_on_failure:
+            logging.info(
+                "Cerberus status is not healthy and post action scenarios "
+                "are still failing, exiting kraken run"
+            )
+            sys.exit(1)
+        else:
+            logging.info(
+                "Cerberus status is not healthy and post action scenarios "
+                "are still failing"
+            )
     else:
-        if failed_post_scenarios:
-            if config["kraken"]["exit_on_failure"]:
-                logging.info(
-                    "Cerberus status is healthy but post action scenarios "
-                    "are still failing, exiting kraken run"
-                )
-                sys.exit(1)
-            else:
-                logging.info(
-                    "Cerberus status is healthy but post action scenarios "
-                    "are still failing"
-                )
+        if exit_on_failure:
+            logging.info(
+                "Cerberus status is healthy but post action scenarios "
+                "are still failing, exiting kraken run"
+            )
+            sys.exit(1)
+        else:
+            logging.info(
+                "Cerberus status is healthy but post action scenarios "
+                "are still failing"
+            )
 
 
-def application_status(cerberus_url, start_time, end_time):
+def application_status( start_time, end_time):
     """
     Check application availability
     """

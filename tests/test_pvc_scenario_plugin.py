@@ -32,6 +32,10 @@ class TestPvcScenarioPlugin(unittest.TestCase):
         """
         self.plugin = PvcScenarioPlugin()
 
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
+
     def test_get_scenario_types(self):
         """
         Test get_scenario_types returns correct scenario type
@@ -48,6 +52,10 @@ class TestToKbytes(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
 
     def test_to_kbytes_1ki(self):
         """Test to_kbytes with 1Ki"""
@@ -119,6 +127,10 @@ class TestRemoveTempFile(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
+
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
 
     def test_remove_temp_file_success(self):
         """Test successful removal of temp file"""
@@ -231,6 +243,10 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
         """Set up test fixtures"""
         self.plugin = PvcScenarioPlugin()
 
+    def tearDown(self):
+        """Clean up after each test to prevent state leakage"""
+        self.plugin = None
+
     def create_scenario_file(self, config: dict, temp_dir: str) -> str:
         """Helper to create a temporary scenario YAML file in the given directory"""
         path = os.path.join(temp_dir, "scenario.yaml")
@@ -255,7 +271,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -279,7 +294,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -306,7 +320,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -340,7 +353,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -395,7 +407,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -404,8 +415,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             self.assertEqual(result, 1)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status")
-    def test_run_success_with_fallocate(self, mock_publish, mock_sleep):
+    def test_run_success_with_fallocate(self, mock_sleep):
         """Test successful run using fallocate"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
@@ -460,7 +470,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -469,8 +478,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_sleep.assert_called_once_with(1)
 
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status")
-    def test_run_success_with_dd(self, mock_publish, mock_sleep):
+    def test_run_success_with_dd(self, mock_sleep):
         """Test successful run using dd when fallocate is not available"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
@@ -525,7 +533,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -582,7 +589,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -597,7 +603,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
         result = self.plugin.run(
             run_uuid="test-uuid",
             scenario="/non/existent/path.yaml",
-            krkn_config={},
             lib_telemetry=mock_telemetry,
             scenario_telemetry=mock_scenario_telemetry,
         )
@@ -659,14 +664,12 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_scenario_telemetry = MagicMock()
 
             with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
-                with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.cerberus.publish_kraken_status"):
-                    result = self.plugin.run(
-                        run_uuid="test-uuid",
-                        scenario=scenario_path,
-                        krkn_config={},
-                        lib_telemetry=mock_telemetry,
-                        scenario_telemetry=mock_scenario_telemetry,
-                    )
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=mock_scenario_telemetry,
+                )
 
             self.assertEqual(result, 0)  
             # get_pod_info should be called with "actual-pod-from-pvc", not "ignored-pod"
@@ -707,7 +710,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
@@ -770,7 +772,6 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
-                krkn_config={},
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
             )
