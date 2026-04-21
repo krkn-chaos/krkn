@@ -40,7 +40,11 @@ jobs:
                   await new Promise(r => setTimeout(r, delay));
                 }
               }
-              core.warning(`PR #${prNumber}: could not determine mergeable status after retries`);
+              if (maxAttempts > 1) {
+                core.warning(`PR #${prNumber}: could not determine mergeable status after ${maxAttempts} attempts — skipping`);
+              } else {
+                core.info(`PR #${prNumber}: mergeable not yet computed by GitHub — skipping (will recheck on next PR event)`);
+              }
               return { mergeable: null, author: null };
             }
 
