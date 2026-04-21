@@ -25,7 +25,8 @@ jobs:
 
             // Poll until GitHub has computed the mergeable status (it's async).
             // maxAttempts=1 skips retries for bulk push scans to avoid per-PR sleeps.
-            async function getMergeableStatus(prNumber, maxAttempts = 6) {
+            // Uses exponential backoff: 5s, 10s, 20s, 30s, 30s, ... (capped at 30s).
+            async function getMergeableStatus(prNumber, maxAttempts = 10) {
               for (let attempt = 0; attempt < maxAttempts; attempt++) {
                 const { data: pr } = await github.rest.pulls.get({
                   owner: context.repo.owner,
@@ -34,8 +35,9 @@ jobs:
                 });
                 if (pr.mergeable !== null) return { mergeable: pr.mergeable, author: pr.user.login };
                 if (attempt + 1 < maxAttempts) {
-                  core.info(`PR #${prNumber}: mergeable not computed yet, retrying in 5s (attempt ${attempt + 1}/${maxAttempts})`);
-                  await new Promise(r => setTimeout(r, 5000));
+                  const delay = Math.min(5000 * Math.pow(2, attempt), 30000);
+                  core.info(`PR #${prNumber}: mergeable not computed yet, retrying in ${delay / 1000}s (attempt ${attempt + 1}/${maxAttempts})`);
+                  await new Promise(r => setTimeout(r, delay));
                 }
               }
               core.warning(`PR #${prNumber}: could not determine mergeable status after retries`);
