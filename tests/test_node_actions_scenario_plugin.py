@@ -667,7 +667,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_common_funcs.get_node_by_name.return_value = ["test-node"]
         mock_cerberus.get_status.return_value = None
 
-        with patch('yaml.full_load', return_value=scenario_yaml):
+        with patch('yaml.safe_load', return_value=scenario_yaml):
             result = self.plugin.run(
                 "test-uuid",
                 "/path/to/scenario.yaml",
@@ -692,7 +692,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             ]
         }
 
-        with patch('yaml.full_load', return_value=scenario_yaml):
+        with patch('yaml.safe_load', return_value=scenario_yaml):
             result = self.plugin.run(
                 "test-uuid",
                 "/path/to/scenario.yaml",

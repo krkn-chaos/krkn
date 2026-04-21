@@ -40,7 +40,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                config_yaml = yaml.full_load(f)
+                config_yaml = yaml.safe_load(f)
                 scenario_config = config_yaml["pvc_scenario"]
                 pvc_name = get_yaml_item_value(scenario_config, "pvc_name", "")
                 pod_name = get_yaml_item_value(scenario_config, "pod_name", "")
