@@ -168,7 +168,7 @@ jobs:
               for (let i = 0; i < prs.length; i += CONCURRENCY) {
                 const batch = prs.slice(i, i + CONCURRENCY);
                 await Promise.all(batch.map(pr =>
-                  handlePR(pr.number, pr.user.login, 1).catch(e =>
+                  handlePR(pr.number, pr.user.login, 3).catch(e =>
                     core.warning(`PR #${pr.number}: unexpected error — ${e.message}`)
                   )
                 ));
