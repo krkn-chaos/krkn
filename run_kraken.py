@@ -80,7 +80,7 @@ def main(options, command: Optional[str]) -> int:
     # Parse and read the config
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
-            config = yaml.full_load(f)
+            config = yaml.safe_load(f)
         kubeconfig_path = os.path.expanduser(
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
