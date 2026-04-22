@@ -61,7 +61,7 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         mock_time.side_effect = [1000, 2000]
         self.mock_kubecli.list_nodes.return_value = ["node1", "node2"]
 
-        with patch('yaml.full_load', return_value=scenario_yaml):
+        with patch('yaml.safe_load', return_value=scenario_yaml):
             with patch.object(self.plugin, 'cluster_shut_down') as mock_cluster_shutdown:
                 result = self.plugin.run(
                     "test-uuid",

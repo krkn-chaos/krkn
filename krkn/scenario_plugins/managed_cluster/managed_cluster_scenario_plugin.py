@@ -33,7 +33,7 @@ class ManagedClusterScenarioPlugin(AbstractScenarioPlugin):
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
         with open(scenario, "r") as f:
-            scenario = yaml.full_load(f)
+            scenario = yaml.safe_load(f)
             for managedcluster_scenario in scenario["managedcluster_scenarios"]:
                 managedcluster_scenario_object = Scenarios(
                     lib_telemetry.get_lib_kubernetes()

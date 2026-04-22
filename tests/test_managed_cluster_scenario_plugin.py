@@ -38,7 +38,7 @@ class TestManagedClusterScenarioPlugin(unittest.TestCase):
 
     @patch('time.time')
     @patch('builtins.open', create=True)
-    @patch('yaml.full_load')
+    @patch('yaml.safe_load')
     @patch('krkn.cerberus.get_status')
     def test_run_multiple_actions_executes_all(self, mock_cerberus, mock_yaml, mock_open, mock_time):
         """
@@ -94,7 +94,7 @@ class TestManagedClusterScenarioPlugin(unittest.TestCase):
 
     @patch('time.time')
     @patch('builtins.open', create=True)
-    @patch('yaml.full_load')
+    @patch('yaml.safe_load')
     def test_run_stops_on_first_error(self, mock_yaml, mock_open, mock_time):
         """
         Test that run() returns 1 and stops executing on first error
@@ -146,7 +146,7 @@ class TestManagedClusterScenarioPlugin(unittest.TestCase):
 
 
     @patch('builtins.open', create=True)
-    @patch('yaml.full_load')
+    @patch('yaml.safe_load')
     def test_run_returns_error_when_actions_empty(self, mock_yaml, _mock_open):
         """
         Test that run() returns 1 and logs an error when actions is an empty list
@@ -182,7 +182,7 @@ class TestManagedClusterScenarioPlugin(unittest.TestCase):
         )
 
     @patch('builtins.open', create=True)
-    @patch('yaml.full_load')
+    @patch('yaml.safe_load')
     def test_run_returns_error_when_actions_none(self, mock_yaml, _mock_open):
         """
         Test that run() returns 1 and logs an error when actions is None
