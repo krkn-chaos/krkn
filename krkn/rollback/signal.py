@@ -29,7 +29,8 @@ class SignalHandler:
     _signal_handlers_installed = False  # No need for thread-safe variable due to _signal_lock
     _original_handlers: Dict[int, Any] = {}
     _signal_lock = threading.Lock()
-    
+    _rollback_in_progress = False  # Guards against reentrant rollback calls
+
     # Thread-local storage for context
     _local = threading.local()
 
@@ -53,19 +54,26 @@ class SignalHandler:
     def _signal_handler(cls, signum: int, frame):
         """Handle signals with current thread context information."""
         signal_name = signal.Signals(signum).name
+
+        # Reentrancy guard: if rollback is already in progress, skip this signal
+        if cls._rollback_in_progress:
+            logger.warning(f"Signal {signal_name} received during active rollback, skipping.")
+            return
+
         run_uuid, scenario_type, telemetry_ocp = cls._get_context()
         if not run_uuid or not scenario_type or not telemetry_ocp:
             logger.warning(f"Signal {signal_name} received without complete context, skipping rollback.")
             return
 
-        # Clear the context for the next signal, as another signal may arrive before the rollback completes.
-        # This ensures that the rollback is performed only once.
-        cls._set_context(None, None, telemetry_ocp)
-        
-        # Perform rollback
-        logger.info(f"Performing rollback for signal {signal_name} with run_uuid={run_uuid}, scenario_type={scenario_type}")
-        execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
-        
+        cls._rollback_in_progress = True
+        try:
+            logger.info(f"Performing rollback for signal {signal_name} with run_uuid={run_uuid}, scenario_type={scenario_type}")
+            execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
+        finally:
+            # Always clear context after rollback completes (success or exception)
+            cls._set_context(None, None, None)
+            cls._rollback_in_progress = False
+
         # Call original handler if it exists
         if signum not in cls._original_handlers:
             logger.info(f"Signal {signal_name} has no registered handler, exiting...")
