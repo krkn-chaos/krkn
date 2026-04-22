@@ -15,7 +15,7 @@ google-cloud-compute==1.22.0
 ibm_cloud_sdk_core>=3.20.0  # Requires urllib3>=2.1.0 (compatible with updated boto3)
 ibm_vpc==0.26.3  # Requires ibm_cloud_sdk_core
 jinja2==3.1.6
-lxml==5.1.0
+lxml==6.1.0
 kubernetes==34.1.0
 krkn-lib==6.0.6
 numpy==1.26.4
