@@ -67,11 +67,14 @@ class vSphere:
         """
         Returns an unverified session object
         """
-        
+
         session = requests.session()
-        # Set the proxy settings for the session
         session.verify = False
-            
+
+        http_proxy = environ.get("VSPHERE_HTTP_PROXY") or environ.get("https_proxy") or environ.get("HTTPS_PROXY")
+        if http_proxy:
+            session.proxies = {"http": http_proxy, "https": http_proxy}
+
         urllib3.disable_warnings()
 
         return session
