@@ -41,7 +41,7 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                shut_down_config_yaml = yaml.full_load(f)
+                shut_down_config_yaml = yaml.safe_load(f)
                 shut_down_config_scenario = shut_down_config_yaml[
                     "cluster_shut_down_scenario"
                 ]

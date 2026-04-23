@@ -57,7 +57,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
         with open(scenario, "r") as f:
-            node_scenario_config = yaml.full_load(f)
+            node_scenario_config = yaml.safe_load(f)
             for node_scenario in node_scenario_config["node_scenarios"]:
                 try:
                     node_scenario_object = self.get_node_scenario_object(

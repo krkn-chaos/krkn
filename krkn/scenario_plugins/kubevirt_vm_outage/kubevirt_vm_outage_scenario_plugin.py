@@ -56,7 +56,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             with open(scenario, "r") as f:
-                scenario_config = yaml.full_load(f)
+                scenario_config = yaml.safe_load(f)
             
             self.init_clients(lib_telemetry.get_lib_kubernetes())
             vmis_status = VmisStatus()
