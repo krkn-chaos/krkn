@@ -55,7 +55,7 @@ class TestTimeActionsScenarioPlugin(unittest.TestCase):
         self.assertIn("disk quota exceeded", logged_msg)
         self.assertNotIn("NameError", logged_msg)
     @unittest.mock.patch('builtins.open', create=True)
-    @unittest.mock.patch('yaml.full_load')
+    @unittest.mock.patch('yaml.safe_load')
     @unittest.mock.patch('logging.error')
     def test_run_exception_handling_with_variable(self, mock_logging_error, mock_yaml, mock_open):
         """
@@ -86,7 +86,7 @@ class TestTimeActionsScenarioPlugin(unittest.TestCase):
         self.assertIn("TimeActionsScenarioPlugin", error_call_args)
 
     @unittest.mock.patch('builtins.open', create=True)
-    @unittest.mock.patch('yaml.full_load')
+    @unittest.mock.patch('yaml.safe_load')
     def test_run_with_skew_time_exception(self, mock_yaml, mock_open):
         """
         Test that run() handles exceptions from skew_time method

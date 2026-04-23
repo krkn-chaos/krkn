@@ -37,7 +37,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                scenario_config = yaml.full_load(f)
+                scenario_config = yaml.safe_load(f)
                 for time_scenario in scenario_config["time_scenarios"]:
                     object_type, object_names = self.skew_time(
                         time_scenario, lib_telemetry.get_lib_kubernetes()
