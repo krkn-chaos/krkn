@@ -1,3 +1,16 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import dataclasses
 import json
 import logging
@@ -49,7 +62,7 @@ class Plugins:
     def unserialize_scenario(self, file: str) -> Any:
         return serialization.load_from_file(abspath(file))
 
-    def run(self, file: str, kubeconfig_path: str, kraken_config: str, run_uuid: str):
+    def run(self, file: str, kubeconfig_path: str, run_uuid: str):
         """
         Run executes a series of steps
         """
@@ -93,8 +106,6 @@ class Plugins:
             unserialized_input = step.schema.input.unserialize(entry["config"])
             if "kubeconfig_path" in step.schema.input.properties:
                 unserialized_input.kubeconfig_path = kubeconfig_path
-            if "kraken_config" in step.schema.input.properties:
-                unserialized_input.kraken_config = kraken_config
             output_id, output_data = step.schema(
                 params=unserialized_input, run_id=run_uuid
             )

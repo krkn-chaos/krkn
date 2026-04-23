@@ -17,6 +17,7 @@ __pycache__/*
 kube-burner*
 kube_burner*
 recommender_*.json
+resiliency*.json
 
 # Project files
 .ropeproject
@@ -54,7 +55,7 @@ MANIFEST
 # Per-project virtualenvs
 .venv*/
 venv*/
-kraken.report
+*.report
 collected-metrics/*
 inspect.local.*
 
@@ -64,6 +65,10 @@ CI/out/*
 CI/ci_results
 CI/legacy/*node.yaml
 CI/results.markdown
+# CI tests_v2 (pytest-html / pytest outputs)
+CI/tests_v2/results.xml
+CI/tests_v2/report.html
+CI/tests_v2/assets/
 
 #env
 chaos/*

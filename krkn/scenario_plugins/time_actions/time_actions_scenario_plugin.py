@@ -1,3 +1,16 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import datetime
 import logging
 import random
@@ -11,7 +24,6 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string, get_yaml_item_value, log_exception
 from kubernetes.client import ApiException
 
-from krkn import cerberus, utils
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -20,15 +32,13 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                scenario_config = yaml.full_load(f)
+                scenario_config = yaml.safe_load(f)
                 for time_scenario in scenario_config["time_scenarios"]:
-                    start_time = int(time.time())
                     object_type, object_names = self.skew_time(
                         time_scenario, lib_telemetry.get_lib_kubernetes()
                     )
@@ -39,10 +49,6 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                     )
                     if len(not_reset) > 0:
                         logging.info("Object times were not reset")
-                    end_time = int(time.time())
-                    cerberus.publish_kraken_status(
-                        krkn_config, not_reset, start_time, end_time
-                    )
         except (RuntimeError, Exception) as e:
             logging.error(
                 f"TimeActionsScenarioPlugin scenario {scenario} failed with exception: {e}"
