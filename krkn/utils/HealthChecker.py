@@ -1,3 +1,19 @@
+#!/usr/bin/env python
+#
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import requests
 import time
 import logging
@@ -49,9 +65,11 @@ class HealthChecker:
                             "status_code": response["status_code"],
                             "start_timestamp": start_timestamp
                         }
-                        if response["status_code"] != 200: 
-                            if response_tracker[config["url"]] != False: response_tracker[config["url"]] = False
-                            if config["exit_on_failure"] and config["exit_on_failure"] == True and self.ret_value==0: self.ret_value = 2
+                        if response["status_code"] != 200:
+                            if response_tracker[config["url"]] is not False:
+                                response_tracker[config["url"]] = False
+                            if config["exit_on_failure"] is True and self.ret_value == 0:
+                                self.ret_value = 2
                     else:
                             if response["status_code"] != health_check_tracker[config["url"]]["status_code"]:
                                 end_timestamp = datetime.now()
@@ -87,3 +105,4 @@ class HealthChecker:
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
             logging.info("health checks config is not defined, skipping them")
+        return self.ret_value

@@ -1,3 +1,16 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import logging
 import random
 import time
@@ -21,7 +34,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                scenario_config_yaml = yaml.full_load(f)
+                scenario_config_yaml = yaml.safe_load(f)
                 for scenario in scenario_config_yaml["scenarios"]:
                     scenario_namespace = get_yaml_item_value(scenario, "namespace", "")
                     scenario_label = get_yaml_item_value(scenario, "label_selector", "")

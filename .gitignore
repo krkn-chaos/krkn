@@ -17,6 +17,7 @@ __pycache__/*
 kube-burner*
 kube_burner*
 recommender_*.json
+resiliency*.json
 
 # Project files
 .ropeproject
@@ -54,7 +55,7 @@ MANIFEST
 # Per-project virtualenvs
 .venv*/
 venv*/
-kraken.report
+*.report
 collected-metrics/*
 inspect.local.*
 
