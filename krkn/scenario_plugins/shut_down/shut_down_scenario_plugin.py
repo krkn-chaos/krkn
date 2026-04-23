@@ -1,3 +1,16 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import logging
 import time
 from multiprocessing.pool import ThreadPool
@@ -7,7 +20,6 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn import cerberus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
@@ -24,25 +36,21 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
         self,
         run_uuid: str,
         scenario: str,
-        krkn_config: dict[str, any],
         lib_telemetry: KrknTelemetryOpenshift,
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                shut_down_config_yaml = yaml.full_load(f)
+                shut_down_config_yaml = yaml.safe_load(f)
                 shut_down_config_scenario = shut_down_config_yaml[
                     "cluster_shut_down_scenario"
                 ]
-                start_time = int(time.time())
                 affected_nodes_status = AffectedNodeStatus()
                 self.cluster_shut_down(
                     shut_down_config_scenario, lib_telemetry.get_lib_kubernetes(), affected_nodes_status
                 )
 
                 scenario_telemetry.affected_nodes = affected_nodes_status.affected_nodes
-                end_time = int(time.time())
-                cerberus.publish_kraken_status(krkn_config, [], start_time, end_time)
                 return 0
         except Exception as e:
             logging.error(

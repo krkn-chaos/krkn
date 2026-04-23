@@ -1,6 +1,19 @@
-import logging
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import queue
 import time
+from typing import Tuple
 
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_random_string
@@ -13,12 +26,17 @@ from krkn.scenario_plugins.network_chaos_ng.models import (
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
-from krkn.scenario_plugins.network_chaos_ng.modules.utils import log_info, log_error
+from krkn.scenario_plugins.network_chaos_ng.modules.utils import (
+    log_info,
+    log_error,
+    deploy_network_chaos_ng_pod,
+    get_pod_default_interface,
+    setup_network_chaos_ng_scenario,
+)
 from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import (
-    deploy_network_filter_pod,
-    generate_namespaced_rules,
     apply_network_rules,
     clean_network_rules_namespaced,
+    generate_namespaced_rules,
 )
 
 
@@ -50,22 +68,18 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                     f"impossible to retrieve infos for pod {self.config.target} namespace {self.config.namespace}"
                 )
 
-            deploy_network_filter_pod(
+            container_ids, interfaces = setup_network_chaos_ng_scenario(
                 self.config,
                 pod_info.nodeName,
                 pod_name,
-                self.kubecli.get_lib_kubernetes(),
                 container_name,
-                host_network=False,
+                self.kubecli.get_lib_kubernetes(),
+                target,
+                parallel,
+                False,
             )
 
             if len(self.config.interfaces) == 0:
-                interfaces = (
-                    self.kubecli.get_lib_kubernetes().list_pod_network_interfaces(
-                        target, self.config.namespace
-                    )
-                )
-
                 if len(interfaces) == 0:
                     log_error(
                         "no network interface found in pod, impossible to execute the network filter scenario",
@@ -157,26 +171,8 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
         super().__init__(config, kubecli)
         self.config = config
 
-    def get_config(self) -> (NetworkChaosScenarioType, BaseNetworkChaosConfig):
+    def get_config(self) -> Tuple[NetworkChaosScenarioType, BaseNetworkChaosConfig]:
         return NetworkChaosScenarioType.Pod, self.config
 
     def get_targets(self) -> list[str]:
-        if not self.config.namespace:
-            raise Exception("namespace not specified, aborting")
-        if self.base_network_config.label_selector:
-            return self.kubecli.get_lib_kubernetes().list_pods(
-                self.config.namespace, self.config.label_selector
-            )
-        else:
-            if not self.config.target:
-                raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
-                )
-            if not self.kubecli.get_lib_kubernetes().check_if_pod_exists(
-                self.config.target, self.config.namespace
-            ):
-                raise Exception(
-                    f"pod {self.config.target} not found in namespace {self.config.namespace}"
-                )
-
-            return [self.config.target]
+        return self.get_pod_targets(self.config)

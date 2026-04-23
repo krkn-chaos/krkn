@@ -1,17 +1,49 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn.scenario_plugins.network_chaos_ng.models import NetworkFilterConfig
+from krkn.scenario_plugins.network_chaos_ng.models import (
+    NetworkFilterConfig,
+    NetworkChaosConfig,
+    InterfaceDownConfig,
+)
 from krkn.scenario_plugins.network_chaos_ng.modules.abstract_network_chaos_module import (
     AbstractNetworkChaosModule,
 )
+from krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down import (
+    NodeInterfaceDownModule,
+)
+from krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos import (
+    NodeNetworkChaosModule,
+)
 from krkn.scenario_plugins.network_chaos_ng.modules.node_network_filter import (
     NodeNetworkFilterModule,
+)
+from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos import (
+    PodNetworkChaosModule,
 )
 from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_filter import (
     PodNetworkFilterModule,
 )
 
-supported_modules = ["node_network_filter", "pod_network_filter"]
+supported_modules = [
+    "node_network_filter",
+    "pod_network_filter",
+    "pod_network_chaos",
+    "node_network_chaos",
+    "node_interface_down",
+]
 
 
 class NetworkChaosFactory:
@@ -26,14 +58,34 @@ class NetworkChaosFactory:
             raise Exception(f"{config['id']} is not a supported network chaos module")
 
         if config["id"] == "node_network_filter":
-            config = NetworkFilterConfig(**config)
-            errors = config.validate()
+            scenario_config = NetworkFilterConfig(**config)
+            errors = scenario_config.validate()
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
-            return NodeNetworkFilterModule(config, kubecli)
+            return NodeNetworkFilterModule(scenario_config, kubecli)
         if config["id"] == "pod_network_filter":
-            config = NetworkFilterConfig(**config)
-            errors = config.validate()
+            scenario_config = NetworkFilterConfig(**config)
+            errors = scenario_config.validate()
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
-            return PodNetworkFilterModule(config, kubecli)
+            return PodNetworkFilterModule(scenario_config, kubecli)
+        if config["id"] == "pod_network_chaos":
+            scenario_config = NetworkChaosConfig(**config)
+            errors = scenario_config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return PodNetworkChaosModule(scenario_config, kubecli)
+        if config["id"] == "node_network_chaos":
+            scenario_config = NetworkChaosConfig(**config)
+            errors = scenario_config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return NodeNetworkChaosModule(scenario_config, kubecli)
+        if config["id"] == "node_interface_down":
+            scenario_config = InterfaceDownConfig(**config)
+            errors = scenario_config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return NodeInterfaceDownModule(scenario_config, kubecli)
+        else:
+            raise Exception(f"invalid network chaos id {config['id']}")

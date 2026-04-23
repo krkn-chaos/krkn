@@ -1,3 +1,16 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
@@ -237,7 +250,7 @@ class docker_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with container ID: %s has been terminated" % (container_id)
                 )
-                logging.info("node_termination_scenario has been successfuly injected!")
+                logging.info("node_termination_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to terminate node instance. Encountered following exception:"
@@ -264,7 +277,7 @@ class docker_node_scenarios(abstract_node_scenarios):
                 logging.info(
                     "Node with container ID: %s has been rebooted" % (container_id)
                 )
-                logging.info("node_reboot_scenario has been successfuly injected!")
+                logging.info("node_reboot_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
                     "Failed to reboot node instance. Encountered following exception:"
