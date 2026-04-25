@@ -15,6 +15,7 @@ import datetime
 import logging
 import random
 import re
+import shlex
 import time
 
 import yaml
@@ -57,6 +58,87 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         else:
             return 0
 
+    def detect_available_shell(
+        self, pod_name, namespace, container_name, kubecli: KrknKubernetes
+    ):
+        """
+        Detect which shell is available in the pod by testing common shells.
+        Returns the path to the first available shell, or None if none found.
+        """
+        shells = ["/bin/bash", "/bin/sh", "/busybox/sh"]
+
+        for shell in shells:
+            try:
+                test_command = f"test -x {shell} && echo exists"
+                response = kubecli.exec_cmd_in_pod(
+                    test_command, pod_name, namespace, container_name
+                )
+                if response and "exists" in response:
+                    logging.debug(f"Detected available shell: {shell}")
+                    return shell
+            except Exception as e:
+                logging.debug(f"Shell {shell} not available: {e}")
+                continue
+
+        logging.warning(f"No shell detected in pod {pod_name}")
+        return None
+
+    def exec_with_shell_fallback(
+        self, pod_name, command, namespace, container_name, kubecli: KrknKubernetes
+    ):
+        """
+        Execute command with explicit shell wrapping as fallback mechanism.
+        Handles cases where krkn-lib cannot determine the shell automatically.
+        """
+        shell = self.detect_available_shell(pod_name, namespace, container_name, kubecli)
+        if not shell:
+            logging.error(
+                f"Cannot execute command in pod {pod_name}: no shell available"
+            )
+            return False
+
+        if isinstance(command, list):
+            command = " ".join(command)
+
+        if command.strip().startswith(("/bin/bash", "/bin/sh", "/busybox/sh")):
+            wrapped_command = command
+            logging.debug(f"Command already shell-wrapped: {command}")
+        else:
+            wrapped_command = f"{shell} -c {shlex.quote(command)}"
+            logging.debug(f"Wrapped command with {shell}: {wrapped_command}")
+
+        for i in range(5):
+            response = kubecli.exec_cmd_in_pod(
+                wrapped_command, pod_name, namespace, container_name
+            )
+            if not response:
+                time.sleep(2)
+                continue
+            elif (
+                "unauthorized" in response.lower()
+                or "authorization" in response.lower()
+            ):
+                time.sleep(2)
+                continue
+            elif "impossible to determine the shell" in response.lower():
+                logging.error(
+                    f"Shell fallback failed: even with detected shell {shell}, "
+                    f"still cannot execute command in pod {pod_name}. "
+                    f"This indicates a deeper issue with pod exec permissions or krkn-lib."
+                )
+                return False
+            elif "exec failed" in response.lower() or "error" in response.lower():
+                logging.debug(f"Command execution attempt {i+1}/5 failed: {response}")
+                time.sleep(2)
+                continue
+            else:
+                return response
+
+        logging.error(
+            f"Failed to execute command in pod {pod_name} after 5 attempts"
+        )
+        return False
+
     def pod_exec(
         self, pod_name, command, namespace, container_name, kubecli: KrknKubernetes
     ):
@@ -73,6 +155,14 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             ):
                 time.sleep(2)
                 continue
+            elif "impossible to determine the shell" in response.lower():
+                logging.warning(
+                    f"Shell detection error in pod {pod_name}, "
+                    f"attempting fallback with explicit shell"
+                )
+                return self.exec_with_shell_fallback(
+                    pod_name, command, namespace, container_name, kubecli
+                )
             else:
                 break
         return response
