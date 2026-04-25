@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+#
 # Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import logging
 import requests
 import sys
@@ -29,25 +32,42 @@ def set_url(config):
     cerberus_enabled = get_yaml_item_value(config["cerberus"],"cerberus_enabled", False)
     if cerberus_enabled:
         global cerberus_url
-        cerberus_url = get_yaml_item_value(config["cerberus"],"cerberus_url", "")
+        cerberus_url = get_yaml_item_value(config["cerberus"], "cerberus_url", "")
         global check_application_routes
-        check_application_routes = \
-            get_yaml_item_value(config["cerberus"],"check_applicaton_routes","")
+        # Use None as sentinel to distinguish "key missing" from explicit False.
+        # Only fall back to the legacy misspelled key when the correct key is absent.
+        check_application_routes = get_yaml_item_value(
+            config["cerberus"], "check_application_routes", None
+        )
+        if check_application_routes is None:
+            legacy = get_yaml_item_value(
+                config["cerberus"], "check_applicaton_routes", None
+            )
+            if legacy is not None:
+                logging.warning(
+                    "Config key 'check_applicaton_routes' is deprecated and will be "
+                    "removed in a future release. Please rename it to 'check_application_routes'."
+                )
+                check_application_routes = legacy
+            else:
+                check_application_routes = False
+    else:
+        check_application_routes = False
 
-def get_status(start_time, end_time):
+def get_status(start_time, end_time) -> tuple[bool, bool]:
     """
-    Get cerberus status
+    Get cerberus status — returns (cerberus_ok, routes_ok) booleans.
+    Never calls sys.exit(); callers decide whether to exit.
+
+    Returns:
+        tuple[bool, bool]: (cerberus_status, application_routes_status)
     """
     cerberus_status = True
-    check_application_routes = False
     application_routes_status = True
     if cerberus_enabled:
         if not cerberus_url:
-            logging.error(
-                "url where Cerberus publishes True/False signal "
-                "is not provided."
-            )
-            sys.exit(1)
+            logging.error("cerberus_url is not set in config. Cannot fetch Cerberus status.")
+            return False, False
         cerberus_status = requests.get(cerberus_url, timeout=60).content
         cerberus_status = True if cerberus_status == b"True" else False
 
@@ -55,7 +75,6 @@ def get_status(start_time, end_time):
         # experience downtime during the chaos
         if check_application_routes:
             application_routes_status, unavailable_routes = application_status(
-                cerberus_url,
                 start_time,
                 end_time
             )
@@ -77,49 +96,34 @@ def get_status(start_time, end_time):
                 "the cluster is unhealthy. Please check the Cerberus "
                 "report for more details. Test failed."
             )
-
-        if not application_routes_status or not cerberus_status:
-            sys.exit(1)
-        else:
+        elif application_routes_status:
             logging.info(
                 "Received a go signal from Ceberus, the cluster is healthy. "
                 "Test passed."
             )
-    return cerberus_status
+
+    return cerberus_status, application_routes_status
 
 
-def publish_kraken_status( start_time, end_time):
+def publish_kraken_status(start_time, end_time):
     """
-    Publish kraken status to cerberus
+    Publish kraken status to cerberus.
+    Exits only when exit_on_failure is True and status is unhealthy.
     """
-    cerberus_status = get_status(start_time, end_time)
-    if not cerberus_status:
+    cerberus_status, application_routes_status = get_status(start_time, end_time)
+    overall_healthy = cerberus_status and application_routes_status
+
+    if not overall_healthy:
         if exit_on_failure:
-            logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing, exiting kraken run"
-            )
+            logging.info("Cerberus status is not healthy, exiting kraken run")
             sys.exit(1)
         else:
-            logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing"
-            )
+            logging.info("Cerberus status is not healthy")
     else:
-        if exit_on_failure:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing, exiting kraken run"
-            )
-            sys.exit(1)
-        else:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing"
-            )
+        logging.info("Cerberus status is healthy. Test passed.")
 
 
-def application_status( start_time, end_time):
+def application_status(start_time, end_time):
     """
     Check application availability
     """
