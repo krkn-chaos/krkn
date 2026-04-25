@@ -24,6 +24,7 @@ from krkn_lib.models.telemetry.models import HealthCheck
 class HealthChecker:
     current_iterations: int = 0
     ret_value = 0
+    time_to_recovery = None
     def __init__(self, iterations):
         self.iterations = iterations
 
@@ -76,6 +77,9 @@ class HealthChecker:
                                 start_timestamp = health_check_tracker[config["url"]]["start_timestamp"]
                                 previous_status_code = str(health_check_tracker[config["url"]]["status_code"])
                                 duration = (end_timestamp - start_timestamp).total_seconds()
+                                ttr_seconds = round(duration, 2)
+                                logging.info(f"System recovered successfully. Time to Recovery (TTR): {ttr_seconds}s")
+                                self.time_to_recovery = ttr_seconds
                                 change_record = {
                                     "url": config["url"],
                                     "status": False,
@@ -101,6 +105,10 @@ class HealthChecker:
                     "duration": duration
                 }
                 health_check_telemetry.append(HealthCheck(success_response))
+                
+                if health_check_tracker[url]["status_code"] != 200:
+                    logging.warning("Health check timed out before system recovered.")
+                    self.time_to_recovery = "TIMEOUT"
 
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
