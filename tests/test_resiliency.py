@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Tests for krkn.resiliency.resiliency module.
 
