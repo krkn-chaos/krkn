@@ -56,7 +56,7 @@ metadata:
 spec:
   containers:
   - name: mock-cerberus-unhealthy
-    image: python:3.9-slim
+    image: python:3.11-slim
     command: ["python3", "/app/server.py"]
     ports:
     - containerPort: 8080

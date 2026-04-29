@@ -50,7 +50,7 @@ metadata:
 spec:
   containers:
   - name: mock-cerberus
-    image: python:3.9-slim
+    image: python:3.11-slim
     command: ["python3", "/app/server.py"]
     ports:
     - containerPort: 8080

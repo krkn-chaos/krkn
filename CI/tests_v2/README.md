@@ -9,7 +9,7 @@ Each test runs in its **own ephemeral Kubernetes namespace** (`krkn-test-<uuid>`
 Without a cluster, tests that need one will **skip** with a clear message (e.g. *"Could not load kube config"*). No manual workload deployment is required; workloads are deployed automatically into ephemeral namespaces per test.
 
 - **KinD cluster** (or any Kubernetes cluster) running with `kubectl` configured (e.g. `KUBECONFIG` or default `~/.kube/config`).
-- **Python 3.9+** and main repo deps: `pip install -r requirements.txt`.
+- **Python 3.11+** and main repo deps: `pip install -r requirements.txt`.
 
 ### Supported clusters
 
