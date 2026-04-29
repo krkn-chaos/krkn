@@ -19,7 +19,7 @@ help:
 	@echo "  setup         Create venv (if missing), install Python deps, create KinD cluster (kind-config-dev.yml)."
 	@echo "               Run once before first test. Override cluster config: KIND_CONFIG=path make setup"
 	@echo ""
-	@echo "  preflight     Check Python 3.9+, kind, kubectl, Docker, cluster reachability, test deps."
+	@echo "  preflight     Check Python 3.11+, kind, kubectl, Docker, cluster reachability, test deps."
 	@echo "               Invoked automatically by test targets; run standalone to validate environment."
 	@echo ""
 	@echo "  test         Full run: retries (2), timeout 300s, HTML report, JUnit XML, coverage."
@@ -60,7 +60,7 @@ $(VENV)/.installed: $(REPO_ROOT)/requirements.txt $(TESTS_DIR)/requirements.txt
 preflight:
 	@echo "Preflight: checking Python, tools, and cluster..."
 	@command -v python3 >/dev/null 2>&1 || { echo "Error: python3 not found."; exit 1; }
-	@python3 -c "import sys; exit(0 if sys.version_info >= (3, 9) else 1)" || { echo "Error: Python 3.9+ required."; exit 1; }
+	@python3 -c "import sys; exit(0 if sys.version_info >= (3, 11) else 1)" || { echo "Error: Python 3.11+ required."; exit 1; }
 	@command -v kind >/dev/null 2>&1 || { echo "Error: kind not installed."; exit 1; }
 	@command -v kubectl >/dev/null 2>&1 || { echo "Error: kubectl not installed."; exit 1; }
 	@docker info >/dev/null 2>&1 || { echo "Error: Docker not running (required for KinD)."; exit 1; }
