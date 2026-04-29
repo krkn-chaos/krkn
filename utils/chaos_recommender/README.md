@@ -22,21 +22,21 @@ This tool profiles an application and gathers telemetry data such as CPU, Memory
 
 - Openshift Or Kubernetes Environment where the application is hosted
 - Access to the metrics via the exposed Prometheus endpoint
-- Python3.9
+- Python3.11
 
 ## Usage
 
 1. To run
 
     ```
-    $ python3.9 -m venv chaos
+    $ python3.11 -m venv chaos
     $ source chaos/bin/activate
     $ git clone https://github.com/krkn-chaos/krkn.git 
     $ cd krkn
     $ pip3 install -r requirements.txt
     Edit configuration file:
     $ vi config/recommender_config.yaml 
-    $ python3.9 utils/chaos_recommender/chaos_recommender.py -c utils/chaos_recommender/recommender_config.yaml
+    $ python3.11 utils/chaos_recommender/chaos_recommender.py -c utils/chaos_recommender/recommender_config.yaml
     ```
 
 2. Follow the prompts to provide the required information.
