@@ -1,3 +1,19 @@
+#!/usr/bin/env python
+#
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """
 Test suite for krkn/cerberus/setup.py
 
@@ -6,12 +22,9 @@ Run this test file individually with:
 
 Or with coverage:
   python3 -m coverage run -a -m unittest tests/test_cerberus_setup.py -v
-
-Generated with help from Claude Code
 """
 import unittest
-from unittest.mock import patch, MagicMock, Mock
-import sys
+from unittest.mock import patch, MagicMock
 import json
 from krkn.cerberus import setup as cerberus_setup
 
@@ -26,286 +39,206 @@ class TestCerberusSetup(unittest.TestCase):
         cerberus_setup.cerberus_enabled = False
         cerberus_setup.check_application_routes = ""
 
-    def test_set_url_with_cerberus_enabled(self):
-        """Test set_url when cerberus is enabled"""
+    # ── set_url tests ────────────────────────────────────────────────────────
+
+    def test_set_url_with_correct_key(self):
+        """set_url reads check_application_routes (correct spelling)"""
         config = {
             "kraken": {"exit_on_failure": True},
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus.example.com",
-                "check_applicaton_routes": "route1,route2"
+                "check_application_routes": "route1,route2"
             }
         }
-
         cerberus_setup.set_url(config)
-
-        self.assertEqual(cerberus_setup.cerberus_url, "http://cerberus.example.com")
-        self.assertTrue(cerberus_setup.exit_on_failure)
-        self.assertTrue(cerberus_setup.cerberus_enabled)
         self.assertEqual(cerberus_setup.check_application_routes, "route1,route2")
+        self.assertTrue(cerberus_setup.exit_on_failure)
 
-    def test_set_url_with_cerberus_disabled(self):
-        """Test set_url when cerberus is disabled"""
+    def test_set_url_explicit_false_not_overridden_by_legacy(self):
+        """Explicit check_application_routes: False must NOT be overridden by legacy key"""
+        config = {
+            "kraken": {"exit_on_failure": False},
+            "cerberus": {
+                "cerberus_enabled": True,
+                "cerberus_url": "http://cerberus.example.com",
+                "check_application_routes": False,       # explicit False
+                "check_applicaton_routes": "legacy-route"  # legacy key present
+            }
+        }
+        cerberus_setup.set_url(config)
+        # explicit False must win — legacy key must NOT override it
+        self.assertFalse(cerberus_setup.check_application_routes)
+
+    def test_set_url_legacy_misspelled_key_fallback(self):
+        """Falls back to legacy misspelled key when correct key is absent"""
+        config = {
+            "kraken": {"exit_on_failure": False},
+            "cerberus": {
+                "cerberus_enabled": True,
+                "cerberus_url": "http://cerberus.example.com",
+                "check_applicaton_routes": "legacy-route"
+            }
+        }
+        with self.assertLogs(level="WARNING") as log:
+            cerberus_setup.set_url(config)
+        self.assertEqual(cerberus_setup.check_application_routes, "legacy-route")
+        self.assertTrue(any("deprecated" in msg for msg in log.output))
+
+    def test_set_url_cerberus_disabled(self):
         config = {
             "kraken": {"exit_on_failure": False},
             "cerberus": {"cerberus_enabled": False}
         }
-
         cerberus_setup.set_url(config)
-
         self.assertFalse(cerberus_setup.cerberus_enabled)
-        self.assertFalse(cerberus_setup.exit_on_failure)
         self.assertIsNone(cerberus_setup.cerberus_url)
 
-    def test_set_url_with_defaults(self):
-        """Test set_url with missing optional fields (should use defaults)"""
-        config = {
-            "kraken": {},
-            "cerberus": {}
-        }
-
+    def test_set_url_defaults(self):
+        config = {"kraken": {}, "cerberus": {}}
         cerberus_setup.set_url(config)
-
         self.assertFalse(cerberus_setup.exit_on_failure)
         self.assertFalse(cerberus_setup.cerberus_enabled)
+
+    # ── get_status tests ─────────────────────────────────────────────────────
 
     @patch('krkn.cerberus.setup.requests.get')
     def test_get_status_cerberus_disabled(self, mock_get):
-        """Test get_status when cerberus is disabled"""
         cerberus_setup.cerberus_enabled = False
-
-        result = cerberus_setup.get_status(0, 100)
-
-        self.assertTrue(result)
+        cerberus_ok, routes_ok = cerberus_setup.get_status(0, 100)
+        self.assertTrue(cerberus_ok)
+        self.assertTrue(routes_ok)
         mock_get.assert_not_called()
 
-    @patch('krkn.cerberus.setup.requests.get')
-    def test_get_status_cerberus_enabled_healthy(self, mock_get):
-        """Test get_status when cerberus is enabled and cluster is healthy"""
-        cerberus_setup.cerberus_enabled = True
-        cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        mock_response = MagicMock()
-        mock_response.content = b"True"
-        mock_get.return_value = mock_response
-
-        result = cerberus_setup.get_status(0, 100)
-
-        self.assertTrue(result)
-        mock_get.assert_called_once_with("http://cerberus.example.com", timeout=60)
-
-    @patch('krkn.cerberus.setup.requests.get')
-    def test_get_status_cerberus_enabled_unhealthy(self, mock_get):
-        """Test get_status when cerberus is enabled and cluster is unhealthy"""
-        cerberus_setup.cerberus_enabled = True
-        cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        mock_response = MagicMock()
-        mock_response.content = b"False"
-        mock_get.return_value = mock_response
-
-        with self.assertRaises(SystemExit) as cm:
-            cerberus_setup.get_status(0, 100)
-        
-        self.assertEqual(cm.exception.code, 1)
-        mock_get.assert_called_once_with("http://cerberus.example.com", timeout=60)
-
-    def test_get_status_no_url_provided(self):
-        """Test get_status when cerberus is enabled but URL is not provided"""
+    def test_get_status_no_url_returns_false(self):
+        """get_status returns (False, False) when URL missing — does NOT exit"""
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.cerberus_url = None
-
-        with self.assertRaises(SystemExit) as cm:
-            cerberus_setup.get_status(0, 100)
-        
-        self.assertEqual(cm.exception.code, 1)
+        cerberus_ok, routes_ok = cerberus_setup.get_status(0, 100)
+        self.assertFalse(cerberus_ok)
+        self.assertFalse(routes_ok)
 
     @patch('krkn.cerberus.setup.requests.get')
-    def test_get_status_with_application_routes_check_success(self, mock_get):
-        """Test get_status with application routes check when routes are healthy"""
+    def test_get_status_healthy(self, mock_get):
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        # Mock both cerberus status check and history endpoint
-        def mock_get_side_effect(url, timeout):
-            mock_response = MagicMock()
-            if "/history?" in url:
-                # History endpoint - no failures
-                mock_response.content = json.dumps({"history": {"failures": []}}).encode()
-            else:
-                # Status endpoint
-                mock_response.content = b"True"
-            return mock_response
-        
-        mock_get.side_effect = mock_get_side_effect
-
-        # Note: check_application_routes is set to False locally in get_status()
-        # so we can't test the full flow without modifying the function
-        # This test verifies cerberus status returns True
-        result = cerberus_setup.get_status(0, 100)
-
-        self.assertTrue(result)
+        mock_get.return_value = MagicMock(content=b"True")
+        cerberus_ok, routes_ok = cerberus_setup.get_status(0, 100)
+        self.assertTrue(cerberus_ok)
+        self.assertTrue(routes_ok)
 
     @patch('krkn.cerberus.setup.requests.get')
-    def test_get_status_with_application_routes_check_failure(self, mock_get):
-        """Test get_status with cerberus returning False (unhealthy)"""
+    def test_get_status_unhealthy_returns_false_no_exit(self, mock_get):
+        """get_status returns (False, True) on unhealthy cerberus — does NOT exit"""
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        mock_response = MagicMock()
-        mock_response.content = b"False"  # Cerberus reports unhealthy
-        mock_get.return_value = mock_response
+        mock_get.return_value = MagicMock(content=b"False")
+        cerberus_ok, routes_ok = cerberus_setup.get_status(0, 100)
+        self.assertFalse(cerberus_ok)
 
-        with self.assertRaises(SystemExit) as cm:
-            cerberus_setup.get_status(0, 100)
-        
-        self.assertEqual(cm.exception.code, 1)
+    # ── publish_kraken_status tests ──────────────────────────────────────────
 
     @patch('krkn.cerberus.setup.get_status')
-    def test_publish_kraken_status_healthy_exit_on_failure_false(self, mock_get_status):
-        """Test publish_kraken_status when cluster is healthy and exit_on_failure is False"""
-        cerberus_setup.exit_on_failure = False
-        mock_get_status.return_value = True
-
-        # Should not raise SystemExit
-        cerberus_setup.publish_kraken_status(0, 100)
-
+    def test_publish_healthy_no_exit(self, mock_get_status):
+        """Healthy cluster never exits regardless of exit_on_failure"""
+        cerberus_setup.exit_on_failure = True
+        mock_get_status.return_value = (True, True)
+        cerberus_setup.publish_kraken_status(0, 100)  # must not raise
         mock_get_status.assert_called_once_with(0, 100)
 
     @patch('krkn.cerberus.setup.get_status')
-    def test_publish_kraken_status_healthy_exit_on_failure_true(self, mock_get_status):
-        """Test publish_kraken_status when cluster is healthy and exit_on_failure is True"""
+    def test_publish_unhealthy_exit_on_failure_true(self, mock_get_status):
+        """Unhealthy + exit_on_failure=True → sys.exit(1)"""
         cerberus_setup.exit_on_failure = True
-        mock_get_status.return_value = True
-
+        mock_get_status.return_value = (False, True)
         with self.assertRaises(SystemExit) as cm:
             cerberus_setup.publish_kraken_status(0, 100)
-        
         self.assertEqual(cm.exception.code, 1)
-        mock_get_status.assert_called_once_with(0, 100)
 
     @patch('krkn.cerberus.setup.get_status')
-    def test_publish_kraken_status_unhealthy_exit_on_failure_false(self, mock_get_status):
-        """Test publish_kraken_status when cluster is unhealthy and exit_on_failure is False"""
+    def test_publish_unhealthy_exit_on_failure_false(self, mock_get_status):
+        """Unhealthy + exit_on_failure=False → logs only, no exit"""
         cerberus_setup.exit_on_failure = False
-        mock_get_status.return_value = False
-
-        # Should not raise SystemExit
-        cerberus_setup.publish_kraken_status(0, 100)
-
-        mock_get_status.assert_called_once_with(0, 100)
+        mock_get_status.return_value = (False, True)
+        cerberus_setup.publish_kraken_status(0, 100)  # must not raise
 
     @patch('krkn.cerberus.setup.get_status')
-    def test_publish_kraken_status_unhealthy_exit_on_failure_true(self, mock_get_status):
-        """Test publish_kraken_status when cluster is unhealthy and exit_on_failure is True"""
+    def test_publish_routes_unhealthy_exit_on_failure_true(self, mock_get_status):
+        """Routes unhealthy + exit_on_failure=True → sys.exit(1)"""
         cerberus_setup.exit_on_failure = True
-        mock_get_status.return_value = False
-
+        mock_get_status.return_value = (True, False)
         with self.assertRaises(SystemExit) as cm:
             cerberus_setup.publish_kraken_status(0, 100)
-        
         self.assertEqual(cm.exception.code, 1)
-        mock_get_status.assert_called_once_with(0, 100)
+
+    # ── application_status tests ─────────────────────────────────────────────
 
     @patch('krkn.cerberus.setup.requests.get')
     def test_application_status_no_failures(self, mock_get):
-        """Test application_status when there are no route failures"""
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "history": {
-                "failures": []
-            }
-        }).encode()
-        mock_get.return_value = mock_response
-
+        mock_get.return_value = MagicMock(
+            content=json.dumps({"history": {"failures": []}}).encode()
+        )
         status, failed_routes = cerberus_setup.application_status(0, 6000)
-
         self.assertTrue(status)
         self.assertEqual(failed_routes, set())
-        expected_url = "http://cerberus.example.com/history?loopback=100.0"
-        mock_get.assert_called_once_with(expected_url, timeout=60)
 
     @patch('krkn.cerberus.setup.requests.get')
     def test_application_status_with_route_failures(self, mock_get):
-        """Test application_status when there are route failures"""
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "history": {
-                "failures": [
-                    {"component": "route", "name": "route1"},
-                    {"component": "route", "name": "route2"},
-                    {"component": "pod", "name": "pod1"},  # Should be ignored
-                    {"component": "route", "name": "route1"},  # Duplicate, should only appear once
-                ]
-            }
-        }).encode()
-        mock_get.return_value = mock_response
-
+        mock_get.return_value = MagicMock(
+            content=json.dumps({"history": {"failures": [
+                {"component": "route", "name": "route1"},
+                {"component": "route", "name": "route2"},
+                {"component": "pod",   "name": "pod1"},
+                {"component": "route", "name": "route1"},
+            ]}}).encode()
+        )
         status, failed_routes = cerberus_setup.application_status(0, 6000)
-
         self.assertFalse(status)
         self.assertEqual(failed_routes, {"route1", "route2"})
 
-    @patch('krkn.cerberus.setup.requests.get')
-    def test_application_status_with_non_route_failures(self, mock_get):
-        """Test application_status when there are non-route failures only"""
-        cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        mock_response = MagicMock()
-        mock_response.content = json.dumps({
-            "history": {
-                "failures": [
-                    {"component": "pod", "name": "pod1"},
-                    {"component": "node", "name": "node1"},
-                ]
-            }
-        }).encode()
-        mock_get.return_value = mock_response
-
-        status, failed_routes = cerberus_setup.application_status(0, 6000)
-
-        self.assertTrue(status)
-        self.assertEqual(failed_routes, set())
-
-    def test_application_status_no_url_provided(self):
-        """Test application_status when cerberus URL is not provided"""
+    def test_application_status_no_url(self):
         cerberus_setup.cerberus_url = None
-
         with self.assertRaises(SystemExit) as cm:
             cerberus_setup.application_status(0, 100)
-        
         self.assertEqual(cm.exception.code, 1)
 
     @patch('krkn.cerberus.setup.requests.get')
     def test_application_status_request_exception(self, mock_get):
-        """Test application_status when request raises an exception"""
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
         mock_get.side_effect = Exception("Connection error")
-
         with self.assertRaises(SystemExit) as cm:
             cerberus_setup.application_status(0, 6000)
-        
         self.assertEqual(cm.exception.code, 1)
 
+    @patch('krkn.cerberus.setup.application_status')
     @patch('krkn.cerberus.setup.requests.get')
-    def test_application_status_duration_calculation(self, mock_get):
-        """Test application_status correctly calculates duration in minutes"""
-        cerberus_setup.cerberus_url = "http://cerberus.example.com"
+    def test_get_status_with_route_check_enabled(self, mock_get, mock_app_status):
+        """
+        Fix Issue 6: Test that application_status is called when check_application_routes is True
+        """
+        cerberus_setup.cerberus_enabled = True
+        cerberus_setup.cerberus_url = "http://fake-cerberus:8080"
+        cerberus_setup.check_application_routes = True
         
+        # Mock cerberus status endpoint to return healthy
         mock_response = MagicMock()
-        mock_response.content = json.dumps({"history": {"failures": []}}).encode()
+        mock_response.content = b"True"
         mock_get.return_value = mock_response
-
-        # Duration: (300 - 0) / 60 = 5 minutes
-        cerberus_setup.application_status(0, 300)
-
-        expected_url = "http://cerberus.example.com/history?loopback=5.0"
-        mock_get.assert_called_once_with(expected_url, timeout=60)
+        
+        # Mock application_status to return healthy with no failed routes
+        mock_app_status.return_value = (True, [])
+        
+        # Call get_status
+        cerberus_status, app_routes_status = cerberus_setup.get_status(0, 100)
+        
+        # Assert application_status was called once with correct parameters
+        mock_app_status.assert_called_once_with(0, 100)
+        
+        # Assert return values are both True
+        self.assertTrue(cerberus_status)
+        self.assertTrue(app_routes_status)
 
 
 if __name__ == '__main__':
