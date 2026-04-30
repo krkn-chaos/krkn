@@ -77,9 +77,15 @@ class HealthChecker:
                                 start_timestamp = health_check_tracker[config["url"]]["start_timestamp"]
                                 previous_status_code = str(health_check_tracker[config["url"]]["status_code"])
                                 duration = (end_timestamp - start_timestamp).total_seconds()
-                                ttr_seconds = round(duration, 2)
-                                logging.info(f"System recovered successfully. Time to Recovery (TTR): {ttr_seconds}s")
-                                self.time_to_recovery = ttr_seconds
+                                
+                                if response["status_code"] == 200:
+                                    ttr_seconds = round(duration, 2)
+                                    if self.time_to_recovery != "TIMEOUT":
+                                        if self.time_to_recovery is None:
+                                            self.time_to_recovery = ttr_seconds
+                                        else:
+                                            self.time_to_recovery = max(self.time_to_recovery, ttr_seconds)
+
                                 change_record = {
                                     "url": config["url"],
                                     "status": False,
@@ -107,8 +113,11 @@ class HealthChecker:
                 health_check_telemetry.append(HealthCheck(success_response))
                 
                 if health_check_tracker[url]["status_code"] != 200:
-                    logging.warning("Health check timed out before system recovered.")
+                    logging.warning(f"Health check timed out before system recovered for URL:%s" % url)
                     self.time_to_recovery = "TIMEOUT"
+
+            if self.time_to_recovery is not None and self.time_to_recovery != "TIMEOUT":
+                logging.info(f"All health checks recovered. Maximum Time to Recovery (Worst-Case TTR): %ss" % self.time_to_recovery)
 
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
