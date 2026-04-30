@@ -484,6 +484,7 @@ def main(options, command: Optional[str]) -> int:
         # to json, and recreate a new object from it.
         end_time = int(time.time())
         health_check_worker.join()
+        health_checker.close()
         try:
             chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
         except queue.Empty:
