@@ -1,0 +1,156 @@
+name: Squash Commits
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  squash-commits:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check commit count and label PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const LABEL = 'squash-commits';
+            const COMMENT_MARKER = '<!-- squash-commits-bot -->';
+            const prNumber = context.payload.pull_request.number;
+            const author = context.payload.pull_request.user.login;
+
+            // Ensure the label exists
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: LABEL,
+              });
+            } catch (e) {
+              if (e.status === 404) {
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: LABEL,
+                  color: 'f59e0b',
+                  description: 'This PR has multiple commits that should be squashed into one',
+                });
+              }
+            }
+
+            // Count commits on the PR
+            const commits = await github.paginate(github.rest.pulls.listCommits, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+            const commitCount = commits.length;
+            core.info(`PR #${prNumber} has ${commitCount} commit(s)`);
+
+            // Check current label and comment state
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const hasLabel = labels.some(l => l.name === LABEL);
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const existingComment = comments.find(c => c.body.includes(COMMENT_MARKER));
+
+            if (commitCount > 1) {
+              if (!hasLabel) {
+                await github.rest.issues.addLabels({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  labels: [LABEL],
+                });
+                core.info(`PR #${prNumber}: added '${LABEL}' label`);
+              }
+
+              if (!existingComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  body: [
+                    COMMENT_MARKER,
+                    `Hi @${author}! :wave: This PR has **${commitCount} commits** — please squash them into a single commit before merging.`,
+                    ``,
+                    `**To squash your commits:**`,
+                    `\`\`\`bash`,
+                    `git rebase -i origin/main`,
+                    `# In the editor, change all but the first 'pick' to 's' (squash), then save`,
+                    `git push --force-with-lease`,
+                    `\`\`\``,
+                    ``,
+                    `Or if you want to squash everything into one shot:`,
+                    `\`\`\`bash`,
+                    `git reset --soft origin/main`,
+                    `git commit -m "your final commit message"`,
+                    `git push --force-with-lease`,
+                    `\`\`\``,
+                    ``,
+                    `The \`${LABEL}\` label and this comment will be removed automatically once the PR is down to a single commit.`,
+                  ].join('\n'),
+                });
+                core.info(`PR #${prNumber}: posted squash-commits comment`);
+              } else {
+                // Update the existing comment in case the count changed
+                await github.rest.issues.updateComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                  body: [
+                    COMMENT_MARKER,
+                    `Hi @${author}! :wave: This PR has **${commitCount} commits** — please squash them into a single commit before merging.`,
+                    ``,
+                    `**To squash your commits:**`,
+                    `\`\`\`bash`,
+                    `git rebase -i origin/main`,
+                    `# In the editor, change all but the first 'pick' to 's' (squash), then save`,
+                    `git push --force-with-lease`,
+                    `\`\`\``,
+                    ``,
+                    `Or if you want to squash everything into one shot:`,
+                    `\`\`\`bash`,
+                    `git reset --soft origin/main`,
+                    `git commit -m "your final commit message"`,
+                    `git push --force-with-lease`,
+                    `\`\`\``,
+                    ``,
+                    `The \`${LABEL}\` label and this comment will be removed automatically once the PR is down to a single commit.`,
+                  ].join('\n'),
+                });
+                core.info(`PR #${prNumber}: updated squash-commits comment (now ${commitCount} commits)`);
+              }
+            } else {
+              // Single commit — clean up label and comment
+              if (hasLabel) {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: prNumber,
+                  name: LABEL,
+                });
+                core.info(`PR #${prNumber}: removed '${LABEL}' label`);
+              }
+
+              if (existingComment) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: existingComment.id,
+                });
+                core.info(`PR #${prNumber}: removed squash-commits comment`);
+              }
+            }
