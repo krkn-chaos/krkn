@@ -91,6 +91,35 @@ class AbstractNetworkChaosModule(abc.ABC):
                 )
             return [config.target]
 
+    def get_vmi_targets(self, config: BaseNetworkChaosConfig) -> list[str]:
+        """
+        Returns the list of VMI targets in "namespace/vmi-name" format.
+        Supports regex matching on both name (via `target`) and namespace,
+        and optional post-filtering by `label_selector` in "key=value" format.
+        """
+        if not config.namespace:
+            raise Exception("namespace not specified for VMI scenario, aborting")
+        name_regex = config.target if config.target else ".*"
+        vmis = self.kubecli.get_lib_kubernetes().get_vmis(name_regex, config.namespace)
+        if not vmis:
+            return []
+        if config.label_selector:
+            try:
+                label_key, label_value = config.label_selector.split("=", 1)
+            except ValueError:
+                raise Exception(
+                    f"invalid label_selector format: '{config.label_selector}', expected 'key=value'"
+                )
+            vmis = [
+                vmi
+                for vmi in vmis
+                if vmi.get("metadata", {}).get("labels", {}).get(label_key) == label_value
+            ]
+        return [
+            f"{vmi['metadata']['namespace']}/{vmi['metadata']['name']}"
+            for vmi in vmis
+        ]
+
     def __init__(
         self,
         base_network_config: BaseNetworkChaosConfig,
