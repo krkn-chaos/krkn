@@ -80,7 +80,7 @@ class HealthChecker:
                                 
                                 if response["status_code"] == 200:
                                     ttr_seconds = round(duration, 2)
-                                    if self.time_to_recovery != "TIMEOUT":
+                                    if self.time_to_recovery != -1:
                                         if self.time_to_recovery is None:
                                             self.time_to_recovery = ttr_seconds
                                         else:
@@ -114,9 +114,9 @@ class HealthChecker:
                 
                 if health_check_tracker[url]["status_code"] != 200:
                     logging.warning(f"Health check timed out before system recovered for URL:%s" % url)
-                    self.time_to_recovery = "TIMEOUT"
+                    self.time_to_recovery = -1
 
-            if self.time_to_recovery is not None and self.time_to_recovery != "TIMEOUT":
+            if self.time_to_recovery is not None and self.time_to_recovery != -1:
                 logging.info(f"All health checks recovered. Maximum Time to Recovery (Worst-Case TTR): %ss" % self.time_to_recovery)
 
             health_check_telemetry_queue.put(health_check_telemetry)
