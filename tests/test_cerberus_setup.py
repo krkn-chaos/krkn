@@ -99,14 +99,15 @@ class TestCerberusSetup(unittest.TestCase):
         """Test get_status when cerberus is enabled and cluster is unhealthy"""
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
+        cerberus_setup.exit_on_failure = True  # Must be True to trigger exit
+
         mock_response = MagicMock()
         mock_response.content = b"False"
         mock_get.return_value = mock_response
 
         with self.assertRaises(SystemExit) as cm:
             cerberus_setup.get_status(0, 100)
-        
+
         self.assertEqual(cm.exception.code, 1)
         mock_get.assert_called_once_with("http://cerberus.example.com", timeout=60)
 
@@ -151,14 +152,15 @@ class TestCerberusSetup(unittest.TestCase):
         """Test get_status with cerberus returning False (unhealthy)"""
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
+        cerberus_setup.exit_on_failure = True  # Must be True to trigger exit
+
         mock_response = MagicMock()
         mock_response.content = b"False"  # Cerberus reports unhealthy
         mock_get.return_value = mock_response
 
         with self.assertRaises(SystemExit) as cm:
             cerberus_setup.get_status(0, 100)
-        
+
         self.assertEqual(cm.exception.code, 1)
 
     @patch('krkn.cerberus.setup.get_status')
@@ -176,12 +178,11 @@ class TestCerberusSetup(unittest.TestCase):
     def test_publish_kraken_status_healthy_exit_on_failure_true(self, mock_get_status):
         """Test publish_kraken_status when cluster is healthy and exit_on_failure is True"""
         cerberus_setup.exit_on_failure = True
-        mock_get_status.return_value = True
+        mock_get_status.return_value = True  # healthy cluster
 
-        with self.assertRaises(SystemExit) as cm:
-            cerberus_setup.publish_kraken_status(0, 100)
-        
-        self.assertEqual(cm.exception.code, 1)
+        # Should NOT raise SystemExit - healthy cluster with exit_on_failure=True is OK
+        cerberus_setup.publish_kraken_status(0, 100)
+
         mock_get_status.assert_called_once_with(0, 100)
 
     @patch('krkn.cerberus.setup.get_status')
