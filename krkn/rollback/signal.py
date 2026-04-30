@@ -58,13 +58,19 @@ class SignalHandler:
             logger.warning(f"Signal {signal_name} received without complete context, skipping rollback.")
             return
 
-        # Clear the context for the next signal, as another signal may arrive before the rollback completes.
-        # This ensures that the rollback is performed only once.
-        cls._set_context(None, None, telemetry_ocp)
-        
-        # Perform rollback
-        logger.info(f"Performing rollback for signal {signal_name} with run_uuid={run_uuid}, scenario_type={scenario_type}")
-        execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
+        # Prevent concurrent rollback execution with a lock
+        if not cls._signal_lock.acquire(blocking=False):
+            logger.warning(f"Signal {signal_name} received but rollback already in progress, skipping.")
+            return
+
+        try:
+            # Perform rollback
+            logger.info(f"Performing rollback for signal {signal_name} with run_uuid={run_uuid}, scenario_type={scenario_type}")
+            execute_rollback_version_files(telemetry_ocp, run_uuid, scenario_type)
+        finally:
+            # Always clear context and release lock after rollback completes or fails
+            cls._set_context(None, None, telemetry_ocp)
+            cls._signal_lock.release()
         
         # Call original handler if it exists
         if signum not in cls._original_handlers:
