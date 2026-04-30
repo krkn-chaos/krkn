@@ -488,6 +488,8 @@ def main(options, command: Optional[str]) -> int:
             chaos_telemetry.health_checks = health_check_telemetry_queue.get_nowait()
         except queue.Empty:
             chaos_telemetry.health_checks = None
+            
+        chaos_telemetry.time_to_recovery = health_checker.time_to_recovery
         
         kubevirt_checker.thread_join()
         kubevirt_check_telem = []
