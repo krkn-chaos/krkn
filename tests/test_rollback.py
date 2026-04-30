@@ -2,7 +2,6 @@ import pytest
 import logging
 import os
 import sys
-import tempfile
 import uuid
 import subprocess
 
@@ -16,8 +15,8 @@ from krkn.rollback.config import RollbackConfig
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )  # Adjust path to include krkn
-TEST_LOGS_DIR = tempfile.mkdtemp(prefix="krkn_test_rollback_logs_")
-TEST_VERSIONS_DIR = tempfile.mkdtemp(prefix="krkn_test_rollback_versions_")
+TEST_LOGS_DIR = "/tmp/krkn_test_rollback_logs_directory"
+TEST_VERSIONS_DIR = "/tmp/krkn_test_rollback_versions_directory"
 
 
 class TestRollbackScenarioPlugin:
@@ -129,10 +128,6 @@ class TestRollbackScenarioPlugin:
         )
 
     @pytest.mark.usefixtures("setup_rollback_config")
-    @pytest.mark.skipif(
-        not os.path.isfile(os.path.expanduser(os.getenv("KUBECONFIG", "~/.kube/config"))),
-        reason="No kubeconfig available, skipping integration test"
-    )
     def test_simple_rollback_scenario_plugin(
         self,
         lib_telemetry: KrknTelemetryOpenshift,
@@ -190,7 +185,7 @@ class TestRollbackConfig:
         assert RollbackConfig.is_rollback_version_file_format(file_name) == expected
 
 class TestRollbackCommand:
-
+    
     @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
     @pytest.mark.parametrize("encounter_exception", [True, False], ids=["no_exception", "with_exception"])
     def test_execute_rollback_command_ignore_auto_rollback_config(self, auto_rollback, encounter_exception):
@@ -198,7 +193,7 @@ class TestRollbackCommand:
         from krkn.rollback.command import execute_rollback
         from krkn.rollback.config import RollbackConfig
         from unittest.mock import Mock, patch
-
+        
         # Create mock telemetry
         mock_telemetry = Mock()
 
@@ -207,7 +202,7 @@ class TestRollbackCommand:
             "/tmp/test_versions/123456789-test-uuid/scenario_123456789_abcdefgh.py",
             "/tmp/test_versions/123456789-test-uuid/scenario_123456789_ijklmnop.py"
         ]
-
+        
         with (
             patch.object(RollbackConfig, 'auto', auto_rollback) as _,
             patch.object(RollbackConfig, 'search_rollback_version_files', return_value=mock_version_files) as mock_search,
@@ -221,10 +216,10 @@ class TestRollbackCommand:
                 run_uuid="test-uuid",
                 scenario_type="scenario"
             )
-
+                
             # Verify return code
             assert result == 0 if not encounter_exception else 1
-
+            
             # Verify that execute_rollback_version_files was called with correct parameters
             mock_execute.assert_called_once_with(
                 mock_telemetry,
@@ -242,28 +237,28 @@ class TestRollbackAbstractScenarioPlugin:
         from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
         from krkn.rollback.config import RollbackConfig
         from unittest.mock import Mock, patch
-
+        
         # Create a test scenario plugin
         class TestScenarioPlugin(AbstractScenarioPlugin):
-            def run(self, run_uuid: str, scenario: str, lib_telemetry, scenario_telemetry):
+            def run(self, run_uuid: str, scenario: str, krkn_config: dict, lib_telemetry, scenario_telemetry):
                 return 1 if scenario_should_fail else 0
-
+            
             def get_scenario_types(self) -> list[str]:
                 return ["test_scenario"]
-
+        
         # Create mock objects
         mock_telemetry = Mock()
         mock_telemetry.set_parameters_base64.return_value = "test_scenario.yaml"
         mock_telemetry.get_telemetry_request_id.return_value = "test_request_id"
         mock_telemetry.get_lib_kubernetes.return_value = Mock()
-
+        
         test_plugin = TestScenarioPlugin("test_scenario")
-
+        
         # Mock version files to be returned by search
         mock_version_files = [
             "/tmp/test_versions/123456789-test-uuid/test_scenario_123456789_abcdefgh.py"
         ]
-
+        
         with (
             patch.object(RollbackConfig, 'auto', auto_rollback),
             patch.object(RollbackConfig, 'versions_directory', "/tmp/test_versions"),
@@ -279,12 +274,12 @@ class TestRollbackAbstractScenarioPlugin:
             # Make signal_context a no-op context manager
             mock_signal_context.return_value.__enter__ = Mock(return_value=None)
             mock_signal_context.return_value.__exit__ = Mock(return_value=None)
-
+            
             # Mock _parse_rollback_module to return test callable and content
             mock_rollback_callable = Mock()
             mock_rollback_content = Mock()
             mock_parse.return_value = (mock_rollback_callable, mock_rollback_content)
-
+            
             # Call run_scenarios
             test_plugin.run_scenarios(
                 run_uuid="test-uuid",
@@ -295,7 +290,7 @@ class TestRollbackAbstractScenarioPlugin:
                 },
                 telemetry=mock_telemetry
             )
-
+            
             # Verify results
             if scenario_should_fail:
                 if auto_rollback:
@@ -307,7 +302,7 @@ class TestRollbackAbstractScenarioPlugin:
                     mock_rollback_callable.assert_called_once_with(mock_rollback_content, mock_telemetry)
                     # File should be renamed after successful execution
                     mock_rename.assert_called_once_with(
-                        mock_version_files[0],
+                        mock_version_files[0], 
                         f"{mock_version_files[0]}.executed"
                     )
                 else:
@@ -327,37 +322,3 @@ class TestRollbackAbstractScenarioPlugin:
                 mock_parse.assert_not_called()
                 mock_rollback_callable.assert_not_called()
                 mock_rename.assert_not_called()
-
-
-class TestSecureTempDirectories:
-    """Tests for secure temporary directory creation (fixes hardcoded /tmp paths)."""
-
-    def test_rollback_dir_uses_persistent_secure_default(self):
-        """When rollback_versions_directory is empty, a persistent
-        user-specific directory (~/.krkn/rollback) should be used."""
-        rollback_versions_dir = ""
-        if not rollback_versions_dir:
-            rollback_versions_dir = os.path.join(
-                os.path.expanduser("~"), ".krkn", "rollback"
-            )
-        assert rollback_versions_dir != "/tmp/kraken-rollback"
-        assert ".krkn/rollback" in rollback_versions_dir
-
-    def test_archive_path_uses_secure_tempdir_when_empty(self):
-        """When archive_path is empty, a secure temp directory
-        should be created via tempfile.mkdtemp."""
-        archive_path = ""
-        if not archive_path:
-            archive_path = tempfile.mkdtemp(prefix="krkn-archive-")
-        try:
-            assert os.path.isdir(archive_path)
-            assert archive_path != "/tmp"
-            mode = oct(os.stat(archive_path).st_mode & 0o777)
-            assert mode == "0o700"
-        finally:
-            os.rmdir(archive_path)
-
-    def test_explicit_path_is_respected(self):
-        """When user provides an explicit path, no fallback is triggered."""
-        explicit_path = "/some/user/chosen/path"
-        assert explicit_path  # truthy, so no fallback

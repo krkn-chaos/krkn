@@ -65,6 +65,7 @@ class HealthChecker:
                             "status_code": response["status_code"],
                             "start_timestamp": start_timestamp
                         }
+                        if response["status_code"] != 200: 
                         if response["status_code"] != 200:
                             if response_tracker[config["url"]] is not False:
                                 response_tracker[config["url"]] = False
@@ -105,4 +106,5 @@ class HealthChecker:
             health_check_telemetry_queue.put(health_check_telemetry)
         else:
             logging.info("health checks config is not defined, skipping them")
+        return self.ret_value
         return self.ret_value

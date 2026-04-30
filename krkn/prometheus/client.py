@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+#
 # Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -11,6 +13,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from __future__ import annotations
 
 import datetime
@@ -178,8 +181,10 @@ def critical_alerts(
 
     if not firing_alerts:
         logging.info("No critical alerts are firing!!")
-    
-   
+
+    return firing_alerts
+
+
 def metrics(
     prom_cli: KrknPrometheus,
     elastic: KrknElastic,
@@ -265,16 +270,6 @@ def metrics(
                             metric[k] = v
                             metric['timestamp'] = str(datetime.datetime.now())
                         logging.debug("adding pod %s", metric)
-                        metrics_list.append(metric.copy())
-            for k,v in scenario.get("affected_vmis", {}).items():
-                metric_name = "affected_vmis_recovery"
-                metric = {"metricName": metric_name, "type": k}
-                if type(v) is list:
-                    for vmi in v:
-                        for k,v in vmi.items():
-                            metric[k] = v
-                            metric['timestamp'] = str(datetime.datetime.now())
-                        logging.debug("adding vmi %s", metric)
                         metrics_list.append(metric.copy())
             for affected_node in scenario["affected_nodes"]:
                 metric_name = "affected_nodes_recovery"
