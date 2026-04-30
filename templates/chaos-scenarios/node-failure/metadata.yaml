@@ -1,0 +1,33 @@
+name: node-failure
+description: Simulates node failure to test cluster resiliency and pod redistribution
+target: kubernetes-node
+risk_level: high
+category: availability
+version: "1.0"
+author: KRKN Team
+tags:
+  - node
+  - failure
+  - availability
+  - cluster
+  - resiliency
+estimated_duration: "5-15 minutes"
+dependencies:
+  - cloud_provider_credentials  # Required for cloud-based node actions
+parameters:
+  - name: instance_count
+    type: integer
+    description: Number of nodes to fail
+    default: 1
+  - name: node_name
+    type: string
+    description: Specific node name to target (empty for random)
+    default: ""
+  - name: label_selector
+    type: string
+    description: Label selector to identify target nodes
+    default: "node-role.kubernetes.io/worker="
+  - name: timeout
+    type: integer
+    description: Timeout for node recovery in seconds
+    default: 300

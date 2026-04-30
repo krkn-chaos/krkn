@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=../../plugin.schema.json
+# Network Latency Chaos Scenario Template
+# Introduces network latency to test application performance under poor network conditions
+- id: network-latency
+  config:
+    duration: 60
+    latency: "100ms"
+    jitter: "10ms"
+    correlation: "25%"
+    target_pods:
+      - label_selector: "app=nginx"
+        namespace: default
+    egress: true
+    ingress: true
+    # Optional: Target specific services
+    # target_services:
+    #   - name: "my-service"
+    #     namespace: "default"
+    # Optional: Network interface
+    # interface: "eth0"
