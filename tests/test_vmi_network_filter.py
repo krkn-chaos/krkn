@@ -210,7 +210,7 @@ class TestVmiNetworkFilterModuleRun(unittest.TestCase):
     # ------------------------------------------------------------------ success
 
     @patch(f"{MODULE}.clean_tc_vmi_chaos")
-    @patch(f"{MODULE}.apply_tc_vmi_chaos")
+    @patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], []))
     @patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0")
     @patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101")
     @patch(f"{MODULE}.deploy_network_chaos_ng_pod")
@@ -237,7 +237,7 @@ class TestVmiNetworkFilterModuleRun(unittest.TestCase):
         self.mock_kubernetes.delete_pod.assert_called_once()
 
     @patch(f"{MODULE}.clean_tc_vmi_chaos")
-    @patch(f"{MODULE}.apply_tc_vmi_chaos")
+    @patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], []))
     @patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0")
     @patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101")
     @patch(f"{MODULE}.deploy_network_chaos_ng_pod")
@@ -352,7 +352,7 @@ class TestVmiNetworkFilterModuleRun(unittest.TestCase):
         self.mock_kubernetes.get_pod_pids.return_value = ["100"]
 
         with patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0"), \
-             patch(f"{MODULE}.apply_tc_vmi_chaos"), \
+             patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], [])), \
              patch(f"{MODULE}.clean_tc_vmi_chaos"), \
              patch(f"{MODULE}.time.sleep"):
             self.module.run("virt-density-udn-3/virt-server-3")
@@ -395,7 +395,7 @@ class TestVmiNetworkFilterModuleRun(unittest.TestCase):
         self.assertIn("not found", error_queue.get())
 
     @patch(f"{MODULE}.clean_tc_vmi_chaos")
-    @patch(f"{MODULE}.apply_tc_vmi_chaos")
+    @patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], []))
     @patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0")
     @patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101")
     @patch(f"{MODULE}.deploy_network_chaos_ng_pod")
@@ -412,7 +412,7 @@ class TestVmiNetworkFilterModuleRun(unittest.TestCase):
     # ------------------------------------------------------------------ apply / clean called correctly
 
     @patch(f"{MODULE}.clean_tc_vmi_chaos")
-    @patch(f"{MODULE}.apply_tc_vmi_chaos")
+    @patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], []))
     @patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0")
     @patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101")
     @patch(f"{MODULE}.deploy_network_chaos_ng_pod")
@@ -432,7 +432,7 @@ class TestVmiNetworkFilterModuleRun(unittest.TestCase):
         self.assertEqual(clean_args[4], "tap0")  # iface
 
     @patch(f"{MODULE}.clean_tc_vmi_chaos")
-    @patch(f"{MODULE}.apply_tc_vmi_chaos")
+    @patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], []))
     @patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0")
     @patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101")
     @patch(f"{MODULE}.deploy_network_chaos_ng_pod")
@@ -479,17 +479,27 @@ class TestVmiNetworkFilterModuleRollback(unittest.TestCase):
     # ------------------------------------------------------------------ _rollback directly
 
     def test_rollback_calls_clean_then_delete_when_tc_applied(self):
+        input_rules = ["nsenter ... iptables -I INPUT 1 -i tap0 -p tcp -j DROP"]
+        output_rules = ["nsenter ... iptables -I OUTPUT 1 -p tcp -j DROP"]
         with patch(f"{MODULE}.clean_tc_vmi_chaos") as mock_clean:
-            self.module._rollback("ns", "chaos-pod", "101", "tap0")
+            self.module._rollback("ns", "chaos-pod", "101", "tap0", input_rules, output_rules)
 
         mock_clean.assert_called_once_with(
-            self.mock_kubernetes, "chaos-pod", "ns", "101", "tap0"
+            self.mock_kubernetes, "chaos-pod", "ns", "101", "tap0", input_rules, output_rules
         )
         self.mock_kubernetes.delete_pod.assert_called_once_with("chaos-pod", "ns")
 
-    def test_rollback_skips_clean_when_tc_not_applied(self):
+    def test_rollback_skips_clean_when_no_rules(self):
         with patch(f"{MODULE}.clean_tc_vmi_chaos") as mock_clean:
             self.module._rollback("ns", "chaos-pod")
+
+        mock_clean.assert_not_called()
+        self.mock_kubernetes.delete_pod.assert_called_once_with("chaos-pod", "ns")
+
+    def test_rollback_skips_clean_when_rules_none_but_pid_set(self):
+        """Chaos pod deployed, netns_pid found, but rules never applied: skip clean."""
+        with patch(f"{MODULE}.clean_tc_vmi_chaos") as mock_clean:
+            self.module._rollback("ns", "chaos-pod", "101", "tap0", None, None)
 
         mock_clean.assert_not_called()
         self.mock_kubernetes.delete_pod.assert_called_once_with("chaos-pod", "ns")
@@ -528,7 +538,7 @@ class TestVmiNetworkFilterModuleRollback(unittest.TestCase):
     # ------------------------------------------------------------------ rollback from run: error after tc
 
     @patch(f"{MODULE}.clean_tc_vmi_chaos")
-    @patch(f"{MODULE}.apply_tc_vmi_chaos")
+    @patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=(["in_rule"], ["out_rule"]))
     @patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0")
     @patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101")
     @patch(f"{MODULE}.deploy_network_chaos_ng_pod")
@@ -547,24 +557,103 @@ class TestVmiNetworkFilterModuleRollback(unittest.TestCase):
         self.mock_kubernetes.delete_pod.assert_called_once()
 
     @patch(f"{MODULE}.clean_tc_vmi_chaos")
-    @patch(f"{MODULE}.apply_tc_vmi_chaos")
+    @patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=(["in_rule"], ["out_rule"]))
     @patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0")
     @patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101")
     @patch(f"{MODULE}.deploy_network_chaos_ng_pod")
     @patch(f"{MODULE}.time.sleep")
     @patch(f"{MODULE}.log_info")
-    def test_run_rollback_passes_correct_pid_and_iface_to_clean(
+    def test_run_rollback_passes_correct_pid_iface_and_rules_to_clean(
         self, mock_log, mock_sleep, mock_deploy, mock_find, mock_tap, mock_apply, mock_clean
     ):
-        """Clean must receive the resolved netns_pid and iface, not defaults."""
+        """Clean must receive the resolved netns_pid, iface, and the rules returned by apply."""
         mock_sleep.side_effect = RuntimeError("interrupted")
 
         with self.assertRaises(RuntimeError):
             self.module.run("virt-density-udn-3/virt-server-3")
 
         clean_args = mock_clean.call_args[0]
-        self.assertEqual(clean_args[3], "101")   # netns_pid
-        self.assertEqual(clean_args[4], "tap0")  # iface
+        self.assertEqual(clean_args[3], "101")          # netns_pid
+        self.assertEqual(clean_args[4], "tap0")         # iface
+        self.assertEqual(clean_args[5], ["in_rule"])    # input_rules from apply
+        self.assertEqual(clean_args[6], ["out_rule"])   # output_rules from apply
+
+
+class TestVmiNetworkFilterPortsProtocols(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_kubecli = MagicMock()
+        self.mock_kubernetes = MagicMock()
+        self.mock_kubecli.get_lib_kubernetes.return_value = self.mock_kubernetes
+
+        self.mock_kubernetes.get_vmi.return_value = {"status": {"nodeName": "worker-1"}}
+        self.mock_kubernetes.list_pods.return_value = ["virt-launcher-virt-server-3-abc12"]
+        compute = _make_container("compute", ready=True, container_id="containerd://deadbeef")
+        mock_pod_info = MagicMock()
+        mock_pod_info.containers = [compute]
+        self.mock_kubernetes.get_pod_info.return_value = mock_pod_info
+        self.mock_kubernetes.get_pod_pids.return_value = ["100", "101", "102"]
+
+    def _run_and_capture_apply(self, **config_overrides):
+        config = _make_config(**config_overrides)
+        module = VmiNetworkFilterModule(config, self.mock_kubecli)
+        with patch(f"{MODULE}.deploy_network_chaos_ng_pod"), \
+             patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101"), \
+             patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0"), \
+             patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], [])) as mock_apply, \
+             patch(f"{MODULE}.clean_tc_vmi_chaos"), \
+             patch(f"{MODULE}.time.sleep"), \
+             patch(f"{MODULE}.log_info"):
+            module.run("virt-density-udn-3/virt-server-3")
+        return mock_apply
+
+    def test_apply_receives_specific_ports(self):
+        mock_apply = self._run_and_capture_apply(ports=[53, 80, 443])
+        config_arg = mock_apply.call_args[0][5]
+        self.assertEqual(config_arg.ports, [53, 80, 443])
+
+    def test_apply_receives_empty_ports_for_all_traffic(self):
+        mock_apply = self._run_and_capture_apply(ports=[])
+        config_arg = mock_apply.call_args[0][5]
+        self.assertEqual(config_arg.ports, [])
+
+    def test_apply_receives_tcp_only_protocol(self):
+        mock_apply = self._run_and_capture_apply(protocols=["tcp"])
+        config_arg = mock_apply.call_args[0][5]
+        self.assertEqual(config_arg.protocols, ["tcp"])
+
+    def test_apply_receives_udp_only_protocol(self):
+        mock_apply = self._run_and_capture_apply(protocols=["udp"])
+        config_arg = mock_apply.call_args[0][5]
+        self.assertEqual(config_arg.protocols, ["udp"])
+
+    def test_apply_receives_both_protocols(self):
+        mock_apply = self._run_and_capture_apply(protocols=["tcp", "udp"])
+        config_arg = mock_apply.call_args[0][5]
+        self.assertIn("tcp", config_arg.protocols)
+        self.assertIn("udp", config_arg.protocols)
+
+    def test_apply_receives_dns_ports_with_both_protocols(self):
+        """DNS blackout: port 53 on tcp and udp."""
+        mock_apply = self._run_and_capture_apply(ports=[53], protocols=["tcp", "udp"])
+        config_arg = mock_apply.call_args[0][5]
+        self.assertEqual(config_arg.ports, [53])
+        self.assertIn("tcp", config_arg.protocols)
+        self.assertIn("udp", config_arg.protocols)
+
+    def test_apply_receives_management_ports(self):
+        """Management plane loss: SSH + HTTPS + k8s API."""
+        mock_apply = self._run_and_capture_apply(ports=[22, 443, 6443], protocols=["tcp"])
+        config_arg = mock_apply.call_args[0][5]
+        self.assertEqual(config_arg.ports, [22, 443, 6443])
+        self.assertEqual(config_arg.protocols, ["tcp"])
+
+    def test_apply_config_has_resolved_namespace_not_regex(self):
+        """The config passed to apply must use the real namespace from the target string."""
+        mock_apply = self._run_and_capture_apply(namespace="virt-density-udn-.*")
+        config_arg = mock_apply.call_args[0][5]
+        self.assertEqual(config_arg.namespace, "virt-density-udn-3")
+        self.assertNotEqual(config_arg.namespace, "virt-density-udn-.*")
 
 
 if __name__ == "__main__":

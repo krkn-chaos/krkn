@@ -53,14 +53,18 @@ class VmiNetworkFilterModule(AbstractNetworkChaosModule):
         network_chaos_pod_name: str,
         netns_pid: str = None,
         iface: str = None,
+        input_rules: list = None,
+        output_rules: list = None,
     ):
-        if netns_pid and iface:
+        if netns_pid and iface and input_rules is not None and output_rules is not None:
             clean_tc_vmi_chaos(
                 self.kubecli.get_lib_kubernetes(),
                 network_chaos_pod_name,
                 namespace,
                 netns_pid,
                 iface,
+                input_rules,
+                output_rules,
             )
         self.kubecli.get_lib_kubernetes().delete_pod(
             network_chaos_pod_name, namespace
@@ -75,6 +79,8 @@ class VmiNetworkFilterModule(AbstractNetworkChaosModule):
         network_chaos_pod_name = None
         netns_pid = None
         iface = None
+        input_rules = None
+        output_rules = None
 
         try:
             namespace, vmi_name = target.split("/", 1)
@@ -241,36 +247,32 @@ class VmiNetworkFilterModule(AbstractNetworkChaosModule):
                 network_chaos_pod_name,
             )
 
-            # Use tc (traffic control) to block traffic on the bridge slave.
-            # iptables FORWARD rules are ineffective here because L2-bridged
-            # traffic bypasses iptables unless br_netfilter is loaded and
-            # net.bridge.bridge-nf-call-iptables=1, which is not guaranteed.
-            # tc netem/ingress operates below iptables at the device level.
-            apply_tc_vmi_chaos(
+            input_rules, output_rules = apply_tc_vmi_chaos(
                 self.kubecli.get_lib_kubernetes(),
                 network_chaos_pod_name,
                 namespace,
                 netns_pid,
                 iface,
+                scoped_config,
                 parallel,
                 vmi_name,
             )
 
             log_info(
-                f"waiting {self.config.test_duration} seconds before removing tc rules",
+                f"waiting {self.config.test_duration} seconds before removing iptables rules",
                 parallel,
                 network_chaos_pod_name,
             )
 
             time.sleep(self.config.test_duration)
 
-            log_info("removing tc rules", parallel, network_chaos_pod_name)
+            log_info("removing iptables rules", parallel, network_chaos_pod_name)
 
-            self._rollback(namespace, network_chaos_pod_name, netns_pid, iface)
+            self._rollback(namespace, network_chaos_pod_name, netns_pid, iface, input_rules, output_rules)
 
         except Exception as e:
             if network_chaos_pod_name:
-                self._rollback(namespace, network_chaos_pod_name, netns_pid, iface)
+                self._rollback(namespace, network_chaos_pod_name, netns_pid, iface, input_rules, output_rules)
             if error_queue is None:
                 raise e
             else:

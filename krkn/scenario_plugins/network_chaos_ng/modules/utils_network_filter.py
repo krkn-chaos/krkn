@@ -135,38 +135,28 @@ def apply_tc_vmi_chaos(
     namespace: str,
     pid: str,
     iface: str,
+    config: NetworkFilterConfig,
     parallel: bool,
     vmi_name: str,
-):
-    """Block all traffic on the VMI's tap interface using tc.
+) -> Tuple[list[str], list[str]]:
+    """Apply iptables rules inside the virt-launcher netns via nsenter.
 
-    Targets tap0 (the VM-facing end of the KubeVirt bridge) rather than the
-    bridge slave (ovn-udn1-nic).  Blocking the bridge slave also cuts OVN's
-    BFD heartbeats and causes a node-wide network reconvergence; tap0 only
-    connects to QEMU so blocking it isolates only this VMI.
+    Targets the tap interface (tap0) rather than the bridge slave (ovn-udn1-nic)
+    so that OVN's BFD heartbeats on the bridge are unaffected.  Rules are applied
+    inside the virt-launcher's network namespace using nsenter, matching the same
+    iptables approach used by pod_network_filter and node_network_filter.
 
-    tc operates at the device layer below iptables and works without br_netfilter:
-      - root netem loss 100%  -> drops traffic sent toward the VM
-      - ingress + matchall    -> drops traffic sent by the VM
-    Only one pid is needed because all processes in the container share a netns.
+    Returns (input_rules, output_rules) needed for cleanup.
     """
-    ns = f"nsenter --target {pid} --net --"
-    log_info(f"applying tc block on {iface} (egress netem + ingress drop)", parallel, vmi_name)
-    kubecli.exec_cmd_in_pod(
-        [f"{ns} tc qdisc add dev {iface} root netem loss 100%"],
-        chaos_pod_name,
-        namespace,
+    log_info(
+        f"applying iptables rules on {iface} "
+        f"(ports:{config.ports}, protocols:{config.protocols})",
+        parallel,
+        vmi_name,
     )
-    kubecli.exec_cmd_in_pod(
-        [f"{ns} tc qdisc add dev {iface} ingress"],
-        chaos_pod_name,
-        namespace,
-    )
-    kubecli.exec_cmd_in_pod(
-        [f"{ns} tc filter add dev {iface} parent ffff: protocol all matchall action drop"],
-        chaos_pod_name,
-        namespace,
-    )
+    input_rules, output_rules = generate_namespaced_rules([iface], config, [pid])
+    apply_network_rules(kubecli, input_rules, output_rules, chaos_pod_name, namespace, parallel, vmi_name)
+    return input_rules, output_rules
 
 
 def clean_tc_vmi_chaos(
@@ -175,16 +165,12 @@ def clean_tc_vmi_chaos(
     namespace: str,
     pid: str,
     iface: str,
+    input_rules: list[str],
+    output_rules: list[str],
 ):
-    """Remove tc qdiscs applied by apply_tc_vmi_chaos."""
-    ns = f"nsenter --target {pid} --net --"
-    for cmd in [
-        f"{ns} tc qdisc del dev {iface} root",
-        f"{ns} tc qdisc del dev {iface} ingress",
-    ]:
-        try:
-            kubecli.exec_cmd_in_pod([cmd], chaos_pod_name, namespace)
-        except Exception:
-            pass
+    """Remove iptables rules applied by apply_tc_vmi_chaos."""
+    clean_network_rules_namespaced(
+        kubecli, input_rules, output_rules, chaos_pod_name, namespace, [pid]
+    )
 
 
