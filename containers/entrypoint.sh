@@ -20,4 +20,4 @@ set -e
 # Change to kraken directory
 
 # Execute the main command
-exec python3.9 run_kraken.py "$@"
+exec "${PYTHON_CMD:-python3}" run_kraken.py "$@"

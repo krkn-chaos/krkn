@@ -34,8 +34,8 @@ cd "$REPO_ROOT"
 command -v kind >/dev/null 2>&1 || { echo "Error: kind is not installed. Install from https://kind.sigs.k8s.io/docs/user/quick-start/"; exit 1; }
 command -v kubectl >/dev/null 2>&1 || { echo "Error: kubectl is not installed."; exit 1; }
 
-# Python 3.9+
-python3 -c "import sys; exit(0 if sys.version_info >= (3, 9) else 1)" 2>/dev/null || { echo "Error: Python 3.9+ required. Check: python3 --version"; exit 1; }
+# Python 3.11+
+python3 -c "import sys; exit(0 if sys.version_info >= (3, 11) else 1)" 2>/dev/null || { echo "Error: Python 3.11+ required. Check: python3 --version"; exit 1; }
 
 # Docker running (required for KinD)
 docker info >/dev/null 2>&1 || { echo "Error: Docker is not running. Start Docker Desktop or run: systemctl start docker"; exit 1; }

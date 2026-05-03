@@ -46,7 +46,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                cont_scenario_config = yaml.full_load(f)
+                cont_scenario_config = yaml.safe_load(f)
                 for kill_scenario in cont_scenario_config:
                     kill_scenario_config = InputParams(kill_scenario["config"])
                     future_snapshot=self.start_monitoring(

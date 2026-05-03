@@ -53,7 +53,7 @@ from unittest.mock import MagicMock, patch
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.models.k8s import AffectedPod, PodsStatus
+from krkn_lib.models.k8s import AffectedVMI, VmisStatus
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from kubernetes.client.rest import ApiException
@@ -152,14 +152,14 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
     def mock_delete(self, *args, **kwargs):
         """Reusable mock for delete_vmi that tracks calls and sets up affected_pod"""
         self.delete_count += 1
-        self.plugin.affected_pod = AffectedPod(pod_name=f"test-vm-{self.delete_count}", namespace="default")
-        self.plugin.affected_pod.pod_rescheduling_time = 5.0
+        self.plugin.affected_vmi = AffectedVMI(vmi_name=f"test-vm-{self.delete_count}", namespace="default")
+        self.plugin.affected_vmi.vmi_rescheduling_time = 5.0
         return 0
 
     def mock_wait(self, *args, **kwargs):
-        """Reusable mock for wait_for_running that tracks calls and sets pod_readiness_time"""
+        """Reusable mock for wait_for_running that tracks calls and sets vmi_readiness_time"""
         self.wait_count += 1
-        self.plugin.affected_pod.pod_readiness_time = 3.0
+        self.plugin.affected_vmi.vmi_readiness_time = 3.0
         return 0
 
     # ==================== Core Scenario Tests ====================
@@ -308,10 +308,9 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.plugin.original_vmi = copy.deepcopy(self.mock_vmi)
 
         # Initialize pods_status which delete_vmi needs
-        from krkn_lib.models.k8s import PodsStatus, AffectedPod
-        self.plugin.pods_status = PodsStatus()
-        self.plugin.affected_pod = AffectedPod(pod_name="test-vm", namespace="default")
-        self.plugin.pods_status = PodsStatus()
+        self.plugin.vmis_status = VmisStatus()
+        self.plugin.affected_vmi = AffectedVMI(vmi_name="test-vm", namespace="default")
+        self.plugin.vmis_status = VmisStatus()
 
         # Mock successful delete operation
         self.k8s_client.delete_vmi.return_value = None
@@ -370,8 +369,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         """
         # Initialize required attributes - use deepcopy to avoid shared references
         self.plugin.original_vmi = copy.deepcopy(self.mock_vmi)
-        self.plugin.pods_status = PodsStatus()
-        self.plugin.affected_pod = AffectedPod(pod_name="test-vm", namespace="default")
+        self.plugin.vmis_status = VmisStatus()
+        self.plugin.affected_vmi = AffectedVMI(vmi_name="test-vm", namespace="default")
 
         self.k8s_client.delete_vmi.return_value = None
 
@@ -389,7 +388,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
                 result = self.plugin.delete_vmi("test-vm", "default", False)
 
         self.assertEqual(result, 0)
-        self.assertIsNotNone(self.plugin.affected_pod.pod_rescheduling_time)
+        self.assertIsNotNone(self.plugin.affected_vmi.vmi_rescheduling_time)
 
     def test_delete_vmi_with_disable_auto_restart_failure(self):
         """
@@ -397,8 +396,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         """
         # Initialize required attributes
         self.plugin.original_vmi = copy.deepcopy(self.mock_vmi)
-        self.plugin.pods_status = PodsStatus()
-        self.plugin.affected_pod = AffectedPod(pod_name="test-vm", namespace="default")
+        self.plugin.vmis_status = VmisStatus()
+        self.plugin.affected_vmi = AffectedVMI(vmi_name="test-vm", namespace="default")
 
         # Mock patch_vm_spec to fail
         with patch.object(self.plugin, 'patch_vm_spec', return_value=False):
@@ -421,7 +420,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         """
         Test wait_for_running times out when VMI doesn't reach Running state
         """
-        self.plugin.affected_pod = AffectedPod(pod_name="test-vm", namespace="default")
+        self.plugin.affected_vmi = AffectedVMI(vmi_name="test-vm", namespace="default")
 
         # Mock VMI in Pending state
         pending_vmi = copy.deepcopy(self.mock_vmi)
@@ -439,7 +438,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         """
         Test wait_for_running when VMI doesn't exist yet
         """
-        self.plugin.affected_pod = AffectedPod(pod_name="test-vm", namespace="default")
+        self.plugin.affected_vmi = AffectedVMI(vmi_name="test-vm", namespace="default")
 
         # First return None (not exists), then return running VMI
         running_vmi = copy.deepcopy(self.mock_vmi)
@@ -453,7 +452,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
                 result = self.plugin.wait_for_running("test-vm", "default", 120)
 
         self.assertEqual(result, 0)
-        self.assertIsNotNone(self.plugin.affected_pod.pod_readiness_time)
+        self.assertIsNotNone(self.plugin.affected_vmi.vmi_readiness_time)
 
     # ==================== Recovery Tests ====================
 
@@ -497,7 +496,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         result = self.plugin.execute_scenario(config, self.scenario_telemetry)
 
         # Should return empty PodsStatus when vm_name is missing
-        self.assertIsInstance(result, PodsStatus)
+        self.assertIsInstance(result, VmisStatus)
         self.assertEqual(len(result.recovered), 0)
         self.assertEqual(len(result.unrecovered), 0)
 
@@ -520,7 +519,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         result = self.plugin.execute_scenario(config, self.scenario_telemetry)
 
         # Should be PodsStatus with unrecovered pod when VMI not found
-        self.assertIsInstance(result, PodsStatus)
+        self.assertIsInstance(result, VmisStatus)
         self.assertEqual(len(result.unrecovered), 1)
 
     def test_execute_scenario_with_kill_count(self):
