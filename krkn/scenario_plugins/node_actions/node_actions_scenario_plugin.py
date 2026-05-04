@@ -304,7 +304,14 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         except Exception as e:
             logging.info("Error on pool multiprocessing: " + str(e))
 
-    def run_node(self, single_node, node_scenario_object, action, node_scenario):
+    def run_node(
+        self,
+        single_node,
+        node_scenario_object,
+        action,
+        node_scenario,
+        is_generic_node_scenario=False,
+    ):
         # Get the scenario specifics for running action nodes
         run_kill_count = get_yaml_item_value(node_scenario, "runs", 1)
         duration = get_yaml_item_value(node_scenario, "duration", 120)
@@ -317,7 +324,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         )
         generic_cloud_scenarios = ("stop_kubelet_scenario", "node_crash_scenario")
 
-        if node_general and action not in generic_cloud_scenarios:
+        if is_generic_node_scenario and action not in generic_cloud_scenarios:
             logging.info(
                 "Scenario: "
                 + action
