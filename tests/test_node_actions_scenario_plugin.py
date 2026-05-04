@@ -632,6 +632,43 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_logging.assert_called()
         self.assertIn("not set up for generic cloud type", str(mock_logging.call_args))
 
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.aws_node_scenarios')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    def test_generic_scenario_does_not_leak_into_later_cloud_scenario(
+        self,
+        mock_general_scenarios,
+        mock_aws_scenarios,
+    ):
+        generic_object = Mock()
+        aws_object = Mock()
+        mock_general_scenarios.return_value = generic_object
+        mock_aws_scenarios.return_value = aws_object
+
+        generic_obj, generic_flag = self.plugin.get_node_scenario_object(
+            {"cloud_type": "generic"}, self.mock_kubecli
+        )
+        aws_obj, aws_flag = self.plugin.get_node_scenario_object(
+            {"cloud_type": "aws"}, self.mock_kubecli
+        )
+
+        self.plugin.run_node(
+            "test-node",
+            generic_obj,
+            "stop_kubelet_scenario",
+            {"cloud_type": "generic"},
+            generic_flag,
+        )
+        self.plugin.run_node(
+            "test-node",
+            aws_obj,
+            "node_stop_scenario",
+            {"cloud_type": "aws"},
+            aws_flag,
+        )
+
+        generic_object.stop_kubelet_scenario.assert_called_once()
+        aws_object.node_stop_scenario.assert_called_once()
+
     @patch('logging.info')
     def test_run_node_unknown_action(self, mock_logging):
         """
