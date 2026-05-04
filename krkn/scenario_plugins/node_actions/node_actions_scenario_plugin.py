@@ -277,7 +277,14 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         affected_nodes_status = node_scenario_object.affected_nodes_status
         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
 
-    def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
+    def multiprocess_nodes(
+        self,
+        nodes,
+        node_scenario_object,
+        action,
+        node_scenario,
+        is_generic_node_scenario,
+    ):
         try:
             # pool object with number of element
             pool = ThreadPool(processes=len(nodes))
@@ -289,6 +296,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     repeat(node_scenario_object),
                     repeat(action),
                     repeat(node_scenario),
+                    repeat(is_generic_node_scenario),
                 ),
             )
 
