@@ -225,6 +225,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         action,
         node_scenario,
         node_scenario_object,
+        is_generic_node_scenario: bool,
         kubecli: KrknKubernetes,
         scenario_telemetry: ScenarioTelemetry,
     ):
@@ -257,10 +258,22 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
 
         # GCP api doesn't support multiprocessing calls, will only actually run 1
         if parallel_nodes:
-            self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
+            self.multiprocess_nodes(
+                nodes,
+                node_scenario_object,
+                action,
+                node_scenario,
+                is_generic_node_scenario,
+            )
         else:
             for single_node in nodes:
-                self.run_node(single_node, node_scenario_object, action, node_scenario)
+                self.run_node(
+                    single_node,
+                    node_scenario_object,
+                    action,
+                    node_scenario,
+                    is_generic_node_scenario,
+                )
         affected_nodes_status = node_scenario_object.affected_nodes_status
         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
 
