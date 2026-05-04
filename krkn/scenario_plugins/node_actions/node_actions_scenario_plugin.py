@@ -60,7 +60,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             node_scenario_config = yaml.safe_load(f)
             for node_scenario in node_scenario_config["node_scenarios"]:
                 try:
-                    node_scenario_object = self.get_node_scenario_object(
+                    node_scenario_object, is_generic_node_scenario = self.get_node_scenario_object(
                         node_scenario, lib_telemetry.get_lib_kubernetes()
                     )
                     if node_scenario["actions"]:
