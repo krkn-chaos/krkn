@@ -88,33 +88,46 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             "cloud_type" not in node_scenario.keys()
             or node_scenario["cloud_type"] == "generic"
         ):
-            global node_general
-            node_general = True
-            return general_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                general_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                True,
             )
         if node_scenario["cloud_type"].lower() == "aws":
-            return aws_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                aws_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                False,
             )
         elif node_scenario["cloud_type"].lower() == "gcp":
-            return gcp_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                gcp_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                False,
             )
         elif node_scenario["cloud_type"].lower() == "openstack":
             from krkn.scenario_plugins.node_actions.openstack_node_scenarios import (
                 openstack_node_scenarios,
             )
 
-            return openstack_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                openstack_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                False,
             )
         elif (
             node_scenario["cloud_type"].lower() == "azure"
             or node_scenario["cloud_type"].lower() == "az"
         ):
-            return azure_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                azure_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                False,
             )
         elif (
             node_scenario["cloud_type"].lower() == "alibaba"
@@ -124,45 +137,73 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 alibaba_node_scenarios,
             )
 
-            return alibaba_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                alibaba_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                False,
             )
         elif node_scenario["cloud_type"].lower() == "bm":
             from krkn.scenario_plugins.node_actions.bm_node_scenarios import (
                 bm_node_scenarios,
             )
 
-            return bm_node_scenarios(
-                node_scenario.get("bmc_info"),
-                node_scenario.get("bmc_user", None),
-                node_scenario.get("bmc_password", None),
-                kubecli,
-                node_action_kube_check,
-                affected_nodes_status,
+            return (
+                bm_node_scenarios(
+                    node_scenario.get("bmc_info"),
+                    node_scenario.get("bmc_user", None),
+                    node_scenario.get("bmc_password", None),
+                    kubecli,
+                    node_action_kube_check,
+                    affected_nodes_status,
+                ),
+                False,
             )
         elif node_scenario["cloud_type"].lower() == "docker":
-            return docker_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                docker_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                False,
             )
         elif (
             node_scenario["cloud_type"].lower() == "vsphere"
             or node_scenario["cloud_type"].lower() == "vmware"
         ):
-            return vmware_node_scenarios(
-                kubecli, node_action_kube_check, affected_nodes_status
+            return (
+                vmware_node_scenarios(
+                    kubecli, node_action_kube_check, affected_nodes_status
+                ),
+                False,
             )
         elif (
             node_scenario["cloud_type"].lower() == "ibm"
             or node_scenario["cloud_type"].lower() == "ibmcloud"
         ):
             disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
-            return ibm_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
+            return (
+                ibm_node_scenarios(
+                    kubecli,
+                    node_action_kube_check,
+                    affected_nodes_status,
+                    disable_ssl_verification,
+                ),
+                False,
+            )
         elif (
             node_scenario["cloud_type"].lower() == "ibmpower"
             or node_scenario["cloud_type"].lower() == "ibmcloudpower"
         ):
             disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
-            return ibmcloud_power_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
+            return (
+                ibmcloud_power_node_scenarios(
+                    kubecli,
+                    node_action_kube_check,
+                    affected_nodes_status,
+                    disable_ssl_verification,
+                ),
+                False,
+            )
         else:
             logging.error(
                 "Cloud type "
