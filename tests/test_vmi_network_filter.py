@@ -579,6 +579,138 @@ class TestVmiNetworkFilterModuleRollback(unittest.TestCase):
         self.assertEqual(clean_args[6], ["out_rule"])   # output_rules from apply
 
 
+class TestVmiNetworkFilterNetworkMode(unittest.TestCase):
+
+    def setUp(self):
+        self.mock_kubecli = MagicMock()
+        self.mock_kubernetes = MagicMock()
+        self.mock_kubecli.get_lib_kubernetes.return_value = self.mock_kubernetes
+
+        self.mock_kubernetes.list_pods.return_value = ["virt-launcher-virt-server-3-abc12"]
+        compute = _make_container("compute", ready=True, container_id="containerd://deadbeef")
+        mock_pod_info = MagicMock()
+        mock_pod_info.containers = [compute]
+        self.mock_kubernetes.get_pod_info.return_value = mock_pod_info
+        self.mock_kubernetes.get_pod_pids.return_value = ["100", "101", "102"]
+
+    def _vmi_with_mode(self, mode: str) -> dict:
+        binding = {mode: {}}
+        return {
+            "status": {"nodeName": "worker-1"},
+            "spec": {"domain": {"devices": {"interfaces": [{"name": "default", **binding}]}}},
+        }
+
+    def _run_success(self, vmi: dict, **config_overrides):
+        config = _make_config(**config_overrides)
+        module = VmiNetworkFilterModule(config, self.mock_kubecli)
+        self.mock_kubernetes.get_vmi.return_value = vmi
+        with patch(f"{MODULE}.deploy_network_chaos_ng_pod"), \
+             patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101"), \
+             patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0"), \
+             patch(f"{MODULE}.get_vmi_masquerade_interface", return_value="eth0"), \
+             patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], [])) as mock_apply, \
+             patch(f"{MODULE}.clean_tc_vmi_chaos"), \
+             patch(f"{MODULE}.time.sleep"), \
+             patch(f"{MODULE}.log_info"):
+            module.run("virt-density-udn-3/virt-server-3")
+        return mock_apply
+
+    # ------------------------------------------------------------------ mode detection
+
+    def test_bridge_mode_uses_tap_interface(self):
+        with patch(f"{MODULE}.get_vmi_tap_interface", return_value="tap0") as mock_tap, \
+             patch(f"{MODULE}.get_vmi_masquerade_interface") as mock_masq, \
+             patch(f"{MODULE}.deploy_network_chaos_ng_pod"), \
+             patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101"), \
+             patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], [])), \
+             patch(f"{MODULE}.clean_tc_vmi_chaos"), \
+             patch(f"{MODULE}.time.sleep"), \
+             patch(f"{MODULE}.log_info"):
+            config = _make_config()
+            module = VmiNetworkFilterModule(config, self.mock_kubecli)
+            self.mock_kubernetes.get_vmi.return_value = self._vmi_with_mode("bridge")
+            module.run("virt-density-udn-3/virt-server-3")
+
+        mock_tap.assert_called_once()
+        mock_masq.assert_not_called()
+
+    def test_masquerade_mode_uses_default_interface(self):
+        with patch(f"{MODULE}.get_vmi_tap_interface") as mock_tap, \
+             patch(f"{MODULE}.get_vmi_masquerade_interface", return_value="eth0") as mock_masq, \
+             patch(f"{MODULE}.deploy_network_chaos_ng_pod"), \
+             patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101"), \
+             patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], [])), \
+             patch(f"{MODULE}.clean_tc_vmi_chaos"), \
+             patch(f"{MODULE}.time.sleep"), \
+             patch(f"{MODULE}.log_info"):
+            config = _make_config()
+            module = VmiNetworkFilterModule(config, self.mock_kubecli)
+            self.mock_kubernetes.get_vmi.return_value = self._vmi_with_mode("masquerade")
+            module.run("virt-density-udn-3/virt-server-3")
+
+        mock_masq.assert_called_once()
+        mock_tap.assert_not_called()
+
+    def test_masquerade_mode_apply_called_with_eth0(self):
+        mock_apply = self._run_success(self._vmi_with_mode("masquerade"))
+        iface_arg = mock_apply.call_args[0][4]
+        self.assertEqual(iface_arg, "eth0")
+
+    def test_bridge_mode_apply_called_with_tap0(self):
+        mock_apply = self._run_success(self._vmi_with_mode("bridge"))
+        iface_arg = mock_apply.call_args[0][4]
+        self.assertEqual(iface_arg, "tap0")
+
+    def test_sriov_mode_raises(self):
+        config = _make_config()
+        module = VmiNetworkFilterModule(config, self.mock_kubecli)
+        self.mock_kubernetes.get_vmi.return_value = self._vmi_with_mode("sriov")
+        with patch(f"{MODULE}.deploy_network_chaos_ng_pod"), \
+             patch(f"{MODULE}.log_info"):
+            with self.assertRaises(Exception) as ctx:
+                module.run("virt-density-udn-3/virt-server-3")
+        self.assertIn("sriov", str(ctx.exception))
+        self.assertIn("not supported", str(ctx.exception))
+
+    def test_macvtap_mode_raises(self):
+        config = _make_config()
+        module = VmiNetworkFilterModule(config, self.mock_kubecli)
+        self.mock_kubernetes.get_vmi.return_value = self._vmi_with_mode("macvtap")
+        with patch(f"{MODULE}.deploy_network_chaos_ng_pod"), \
+             patch(f"{MODULE}.log_info"):
+            with self.assertRaises(Exception) as ctx:
+                module.run("virt-density-udn-3/virt-server-3")
+        self.assertIn("macvtap", str(ctx.exception))
+        self.assertIn("not supported", str(ctx.exception))
+
+    def test_explicit_interface_skips_mode_detection(self):
+        """If interfaces is set in config, neither tap nor masquerade detection is called."""
+        with patch(f"{MODULE}.get_vmi_tap_interface") as mock_tap, \
+             patch(f"{MODULE}.get_vmi_masquerade_interface") as mock_masq, \
+             patch(f"{MODULE}.deploy_network_chaos_ng_pod"), \
+             patch(f"{MODULE}.find_virt_launcher_netns_pid", return_value="101"), \
+             patch(f"{MODULE}.apply_tc_vmi_chaos", return_value=([], [])) as mock_apply, \
+             patch(f"{MODULE}.clean_tc_vmi_chaos"), \
+             patch(f"{MODULE}.time.sleep"), \
+             patch(f"{MODULE}.log_info"):
+            config = _make_config(interfaces=["bond0"])
+            module = VmiNetworkFilterModule(config, self.mock_kubecli)
+            self.mock_kubernetes.get_vmi.return_value = self._vmi_with_mode("masquerade")
+            module.run("virt-density-udn-3/virt-server-3")
+
+        mock_tap.assert_not_called()
+        mock_masq.assert_not_called()
+        iface_arg = mock_apply.call_args[0][4]
+        self.assertEqual(iface_arg, "bond0")
+
+    def test_no_mode_in_spec_defaults_to_bridge(self):
+        """VMI with no binding in spec should be treated as bridge mode."""
+        vmi = {"status": {"nodeName": "worker-1"}, "spec": {}}
+        mock_apply = self._run_success(vmi)
+        iface_arg = mock_apply.call_args[0][4]
+        self.assertEqual(iface_arg, "tap0")
+
+
 class TestVmiNetworkFilterPortsProtocols(unittest.TestCase):
 
     def setUp(self):
