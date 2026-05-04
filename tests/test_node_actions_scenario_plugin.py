@@ -334,6 +334,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )
@@ -361,6 +362,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )
@@ -392,6 +394,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )
@@ -421,6 +424,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
                 action,
                 node_scenario,
                 mock_scenario_object,
+                False,
                 self.mock_kubecli,
                 self.mock_scenario_telemetry
             )
@@ -619,15 +623,17 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         """
         Test run_node skips unsupported actions for generic cloud type
         """
-        # Set node_general to True for this test
-        import krkn.scenario_plugins.node_actions.node_actions_scenario_plugin as plugin_module
-        plugin_module.node_general = True
-
         node_scenario = {}
         action = "node_stop_scenario"
         mock_scenario_object = Mock()
 
-        self.plugin.run_node("test-node", mock_scenario_object, action, node_scenario)
+        self.plugin.run_node(
+            "test-node",
+            mock_scenario_object,
+            action,
+            node_scenario,
+            is_generic_node_scenario=True,
+        )
 
         mock_logging.assert_called()
         self.assertIn("not set up for generic cloud type", str(mock_logging.call_args))
@@ -681,12 +687,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         self.plugin.run_node("test-node", mock_scenario_object, action, node_scenario)
 
         mock_logging.assert_called()
-        # Could be either message depending on node_general state
-        call_str = str(mock_logging.call_args)
-        self.assertTrue(
-            "no node action that matches" in call_str or
-            "not set up for generic cloud type" in call_str
-        )
+        self.assertIn("no node action that matches", str(mock_logging.call_args))
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
@@ -766,7 +767,13 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_pool_instance = Mock()
             mock_pool.return_value = mock_pool_instance
 
-            self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
+            self.plugin.multiprocess_nodes(
+                nodes,
+                mock_scenario_object,
+                action,
+                node_scenario,
+                False,
+            )
 
             mock_pool.assert_called_once_with(processes=3)
             mock_pool_instance.starmap.assert_called_once()
@@ -785,7 +792,13 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         with patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
             mock_pool.side_effect = Exception("Pool error")
 
-            self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
+            self.plugin.multiprocess_nodes(
+                nodes,
+                mock_scenario_object,
+                action,
+                node_scenario,
+                False,
+            )
 
             mock_logging.assert_called()
             self.assertIn("Error on pool multiprocessing", str(mock_logging.call_args))
@@ -816,6 +829,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )

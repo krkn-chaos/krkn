@@ -70,6 +70,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                                 action,
                                 node_scenario,
                                 node_scenario_object,
+                                is_generic_node_scenario,
                                 lib_telemetry.get_lib_kubernetes(),
                                 scenario_telemetry,
                             )
