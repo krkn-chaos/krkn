@@ -45,7 +45,7 @@ from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import (
 from krkn.scenario_plugins.node_actions.ibmcloud_power_node_scenarios import (
      ibmcloud_power_node_scenarios,
 )
-node_general = False
+
 
 
 class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
