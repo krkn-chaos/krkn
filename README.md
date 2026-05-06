@@ -3,6 +3,7 @@
 ![coverage](https://krkn-chaos.github.io/krkn-lib-docs/coverage_badge_krkn.svg)
 ![action](https://github.com/krkn-chaos/krkn/actions/workflows/tests.yml/badge.svg)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10548/badge)](https://www.bestpractices.dev/projects/10548)
+[![CLOMonitor](https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/krkn/badge)](https://clomonitor.io/projects/cncf/krkn)
 
 ![Krkn logo](media/logo.png)
 
