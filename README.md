@@ -4,6 +4,7 @@
 ![action](https://github.com/krkn-chaos/krkn/actions/workflows/tests.yml/badge.svg)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10548/badge)](https://www.bestpractices.dev/projects/10548)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/krkn-chaos/krkn/badge)](https://scorecard.dev/viewer/?uri=github.com/krkn-chaos/krkn)
+[![CLOMonitor](https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/krkn/badge)](https://clomonitor.io/projects/cncf/krkn)
 
 ![Krkn logo](media/logo.png)
 
