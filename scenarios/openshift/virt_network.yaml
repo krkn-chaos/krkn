@@ -1,0 +1,18 @@
+- id: vmi_network_filter
+  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  wait_duration: 300
+  test_duration: 120
+  label_selector: ""
+  service_account: ""
+  taints: []
+  namespace: 
+  instance_count: 1
+  execution: serial
+  target: ""
+  interfaces: []
+  ingress: true
+  egress: true
+  protocols:
+    - tcp
+    - udp
+  ports: []

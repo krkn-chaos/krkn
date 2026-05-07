@@ -25,17 +25,29 @@ def generate_rules(
     input_rules = []
     output_rules = []
     for interface in interfaces:
-        for port in config.ports:
+        if config.ports:
+            for port in config.ports:
+                if config.egress:
+                    for protocol in set(config.protocols):
+                        output_rules.append(
+                            f"iptables -I OUTPUT 1 -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        )
+                if config.ingress:
+                    for protocol in set(config.protocols):
+                        input_rules.append(
+                            f"iptables -I INPUT 1 -i {interface} -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        )
+        else:
+            # empty ports means block all traffic on all ports
             if config.egress:
                 for protocol in set(config.protocols):
                     output_rules.append(
-                        f"iptables -I OUTPUT 1 -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        f"iptables -I OUTPUT 1 -p {protocol} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
                     )
-
             if config.ingress:
                 for protocol in set(config.protocols):
                     input_rules.append(
-                        f"iptables -I INPUT 1 -i {interface} -p {protocol} --dport {port} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
+                        f"iptables -I INPUT 1 -i {interface} -p {protocol} -m state --state NEW,RELATED,ESTABLISHED -j DROP"
                     )
     return input_rules, output_rules
 
@@ -115,3 +127,50 @@ def generate_namespaced_rules(
         namespaced_output_rules.extend(ns_output_rules)
 
     return namespaced_input_rules, namespaced_output_rules
+
+
+def apply_tc_vmi_chaos(
+    kubecli: KrknKubernetes,
+    chaos_pod_name: str,
+    namespace: str,
+    pid: str,
+    iface: str,
+    config: NetworkFilterConfig,
+    parallel: bool,
+    vmi_name: str,
+) -> Tuple[list[str], list[str]]:
+    """Apply iptables rules inside the virt-launcher netns via nsenter.
+
+    Targets the tap interface (tap0) rather than the bridge slave (ovn-udn1-nic)
+    so that OVN's BFD heartbeats on the bridge are unaffected.  Rules are applied
+    inside the virt-launcher's network namespace using nsenter, matching the same
+    iptables approach used by pod_network_filter and node_network_filter.
+
+    Returns (input_rules, output_rules) needed for cleanup.
+    """
+    log_info(
+        f"applying iptables rules on {iface} "
+        f"(ports:{config.ports}, protocols:{config.protocols})",
+        parallel,
+        vmi_name,
+    )
+    input_rules, output_rules = generate_namespaced_rules([iface], config, [pid])
+    apply_network_rules(kubecli, input_rules, output_rules, chaos_pod_name, namespace, parallel, vmi_name)
+    return input_rules, output_rules
+
+
+def clean_tc_vmi_chaos(
+    kubecli: KrknKubernetes,
+    chaos_pod_name: str,
+    namespace: str,
+    pid: str,
+    iface: str,
+    input_rules: list[str],
+    output_rules: list[str],
+):
+    """Remove iptables rules applied by apply_tc_vmi_chaos."""
+    clean_network_rules_namespaced(
+        kubecli, input_rules, output_rules, chaos_pod_name, namespace, [pid]
+    )
+
+

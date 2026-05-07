@@ -1,3 +1,17 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import queue
 import time
 from typing import Tuple
@@ -100,13 +114,6 @@ class NodeInterfaceDownModule(AbstractNetworkChaosModule):
                 parallel,
                 target,
             )
-
-            log_info(
-                f"waiting {self.config.test_duration} seconds for interface(s) to recover",
-                parallel,
-                target,
-            )
-            time.sleep(self.config.test_duration)
 
             log_info(
                 f"waiting for node {target} to become Ready after interface recovery",
