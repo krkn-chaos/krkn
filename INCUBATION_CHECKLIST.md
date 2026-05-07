@@ -48,6 +48,10 @@ N/A
 - [ ] **Engage with the domain specific TAG(s) to increase awareness through a presentation or completing a General Technical Review.**
   - This was completed and occurred on DD-MMM-YYYY, and can be discovered at $LINK.
 
+- [ ] **TAG provides insight/recommendation of the project in the context of the landscape**
+
+Pending TAG engagement and review.
+
 - [x] **All project metadata and resources are [vendor-neutral](https://contribute.cncf.io/maintainers/community/vendor-neutrality/).**
 
 The Krkn project is governed under vendor-neutral principles as documented in [GOVERNANCE.md](https://github.com/krkn-chaos/krkn/blob/main/GOVERNANCE.md). The project is hosted under the `krkn-chaos` GitHub organization (not owned by any single vendor), uses community mailing lists ([krkn.maintainers@gmail.com](mailto:krkn.maintainers@gmail.com) and [cncf-krkn-maintainers@lists.cncf.io](mailto:cncf-krkn-maintainers@lists.cncf.io)), and project direction is determined by the Maintainer Council via consensus rather than by any single company.
@@ -70,17 +74,17 @@ The project maintains comprehensive documentation at [krkn-chaos.dev/docs](https
 
 ## Governance and Maintainers
 
-Note: this section may be augmented by the completion of a Governance Review from the Project Reviews subproject.
+Note: this section may be augmented by the completion of a Governance Review from TAG Contributor Strategy.
 
 ### Suggested
-
-- [ ] **Governance has continuously been iterated upon by the project as a result of their experience applying it, with the governance history demonstrating evolution of maturity alongside the project's maturity evolution.**
-
-Governance evolution can be reviewed via the [git history of GOVERNANCE.md](https://github.com/krkn-chaos/krkn/commits/main/GOVERNANCE.md). The project has grown from initial Sandbox acceptance through expanding its contributor ladder and formalizing security and release processes.
 
 - [x] **Clear and discoverable project governance documentation.**
 
 Project governance is documented in [GOVERNANCE.md](https://github.com/krkn-chaos/krkn/blob/main/GOVERNANCE.md), which defines the Maintainer Council, a 4-level contributor ladder (Contributor → Member → Maintainer → Owner), decision-making processes, and meeting cadence. The governance document is linked from the project README and discoverable from the repository root.
+
+- [ ] **Governance has continuously been iterated upon by the project as a result of their experience applying it, with the governance history demonstrating evolution of maturity alongside the project's maturity evolution.**
+
+Governance evolution can be reviewed via the [git history of GOVERNANCE.md](https://github.com/krkn-chaos/krkn/commits/main/GOVERNANCE.md). The project has grown from initial Sandbox acceptance through expanding its contributor ladder and formalizing security and release processes.
 
 - [x] **Governance is up to date with actual project activities, including any meetings, elections, leadership, or approval processes.**
 
@@ -161,7 +165,7 @@ Subprojects are listed in the project README and this incubation document:
 
 ## Contributors and Community
 
-Note: this section may be augmented by the completion of a Governance Review from the Project Reviews subproject.
+Note: this section may be augmented by the completion of a Governance Review from TAG Contributor Strategy.
 
 ### Suggested
 
@@ -210,6 +214,8 @@ Contribution documentation is available at multiple levels of depth:
 
 Contributor activity is visible via [GitHub Insights](https://github.com/krkn-chaos/krkn/graphs/contributors). The project has 6 active maintainers/members plus external contributors from organizations including MarketAxess and IBM. Community recruitment occurs via the [#krkn Slack channel](https://kubernetes.slack.com/archives/C05SFMHRWK1) and CNCF events.
 
+The project actively participates in the [LFX Mentorship Program](https://lfx.linuxfoundation.org/tools/mentorship/), hosting mentees in 2025 (Terms 2 and 3) and 2026 (Terms 1 and 2) to grow new contributors. Krkn has also hosted project kiosks at KubeCon + CloudNativeCon NA 2024, EU 2025, and NA 2026, providing direct engagement with the cloud native community and onboarding new users and contributors.
+
 ## Engineering Principles
 
 ### Suggested
@@ -257,7 +263,7 @@ N/A
 
 ### Required
 
-Note: this section may be augmented by a joint-assessment performed by TAG Security and Compliance.
+Note: this section may be augmented by a joint-assessment performed by TAG Security.
 
 - [x] **Clearly defined and discoverable process to report security issues.**
 
@@ -318,6 +324,7 @@ Non-CNCF integrations:
 - **Red Hat OpenShift** — primary enterprise Kubernetes distribution for production use cases
 - **Elasticsearch** — log aggregation and indexing during chaos runs
 - **Cloud providers** — AWS, Azure, GCP, IBM Cloud, VMware, Alibaba Cloud, OpenStack (native SDK integrations)
+- **[Scarf](https://scarf.sh/)** — package distribution gateway (`krkn-chaos.gateway.scarf.sh`) used for release artifact distribution and download analytics
 - **[krknctl](https://github.com/krkn-chaos/krknctl)** — CLI client providing a UX layer over the krkn API
 
 ## Additional Information
