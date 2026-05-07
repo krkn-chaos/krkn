@@ -61,6 +61,7 @@ from krkn.rollback.command import (
     list_rollback as list_rollback_command,
     execute_rollback as execute_rollback_command,
 )
+from krkn.chaos_generator import ChaosGenerator
 
 # removes TripleDES warning
 import warnings
@@ -70,6 +71,29 @@ report_file = ""
 
 # Main function
 def main(options, command: Optional[str]) -> int:
+    if command == "generate-config":
+        if not options.prompt and not (options.target_component or options.cluster_type or options.slo):
+            logging.error("Please provide a prompt or structured inputs (--target-component, --cluster-type, --slo) for config generation")
+            return -1
+        try:
+            generator = ChaosGenerator(provider_type=options.ai_provider)
+            generated_config = generator.generate(
+                options.prompt or "",
+                cluster_type=options.cluster_type,
+                target_component=options.target_component,
+                slo=options.slo
+            )
+            output_file = options.output_config or "generated_config.yaml"
+            with open(output_file, "w") as f:
+                f.write(generated_config)
+            logging.info(f"Generated configuration saved to {output_file}")
+            logging.info("\n--- Generated Config ---\n" + generated_config + "\n------------------------")
+            logging.info("Please review the generated configuration before running it with: python3 run_kraken.py -c " + output_file)
+            return 0
+        except Exception as e:
+            logging.error(f"Failed to generate configuration: {e}")
+            return -1
+
     # Start kraken
     print(pyfiglet.figlet_format("kraken"))
     logging.info("Starting kraken")
@@ -698,7 +722,8 @@ if __name__ == "__main__":
         usage="%prog [options] [command]\n\n"
               "Commands:\n"
               "  list-rollback     List rollback version files in a tree-like format\n"
-              "  execute-rollback  Execute rollback version files and cleanup if successful\n\n"
+              "  execute-rollback  Execute rollback version files and cleanup if successful\n"
+              "  generate-config   Generate a Krkn config from a natural language prompt\n\n"
               "If no command is specified, kraken will run chaos scenarios.",
     )
     parser.add_option(
@@ -760,6 +785,49 @@ if __name__ == "__main__":
         dest="debug",
         help="enable debug logging",
         default=False,
+    )
+
+    parser.add_option(
+        "-p",
+        "--prompt",
+        dest="prompt",
+        help="Natural language prompt for generating chaos configuration",
+        default=None,
+    )
+
+    parser.add_option(
+        "--output-config",
+        dest="output_config",
+        help="Path to save the generated configuration (default: generated_config.yaml)",
+        default=None,
+    )
+
+    parser.add_option(
+        "--ai-provider",
+        dest="ai_provider",
+        help="AI provider to use (openai, deterministic) (default: deterministic)",
+        default="deterministic",
+    )
+
+    parser.add_option(
+        "--cluster-type",
+        dest="cluster_type",
+        help="Cluster type (e.g., kubernetes, openshift)",
+        default=None,
+    )
+
+    parser.add_option(
+        "--target-component",
+        dest="target_component",
+        help="Target component for chaos (e.g., node, pod, network, hog)",
+        default=None,
+    )
+
+    parser.add_option(
+        "--slo",
+        dest="slo",
+        help="SLO to maintain (e.g., availability=99.9)",
+        default=None,
     )
 
     (options, args) = parser.parse_args()
