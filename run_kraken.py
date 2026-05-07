@@ -497,17 +497,19 @@ def main(options, command: Optional[str]) -> int:
         
         post_kubevirt_check = kubevirt_checker.gather_post_virt_checks(kubevirt_check_telem)
         chaos_telemetry.post_virt_checks = post_kubevirt_check
-        # if platform is openshift will be collected
-        # Cloud platform and network plugins metadata
-        # through OCP specific APIs
-        if distribution == "openshift":
-            logging.info(
-                "collecting OCP cluster metadata, this may take few minutes...."
-            )
-            telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
+        # Collect cluster metadata only when telemetry is enabled
+        # (listing all k8s objects is very slow on large clusters)
+        if config["telemetry"].get("enabled", True):
+            if distribution == "openshift":
+                logging.info(
+                    "collecting OCP cluster metadata, this may take few minutes...."
+                )
+                telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
+            else:
+                logging.info("collecting Kubernetes cluster metadata....")
+                telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
         else:
-            logging.info("collecting Kubernetes cluster metadata....")
-            telemetry_k8s.collect_cluster_metadata(chaos_telemetry)
+            logging.info("telemetry disabled, skipping cluster metadata collection")
 
         # Collect error logs from handler
         error_logs = error_collection_handler.get_error_logs()
