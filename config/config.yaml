@@ -81,8 +81,8 @@ elastic:
     verify_certs: False
     elastic_url: ""                                         # To track results in elasticsearch, give url to server here; will post telemetry details when url and index not blank
     elastic_port: 32766
-    username: "elastic"
-    password: "test"
+    username: ""                                            # Set via ELASTIC_USERNAME environment variable
+    password: ""                                            # Set via ELASTIC_PASSWORD environment variable
     metrics_index: "krkn-metrics"
     alerts_index: "krkn-alerts"
     telemetry_index: "krkn-telemetry"

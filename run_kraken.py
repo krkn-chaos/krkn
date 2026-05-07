@@ -153,8 +153,8 @@ def main(options, command: Optional[str]) -> int:
 
         elastic_port = get_yaml_item_value(config["elastic"], "elastic_port", 32766)
 
-        elastic_username = get_yaml_item_value(config["elastic"], "username", "")
-        elastic_password = get_yaml_item_value(config["elastic"], "password", "")
+        elastic_username = get_yaml_item_value(config["elastic"], "username", "") or os.getenv("ELASTIC_USERNAME", "")
+        elastic_password = get_yaml_item_value(config["elastic"], "password", "") or os.getenv("ELASTIC_PASSWORD", "")
 
         elastic_metrics_index = get_yaml_item_value(
             config["elastic"], "metrics_index", "krkn-metrics"
