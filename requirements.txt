@@ -9,7 +9,7 @@ azure-mgmt-network==27.0.0
 coverage==7.6.12
 datetime==5.4
 docker>=6.0,<7.0  # docker 7.0+ has breaking changes; upgrade to 7.x to allow requests>=2.33.0
-gitpython==3.1.47
+gitpython==3.1.49
 google-auth==2.37.0
 google-cloud-compute==1.22.0
 ibm_cloud_sdk_core>=3.20.0  # Requires urllib3>=2.1.0 (compatible with updated boto3)
