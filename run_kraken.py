@@ -173,7 +173,8 @@ def main(options, command: Optional[str]) -> int:
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
         )
-        telemetry_api_url = config["telemetry"].get("api_url")
+        telemetry_api_url = config["telemetry"].get("api_url", "")
+        telemetry_enabled = config["telemetry"].get("enabled", True)
         health_check_config = get_yaml_item_value(config, "health_checks",{})
         kubevirt_check_config = get_yaml_item_value(config, "kubevirt_checks", {})
         
@@ -499,7 +500,7 @@ def main(options, command: Optional[str]) -> int:
         chaos_telemetry.post_virt_checks = post_kubevirt_check
         # Collect cluster metadata only when telemetry is enabled
         # (listing all k8s objects is very slow on large clusters)
-        if config["telemetry"].get("enabled", True):
+        if telemetry_enabled:
             if distribution == "openshift":
                 logging.info(
                     "collecting OCP cluster metadata, this may take few minutes...."
@@ -562,7 +563,7 @@ def main(options, command: Optional[str]) -> int:
                     f"failed to save telemetry on elastic search: {chaos_output.to_json()}"
                 )
 
-        if config["telemetry"]["enabled"]:
+        if telemetry_enabled and telemetry_api_url:
             logging.info(
                 f"telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/files/"
                 f'{(config["telemetry"]["telemetry_group"] if config["telemetry"]["telemetry_group"] else "default")}/'
@@ -625,7 +626,7 @@ def main(options, command: Optional[str]) -> int:
             except Exception as e:
                 logging.error(f"failed to send telemetry data: {str(e)}")
         else:
-            logging.info("telemetry collection disabled, skipping.")
+            logging.info("api_url not set, skipping telemetry upload.")
 
         # Check for the alerts specified
         if enable_alerts:
