@@ -64,15 +64,15 @@ def get_egress_shaping_comand(
 ) -> list[str]:
 
     rate_commands = []
-    rate = f"{rate_mbit}mbit" if rate_mbit is not None else "1gbit"
-    d = delay_ms if delay_ms is not None else 0
+    rate = rate_mbit if rate_mbit is not None else "1gbit"
+    d = delay_ms if delay_ms is not None else "0ms"
     l = loss_pct if loss_pct is not None else 0
     for dev in devices:
         rate_commands.append(
             f"tc class change dev {dev} parent {ROOT_HANDLE} classid {CLASS_ID} htb rate {rate}"
         )
         rate_commands.append(
-            f"tc qdisc change dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay {d}ms loss {l}%"
+            f"tc qdisc change dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay {d} loss {l}%"
         )
     return rate_commands
 
