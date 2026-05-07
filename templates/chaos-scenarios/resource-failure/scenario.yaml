@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../../plugin.schema.json
+# Basic Kubernetes Resource Failure Chaos Scenario Template
+# Simulates resource failures for various Kubernetes resources
+- id: resource-failure
+  config:
+    resource_type: deployment
+    resource_name_pattern: ^.*-app-.*$
+    namespace_pattern: ^default$
+    action: delete  # delete, scale-to-zero, edit
+    recovery_time: 120
+    # Optional: Target specific resource type
+    # resource_type: "service"
+    # Optional: Scale to zero instead of delete
+    # action: "scale-to-zero"
+    # Optional: Modify resource configuration
+    # action: "edit"
+    # modifications:
+    #   replicas: 0

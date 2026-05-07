@@ -1,0 +1,36 @@
+name: resource-failure
+description: Simulates resource failures for various Kubernetes resources to test recovery mechanisms
+target: kubernetes-resource
+risk_level: medium
+category: availability
+version: "1.0"
+author: KRKN Team
+tags:
+  - resource
+  - failure
+  - kubernetes
+  - deployment
+  - service
+estimated_duration: "3-8 minutes"
+dependencies: []
+parameters:
+  - name: resource_type
+    type: string
+    description: Type of Kubernetes resource (deployment, service, configmap, secret)
+    default: deployment
+  - name: resource_name_pattern
+    type: string
+    description: Regex pattern to match resource names
+    default: ^.*-app-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespaces
+    default: ^default$
+  - name: action
+    type: string
+    description: Action to perform (delete, scale-to-zero, edit)
+    default: delete
+  - name: recovery_time
+    type: integer
+    description: Resource recovery monitoring time in seconds
+    default: 120
