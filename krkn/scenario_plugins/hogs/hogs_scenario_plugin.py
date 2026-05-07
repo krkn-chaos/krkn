@@ -46,13 +46,14 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             # Get node-name if provided
             node_name = scenario.get('node-name')
             
-            has_selector = True
+            has_selector = False
             if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
                 if scenario_config.node_selector:
                     logging.warning(f"node selector {scenario_config.node_selector} not in right format (key=value)")
                 node_selector = ""
             else:
                 node_selector = scenario_config.node_selector
+                has_selector = True
 
             if node_name:
                 logging.info(f"Using specific node: {node_name}")
