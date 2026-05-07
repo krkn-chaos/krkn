@@ -29,10 +29,6 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         """
         Set up test fixtures for NodeActionsScenarioPlugin
         """
-        # Reset node_general global variable before each test
-        import krkn.scenario_plugins.node_actions.node_actions_scenario_plugin as plugin_module
-        plugin_module.node_general = False
-
         self.plugin = NodeActionsScenarioPlugin()
         self.mock_kubecli = Mock(spec=KrknKubernetes)
         self.mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
@@ -58,9 +54,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_general_instance = Mock()
         mock_general_scenarios.return_value = mock_general_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_general_instance)
+        self.assertTrue(is_generic)
         mock_general_scenarios.assert_called_once()
         args = mock_general_scenarios.call_args[0]
         self.assertEqual(args[0], self.mock_kubecli)
@@ -76,9 +73,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_general_instance = Mock()
         mock_general_scenarios.return_value = mock_general_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_general_instance)
+        self.assertTrue(is_generic)
         mock_general_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.aws_node_scenarios')
@@ -90,9 +88,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_aws_instance = Mock()
         mock_aws_scenarios.return_value = mock_aws_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_aws_instance)
+        self.assertFalse(is_generic)
         mock_aws_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.gcp_node_scenarios')
@@ -104,9 +103,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_gcp_instance = Mock()
         mock_gcp_scenarios.return_value = mock_gcp_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_gcp_instance)
+        self.assertFalse(is_generic)
         mock_gcp_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.azure_node_scenarios')
@@ -118,9 +118,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_azure_instance = Mock()
         mock_azure_scenarios.return_value = mock_azure_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_azure_instance)
+        self.assertFalse(is_generic)
         mock_azure_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.azure_node_scenarios')
@@ -132,9 +133,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_azure_instance = Mock()
         mock_azure_scenarios.return_value = mock_azure_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_azure_instance)
+        self.assertFalse(is_generic)
         mock_azure_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.docker_node_scenarios')
@@ -146,9 +148,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_docker_instance = Mock()
         mock_docker_scenarios.return_value = mock_docker_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_docker_instance)
+        self.assertFalse(is_generic)
         mock_docker_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.vmware_node_scenarios')
@@ -160,9 +163,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_vmware_instance = Mock()
         mock_vmware_scenarios.return_value = mock_vmware_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_vmware_instance)
+        self.assertFalse(is_generic)
         mock_vmware_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.vmware_node_scenarios')
@@ -174,9 +178,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_vmware_instance = Mock()
         mock_vmware_scenarios.return_value = mock_vmware_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_vmware_instance)
+        self.assertFalse(is_generic)
         mock_vmware_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ibm_node_scenarios')
@@ -188,9 +193,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_ibm_instance = Mock()
         mock_ibm_scenarios.return_value = mock_ibm_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_ibm_instance)
+        self.assertFalse(is_generic)
         mock_ibm_scenarios.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ibm_node_scenarios')
@@ -202,9 +208,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_ibm_instance = Mock()
         mock_ibm_scenarios.return_value = mock_ibm_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_ibm_instance)
+        self.assertFalse(is_generic)
         args = mock_ibm_scenarios.call_args[0]
         self.assertFalse(args[3])  # disable_ssl_verification should be False
 
@@ -217,9 +224,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         mock_ibmpower_instance = Mock()
         mock_ibmpower_scenarios.return_value = mock_ibmpower_instance
 
-        result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+        result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
         self.assertEqual(result, mock_ibmpower_instance)
+        self.assertFalse(is_generic)
         mock_ibmpower_scenarios.assert_called_once()
 
     def test_get_node_scenario_object_openstack(self):
@@ -231,9 +239,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_openstack_instance = Mock()
             mock_openstack.return_value = mock_openstack_instance
 
-            result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+            result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
             self.assertEqual(result, mock_openstack_instance)
+            self.assertFalse(is_generic)
             mock_openstack.assert_called_once()
 
     def test_get_node_scenario_object_alibaba(self):
@@ -245,9 +254,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_alibaba_instance = Mock()
             mock_alibaba.return_value = mock_alibaba_instance
 
-            result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+            result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
             self.assertEqual(result, mock_alibaba_instance)
+            self.assertFalse(is_generic)
             mock_alibaba.assert_called_once()
 
     def test_get_node_scenario_object_alicloud(self):
@@ -259,9 +269,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_alibaba_instance = Mock()
             mock_alibaba.return_value = mock_alibaba_instance
 
-            result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+            result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
             self.assertEqual(result, mock_alibaba_instance)
+            self.assertFalse(is_generic)
             mock_alibaba.assert_called_once()
 
     def test_get_node_scenario_object_bm(self):
@@ -278,9 +289,10 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_bm_instance = Mock()
             mock_bm.return_value = mock_bm_instance
 
-            result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
+            result, is_generic = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
             self.assertEqual(result, mock_bm_instance)
+            self.assertFalse(is_generic)
             args = mock_bm.call_args[0]
             self.assertEqual(args[0], "192.168.1.1")
             self.assertEqual(args[1], "admin")
@@ -322,6 +334,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )
@@ -349,6 +362,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )
@@ -380,6 +394,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )
@@ -409,6 +424,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
                 action,
                 node_scenario,
                 mock_scenario_object,
+                False,
                 self.mock_kubecli,
                 self.mock_scenario_telemetry
             )
@@ -607,18 +623,57 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         """
         Test run_node skips unsupported actions for generic cloud type
         """
-        # Set node_general to True for this test
-        import krkn.scenario_plugins.node_actions.node_actions_scenario_plugin as plugin_module
-        plugin_module.node_general = True
-
         node_scenario = {}
         action = "node_stop_scenario"
         mock_scenario_object = Mock()
 
-        self.plugin.run_node("test-node", mock_scenario_object, action, node_scenario)
+        self.plugin.run_node(
+            "test-node",
+            mock_scenario_object,
+            action,
+            node_scenario,
+            is_generic_node_scenario=True,
+        )
 
         mock_logging.assert_called()
         self.assertIn("not set up for generic cloud type", str(mock_logging.call_args))
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.aws_node_scenarios')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    def test_generic_scenario_does_not_leak_into_later_cloud_scenario(
+        self,
+        mock_general_scenarios,
+        mock_aws_scenarios,
+    ):
+        generic_object = Mock()
+        aws_object = Mock()
+        mock_general_scenarios.return_value = generic_object
+        mock_aws_scenarios.return_value = aws_object
+
+        generic_obj, generic_flag = self.plugin.get_node_scenario_object(
+            {"cloud_type": "generic"}, self.mock_kubecli
+        )
+        aws_obj, aws_flag = self.plugin.get_node_scenario_object(
+            {"cloud_type": "aws"}, self.mock_kubecli
+        )
+
+        self.plugin.run_node(
+            "test-node",
+            generic_obj,
+            "stop_kubelet_scenario",
+            {"cloud_type": "generic"},
+            generic_flag,
+        )
+        self.plugin.run_node(
+            "test-node",
+            aws_obj,
+            "node_stop_scenario",
+            {"cloud_type": "aws"},
+            aws_flag,
+        )
+
+        generic_object.stop_kubelet_scenario.assert_called_once()
+        aws_object.node_stop_scenario.assert_called_once()
 
     @patch('logging.info')
     def test_run_node_unknown_action(self, mock_logging):
@@ -632,12 +687,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         self.plugin.run_node("test-node", mock_scenario_object, action, node_scenario)
 
         mock_logging.assert_called()
-        # Could be either message depending on node_general state
-        call_str = str(mock_logging.call_args)
-        self.assertTrue(
-            "no node action that matches" in call_str or
-            "not set up for generic cloud type" in call_str
-        )
+        self.assertIn("no node action that matches", str(mock_logging.call_args))
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
@@ -717,7 +767,13 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_pool_instance = Mock()
             mock_pool.return_value = mock_pool_instance
 
-            self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
+            self.plugin.multiprocess_nodes(
+                nodes,
+                mock_scenario_object,
+                action,
+                node_scenario,
+                False,
+            )
 
             mock_pool.assert_called_once_with(processes=3)
             mock_pool_instance.starmap.assert_called_once()
@@ -736,7 +792,13 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         with patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
             mock_pool.side_effect = Exception("Pool error")
 
-            self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
+            self.plugin.multiprocess_nodes(
+                nodes,
+                mock_scenario_object,
+                action,
+                node_scenario,
+                False,
+            )
 
             mock_logging.assert_called()
             self.assertIn("Error on pool multiprocessing", str(mock_logging.call_args))
@@ -767,6 +829,7 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             action,
             node_scenario,
             mock_scenario_object,
+            False,
             self.mock_kubecli,
             self.mock_scenario_telemetry
         )
