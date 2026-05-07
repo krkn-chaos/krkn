@@ -158,7 +158,7 @@ class AbstractScenarioPlugin(ABC):
                 end_time
             )
 
-            if events_backup: 
+            if events_backup:
                 utils.populate_cluster_events(
                     krkn_config,
                     parsed_scenario_config,
