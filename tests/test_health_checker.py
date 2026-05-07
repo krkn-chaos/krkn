@@ -39,6 +39,7 @@ class TestHealthChecker(unittest.TestCase):
         """
         Clean up after each test
         """
+        self.checker.close()
         self.checker.current_iterations = 0
         self.checker.ret_value = 0
 
@@ -51,21 +52,27 @@ class TestHealthChecker(unittest.TestCase):
             return response_data
         return side_effect
 
-    @patch('requests.get')
-    def test_make_request_success(self, mock_get):
+    def _make_mock_session(self):
+        """Create a mock session with responses"""
+        mock_session = MagicMock()
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_session.get.return_value = mock_response
+        return mock_session
+
+    def test_make_request_success(self):
         """
         Test make_request returns success for 200 status code
         """
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_get.return_value = mock_response
+        checker = HealthChecker(iterations=5)
+        checker.http_session = self._make_mock_session()
 
-        result = self.checker.make_request("http://example.com")
+        result = checker.make_request("http://example.com")
 
         self.assertEqual(result["url"], "http://example.com")
         self.assertEqual(result["status"], True)
         self.assertEqual(result["status_code"], 200)
-        mock_get.assert_called_once_with(
+        checker.http_session.get.assert_called_once_with(
             "http://example.com",
             auth=None,
             headers=None,
@@ -73,20 +80,18 @@ class TestHealthChecker(unittest.TestCase):
             timeout=3
         )
 
-    @patch('requests.get')
-    def test_make_request_with_auth(self, mock_get):
+    def test_make_request_with_auth(self):
         """
         Test make_request with basic authentication
         """
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_get.return_value = mock_response
+        checker = HealthChecker(iterations=5)
+        checker.http_session = self._make_mock_session()
 
         auth = ("user", "pass")
-        result = self.checker.make_request("http://example.com", auth=auth)
+        result = checker.make_request("http://example.com", auth=auth)
 
         self.assertEqual(result["status"], True)
-        mock_get.assert_called_once_with(
+        checker.http_session.get.assert_called_once_with(
             "http://example.com",
             auth=auth,
             headers=None,
@@ -94,20 +99,18 @@ class TestHealthChecker(unittest.TestCase):
             timeout=3
         )
 
-    @patch('requests.get')
-    def test_make_request_with_bearer_token(self, mock_get):
+    def test_make_request_with_bearer_token(self):
         """
         Test make_request with bearer token authentication
         """
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_get.return_value = mock_response
+        checker = HealthChecker(iterations=5)
+        checker.http_session = self._make_mock_session()
 
         headers = {"Authorization": "Bearer token123"}
-        result = self.checker.make_request("http://example.com", headers=headers)
+        result = checker.make_request("http://example.com", headers=headers)
 
         self.assertEqual(result["status"], True)
-        mock_get.assert_called_once_with(
+        checker.http_session.get.assert_called_once_with(
             "http://example.com",
             auth=None,
             headers=headers,
@@ -115,33 +118,33 @@ class TestHealthChecker(unittest.TestCase):
             timeout=3
         )
 
-    @patch('requests.get')
-    def test_make_request_failure(self, mock_get):
+    def test_make_request_failure(self):
         """
         Test make_request returns failure for non-200 status code
         """
+        checker = HealthChecker(iterations=5)
+        mock_session = MagicMock()
         mock_response = MagicMock()
         mock_response.status_code = 500
-        mock_get.return_value = mock_response
+        mock_session.get.return_value = mock_response
+        checker.http_session = mock_session
 
-        result = self.checker.make_request("http://example.com")
+        result = checker.make_request("http://example.com")
 
         self.assertEqual(result["status"], False)
         self.assertEqual(result["status_code"], 500)
 
-    @patch('requests.get')
-    def test_make_request_with_verify_false(self, mock_get):
+    def test_make_request_with_verify_false(self):
         """
         Test make_request with SSL verification disabled
         """
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_get.return_value = mock_response
+        checker = HealthChecker(iterations=5)
+        checker.http_session = self._make_mock_session()
 
-        result = self.checker.make_request("https://example.com", verify=False)
+        result = checker.make_request("https://example.com", verify=False)
 
         self.assertEqual(result["status"], True)
-        mock_get.assert_called_once_with(
+        checker.http_session.get.assert_called_once_with(
             "https://example.com",
             auth=None,
             headers=None,
@@ -498,6 +501,63 @@ class TestHealthChecker(unittest.TestCase):
         # Verify sleep was called with custom interval
         mock_sleep.assert_called_with(5)
 
+    def test_healthchecker_uses_session_for_connection_pooling(self):
+        """
+        Test that HealthChecker uses a session for connection pooling
+        """
+        checker = HealthChecker(iterations=5)
+        self.assertTrue(hasattr(checker, 'http_session'))
+        import requests
+        self.assertIsInstance(checker.http_session, requests.Session)
+        checker.close()
+
+    def test_healthchecker_close_method(self):
+        """
+        Test that close() calls session.close() and sets http_session to None
+        """
+        checker = HealthChecker(iterations=5)
+        self.assertIsNotNone(checker.http_session)
+        checker.close()
+        self.assertIsNone(checker.http_session)
+
+    def test_healthchecker_close_twice_is_safe(self):
+        """
+        Test that close() is idempotent — no error on double-close
+        """
+        checker = HealthChecker(iterations=5)
+        checker.close()
+        checker.close()  # Should not raise
+        self.assertIsNone(checker.http_session)
+
+    def test_healthchecker_session_reused_across_requests(self):
+        """
+        Test that the same session object is reused across multiple calls
+        """
+        checker = HealthChecker(iterations=5)
+        session_ref_1 = checker.http_session
+        session_ref_2 = checker.http_session
+        self.assertIs(session_ref_1, session_ref_2)
+        checker.close()
+
+    def test_healthchecker_context_manager(self):
+        """
+        Test that the with statement auto-closes the session
+        """
+        with HealthChecker(iterations=5) as hc:
+            self.assertIsNotNone(hc.http_session)
+        self.assertIsNone(hc.http_session)
+
+    def test_healthchecker_make_request_after_close_raises(self):
+        """
+        Test that make_request() raises RuntimeError after close()
+        """
+        checker = HealthChecker(iterations=5)
+        checker.close()
+        with self.assertRaises(RuntimeError) as ctx:
+            checker.make_request("http://example.com")
+        self.assertIn("closed", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()
+
