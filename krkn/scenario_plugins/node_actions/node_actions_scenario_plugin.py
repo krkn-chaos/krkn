@@ -58,23 +58,29 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         with open(scenario, "r") as f:
             node_scenario_config = yaml.safe_load(f)
-            for node_scenario in node_scenario_config["node_scenarios"]:
+            for index, node_scenario in enumerate(node_scenario_config["node_scenarios"]):
                 try:
+                    actions = node_scenario.get("actions")
+                    if not actions:
+                        logging.error(
+                            "NodeActionsScenarioPlugin: 'actions' must be defined and non-empty in %s node_scenarios[%s]"
+                            % (scenario, index)
+                        )
+                        return 1
                     node_scenario_object = self.get_node_scenario_object(
                         node_scenario, lib_telemetry.get_lib_kubernetes()
                     )
-                    if node_scenario["actions"]:
-                        for action in node_scenario["actions"]:
-                            start_time = int(time.time())
-                            self.inject_node_scenario(
-                                action,
-                                node_scenario,
-                                node_scenario_object,
-                                lib_telemetry.get_lib_kubernetes(),
-                                scenario_telemetry,
-                            )
-                            end_time = int(time.time())
-                            cerberus.get_status(start_time, end_time)
+                    for action in actions:
+                        start_time = int(time.time())
+                        self.inject_node_scenario(
+                            action,
+                            node_scenario,
+                            node_scenario_object,
+                            lib_telemetry.get_lib_kubernetes(),
+                            scenario_telemetry,
+                        )
+                        end_time = int(time.time())
+                        cerberus.get_status(start_time, end_time)
                 except (RuntimeError, Exception) as e:
                     logging.error("Node Actions exiting due to Exception %s" % e)
                     return 1
