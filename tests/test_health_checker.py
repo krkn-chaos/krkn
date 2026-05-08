@@ -13,7 +13,7 @@ This test file provides comprehensive coverage for the main functionality of Hea
 Usage:
     python -m coverage run -a -m unittest tests/test_health_checker.py -v
 
-Assisted By: Claude Code
+
 """
 
 import queue
