@@ -39,6 +39,26 @@ class TestContainerScenarioPlugin(unittest.TestCase):
         self.assertEqual(result, ["container_scenarios"])
         self.assertEqual(len(result), 1)
 
+    def test_distroless_container_bug(self):
+        """
+        Reproduce the distroless container bug and verify the fallback.
+        """
+        mock_kubecli = MagicMock(spec=KrknKubernetes)
+        mock_kubecli.exec_cmd_in_pod.side_effect = Exception("impossible to determine the shell to run command")
+
+        # Mock the fallback _kill_container_via_node directly on the plugin
+        self.plugin._kill_container_via_node = MagicMock()
+
+        self.plugin.retry_container_killing(
+            kill_action="kill 15",
+            podname="noobaa-db-pg-cluster-2",
+            namespace="openshift-storage",
+            container_name="postgres",
+            kubecli=mock_kubecli
+        )
+        self.plugin._kill_container_via_node.assert_called_once_with(
+            "noobaa-db-pg-cluster-2", "openshift-storage", "postgres", mock_kubecli
+        )
 
 if __name__ == "__main__":
     unittest.main()

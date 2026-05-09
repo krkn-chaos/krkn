@@ -202,9 +202,23 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 "Killing container %s in pod %s (ns %s)"
                 % (str(container_name), str(podname), str(namespace))
             )
-            response = kubecli.exec_cmd_in_pod(
-                kill_action, podname, namespace, container_name
-            )
+            try:
+                response = kubecli.exec_cmd_in_pod(
+                    kill_action, podname, namespace, container_name
+                )
+            except Exception as e:
+                if "impossible to determine the shell" in str(e):
+                    logging.warning(
+                        "Shell not available in container %s, "
+                        "falling back to node-level container kill via crictl",
+                        container_name,
+                    )
+                    self._kill_container_via_node(
+                        podname, namespace, container_name, kubecli
+                    )
+                    break
+                else:
+                    raise
             i += 1
             # Blank response means it is done
             if not response:
@@ -218,6 +232,58 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             else:
                 logging.warning(response)
                 continue
+
+    def _kill_container_via_node(
+        self, podname, namespace, container_name, kubecli: KrknKubernetes
+    ):
+        """
+        Fallback method to kill a container by executing crictl on the node where the pod is running.
+        """
+        pod_info = kubecli.cli.read_namespaced_pod(podname, namespace)
+        node_name = pod_info.spec.node_name
+        if not node_name:
+            raise RuntimeError(
+                f"Could not determine node for pod {podname} in namespace {namespace}"
+            )
+
+        container_id = None
+        for status in pod_info.status.container_statuses or []:
+            if status.name == container_name:
+                container_id = status.container_id
+                break
+
+        if not container_id:
+            raise RuntimeError(
+                f"Could not find container ID for container {container_name} "
+                f"in pod {podname}"
+            )
+
+        if "://" in container_id:
+            container_id = container_id.split("://", 1)[1]
+
+        logging.info(
+            "Killing container %s (ID: %s) on node %s via crictl",
+            container_name,
+            container_id[:12],
+            node_name,
+        )
+
+        exec_pod_name = f"krkn-crictl-{container_id[:8]}"
+        command = [f"chroot /host /bin/sh -c 'crictl stop {container_id}'"]
+        try:
+            response = kubecli.exec_command_on_node(
+                node_name, command, exec_pod_name, "default"
+            )
+            if response:
+                logging.info("crictl stop response: %s", response)
+        except Exception as e:
+            logging.error("Failed to execute crictl stop on node %s: %s", node_name, e)
+            raise
+        finally:
+            try:
+                kubecli.delete_pod(exec_pod_name, "default")
+            except Exception:
+                pass
 
     def check_failed_containers(
         self, killed_container_list, wait_time, kubecli: KrknKubernetes
