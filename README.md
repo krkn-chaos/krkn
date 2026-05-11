@@ -41,4 +41,8 @@ We are always looking for more enhancements, fixes to make it better, any contri
 Key Members(slack_usernames/full name): paigerube14/Paige Rubendall, mffiedler/Mike Fiedler, tsebasti/Tullio Sebastiani, yogi/Yogananth Subramanian, sahil/Sahil Shah, pradeep/Pradeep Surisetty and ravielluri/Naga Ravi Chaitanya Elluri.
 * [**#krkn on Kubernetes Slack**](https://kubernetes.slack.com/messages/C05SFMHRWK1)
 
+
+### Community Meeting
+If you have any questions that you think could be better discussed on a meeting, we have [monthly office hours](https://zoom-lfx.platform.linuxfoundation.org/meetings/krkn?view=month). Please add items to the agenda beforehand so we can best prepare to help you.
+
 The Linux Foundation® (TLF) has registered trademarks and uses trademarks. For a list of TLF trademarks, see [Trademark Usage](https://www.linuxfoundation.org/legal/trademark-usage).
