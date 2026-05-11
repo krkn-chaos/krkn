@@ -10,18 +10,18 @@ node_scenarios:
     parallel: False                                                 # Run action on label or node name in parallel or sequential, set to true for parallel
     cloud_type: bm                                                  # Cloud type on which Kubernetes/OpenShift runs.
     kube_check: True                                                # Run the kubernetes api calls to see if the node gets to a certain state during the node scenario   
-    bmc_user: defaultuser                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines
-    bmc_password: defaultpass                                       # For baremetal (bm) cloud type. The default IPMI password. Optional if specified for all machines
+    bmc_user: <your_bmc_user>                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines
+    bmc_password: <your_bmc_password>                                   # For baremetal (bm) cloud type. The default IPMI password. Optional if specified for all machines
     bmc_info:                                                       # This section is here to specify baremetal per-machine info, so it is optional if there is no per-machine info.
-      node-1:                                                       # The node name for the baremetal machine
-        bmc_addr: mgmt-machine1.example.com                         # Optional. For baremetal nodes with the IPMI BMC address missing from 'oc get bmh'
-      node-2:
-        bmc_addr: mgmt-machine2.example.com
-        bmc_user: user                                              # The baremetal IPMI user. Overrides the default IPMI user specified above. Optional if the default is set
-        bmc_password: pass                                          # The baremetal IPMI password. Overrides the default IPMI user specified above. Optional if the default is set
+      <your_node_name_1>:                                           # The node name for the baremetal machine
+        bmc_addr: <your_bmc_address_1>                              # Optional. For baremetal nodes with the IPMI BMC address missing from 'oc get bmh'
+      <your_node_name_2>:
+        bmc_addr: <your_bmc_address_2>
+        bmc_user: <your_bmc_user_2>                                 # The baremetal IPMI user. Overrides the default IPMI user specified above. Optional if the default is set
+        bmc_password: <your_bmc_password_2>                         # The baremetal IPMI password. Overrides the default IPMI user specified above. Optional if the default is set
   - actions:
     - node_disk_detach_attach_scenario
-    node_name: node-1
+    node_name: <your_node_name_1>
     instance_count: 1
     runs: 1
     timeout: 360
@@ -29,5 +29,5 @@ node_scenarios:
     parallel: False
     cloud_type: bm
     bmc_info:
-      node-1:
-        disks: ["sda", "sdb"]                                       # List of disk devices to be used for disk detach/attach scenarios
+      <your_node_name_1>:
+        # disks: ["sda", "sdb"]                                       # List of disk devices to be used for disk detach/attach scenarios
