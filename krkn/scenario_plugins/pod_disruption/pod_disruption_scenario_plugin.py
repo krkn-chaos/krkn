@@ -218,8 +218,9 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         # region Select target pods
         try:
             namespace = config.namespace_pattern
-            if not namespace: 
+            if not namespace:
                 logging.error('Namespace pattern must be specified')
+                return 2
 
             pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
             exclude_pods = set()

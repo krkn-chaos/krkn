@@ -1,0 +1,51 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: vm-outage
+description: Simulates VM outage for OpenShift Virtualization environments to test VM resilience
+target: openshift-virtualization
+risk_level: high
+category: availability
+version: "1.0"
+author: KRKN Team
+tags:
+  - vm
+  - outage
+  - openshift
+  - virtualization
+  - kubevirt
+estimated_duration: "5-10 minutes"
+dependencies:
+  - openshift_virtualization  # Requires OpenShift Virtualization/KubeVirt
+parameters:
+  - name: vm_name_pattern
+    type: string
+    description: Regex pattern to match VM names
+    default: ^.*-vm-.*$
+  - name: namespace_pattern
+    type: string
+    description: Regex pattern to match namespaces
+    default: ^.*$
+  - name: action
+    type: string
+    description: VM action (stop, restart, pause)
+    default: stop
+  - name: timeout
+    type: integer
+    description: Timeout for VM action in seconds
+    default: 300
+  - name: recovery_time
+    type: integer
+    description: VM recovery monitoring time in seconds
+    default: 180

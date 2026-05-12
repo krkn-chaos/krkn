@@ -1,0 +1,30 @@
+# Copyright 2025 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# yaml-language-server: $schema=../../plugin.schema.json
+# Basic Kubernetes Resource Failure Chaos Scenario Template
+# Simulates resource failures for various Kubernetes resources
+resource_type: deployment
+resource_name_pattern: ^.*-app-.*$
+namespace_pattern: ^default$
+action: delete  # delete, scale-to-zero, edit
+recovery_time: 120
+# Optional: Target specific resource type
+# resource_type: "service"
+# Optional: Scale to zero instead of delete
+# action: "scale-to-zero"
+# Optional: Modify resource configuration
+# action: "edit"
+# modifications:
+#   replicas: 0

@@ -22,10 +22,10 @@ from datetime import datetime
 from krkn_lib.models.telemetry.models import HealthCheck
 
 class HealthChecker:
-    current_iterations: int = 0
-    ret_value = 0
     def __init__(self, iterations):
         self.iterations = iterations
+        self.current_iterations: int = 0
+        self.ret_value = 0
 
     def make_request(self, url, auth=None, headers=None, verify=True):
         response_data = {}

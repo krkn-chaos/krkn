@@ -152,8 +152,6 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
-            import json # noqa
-            import base64 # noqa
             # Decode rollback data from resource_identifier
             decoded_data = base64.b64decode(rollback_content.resource_identifier.encode("utf-8")).decode("utf-8")
             rollback_data = json.loads(decoded_data)

@@ -74,7 +74,6 @@ class NetworkChaosNgScenarioPlugin(AbstractScenarioPlugin):
                         targets = random.sample(
                             targets, network_chaos_config.instance_count
                         )
-
                     if network_chaos_config.execution == "parallel":
                         self.run_parallel(targets, network_chaos)
                     else:
