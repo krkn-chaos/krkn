@@ -55,7 +55,6 @@ def get_status(start_time, end_time):
         # experience downtime during the chaos
         if check_application_routes:
             application_routes_status, unavailable_routes = application_status(
-                cerberus_url,
                 start_time,
                 end_time
             )
