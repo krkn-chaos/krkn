@@ -341,7 +341,8 @@ class TestSecureTempDirectories:
                 os.path.expanduser("~"), ".krkn", "rollback"
             )
         assert rollback_versions_dir != "/tmp/kraken-rollback"
-        assert ".krkn/rollback" in rollback_versions_dir
+        normalized = rollback_versions_dir.replace("\\", "/")
+        assert "/.krkn/rollback" in normalized
 
     def test_archive_path_uses_secure_tempdir_when_empty(self):
         """When archive_path is empty, a secure temp directory
@@ -353,7 +354,9 @@ class TestSecureTempDirectories:
             assert os.path.isdir(archive_path)
             assert archive_path != "/tmp"
             mode = oct(os.stat(archive_path).st_mode & 0o777)
-            assert mode == "0o700"
+            # Windows does not reliably expose POSIX permission bits the same way.
+            if os.name != "nt":
+                assert mode == "0o700"
         finally:
             os.rmdir(archive_path)
 
