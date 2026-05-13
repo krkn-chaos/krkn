@@ -46,13 +46,15 @@ class HealthChecker:
             while self.current_iterations < self.iterations:
                 for config in health_check_config.get("config"):
                     auth, headers = None, None
-                    verify_url = config["verify_url"] if "verify_url" in config else True
-                    if config["url"]: url = config["url"]
+                    verify_url = config.get("verify_url", True)
+                    if config.get("url"):
+                        url = config["url"]
 
-                    if config["bearer_token"]:
+                    if config.get("bearer_token"):
                         bearer_token = "Bearer " + config["bearer_token"]
                         headers = {"Authorization": bearer_token}
-                    if config["auth"]: auth = tuple(config["auth"].split(','))
+                    if config.get("auth"):
+                        auth = tuple(config["auth"].split(','))
                     try: 
                         response = self.make_request(url, auth, headers, verify_url)
                     except Exception:
@@ -68,7 +70,7 @@ class HealthChecker:
                         if response["status_code"] != 200:
                             if response_tracker[config["url"]] is not False:
                                 response_tracker[config["url"]] = False
-                            if config["exit_on_failure"] is True and self.ret_value == 0:
+                            if config.get("exit_on_failure") is True and self.ret_value == 0:
                                 self.ret_value = 2
                     else:
                             if response["status_code"] != health_check_tracker[config["url"]]["status_code"]:
