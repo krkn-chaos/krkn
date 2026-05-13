@@ -88,6 +88,7 @@ def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=Non
                     dir_pad = "    " if is_last_dir else "│   "
                     file_pad = "└── " if is_last_file else "├── "
                     file_prefix = dir_pad + file_pad
+                    print(f"{file_prefix}{file}")
                     
             except PermissionError:
                 file_prefix = "    └── " if is_last_dir else "│   └── "
