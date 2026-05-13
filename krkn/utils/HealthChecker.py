@@ -36,7 +36,12 @@ class HealthChecker:
         return response_data
 
 
-    def run_health_check(self, health_check_config, health_check_telemetry_queue: queue.Queue):        
+    def run_health_check(self, health_check_config, health_check_telemetry_queue: queue.Queue):
+        """
+        Runs health checks against configured URLs in a loop until iterations complete.
+        Populates health_check_telemetry_queue with results on completion.
+        Skips execution if health_check_config is not defined or contains no valid URLs.
+        """
         if health_check_config and health_check_config["config"] and any(config.get("url") for config in health_check_config["config"]):
             health_check_telemetry = []
             health_check_tracker = {}
@@ -47,8 +52,9 @@ class HealthChecker:
                 for config in health_check_config.get("config"):
                     auth, headers = None, None
                     verify_url = config.get("verify_url", True)
-                    if config.get("url"):
-                        url = config["url"]
+                    url = config.get("url")
+                    if not url:
+                        continue
 
                     if config.get("bearer_token"):
                         bearer_token = "Bearer " + config["bearer_token"]
