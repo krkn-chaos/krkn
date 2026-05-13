@@ -85,8 +85,9 @@ def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=Non
                 files.sort()
                 for j, file in enumerate(files):
                     is_last_file = (j == len(files) - 1)
-                    file_prefix = "    └── " if is_last_dir else "│   └── " if is_last_file else ("│   ├── " if not is_last_dir else "    ├── ")
-                    print(f"{file_prefix}{file}")
+                    dir_pad = "    " if is_last_dir else "│   "
+                    file_pad = "└── " if is_last_file else "├── "
+                    file_prefix = dir_pad + file_pad
                     
             except PermissionError:
                 file_prefix = "    └── " if is_last_dir else "│   └── "
