@@ -87,6 +87,61 @@ class TestWaitUntilConditionPython(unittest.TestCase):
         )
         self.assertFalse(result)
 
+    def test_non_dict_config_returns_false(self):
+        result = wait_until_condition(
+            "not_a_dict",
+            "/fake/kubeconfig",
+            "/fake/scenario.yaml",
+        )
+        self.assertFalse(result)
+
+    def test_string_max_wait_time_coerced(self):
+        mock_fn = MagicMock(return_value=True)
+        with patch(
+            "krkn.utils.wait_until._load_python_condition", return_value=mock_fn
+        ):
+            result = wait_until_condition(
+                {"type": "python", "target": "mod.fn", "max_wait_time": "10", "poll_interval": "1"},
+                "/fake/kubeconfig",
+                "/fake/scenario.yaml",
+            )
+        self.assertTrue(result)
+
+    def test_non_numeric_max_wait_time_returns_false(self):
+        result = wait_until_condition(
+            {"type": "python", "target": "mod.fn", "max_wait_time": "abc"},
+            "/fake/kubeconfig",
+            "/fake/scenario.yaml",
+        )
+        self.assertFalse(result)
+
+    def test_negative_max_wait_time_returns_false(self):
+        result = wait_until_condition(
+            {"type": "python", "target": "mod.fn", "max_wait_time": -5},
+            "/fake/kubeconfig",
+            "/fake/scenario.yaml",
+        )
+        self.assertFalse(result)
+
+    def test_python_condition_timeout_per_poll(self):
+        import threading
+        event = threading.Event()
+
+        def blocking_fn(kubeconfig, scenario):
+            event.wait(timeout=30)
+            return True
+
+        with patch(
+            "krkn.utils.wait_until._load_python_condition", return_value=blocking_fn
+        ):
+            result = wait_until_condition(
+                {"type": "python", "target": "mod.fn", "max_wait_time": 2, "poll_interval": 0.5},
+                "/fake/kubeconfig",
+                "/fake/scenario.yaml",
+            )
+        self.assertFalse(result)
+        event.set()
+
 
 class TestWaitUntilConditionScript(unittest.TestCase):
 
@@ -117,6 +172,25 @@ class TestWaitUntilConditionScript(unittest.TestCase):
                 "/fake/scenario.yaml",
             )
         self.assertTrue(result)
+
+    def test_script_failure_logs_output(self):
+        mock_result = MagicMock(returncode=1, stdout="some output", stderr="some error")
+        mock_success = MagicMock(returncode=0, stdout="", stderr="")
+        with patch(
+            "krkn.utils.wait_until.subprocess.run",
+            side_effect=[mock_result, mock_success],
+        ), patch("krkn.utils.wait_until.time.sleep"), patch(
+            "logging.debug"
+        ) as mock_debug:
+            result = wait_until_condition(
+                {"type": "script", "target": "/fake/script.sh", "max_wait_time": 30, "poll_interval": 1},
+                "/fake/kubeconfig",
+                "/fake/scenario.yaml",
+            )
+        self.assertTrue(result)
+        debug_messages = [str(call) for call in mock_debug.call_args_list]
+        self.assertTrue(any("stderr" in m for m in debug_messages))
+        self.assertTrue(any("stdout" in m for m in debug_messages))
 
     def test_script_timeout(self):
         mock_result = MagicMock(returncode=1)

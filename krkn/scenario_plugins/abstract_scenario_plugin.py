@@ -150,14 +150,20 @@ class AbstractScenarioPlugin(ABC):
                     telemetry, run_uuid, scenario_telemetry.scenario_type
                 )
             wait_config = _parse_wait_until(scenario_config)
-            if wait_config:
-                kubeconfig = krkn_config.get("kraken", {}).get(
-                    "kubeconfig_path", ""
-                )
-                condition_met = wait_until_condition(
-                    wait_config, kubeconfig, scenario_config
-                )
-                scenario_telemetry.wait_until_met = condition_met
+            if wait_config is not None:
+                try:
+                    kubeconfig = krkn_config.get("kraken", {}).get(
+                        "kubeconfig_path", ""
+                    )
+                    condition_met = wait_until_condition(
+                        wait_config, kubeconfig, scenario_config
+                    )
+                    scenario_telemetry.wait_until_met = condition_met
+                except Exception as e:
+                    logging.warning(
+                        f"wait_until: unexpected error, continuing: {e}"
+                    )
+                    scenario_telemetry.wait_until_met = False
 
             scenario_telemetry.exit_status = return_value
             scenario_telemetry.end_timestamp = time.time()

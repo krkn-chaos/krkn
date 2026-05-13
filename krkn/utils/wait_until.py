@@ -2,9 +2,11 @@ import importlib
 import logging
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 
 DEFAULT_POLL_INTERVAL = 10
+MAX_SCRIPT_OUTPUT_LEN = 4096
 
 
 def wait_until_condition(
@@ -21,6 +23,12 @@ def wait_until_condition(
     :param scenario: path to the scenario config file
     :return: True if condition was met, False if timed out
     """
+    if not isinstance(wait_config, dict):
+        logging.error(
+            f"wait_until: expected a dict, got {type(wait_config).__name__}"
+        )
+        return False
+
     condition_type = wait_config.get("type")
     target = wait_config.get("target")
     max_wait_time = wait_config.get("max_wait_time")
@@ -29,6 +37,21 @@ def wait_until_condition(
     if not condition_type or not target or max_wait_time is None:
         logging.error(
             "wait_until: missing required fields (type, target, max_wait_time)"
+        )
+        return False
+
+    try:
+        max_wait_time = float(max_wait_time)
+        poll_interval = float(poll_interval)
+    except (TypeError, ValueError):
+        logging.error(
+            "wait_until: max_wait_time and poll_interval must be numeric"
+        )
+        return False
+
+    if max_wait_time <= 0 or poll_interval <= 0:
+        logging.error(
+            "wait_until: max_wait_time and poll_interval must be > 0"
         )
         return False
 
@@ -49,9 +72,16 @@ def wait_until_condition(
 
     deadline = time.time() + max_wait_time
     while time.time() < deadline:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        poll_timeout = min(poll_interval, remaining)
+
         try:
             if condition_type == "python":
-                result = check_fn(kubeconfig, scenario)
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    future = executor.submit(check_fn, kubeconfig, scenario)
+                    result = future.result(timeout=poll_timeout)
                 if result:
                     logging.info(f"wait_until: condition '{target}' met")
                     return True
@@ -60,11 +90,24 @@ def wait_until_condition(
                     [target, kubeconfig, scenario],
                     capture_output=True,
                     text=True,
-                    timeout=poll_interval,
+                    timeout=poll_timeout,
                 )
                 if completed.returncode == 0:
                     logging.info(f"wait_until: script '{target}' returned 0, condition met")
                     return True
+                else:
+                    if completed.stderr:
+                        logging.debug(
+                            f"wait_until: script stderr: "
+                            f"{completed.stderr[:MAX_SCRIPT_OUTPUT_LEN]}"
+                        )
+                    if completed.stdout:
+                        logging.debug(
+                            f"wait_until: script stdout: "
+                            f"{completed.stdout[:MAX_SCRIPT_OUTPUT_LEN]}"
+                        )
+        except FuturesTimeoutError:
+            logging.warning(f"wait_until: python condition '{target}' timed out during poll, retrying")
         except subprocess.TimeoutExpired:
             logging.warning(f"wait_until: script '{target}' timed out during poll, retrying")
         except Exception as e:
