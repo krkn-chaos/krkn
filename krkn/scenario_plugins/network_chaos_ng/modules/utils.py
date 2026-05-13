@@ -13,7 +13,7 @@
 # limitations under the License.
 import logging
 import os
-from typing import Tuple
+from typing import Optional, Tuple
 
 import yaml
 from jinja2 import FileSystemLoader, Environment
@@ -108,6 +108,57 @@ def get_pod_default_interface(
     cmd = "ip r | grep default | awk '/default/ {print $5}'"
     output = kubecli.exec_cmd_in_pod([cmd], pod_name, namespace)
     return output.replace("\n", "")
+
+
+def find_virt_launcher_netns_pid(
+    chaos_pod_name: str,
+    namespace: str,
+    pids: list[str],
+    kubecli: KrknKubernetes,
+) -> Optional[str]:
+    """Return the first PID from `pids` whose netns contains a tap device.
+
+    Not all PIDs returned by get_pod_pids are inside the virt-launcher network
+    namespace — some helper processes run in the host netns.  Entering one of
+    those would target the node's physical NIC instead of the bridge slave
+    inside the virt-launcher netns.
+    """
+    for pid in pids:
+        try:
+            result = kubecli.exec_cmd_in_pod(
+                [f"nsenter --target {pid} --net -- ip link show type tun"],
+                chaos_pod_name,
+                namespace,
+            )
+            if result and "tap" in result:
+                return pid
+        except Exception as e:
+            logging.warning(f"failed to check netns for PID {pid}: {e}")
+            continue
+    return None
+
+
+def get_vmi_tap_interface(
+    chaos_pod_name: str,
+    namespace: str,
+    netns_pid: str,
+    kubecli: KrknKubernetes,
+) -> Optional[str]:
+    """Return the name of the tap device inside the virt-launcher netns."""
+    result = kubecli.exec_cmd_in_pod(
+        [f"nsenter --target {netns_pid} --net -- ip -o link show type tun"],
+        chaos_pod_name,
+        namespace,
+    )
+    if not result:
+        return None
+    for line in result.splitlines():
+        parts = line.split(":")
+        if len(parts) >= 2:
+            iface = parts[1].strip().split("@")[0].strip()
+            if iface.startswith("tap"):
+                return iface
+    return None
 
 
 def setup_network_chaos_ng_scenario(
