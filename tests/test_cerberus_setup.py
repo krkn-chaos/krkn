@@ -33,7 +33,7 @@ class TestCerberusSetup(unittest.TestCase):
             "cerberus": {
                 "cerberus_enabled": True,
                 "cerberus_url": "http://cerberus.example.com",
-                "check_applicaton_routes": "route1,route2"
+                "check_application_routes": "route1,route2"
             }
         }
 
@@ -125,26 +125,22 @@ class TestCerberusSetup(unittest.TestCase):
         """Test get_status with application routes check when routes are healthy"""
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.cerberus_url = "http://cerberus.example.com"
-        
-        # Mock both cerberus status check and history endpoint
+        cerberus_setup.check_application_routes = "route1,route2"
+
         def mock_get_side_effect(url, timeout):
             mock_response = MagicMock()
             if "/history?" in url:
-                # History endpoint - no failures
                 mock_response.content = json.dumps({"history": {"failures": []}}).encode()
             else:
-                # Status endpoint
                 mock_response.content = b"True"
             return mock_response
-        
+
         mock_get.side_effect = mock_get_side_effect
 
-        # Note: check_application_routes is set to False locally in get_status()
-        # so we can't test the full flow without modifying the function
-        # This test verifies cerberus status returns True
         result = cerberus_setup.get_status(0, 100)
 
         self.assertTrue(result)
+        self.assertEqual(mock_get.call_count, 2)
 
     @patch('krkn.cerberus.setup.requests.get')
     def test_get_status_with_application_routes_check_failure(self, mock_get):
