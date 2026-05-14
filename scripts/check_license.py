@@ -1,4 +1,17 @@
 #!/usr/bin/env python3
+# Copyright 2026 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
 License header linter for krkn source files.
 
@@ -21,7 +34,7 @@ import sys
 from pathlib import Path
 
 LICENSE_HEADER = """\
-# Copyright 2025 The Krkn Authors
+# Copyright 2026 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -36,7 +49,7 @@ LICENSE_HEADER = """\
 # limitations under the License."""
 
 # Check for the copyright line only — allows year/author variation
-LICENSE_MARKER = "# Copyright 2025 The Krkn Authors"
+LICENSE_MARKER = "# Copyright 2026 The Krkn Authors"
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -47,12 +60,13 @@ def is_test_file(path: Path) -> bool:
 
 
 def collect_source_files() -> list[Path]:
-    return [
-        p
-        for p in REPO_ROOT.rglob("*.py")
-        if not is_test_file(p)
-        and not any(part.startswith(".") or part in ("venv", "venv3111", "build", "dist", "__pycache__") for part in p.parts)
-    ]
+    source_files = []
+    excluded_dirs = {".git", ".github", "venv", "venv3111", "build", "dist", "__pycache__", "tests", "CI"}
+    for path in REPO_ROOT.rglob("*.py"):
+        if not any(part in excluded_dirs or part.startswith(".") for part in path.parts):
+            if not is_test_file(path):
+                source_files.append(path)
+    return source_files
 
 
 def has_license(path: Path) -> bool:
