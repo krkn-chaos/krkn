@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import logging
 import time
 from typing import Dict, Any
@@ -290,7 +291,10 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             logging.info(f"Attempting to recover VMI {vm_name} in namespace {namespace}")
-            
+
+            if not hasattr(self, 'affected_vmi') or self.affected_vmi is None:
+                self.affected_vmi = AffectedVMI(vmi_name=vm_name, namespace=namespace)
+
             if self.original_vmi:
                 logging.info(f"Auto-recovery didn't occur for VMI {vm_name}. Attempting manual recreation")
                 

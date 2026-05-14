@@ -30,11 +30,15 @@ Usage:
 """
 
 import argparse
+import re
 import sys
+from datetime import datetime
 from pathlib import Path
 
-LICENSE_HEADER = """\
-# Copyright 2026 The Krkn Authors
+CURRENT_YEAR = datetime.now().year
+
+LICENSE_HEADER = f"""\
+# Copyright {CURRENT_YEAR} The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -48,8 +52,8 @@ LICENSE_HEADER = """\
 # See the License for the specific language governing permissions and
 # limitations under the License."""
 
-# Check for the copyright line only — allows year/author variation
-LICENSE_MARKER = "# Copyright 2026 The Krkn Authors"
+# Match any year — no need to update files when the year changes
+LICENSE_MARKER = re.compile(r"# Copyright \d{4} The Krkn Authors")
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -72,7 +76,7 @@ def collect_source_files() -> list[Path]:
 def has_license(path: Path) -> bool:
     try:
         content = path.read_text(encoding="utf-8")
-        return LICENSE_MARKER in content
+        return bool(LICENSE_MARKER.search(content))
     except (OSError, UnicodeDecodeError):
         return True  # skip unreadable files silently
 
@@ -94,7 +98,7 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.files:
-        paths = [Path(f) for f in args.files if not is_test_file(Path(f)) and f.endswith(".py")]
+        paths = [Path(f).resolve() for f in args.files if not is_test_file(Path(f)) and f.endswith(".py")]
     else:
         paths = collect_source_files()
 
