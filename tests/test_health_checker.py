@@ -13,7 +13,7 @@ This test file provides comprehensive coverage for the main functionality of Hea
 Usage:
     python -m coverage run -a -m unittest tests/test_health_checker.py -v
 
-Assisted By: Claude Code
+
 """
 
 import queue
@@ -497,6 +497,108 @@ class TestHealthChecker(unittest.TestCase):
 
         # Verify sleep was called with custom interval
         mock_sleep.assert_called_with(5)
+
+    @patch('krkn.utils.HealthChecker.HealthChecker.make_request')
+    @patch('time.sleep')
+    def test_ttr_single_url_recovery(self, mock_sleep, mock_make_request):
+        call_count = [0]
+
+        def side_effect(*args, **kwargs):
+            self.checker.current_iterations += 1
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return {"url": "http://example.com", "status": False, "status_code": 500}
+            return {"url": "http://example.com", "status": True, "status_code": 200}
+
+        mock_make_request.side_effect = side_effect
+
+        config = {
+            "config": [
+                {
+                    "url": "http://example.com",
+                    "bearer_token": None,
+                    "auth": None,
+                    "exit_on_failure": False,
+                }
+            ],
+            "interval": 0.01,
+        }
+
+        self.checker.iterations = 3
+        self.checker.run_health_check(config, self.health_check_queue)
+
+        self.assertIsNotNone(self.checker.time_to_recovery)
+        self.assertNotEqual(self.checker.time_to_recovery, -1)
+        self.assertGreaterEqual(self.checker.time_to_recovery, 0)
+
+    @patch('krkn.utils.HealthChecker.HealthChecker.make_request')
+    @patch('time.sleep')
+    def test_ttr_timeout_when_url_never_recovers(self, mock_sleep, mock_make_request):
+        def side_effect(*args, **kwargs):
+            self.checker.current_iterations += 1
+            return {"url": "http://example.com", "status": False, "status_code": 500}
+
+        mock_make_request.side_effect = side_effect
+
+        config = {
+            "config": [
+                {
+                    "url": "http://example.com",
+                    "bearer_token": None,
+                    "auth": None,
+                    "exit_on_failure": False,
+                }
+            ],
+            "interval": 0.01,
+        }
+
+        self.checker.iterations = 2
+        self.checker.run_health_check(config, self.health_check_queue)
+
+        self.assertEqual(self.checker.time_to_recovery, -1)
+
+    @patch('krkn.utils.HealthChecker.HealthChecker.make_request')
+    @patch('time.sleep')
+    def test_ttr_max_across_multiple_urls(self, mock_sleep, mock_make_request):
+        call_counts = {"http://fast.com": 0, "http://slow.com": 0}
+
+        def side_effect(url, *args, **kwargs):
+            self.checker.current_iterations += 1
+            call_counts[url] += 1
+            if url == "http://fast.com":
+                if call_counts[url] == 1:
+                    return {"url": url, "status": False, "status_code": 500}
+                return {"url": url, "status": True, "status_code": 200}
+            if url == "http://slow.com":
+                if call_counts[url] <= 2:
+                    return {"url": url, "status": False, "status_code": 500}
+                return {"url": url, "status": True, "status_code": 200}
+
+        mock_make_request.side_effect = side_effect
+
+        config = {
+            "config": [
+                {
+                    "url": "http://fast.com",
+                    "bearer_token": None,
+                    "auth": None,
+                    "exit_on_failure": False,
+                },
+                {
+                    "url": "http://slow.com",
+                    "bearer_token": None,
+                    "auth": None,
+                    "exit_on_failure": False,
+                },
+            ],
+            "interval": 0.01,
+        }
+
+        self.checker.iterations = 5
+        self.checker.run_health_check(config, self.health_check_queue)
+
+        self.assertIsNotNone(self.checker.time_to_recovery)
+        self.assertNotEqual(self.checker.time_to_recovery, -1)
 
 
 if __name__ == "__main__":
