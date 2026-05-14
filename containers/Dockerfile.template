@@ -49,6 +49,7 @@ RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
 # copy oc client binary from oc-build image
 COPY --from=oc-build /tmp/oc/oc /usr/bin/oc
 COPY --from=oc-build /tmp/kubevirt/virtctl /usr/bin/virtctl
+RUN ln -s /usr/bin/oc /usr/bin/kubectl
 
 # krkn build
 RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken && \
