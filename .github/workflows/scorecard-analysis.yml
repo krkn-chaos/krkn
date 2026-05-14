@@ -7,7 +7,7 @@ on:
 
   # https://github.com/ossf/scorecard/blob/main/docs/checks.md#maintained
   schedule:
-    - cron: "17 9 * * 1"
+    - cron: "30 19 * * *"
 
 permissions: read-all
 
