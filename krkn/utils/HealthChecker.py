@@ -50,7 +50,12 @@ class HealthChecker:
         return response_data
 
 
-    def run_health_check(self, health_check_config, health_check_telemetry_queue: queue.Queue):        
+    def run_health_check(self, health_check_config, health_check_telemetry_queue: queue.Queue):
+        """
+        Runs health checks against configured URLs in a loop until iterations complete.
+        Populates health_check_telemetry_queue with results on completion.
+        Skips execution if health_check_config is not defined or contains no valid URLs.
+        """
         if health_check_config and health_check_config["config"] and any(config.get("url") for config in health_check_config["config"]):
             health_check_telemetry = []
             health_check_tracker = {}
@@ -60,13 +65,16 @@ class HealthChecker:
             while self.current_iterations < self.iterations:
                 for config in health_check_config.get("config"):
                     auth, headers = None, None
-                    verify_url = config["verify_url"] if "verify_url" in config else True
-                    if config["url"]: url = config["url"]
+                    verify_url = config.get("verify_url", True)
+                    url = config.get("url")
+                    if not url:
+                        continue
 
-                    if config["bearer_token"]:
+                    if config.get("bearer_token"):
                         bearer_token = "Bearer " + config["bearer_token"]
                         headers = {"Authorization": bearer_token}
-                    if config["auth"]: auth = tuple(config["auth"].split(','))
+                    if config.get("auth"):
+                        auth = tuple(config["auth"].split(','))
                     try: 
                         response = self.make_request(url, auth, headers, verify_url)
                     except Exception:
@@ -82,7 +90,7 @@ class HealthChecker:
                         if response["status_code"] != 200:
                             if response_tracker[config["url"]] is not False:
                                 response_tracker[config["url"]] = False
-                            if config["exit_on_failure"] is True and self.ret_value == 0:
+                            if config.get("exit_on_failure") is True and self.ret_value == 0:
                                 self.ret_value = 2
                     else:
                             if response["status_code"] != health_check_tracker[config["url"]]["status_code"]:
