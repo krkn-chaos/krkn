@@ -115,7 +115,7 @@ class ManagedClusterScenarioPlugin(AbstractScenarioPlugin):
                         run_kill_count, single_managedcluster, timeout
                     )
                 elif action == "start_klusterlet_scenario":
-                    managedcluster_scenario_object.stop_klusterlet_scenario(
+                    managedcluster_scenario_object.start_klusterlet_scenario(
                         run_kill_count, single_managedcluster, timeout
                     )
                 elif action == "stop_klusterlet_scenario":
