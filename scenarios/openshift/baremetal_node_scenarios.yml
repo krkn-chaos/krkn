@@ -1,3 +1,16 @@
+# Copyright 2026 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 node_scenarios:
   - actions:                                                        # Node chaos scenarios to be injected
     - node_stop_start_scenario                                      # Action to run. Supported actions: node_stop, node_restart, node_stop_start etc. Please refer documentation
@@ -10,8 +23,8 @@ node_scenarios:
     parallel: False                                                 # Run action on label or node name in parallel or sequential, set to true for parallel
     cloud_type: bm                                                  # Cloud type on which Kubernetes/OpenShift runs.
     kube_check: True                                                # Run the kubernetes api calls to see if the node gets to a certain state during the node scenario   
-    bmc_user: <your_bmc_user>                                           # For baremetal (bm) cloud type. The default IPMI username. Optional if specified for all machines
-    bmc_password: <your_bmc_password>                                   # For baremetal (bm) cloud type. The default IPMI password. Optional if specified for all machines
+    bmc_user: <your_bmc_user>                                           # The default IPMI username. Optional if BMC_USER env var is set or specified per-machine below.
+    bmc_password: <your_bmc_password>                                   # The default IPMI password. Optional if BMC_PASSWORD env var is set or specified per-machine below.
     bmc_info:                                                       # This section is here to specify baremetal per-machine info, so it is optional if there is no per-machine info.
       <your_node_name_1>:                                           # The node name for the baremetal machine
         bmc_addr: <your_bmc_address_1>                              # Optional. For baremetal nodes with the IPMI BMC address missing from 'oc get bmh'

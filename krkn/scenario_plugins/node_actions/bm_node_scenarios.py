@@ -1,4 +1,4 @@
-# Copyright 2025 The Krkn Authors
+# Copyright 2026 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@ from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
     abstract_node_scenarios,
 )
 import logging
+import os
 import openshift as oc
 import pyipmi
 import pyipmi.interfaces
@@ -27,8 +28,8 @@ from krkn_lib.utils import get_random_string
 
 class BM:
     def __init__(self, bm_info, user, passwd):
-        self.user = user
-        self.passwd = passwd
+        self.user = user if user else os.environ.get("BMC_USER")
+        self.passwd = passwd if passwd else os.environ.get("BMC_PASSWORD")
         self.bm_info = bm_info
 
     def get_node_object(self, node_name):
@@ -98,14 +99,17 @@ class BM:
         else:
             user = self.user
             passwd = self.passwd
-        if user is None or passwd is None:
+
+        if not user or not passwd:
             logging.error(
-                "Missing IPMI BMI user and/or password for baremetal cloud. "
-                "Please specify either a global or per-machine user and pass"
+                "Missing IPMI BMC user and/or password for baremetal cloud. "
+                "Please specify either in the scenario YAML or via "
+                "BMC_USER/BMC_PASSWORD environment variables."
             )
             raise RuntimeError(
-                "Missing IPMI BMI user and/or password for baremetal cloud. "
-                "Please specify either a global or per-machine user and pass"
+                "Missing IPMI BMC user and/or password for baremetal cloud. "
+                "Please specify either in the scenario YAML or via "
+                "BMC_USER/BMC_PASSWORD environment variables."
             )
 
         # Establish connection

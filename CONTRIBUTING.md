@@ -38,6 +38,9 @@ If you are working on a contribution in any capacity and would like to get a new
 If you have any questions that you think could be better discussed on a meeting we have monthly office hours [zoom link](https://zoom-lfx.platform.linuxfoundation.org/meetings/krkn?view=month). Please add items to agenda before so we can best prepare to help you.
 
 
+## AI-Assisted Contributions
+We welcome contributions that use AI tools (LLMs, code generators, AI coding agents, etc.) as development assistants. If you use AI tools in your contribution, please review our [AI Contribution Policy](AI_CONTRIBUTION_POLICY.md) for disclosure requirements, safety guidelines, and quality expectations. In short: disclose AI usage in your commit trailers and make sure you understand and can explain every line of code you submit.
+
 ## Good PR Checklist
 Here's a quick checklist for a good PR, more details below:
 - One feature/change per PR
