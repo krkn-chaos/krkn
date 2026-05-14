@@ -32,14 +32,14 @@ def set_url(config):
         cerberus_url = get_yaml_item_value(config["cerberus"],"cerberus_url", "")
         global check_application_routes
         check_application_routes = \
-            get_yaml_item_value(config["cerberus"],"check_applicaton_routes","")
+            get_yaml_item_value(config["cerberus"],"check_application_routes","")
 
 def get_status(start_time, end_time):
     """
     Get cerberus status
     """
+    global check_application_routes
     cerberus_status = True
-    check_application_routes = False
     application_routes_status = True
     if cerberus_enabled:
         if not cerberus_url:
@@ -55,7 +55,6 @@ def get_status(start_time, end_time):
         # experience downtime during the chaos
         if check_application_routes:
             application_routes_status, unavailable_routes = application_status(
-                cerberus_url,
                 start_time,
                 end_time
             )
