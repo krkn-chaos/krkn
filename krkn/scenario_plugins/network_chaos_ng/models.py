@@ -20,6 +20,7 @@ from typing import TypeVar, Optional
 class NetworkChaosScenarioType(Enum):
     Node = 1
     Pod = 2
+    VMI = 3
 
 
 @dataclass

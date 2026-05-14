@@ -22,10 +22,52 @@ from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_chaos import (
     node_qdisc_is_simple,
     common_set_limit_rules,
     common_delete_limit_rules,
+    _normalize_rate,
+    _normalize_delay,
+    _normalize_loss,
     ROOT_HANDLE,
     CLASS_ID,
     NETEM_HANDLE,
 )
+
+
+class TestNormalizers(unittest.TestCase):
+
+    def test_normalize_rate_bare_integer(self):
+        self.assertEqual(_normalize_rate("100"), "100mbit")
+
+    def test_normalize_rate_bare_float(self):
+        self.assertEqual(_normalize_rate("1.5"), "1.5mbit")
+
+    def test_normalize_rate_with_unit(self):
+        self.assertEqual(_normalize_rate("100mbit"), "100mbit")
+
+    def test_normalize_rate_gbit(self):
+        self.assertEqual(_normalize_rate("1gbit"), "1gbit")
+
+    def test_normalize_rate_none(self):
+        self.assertEqual(_normalize_rate(None), "1gbit")
+
+    def test_normalize_delay_bare_integer(self):
+        self.assertEqual(_normalize_delay("50"), "50ms")
+
+    def test_normalize_delay_bare_float(self):
+        self.assertEqual(_normalize_delay("1.5"), "1.5ms")
+
+    def test_normalize_delay_with_unit(self):
+        self.assertEqual(_normalize_delay("50ms"), "50ms")
+
+    def test_normalize_delay_none(self):
+        self.assertEqual(_normalize_delay(None), "0ms")
+
+    def test_normalize_loss_bare(self):
+        self.assertEqual(_normalize_loss("10"), "10")
+
+    def test_normalize_loss_with_pct(self):
+        self.assertEqual(_normalize_loss("10%"), "10")
+
+    def test_normalize_loss_none(self):
+        self.assertEqual(_normalize_loss(None), "0")
 
 
 class TestBuildTcTreeCommands(unittest.TestCase):
@@ -147,6 +189,22 @@ class TestEgressShapingCommands(unittest.TestCase):
         )
         self.assertIn(
             "tc qdisc change dev eth0 parent 100:1 handle 101: netem delay 0ms loss 0%",
+            result,
+        )
+
+    def test_egress_shaping_with_suffixed_params(self):
+        """
+        Test that pre-suffixed values (e.g. "100mbit", "50ms", "10%") are passed through unchanged.
+        """
+        devices = ["eth0"]
+        result = get_egress_shaping_comand(devices, "100mbit", "50ms", "10%")
+
+        self.assertIn(
+            "tc class change dev eth0 parent 100: classid 100:1 htb rate 100mbit",
+            result,
+        )
+        self.assertIn(
+            "tc qdisc change dev eth0 parent 100:1 handle 101: netem delay 50ms loss 10%",
             result,
         )
 
