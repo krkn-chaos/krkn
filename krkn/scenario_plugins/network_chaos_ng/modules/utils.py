@@ -18,7 +18,6 @@ from typing import Optional, Tuple
 import yaml
 from jinja2 import FileSystemLoader, Environment
 from krkn_lib.k8s import KrknKubernetes
-from krkn_lib.models.k8s import Pod
 
 from krkn.scenario_plugins.network_chaos_ng.models import (
     BaseNetworkChaosConfig,
@@ -122,6 +121,9 @@ def find_virt_launcher_netns_pid(
     namespace — some helper processes run in the host netns.  Entering one of
     those would target the node's physical NIC instead of the bridge slave
     inside the virt-launcher netns.
+
+    tap0 is a KubeVirt-specific tap device that only exists inside the
+    virt-launcher's netns, so its presence is a reliable probe.
     """
     for pid in pids:
         try:
@@ -159,6 +161,56 @@ def get_vmi_tap_interface(
             if iface.startswith("tap"):
                 return iface
     return None
+
+
+def get_vmi_tap_interface(
+    chaos_pod_name: str, namespace: str, pid: str, kubecli: KrknKubernetes
+) -> str:
+    """Find the VMI's primary tap interface inside the virt-launcher network namespace.
+
+    The tap device is the VM-facing member of the KubeVirt bridge:
+        ovn-udn1-nic -> k6t-ovn-udn1 (bridge) -> tap0 -> QEMU (VM guest)
+
+    We locate it by finding the tap member of the k6t-* bridge rather than
+    grepping for any tap-prefixed device, so the detection works regardless
+    of how many interfaces the VM has.
+
+    Blocking the tap interface isolates only this VMI.  Blocking the bridge
+    slave (ovn-udn1-nic) would also sever OVN's BFD heartbeats and trigger
+    a node-wide network reconvergence.
+    """
+    # Find the k6t-* bridge name first, then find its tap member.
+    bridge_cmd = (
+        f"nsenter --target {pid} --net -- "
+        f"ip link show | grep ': k6t-' | head -1 | cut -d: -f2 | tr -d ' '"
+    )
+    bridge = kubecli.exec_cmd_in_pod([bridge_cmd], chaos_pod_name, namespace).strip()
+    if not bridge:
+        return ""
+
+    tap_cmd = (
+        f"nsenter --target {pid} --net -- "
+        f"ip link show master {bridge} | grep ': tap' | head -1 | cut -d: -f2 | tr -d ' '"
+    )
+    output = kubecli.exec_cmd_in_pod([tap_cmd], chaos_pod_name, namespace)
+    return output.strip()
+
+
+def get_vmi_masquerade_interface(
+    chaos_pod_name: str, namespace: str, netns_pid: str, kubecli: KrknKubernetes
+) -> str:
+    """Return the default-route interface inside the virt-launcher netns (masquerade mode)."""
+    result = kubecli.exec_cmd_in_pod(
+        [f"nsenter --target {netns_pid} --net -- ip route show default"],
+        chaos_pod_name,
+        namespace,
+    )
+    parts = result.split() if result else []
+    if "dev" in parts:
+        idx = parts.index("dev")
+        if idx + 1 < len(parts):
+            return parts[idx + 1]
+    return ""
 
 
 def setup_network_chaos_ng_scenario(

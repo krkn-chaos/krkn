@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import queue
 import time
 from typing import Tuple
@@ -113,13 +114,6 @@ class NodeInterfaceDownModule(AbstractNetworkChaosModule):
                 parallel,
                 target,
             )
-
-            log_info(
-                f"waiting {self.config.test_duration} seconds for interface(s) to recover",
-                parallel,
-                target,
-            )
-            time.sleep(self.config.test_duration)
 
             log_info(
                 f"waiting for node {target} to become Ready after interface recovery",

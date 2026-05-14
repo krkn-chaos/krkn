@@ -54,6 +54,7 @@ kraken:
                - scenarios/kube/pod-network-chaos.yml
                - scenarios/kube/node_interface_down.yaml
                - scenarios/openshift/virt_network_chaos.yaml
+               - scenarios/openshift/virt_network.yaml
        -  kubevirt_vm_outage:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
        - http_load_scenarios:
