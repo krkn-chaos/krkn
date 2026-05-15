@@ -1,0 +1,16 @@
+name: Needs DCO Signoff
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  dco:
+    uses: krkn-chaos/actions/.github/workflows/needs-dco.yml@main
