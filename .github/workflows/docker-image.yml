@@ -33,14 +33,14 @@ jobs:
           --build-arg PR_NUMBER=${{ github.event.pull_request.number }}
 
     - name: Login to krkn-chaos quay
-      if: startsWith(github.ref, 'refs/tags') && matrix.platform == 'amd64'
+      if: startsWith(github.ref, 'refs/tags')
       uses: docker/login-action@v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
 
-    - name: Build and push krkn-hub (amd64 only)
+    - name: Build and push krkn-chaos/krkn (amd64 only)
       if: startsWith(github.ref, 'refs/tags') && matrix.platform == 'amd64'
       run: |
         ./containers/compile_dockerfile.sh
@@ -54,21 +54,35 @@ jobs:
           --build-arg TAG=${TAG} \
           --push
 
-    - name: Login to redhat-chaos quay
-      if: startsWith(github.ref, 'refs/tags')
-      uses: docker/login-action@v3
-      with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USER_1 }}
-        password: ${{ secrets.QUAY_TOKEN_1 }}
-
-    - name: Build and push krkn-hub-multiarch (both architectures)
+    - name: Build and push krkn-chaos/krkn-multiarch (both architectures)
       if: startsWith(github.ref, 'refs/tags')
       run: |
         ./containers/compile_dockerfile.sh
         TAG=${GITHUB_REF#refs/tags/}
         docker buildx build --no-cache \
           --platform linux/${{ matrix.platform }} \
+          --provenance=false \
+          -t quay.io/krkn-chaos/krkn-multiarch:latest \
+          -t quay.io/krkn-chaos/krkn-multiarch:${TAG} \
+          containers/ \
+          --build-arg TAG=${TAG} \
+          --push
+
+    - name: Login to redhat-chaos quay
+      if: startsWith(github.ref, 'refs/tags') && matrix.platform == 'amd64'
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USER_1 }}
+        password: ${{ secrets.QUAY_TOKEN_1 }}
+
+    - name: Build and push redhat-chaos/krkn (amd64 only)
+      if: startsWith(github.ref, 'refs/tags') && matrix.platform == 'amd64'
+      run: |
+        ./containers/compile_dockerfile.sh
+        TAG=${GITHUB_REF#refs/tags/}
+        docker buildx build --no-cache \
+          --platform linux/amd64 \
           --provenance=false \
           -t quay.io/redhat-chaos/krkn:latest \
           -t quay.io/redhat-chaos/krkn:${TAG} \
