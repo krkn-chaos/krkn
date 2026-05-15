@@ -21,7 +21,7 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Test Build the Docker images
+    - name: Test Build the Docker image
       if: github.event_name == 'pull_request'
       run: |
         ./containers/compile_dockerfile.sh
@@ -33,14 +33,36 @@ jobs:
           --build-arg PR_NUMBER=${{ github.event.pull_request.number }}
 
     - name: Login to krkn-chaos quay
-      if: startsWith(github.ref, 'refs/tags')
+      if: startsWith(github.ref, 'refs/tags') && matrix.platform == 'amd64'
       uses: docker/login-action@v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
 
-    - name: Build and push krkn-chaos images
+    - name: Build and push krkn-hub (amd64 only)
+      if: startsWith(github.ref, 'refs/tags') && matrix.platform == 'amd64'
+      run: |
+        ./containers/compile_dockerfile.sh
+        TAG=${GITHUB_REF#refs/tags/}
+        docker buildx build --no-cache \
+          --platform linux/amd64 \
+          --provenance=false \
+          -t quay.io/krkn-chaos/krkn:latest \
+          -t quay.io/krkn-chaos/krkn:${TAG} \
+          containers/ \
+          --build-arg TAG=${TAG} \
+          --push
+
+    - name: Login to redhat-chaos quay
+      if: startsWith(github.ref, 'refs/tags')
+      uses: docker/login-action@v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USER_1 }}
+        password: ${{ secrets.QUAY_TOKEN_1 }}
+
+    - name: Build and push krkn-hub-multiarch (both architectures)
       if: startsWith(github.ref, 'refs/tags')
       run: |
         ./containers/compile_dockerfile.sh
@@ -48,74 +70,17 @@ jobs:
         docker buildx build --no-cache \
           --platform linux/${{ matrix.platform }} \
           --provenance=false \
-          -t quay.io/krkn-chaos/krkn:latest-${{ matrix.platform }} \
-          -t quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} \
+          -t quay.io/redhat-chaos/krkn:latest \
+          -t quay.io/redhat-chaos/krkn:${TAG} \
           containers/ \
           --build-arg TAG=${TAG} \
-          --push --load
+          --push
 
-    - name: Login to redhat-chaos quay
-      if: startsWith(github.ref, 'refs/tags')
-      uses: docker/login-action@v3
-      with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USER_1 }}
-        password: ${{ secrets.QUAY_TOKEN_1 }}
-
-    - name: Push redhat-chaos images
-      if: startsWith(github.ref, 'refs/tags')
-      run: |
-        TAG=${GITHUB_REF#refs/tags/}
-        docker tag quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} quay.io/redhat-chaos/krkn:${TAG}-${{ matrix.platform }}
-        docker tag quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
-        docker push quay.io/redhat-chaos/krkn:${TAG}-${{ matrix.platform }}
-        docker push quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
-
-  manifest:
+  rebuild-krkn-hub:
     runs-on: ubuntu-latest
     needs: build
     if: startsWith(github.ref, 'refs/tags')
     steps:
-    - name: Login to krkn-chaos quay
-      uses: docker/login-action@v3
-      with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USERNAME }}
-        password: ${{ secrets.QUAY_PASSWORD }}
-
-    - name: Create and push KrknChaos manifests
-      run: |
-        TAG=${GITHUB_REF#refs/tags/}
-        docker manifest create quay.io/krkn-chaos/krkn:${TAG} \
-          quay.io/krkn-chaos/krkn:${TAG}-amd64 \
-          quay.io/krkn-chaos/krkn:${TAG}-arm64
-        docker manifest push quay.io/krkn-chaos/krkn:${TAG}
-
-        docker manifest create quay.io/krkn-chaos/krkn:latest \
-          quay.io/krkn-chaos/krkn:latest-amd64 \
-          quay.io/krkn-chaos/krkn:latest-arm64
-        docker manifest push quay.io/krkn-chaos/krkn:latest
-
-    - name: Login to redhat-chaos quay
-      uses: docker/login-action@v3
-      with:
-        registry: quay.io
-        username: ${{ secrets.QUAY_USER_1 }}
-        password: ${{ secrets.QUAY_TOKEN_1 }}
-
-    - name: Create and push RedHat Chaos manifests
-      run: |
-        TAG=${GITHUB_REF#refs/tags/}
-        docker manifest create quay.io/redhat-chaos/krkn:${TAG} \
-          quay.io/redhat-chaos/krkn:${TAG}-amd64 \
-          quay.io/redhat-chaos/krkn:${TAG}-arm64
-        docker manifest push quay.io/redhat-chaos/krkn:${TAG}
-
-        docker manifest create quay.io/redhat-chaos/krkn:latest \
-          quay.io/redhat-chaos/krkn:latest-amd64 \
-          quay.io/redhat-chaos/krkn:latest-arm64
-        docker manifest push quay.io/redhat-chaos/krkn:latest
-
     - name: Rebuild krkn-hub
       uses: redhat-chaos/actions/krkn-hub@main
       with:
