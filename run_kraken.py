@@ -446,7 +446,15 @@ def main(options, command: Optional[str]) -> int:
                         batch_window_start_dt = datetime.datetime.utcnow()
                         failed_scenarios_current, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
-                                run_uuid, scenarios_list, config, telemetry_ocp
+                                run_uuid,
+                                scenarios_list,
+                                config,
+                                telemetry_ocp,
+                                get_signal_fn=(
+                                    lambda: server.get_status(address)
+                                    if publish_running_status
+                                    else None
+                                ),
                             )
                         )
                         failed_post_scenarios.extend(failed_scenarios_current)

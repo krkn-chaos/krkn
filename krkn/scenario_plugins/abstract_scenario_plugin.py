@@ -15,6 +15,7 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+from typing import Callable, Optional
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -81,6 +82,7 @@ class AbstractScenarioPlugin(ABC):
         scenarios_list: list[str],
         krkn_config: dict[str, any],
         telemetry: KrknTelemetryOpenshift,
+        get_signal_fn: Optional[Callable[[], str]] = None,
     ) -> tuple[list[str], list[ScenarioTelemetry]]:
 
         scenario_telemetries: list[ScenarioTelemetry] = []
@@ -172,7 +174,16 @@ class AbstractScenarioPlugin(ABC):
             scenario_telemetries.append(scenario_telemetry)
             cerberus.publish_kraken_status(start_time,end_time)
             logging.info(f"waiting {wait_duration} before running the next scenario")
-            time.sleep(wait_duration)
+            # Interruptible sleep: poll the signal every second so a STOP
+            # signal is honoured promptly instead of waiting the full duration.
+            for _ in range(int(wait_duration)):
+                if get_signal_fn is not None and get_signal_fn() == "STOP":
+                    logging.info(
+                        "STOP signal received during inter-scenario wait, "
+                        "aborting remaining scenarios in this batch"
+                    )
+                    return failed_scenarios, scenario_telemetries
+                time.sleep(1)
             
         return failed_scenarios, scenario_telemetries
 
