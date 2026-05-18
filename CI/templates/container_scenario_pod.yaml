@@ -8,7 +8,7 @@ spec:
   hostNetwork: true
   containers:
   - name: fedtools
-    image: docker.io/fedora/tools
+    image: quay.io/fedora/fedora:latest
     command:
     - /bin/sh
     - -c
