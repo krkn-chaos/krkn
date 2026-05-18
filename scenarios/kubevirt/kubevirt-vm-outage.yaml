@@ -2,6 +2,7 @@ scenarios:
   - name: "kubevirt outage test"
     scenario: kubevirt_vm_outage
     parameters:
-      vm_name: <vm-name>  
-      namespace: <namespace>  
+      vm_name: <vm-name>        # optional if label_selector is set
+      label_selector: ""        # optional; if set, vm_name is not required
+      namespace: <namespace>
       timeout: 60
