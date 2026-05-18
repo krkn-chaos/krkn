@@ -223,10 +223,11 @@ def main(options, command: Optional[str]) -> int:
             ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
         except Exception as e:
             logging.error(
-              "Failed to initialize Kubernetes/OpenShift clients: %s",
-        e
-        )
-        return -1
+                "Failed to initialize Kubernetes/OpenShift clients with kubeconfig at %s: %s",
+                kubeconfig_path,
+                e,
+            )
+            return -1
 
         distribution = "kubernetes"
         if ocpcli.is_openshift():
