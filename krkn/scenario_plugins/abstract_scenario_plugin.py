@@ -98,6 +98,25 @@ class AbstractScenarioPlugin(ABC):
                 failed_scenarios.append(scenario_config)
                 break
 
+            # Check signal before starting each scenario so a STOP/PAUSE sent
+            # while the previous scenario was running is honoured immediately.
+            if get_signal_fn is not None:
+                signal = get_signal_fn()
+                if signal == "STOP":
+                    logging.info(
+                        "STOP signal received before starting next scenario, "
+                        "aborting remaining scenarios in this batch"
+                    )
+                    return failed_scenarios, scenario_telemetries
+                if signal == "PAUSE":
+                    logging.info(
+                        "PAUSE signal received, waiting for RUN signal before "
+                        "starting next scenario"
+                    )
+                    while get_signal_fn() == "PAUSE":
+                        time.sleep(1)
+                    logging.info("RUN signal received, resuming scenarios")
+
             scenario_telemetry = ScenarioTelemetry()
             scenario_telemetry.scenario = scenario_config
             scenario_telemetry.scenario_type = self.get_scenario_types()[0]
@@ -174,15 +193,26 @@ class AbstractScenarioPlugin(ABC):
             scenario_telemetries.append(scenario_telemetry)
             cerberus.publish_kraken_status(start_time,end_time)
             logging.info(f"waiting {wait_duration} before running the next scenario")
-            # Interruptible sleep: poll the signal every second so a STOP
-            # signal is honoured promptly instead of waiting the full duration.
+            # Interruptible sleep: poll the signal every second so STOP and
+            # PAUSE signals are honoured promptly instead of waiting the full
+            # wait_duration.
             for _ in range(int(wait_duration)):
-                if get_signal_fn is not None and get_signal_fn() == "STOP":
-                    logging.info(
-                        "STOP signal received during inter-scenario wait, "
-                        "aborting remaining scenarios in this batch"
-                    )
-                    return failed_scenarios, scenario_telemetries
+                if get_signal_fn is not None:
+                    signal = get_signal_fn()
+                    if signal == "STOP":
+                        logging.info(
+                            "STOP signal received during inter-scenario wait, "
+                            "aborting remaining scenarios in this batch"
+                        )
+                        return failed_scenarios, scenario_telemetries
+                    if signal == "PAUSE":
+                        logging.info(
+                            "PAUSE signal received during inter-scenario wait, "
+                            "pausing until RUN signal is received"
+                        )
+                        while get_signal_fn() == "PAUSE":
+                            time.sleep(1)
+                        logging.info("RUN signal received, resuming wait")
                 time.sleep(1)
             
         return failed_scenarios, scenario_telemetries
