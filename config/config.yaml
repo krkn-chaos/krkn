@@ -41,6 +41,8 @@ kraken:
            - scenarios/openshift/zone_outage.yaml
        - pvc_scenarios:
            - scenarios/openshift/pvc_scenario.yaml
+       - storage_throttle_scenarios:
+           - scenarios/openshift/storage_throttle.yaml
        - network_chaos_scenarios:
            - scenarios/openshift/network_chaos.yaml
        - service_hijacking_scenarios:
