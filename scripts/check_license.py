@@ -32,6 +32,7 @@ Usage:
 import argparse
 import re
 import sys
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -66,10 +67,12 @@ def is_test_file(path: Path) -> bool:
 def collect_source_files() -> list[Path]:
     source_files = []
     excluded_dirs = {".git", ".github", "venv", "venv3111", "build", "dist", "__pycache__", "tests", "CI"}
-    for path in REPO_ROOT.rglob("*.py"):
-        if not any(part in excluded_dirs or part.startswith(".") for part in path.parts):
-            if not is_test_file(path):
-                source_files.append(path)
+    for root, dirs, files in os.walk(REPO_ROOT, followlinks=False):
+        # In-place modify dirs to avoid traversing excluded directories
+        dirs[:] = [d for d in dirs if d not in excluded_dirs and not d.startswith(".")]
+        for file in files:
+            if file.endswith(".py") and not file.startswith("test_"):
+                source_files.append(Path(root) / file)
     return source_files
 
 
