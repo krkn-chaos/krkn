@@ -1,0 +1,10 @@
+# Base memory hog scenario for CI/tests_v2. Flat YAML; tests patch namespace and node-selector.
+duration: 30
+workers: ''
+hog-type: memory
+image: quay.io/krkn-chaos/krkn-hog
+namespace: default
+memory-vm-bytes: 90%
+node-selector: ""
+number-of-nodes: ''
+taints: []
