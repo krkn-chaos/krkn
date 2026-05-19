@@ -459,6 +459,19 @@ def main(options, command: Optional[str]) -> int:
                         )
                         failed_post_scenarios.extend(failed_scenarios_current)
                         chaos_telemetry.scenarios.extend(scenario_telemetries)
+
+                        # Re-check signal after run_scenarios() returns — it may
+                        # have exited early due to STOP. Set run_signal so the
+                        # outer while loop also exits cleanly, preserving full
+                        # scenario_telemetries for reporting.
+                        if publish_running_status:
+                            run_signal = server.get_status(address)
+                        if run_signal == "STOP":
+                            logging.info(
+                                "STOP signal detected after scenario batch; "
+                                "ending Kraken run"
+                            )
+
                         batch_window_end_dt = datetime.datetime.utcnow()
                         if resiliency_obj:
                             resiliency_obj.add_scenario_reports(
