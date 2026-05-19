@@ -3,6 +3,7 @@
 ![coverage](https://krkn-chaos.github.io/krkn-lib-docs/coverage_badge_krkn.svg)
 ![action](https://github.com/krkn-chaos/krkn/actions/workflows/tests.yml/badge.svg)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/10548/badge)](https://www.bestpractices.dev/projects/10548)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/krkn-chaos/krkn/badge)](https://scorecard.dev/viewer/?uri=github.com/krkn-chaos/krkn)
 [![CLOMonitor](https://img.shields.io/endpoint?url=https://clomonitor.io/api/projects/cncf/krkn/badge)](https://clomonitor.io/projects/cncf/krkn)
 
 ![Krkn logo](media/logo.png)
@@ -31,10 +32,10 @@ Additional resources, including blog posts, podcasts, and community interviews, 
 Enhancements being planned can be found in the [roadmap](ROADMAP.md).
 
 
-### Contributions
+### Contributing
 We are always looking for more enhancements, fixes to make it better, any contributions are most welcome. Feel free to report or work on the issues filed on github.
 
-[More information on how to Contribute](https://krkn-chaos.dev/docs/contribution-guidelines/)
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details, or check the [contribution guidelines](https://krkn-chaos.dev/docs/contribution-guidelines/) on the website.
 
 
 ### Community

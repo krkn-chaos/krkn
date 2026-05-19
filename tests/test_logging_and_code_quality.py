@@ -82,6 +82,8 @@ _inject(
     ".kubevirt_vm_outage_scenario_plugin",
     KubevirtVmOutageScenarioPlugin=_KubevirtPlugin,
 )
+_inject("krkn.health_checks.abstract_health_check_plugin",
+        AbstractHealthCheckPlugin=type("AbstractHealthCheckPlugin", (), {"__init__": lambda self, *a, **kw: None}))
 
 # -- yaml (real or stub) -----------------------------------------------------
 try:
@@ -93,9 +95,9 @@ except ImportError:
 # Now import the actual krkn modules under test
 # ---------------------------------------------------------------------------
 
-from krkn.prometheus import client                        # noqa: E402
-from krkn.utils import VirtChecker as VirtCheckerModule  # noqa: E402
-from krkn.utils.VirtChecker import VirtChecker           # noqa: E402
+from krkn.prometheus import client                                            # noqa: E402
+from krkn.health_checks import virt_health_check_plugin as VirtCheckerModule  # noqa: E402
+from krkn.health_checks.virt_health_check_plugin import VirtHealthCheckPlugin as VirtChecker  # noqa: E402
 
 
 # ===========================================================================
@@ -244,34 +246,27 @@ class TestIssue28ExceptionLogLevel(unittest.TestCase):
 
     def test_no_info_for_vm_exception_in_source(self):
         import pathlib
-        src = pathlib.Path("krkn/utils/VirtChecker.py").read_text()
+        src = pathlib.Path("krkn/health_checks/virt_health_check_plugin.py").read_text()
         self.assertNotIn(
             "logging.info('Exception in get vm status')", src
         )
 
     def test_error_level_present_in_source(self):
         import pathlib
-        src = pathlib.Path("krkn/utils/VirtChecker.py").read_text()
+        src = pathlib.Path("krkn/health_checks/virt_health_check_plugin.py").read_text()
         self.assertIn(
             'logging.exception("Exception in get vm status")', src
         )
 
     def test_runtime_exception_triggers_error_log(self):
-        """When get_vm_access raises, the handler must call logging.error."""
-        config = {}
+        """When get_vm_access raises, the handler must call logging.exception."""
         mock_krkn = MagicMock()
 
-        with patch(
-            "krkn.utils.VirtChecker.get_yaml_item_value",
-            side_effect=lambda cfg, key, default: (
-                cfg.get(key, default) if isinstance(cfg, dict) else default
-            ),
-        ):
-            checker = VirtChecker(config, iterations=1, krkn_lib=mock_krkn)
-
+        checker = VirtChecker(iterations=1, krkn_lib=mock_krkn)
         checker.batch_size = 1
         checker.interval = 0
         checker.disconnected = False
+        checker._stop_event = MagicMock(is_set=MagicMock(return_value=False))
 
         vm = _VirtCheck({
             "vm_name": "vm-1",
@@ -288,8 +283,8 @@ class TestIssue28ExceptionLogLevel(unittest.TestCase):
                 checker, "get_vm_access",
                 side_effect=RuntimeError("connection refused"),
             ),
-            patch("krkn.utils.VirtChecker.logging") as mock_log,
-            patch("krkn.utils.VirtChecker.time") as mock_time,
+            patch("krkn.health_checks.virt_health_check_plugin.logging") as mock_log,
+            patch("krkn.health_checks.virt_health_check_plugin.time") as mock_time,
         ):
             mock_log.error.side_effect = (
                 lambda msg, *a, **kw: error_calls.append(msg % a if a else msg)
@@ -302,12 +297,12 @@ class TestIssue28ExceptionLogLevel(unittest.TestCase):
             )
             # End loop after first sleep
             mock_time.sleep.side_effect = (
-                lambda _: setattr(checker, "current_iterations", 999)
+                lambda _: setattr(checker, "current_iterations", 1)
             )
             checker.current_iterations = 0
 
             q = queue.SimpleQueue()
-            checker.run_virt_check([vm], q)
+            checker._run_virt_check_batch([vm], q)
 
         vm_infos  = [m for m in info_calls  if "Exception in get vm status" in m]
         err_vm_msgs  = [m for m in error_calls + exception_calls if "Exception in get vm status" in m]

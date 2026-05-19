@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import atexit
 import logging
 import requests
 import sys
@@ -21,6 +22,9 @@ check_application_routes = ""
 cerberus_url = None
 exit_on_failure = False
 cerberus_enabled = False
+http_session = requests.Session()  # Singleton for connection pooling
+atexit.register(http_session.close)  # Cleanup on process exit
+
 
 def set_url(config):
     global exit_on_failure
@@ -32,14 +36,14 @@ def set_url(config):
         cerberus_url = get_yaml_item_value(config["cerberus"],"cerberus_url", "")
         global check_application_routes
         check_application_routes = \
-            get_yaml_item_value(config["cerberus"],"check_applicaton_routes","")
+            get_yaml_item_value(config["cerberus"],"check_application_routes","")
 
 def get_status(start_time, end_time):
     """
     Get cerberus status
     """
+    global check_application_routes
     cerberus_status = True
-    check_application_routes = False
     application_routes_status = True
     if cerberus_enabled:
         if not cerberus_url:
@@ -48,14 +52,13 @@ def get_status(start_time, end_time):
                 "is not provided."
             )
             sys.exit(1)
-        cerberus_status = requests.get(cerberus_url, timeout=60).content
+        cerberus_status = http_session.get(cerberus_url, timeout=60).content
         cerberus_status = True if cerberus_status == b"True" else False
 
         # Fail if the application routes monitored by cerberus
         # experience downtime during the chaos
         if check_application_routes:
             application_routes_status, unavailable_routes = application_status(
-                cerberus_url,
                 start_time,
                 end_time
             )
@@ -141,7 +144,7 @@ def application_status( start_time, end_time):
         try:
             failed_routes = []
             status = True
-            metrics = requests.get(url, timeout=60).content
+            metrics = http_session.get(url, timeout=60).content
             metrics_json = json.loads(metrics)
             for entry in metrics_json["history"]["failures"]:
                 if entry["component"] == "route":
