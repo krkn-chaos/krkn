@@ -42,7 +42,7 @@ python -m coverage run -a -m unittest discover -s tests -v
 ## Critical Requirements
 
 ### Python Environment
-- **Python 3.9+** required
+- **Python 3.11+** required
 - **NEVER install packages globally** - always use virtual environment
 - **CRITICAL**: `docker` must be <7.0 and `requests` must be <2.32 (Unix socket compatibility)
 

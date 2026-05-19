@@ -1,0 +1,29 @@
+- http_load_scenario:
+    runs: 1                                            # number of times to execute the scenario
+    number-of-pods: 2                                  # number of attacker pods instantiated
+    namespace: default                                 # namespace to deploy load testing pods
+    image: quay.io/krkn-chaos/krkn-http-load:latest    # http load attacker container image
+    attacker-nodes:                                    # node affinity to schedule the attacker pods, per each node label selector
+      node-role.kubernetes.io/worker:                  # can be specified multiple values so the kube scheduler will schedule the attacker pods
+        - ""                                           # in the best way possible based on the provided labels. Multiple labels can be specified
+                                                       # set empty value `attacker-nodes: {}` to let kubernetes schedule the pods
+    targets:                                           # Vegeta round-robins across all endpoints
+      endpoints:                                       # supported methods: GET, POST, PUT, DELETE, PATCH, HEAD
+        - url: "https://your-service.example.com/health"
+          method: "GET"
+        - url: "https://your-service.example.com/api/data"
+          method: "POST"
+          headers:
+            Content-Type: "application/json"
+            Authorization: "Bearer your-token"
+          body: '{"key":"value"}'
+
+    rate: "50/1s"                                      # request rate per pod: "50/1s", "1000/1m", "0" for max throughput
+    duration: "30s"                                    # attack duration: "30s", "5m", "1h"
+    workers: 10                                        # initial concurrent workers per pod
+    max_workers: 100                                   # maximum workers per pod (auto-scales)
+    connections: 100                                   # max idle connections per host
+    timeout: "10s"                                     # per-request timeout
+    keepalive: true                                    # use persistent HTTP connections
+    http2: true                                        # enable HTTP/2
+    insecure: false                                    # skip TLS verification (for self-signed certs)

@@ -46,7 +46,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                zone_outage_config_yaml = yaml.full_load(f)
+                zone_outage_config_yaml = yaml.safe_load(f)
                 scenario_config = zone_outage_config_yaml["zone_outage"]
                 cloud_type = scenario_config["cloud_type"]
                 kube_check = get_yaml_item_value(scenario_config, "kube_check", True)

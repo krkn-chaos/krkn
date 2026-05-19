@@ -34,7 +34,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as f:
-                scenario_config_yaml = yaml.full_load(f)
+                scenario_config_yaml = yaml.safe_load(f)
                 for scenario in scenario_config_yaml["scenarios"]:
                     scenario_namespace = get_yaml_item_value(scenario, "namespace", "")
                     scenario_label = get_yaml_item_value(scenario, "label_selector", "")

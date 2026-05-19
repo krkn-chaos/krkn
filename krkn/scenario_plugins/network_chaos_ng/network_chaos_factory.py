@@ -36,6 +36,12 @@ from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos import (
 from krkn.scenario_plugins.network_chaos_ng.modules.pod_network_filter import (
     PodNetworkFilterModule,
 )
+from krkn.scenario_plugins.network_chaos_ng.modules.vmi_network_chaos import (
+    VmiNetworkChaosModule,
+)
+from krkn.scenario_plugins.network_chaos_ng.modules.vmi_network_filter import (
+    VmiNetworkFilterModule,
+)
 
 supported_modules = [
     "node_network_filter",
@@ -43,6 +49,8 @@ supported_modules = [
     "pod_network_chaos",
     "node_network_chaos",
     "node_interface_down",
+    "vmi_network_chaos",
+    "vmi_network_filter",
 ]
 
 
@@ -87,5 +95,17 @@ class NetworkChaosFactory:
             if len(errors) > 0:
                 raise Exception(f"config validation errors: [{';'.join(errors)}]")
             return NodeInterfaceDownModule(scenario_config, kubecli)
+        if config["id"] == "vmi_network_chaos":
+            scenario_config = NetworkChaosConfig(**config)
+            errors = scenario_config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return VmiNetworkChaosModule(scenario_config, kubecli)
+        if config["id"] == "vmi_network_filter":
+            scenario_config = NetworkFilterConfig(**config)
+            errors = scenario_config.validate()
+            if len(errors) > 0:
+                raise Exception(f"config validation errors: [{';'.join(errors)}]")
+            return VmiNetworkFilterModule(scenario_config, kubecli)
         else:
             raise Exception(f"invalid network chaos id {config['id']}")
