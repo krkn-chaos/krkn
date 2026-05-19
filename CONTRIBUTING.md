@@ -57,6 +57,57 @@ Refer to the docs below to be able to test your own images with any changes and 
 - [Contribute - Git Pointers](https://krkn-chaos.dev/docs/contribution-guidelines/git-pointers/)
 - [Testing Your Krkn-hub Changes](https://krkn-chaos.dev/docs/developers-guide/testing-changes/)
 
+## Joining the Contributor Ladder
+
+The following explains how to formally join the Krkn community at each level of the contributor ladder. For a description of what each role entails, see [GOVERNANCE.md](GOVERNANCE.md) and [MAINTAINERS.md](MAINTAINERS.md).
+
+### Contributor
+
+**Anyone who participates in the project is a contributor.** There is no application required — opening an issue, submitting a PR, reviewing someone else's work, improving documentation, or helping others in Slack all count.
+
+To get started:
+1. Find something to work on in the [open issues](https://github.com/krkn-chaos/krkn/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22), or open one of your own.
+2. Join the [#krkn channel on Kubernetes Slack](https://kubernetes.slack.com/archives/C05SFMHRWK1) to introduce yourself and ask questions.
+
+### Member
+
+Members are active contributors who review PRs and have demonstrated a solid understanding of the project's codebase and conventions.
+
+**Requirements** — before applying, you should have:
+- Been actively contributing for **at least 3 months**
+- Submitted **at least 3 non-trivial PRs** that have been merged
+- Reviewed **at least 5 PRs** from other contributors
+- Shown familiarity with the project's coding style, testing practices, and documentation standards
+
+**How to apply:**
+1. Open a [Member Application issue](https://github.com/krkn-chaos/krkn/issues/new?template=member_request.md) and complete all sections.
+2. Tag two current Maintainers to review your application.
+
+Maintainers will evaluate the application and respond within **two weeks**. A simple majority vote of Maintainers is required for approval. Once approved, you will be added to [MAINTAINERS.md](MAINTAINERS.md) and granted the appropriate repository permissions.
+
+### Maintainer
+
+Maintainers are responsible for the overall health and direction of the project. They have write access to the repository and can merge pull requests.
+
+**Requirements** — before applying, you should have:
+- Been an active **Member for at least 6 months**
+- Performed reviews for **at least 5 non-trivial pull requests**
+- Contributed **at least 3 non-trivial pull requests** that have been merged
+- Demonstrated the ability to mentor contributors and provide constructive, timely feedback
+- Shown a clear understanding of the project's technical direction and goals
+
+**How to apply:**
+
+Maintainer nominations are peer-driven — an existing Maintainer must sponsor your application.
+
+1. Reach out to an existing Maintainer (via Slack or a GitHub issue) and ask them to nominate you.
+2. The sponsoring Maintainer opens a [Maintainer Nomination issue](https://github.com/krkn-chaos/krkn/issues/new?template=maintainer_request.md) and completes all sections.
+3. The Maintainer Council votes on the issue or at the next monthly meeting. A **simple majority** is required for approval.
+
+Once approved, you will be added to [MAINTAINERS.md](MAINTAINERS.md), granted write access to the repository, and invited to the maintainer mailing list.
+
+**Stepping down:** To request removal from any role, see the "Requesting Removal" section in [GOVERNANCE.md](GOVERNANCE.md).
+
 ## Questions?
 
 Reach out to us on slack if you ever have any questions or want to know how to get started. You can join the kubernetes Slack [here](https://communityinviter.com/apps/kubernetes/community) and can join our [Krkn channel](https://kubernetes.slack.com/archives/C05SFMHRWK1)
