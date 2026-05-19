@@ -24,3 +24,52 @@ Following are a list of enhancements that we are planning to work on adding supp
 - [x] [OCP and Kubernetes functionalities segregation](https://github.com/krkn-chaos/krkn/issues/497) - [PR #507](https://github.com/krkn-chaos/krkn/pull/507)
 - [x] [Krknctl - client for running Krkn scenarios with ease](https://github.com/krkn-chaos/krknctl)
 - [x] [AI Chat bot to help get started with Krkn and commands](https://github.com/krkn-chaos/krkn-lightspeed)
+
+
+---
+
+## Proposing a Roadmap Item
+
+Anyone in the community can propose an item for the roadmap. The process is designed to be lightweight and transparent.
+
+### Step 1 — Open a GitHub Issue
+
+Open a [new feature request issue](https://github.com/krkn-chaos/krkn/issues/new?template=feature.md) describing what you want to add and why. A strong proposal includes:
+
+- **Problem statement** – what gap or limitation exists today
+- **Proposed solution** – what the feature would do at a high level
+- **Scope** – is this a small enhancement, a new scenario, or a large architectural change?
+- **Benefit to the community** – who would use this and how
+
+Add the label **`roadmap-proposal`** to the issue so maintainers can find it easily.
+
+### Step 2 — Community Discussion
+
+Leave the issue open for community feedback for **at least two weeks**. Gather responses from users and contributors — this helps maintainers understand demand and surface edge cases before committing it to the roadmap.
+
+You can also raise the proposal in the [#krkn channel on Kubernetes Slack](https://kubernetes.slack.com/archives/C05SFMHRWK1) or bring it to the monthly [office hours](https://zoom-lfx.platform.linuxfoundation.org/meetings/krkn?view=month) for live discussion.
+
+### Step 3 — Maintainer Review and Decision
+
+Maintainers review `roadmap-proposal` issues at the monthly community meeting or asynchronously via the issue thread. A **simple majority vote** of Maintainers is required to add an item to the roadmap (see [GOVERNANCE.md](GOVERNANCE.md)).
+
+Items are evaluated against the following criteria:
+
+| Criterion | Description |
+|-----------|-------------|
+| Alignment | Does it fit the project's mission of chaos and resiliency testing for Kubernetes? |
+| Impact | Does it benefit a broad set of users or address a common pain point? |
+| Feasibility | Is it technically achievable with reasonable effort? |
+| Ownership | Is there a contributor willing to drive implementation? |
+
+### Step 4 — Added to the Roadmap
+
+If approved, a maintainer opens a PR to add the item to this file under the open (`[ ]`) section. The PR should link to the original proposal issue. Do not begin implementation until the roadmap PR is merged — that merge is the signal that the item is officially accepted.
+
+Once the item is on the roadmap, comment on the issue to request assignment before starting work. The contributor who originally proposed the issue is given priority, but if they are not planning to implement it, any community member can be assigned. Maintainers may also pick up items independently if no one has claimed them.
+
+### Step 5 — Implementation and Completion
+
+When the feature is implemented, the roadmap item is updated to checked (`[x]`) and the implementing PR link is added. The proposal issue is then closed.
+
+---
