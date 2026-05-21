@@ -247,9 +247,11 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             )
 
         container_id = None
+        initial_restart_count = 0
         for status in pod_info.status.container_statuses or []:
             if status.name == container_name:
                 container_id = status.container_id
+                initial_restart_count = status.restart_count
                 break
 
         if not container_id:
@@ -272,16 +274,48 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         command = [f"chroot /host /bin/sh -c 'crictl stop {container_id}'"]
         try:
             response = kubecli.exec_command_on_node(
-                node_name, command, exec_pod_name, "default"
+                node_name, command, exec_pod_name, namespace
             )
             if response:
                 logging.info("crictl stop response: %s", response)
+
+            # Validate crictl stop succeeded
+            validation_passed = False
+            for _ in range(12):  # Wait up to 60 seconds (12 * 5s)
+                time.sleep(5)
+                try:
+                    updated_pod_info = kubecli.cli.read_namespaced_pod(podname, namespace)
+                    for status in updated_pod_info.status.container_statuses or []:
+                        if status.name == container_name:
+                            # Check if restart_count increased
+                            if status.restart_count > initial_restart_count:
+                                validation_passed = True
+                                logging.info("Validation passed: container %s restart_count increased", container_name)
+                                break
+                            # Check if container is in terminated or waiting state
+                            if status.state:
+                                if status.state.terminated or status.state.waiting:
+                                    validation_passed = True
+                                    logging.info("Validation passed: container %s state is %s", container_name, "terminated" if status.state.terminated else "waiting")
+                                    break
+                except Exception as e:
+                    logging.warning("Error reading pod %s status during validation: %s", podname, e)
+
+                if validation_passed:
+                    break
+
+            if not validation_passed:
+                raise RuntimeError(
+                    f"Failed to validate that container {container_name} was stopped. "
+                    "Container status did not show restart or termination."
+                )
+
         except Exception as e:
             logging.error("Failed to execute crictl stop on node %s: %s", node_name, e)
             raise
         finally:
             try:
-                kubecli.delete_pod(exec_pod_name, "default")
+                kubecli.delete_pod(exec_pod_name, namespace)
             except Exception:
                 pass
 
