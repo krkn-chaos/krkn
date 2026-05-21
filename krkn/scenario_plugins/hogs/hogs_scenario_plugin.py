@@ -40,7 +40,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             scenario_telemetry: ScenarioTelemetry) -> int:
         try:
             with open(scenario, "r") as f:
-                scenario = yaml.full_load(f)
+                scenario = yaml.safe_load(f)
             scenario_config = HogConfig.from_yaml_dict(scenario)
             
             # Get node-name if provided

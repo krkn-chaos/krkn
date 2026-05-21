@@ -55,7 +55,7 @@ class TestZoneOutageScenarioPlugin(unittest.TestCase):
         self.assertEqual(len(result), 1)
 
     @unittest.mock.patch('builtins.open', create=True)
-    @unittest.mock.patch('yaml.full_load')
+    @unittest.mock.patch('yaml.safe_load')
     @unittest.mock.patch('krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin.gcp_node_scenarios')
     @unittest.mock.patch('krkn.cerberus.publish_kraken_status')
     def test_run_propagates_node_based_zone_failure(self, mock_cerberus, mock_gcp_scenarios, mock_yaml, mock_open):
@@ -102,7 +102,7 @@ class TestZoneOutageScenarioPlugin(unittest.TestCase):
             self.assertEqual(result, 1)
 
     @unittest.mock.patch('builtins.open', create=True)
-    @unittest.mock.patch('yaml.full_load')
+    @unittest.mock.patch('yaml.safe_load')
     @unittest.mock.patch('krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin.gcp_node_scenarios')
     @unittest.mock.patch('krkn.cerberus.publish_kraken_status')
     def test_run_succeeds_when_node_based_zone_succeeds(self, mock_cerberus, mock_gcp_scenarios, mock_yaml, mock_open):
@@ -148,7 +148,7 @@ class TestZoneOutageScenarioPlugin(unittest.TestCase):
             self.assertEqual(result, 0)
 
     @unittest.mock.patch('builtins.open', create=True)
-    @unittest.mock.patch('yaml.full_load')
+    @unittest.mock.patch('yaml.safe_load')
     @unittest.mock.patch('krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin.AWS')
     @unittest.mock.patch('krkn.cerberus.publish_kraken_status')
     def test_run_aws_network_based_zone(self, mock_cerberus, mock_aws_class, mock_yaml, mock_open):
@@ -186,7 +186,7 @@ class TestZoneOutageScenarioPlugin(unittest.TestCase):
             self.assertEqual(result, 0)
 
     @unittest.mock.patch('builtins.open', create=True)
-    @unittest.mock.patch('yaml.full_load')
+    @unittest.mock.patch('yaml.safe_load')
     @unittest.mock.patch('krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin.AWS')
     @unittest.mock.patch('krkn.cerberus.publish_kraken_status')
     def test_run_aws_network_based_zone_failure(self, mock_cerberus, mock_aws_class, mock_yaml, mock_open):

@@ -167,13 +167,15 @@ class TestNodeInterfaceDownModule(unittest.TestCase):
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.deploy_network_chaos_ng_pod")
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.log_info")
     def test_run_sleeps_test_duration(self, mock_log, mock_deploy, mock_sleep):
+        # test_duration is embedded in the shell command (sleep {n} && ip link set up),
+        # so no Python time.sleep(test_duration) should be called.
         self.config.test_duration = 45
         self.config.recovery_time = 0
 
         self.module.run("worker-1")
 
         sleep_values = [c[0][0] for c in mock_sleep.call_args_list]
-        self.assertIn(45, sleep_values)
+        self.assertNotIn(45, sleep_values)
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.time.sleep")
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.deploy_network_chaos_ng_pod")
@@ -185,7 +187,7 @@ class TestNodeInterfaceDownModule(unittest.TestCase):
         self.module.run("worker-1")
 
         sleep_values = [c[0][0] for c in mock_sleep.call_args_list]
-        self.assertIn(30, sleep_values)
+        self.assertNotIn(30, sleep_values)
         self.assertIn(15, sleep_values)
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.time.sleep")
@@ -198,7 +200,7 @@ class TestNodeInterfaceDownModule(unittest.TestCase):
         self.module.run("worker-1")
 
         sleep_values = [c[0][0] for c in mock_sleep.call_args_list]
-        self.assertIn(30, sleep_values)
+        self.assertNotIn(30, sleep_values)
         self.assertNotIn(0, sleep_values)
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.time.sleep")

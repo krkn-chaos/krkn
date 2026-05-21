@@ -16,6 +16,7 @@ For detailed description of the roles, see [Governance](./GOVERNANCE.md) page.
 | Paige Patton     | [paigerube14](https://github.com/paigerube14)                | prubenda@redhat.com     | Maintainer | 
 | Tullio Sebastiani   | [tsebastiani](https://github.com/tsebastiani)             | tsebasti@redhat.com     | Maintainer | 
 | Yogananth Subramanian  | [yogananth-subramanian](https://github.com/yogananth-subramanian)             | ysubrama@redhat.com     | Maintainer | 
+| Darshan Jain  | [ddjain](https://github.com/ddjain)                   | nnd.darshan@gmail.com   |  Maintainer | 
 | Sahil Shah  | [shahsahil264](https://github.com/shahsahil264)                   | sahshah@redhat.com   |  Member | 
 
 

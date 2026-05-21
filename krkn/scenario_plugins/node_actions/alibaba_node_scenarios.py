@@ -52,7 +52,7 @@ class Alibaba:
             response_detail = json.loads(response_str)
             return response_detail
         except Exception as e:
-            logging.error("ERROR sending request %s with message %S" % (request, e))
+            logging.error("ERROR sending request %s with message %s", request, e)
 
     # output the instance owned in current region.
     def list_instances(self):

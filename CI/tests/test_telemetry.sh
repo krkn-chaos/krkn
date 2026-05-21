@@ -12,6 +12,7 @@ function functional_test_telemetry {
   [ -z "$AWS_BUCKET" ] && echo "AWS bucket not set in environment" && exit 1
 
   export RUN_TAG="funtest-telemetry"
+  yq -i '.telemetry.api_url="https://yvnn4rfoi7.execute-api.us-west-2.amazonaws.com/test"' CI/config/common_test_config.yaml
   yq -i '.telemetry.enabled=True' CI/config/common_test_config.yaml
   yq -i '.telemetry.full_prometheus_backup=True' CI/config/common_test_config.yaml
   yq -i '.performance_monitoring.check_critical_alerts=True' CI/config/common_test_config.yaml

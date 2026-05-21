@@ -11,13 +11,14 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from .TeeLogHandler import TeeLogHandler
 from .ErrorLog import ErrorLog
 from .ErrorCollectionHandler import ErrorCollectionHandler
 from .functions import (
-    populate_cluster_events, 
-    collect_and_put_ocp_logs, 
-    KrknKubernetes, 
-    ScenarioTelemetry, 
+    populate_cluster_events,
+    collect_and_put_ocp_logs,
+    KrknKubernetes,
+    ScenarioTelemetry,
     KrknTelemetryOpenshift
 )
