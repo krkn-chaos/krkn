@@ -57,9 +57,9 @@ def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=Non
         
         if not run_dirs:
             if run_uuid:
-                logging.info(f"No rollback directories found for run_uuid: {run_uuid}")
+                logging.info(f"No rollback directories found for run_uuid in: {run_uuid}")
             else:
-                logging.info("No rollback directories found")
+                logging.info("No rollback directories found Error::::")
             return 0
         
         # Sort directories for consistent output
