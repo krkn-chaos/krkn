@@ -210,7 +210,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
                         # Record the status change period
                         change_record = {
                             "url": url,
-                            "status": False,
+                            "status": previous_status_code == "200",
                             "status_code": previous_status_code,
                             "start_timestamp": start_timestamp.isoformat(),
                             "end_timestamp": end_timestamp.isoformat(),
