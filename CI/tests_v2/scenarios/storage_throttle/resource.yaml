@@ -1,0 +1,39 @@
+# PVC + Deployment for storage throttle integration test.
+# Namespace is patched at deploy time by the test framework.
+# Uses the default StorageClass (e.g. local-path on KinD).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: krkn-throttle-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-throttle-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: krkn-throttle-target
+  template:
+    metadata:
+      labels:
+        app: krkn-throttle-target
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        command: ["/bin/sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: krkn-throttle-pvc

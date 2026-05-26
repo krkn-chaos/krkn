@@ -100,7 +100,9 @@ Maintainers may also be removed for inactivity, failure to fulfill their respons
 
 A Maintainer may be removed at any time by a 2/3 vote of the remaining Maintainers.
 
-Depending on the reason for removal, a Maintainer may be converted to **Emeritus** status. Emeritus Maintainers will still be consulted on some project matters and can be rapidly returned to Maintainer status if their availability changes.
+### Requesting Removal
+
+To request your own removal from the Maintainer role, send an email to the [maintainer mailing list](mailto:krkn.maintainers@gmail.com) or open a PR removing yourself from [MAINTAINERS.md](MAINTAINERS.md). No vote is required for a voluntary resignation — a maintainer will merge the PR on your behalf.
 
 ## Meetings
 

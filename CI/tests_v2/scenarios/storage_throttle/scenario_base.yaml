@@ -1,0 +1,13 @@
+# Base storage_throttle scenario. Tests load this and patch namespace, pvc_name, etc.
+storage_throttle_scenario:
+  pvc_name: krkn-throttle-pvc
+  pod_name: ""
+  namespace: default
+  mount_path: /data
+  throttle_type: bandwidth
+  read_bps: 1Mi
+  write_bps: 512Ki
+  read_iops: 100
+  write_iops: 50
+  duration: 15
+  image: quay.io/krkn-chaos/krkn:tools
