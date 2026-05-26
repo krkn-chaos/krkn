@@ -16,3 +16,8 @@
 
 from .resiliency import Resiliency  # noqa: F401
 from .score import calculate_resiliency_score  # noqa: F401
+from .history import (  # noqa: F401
+    HistoryWindow,
+    parse_history_window,
+    apply_historical_resiliency,
+)
