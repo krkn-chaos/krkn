@@ -38,6 +38,11 @@ import server as server
 from krkn.resiliency.resiliency import (
     Resiliency
 )
+from krkn.resiliency.history import (
+    HistoryWindow,
+    parse_history_window,
+    apply_historical_resiliency,
+)
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -64,6 +69,7 @@ import warnings
 warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 
 report_file = ""
+
 
 # Main function
 def main(options, command: Optional[str]) -> int:
@@ -122,6 +128,24 @@ def main(options, command: Optional[str]) -> int:
         if run_mode not in valid_run_modes:
             logging.warning("Unknown resiliency_run_mode '%s'. Defaulting to 'standalone'", run_mode)
             run_mode = "standalone"
+
+        try:
+            hist_window = parse_history_window(
+                getattr(options, "past_resiliency_score", None),
+                getattr(options, "hist_start_time", None),
+                getattr(options, "hist_end_time", None),
+                resiliency_score_flag=getattr(options, "resiliency_score", False) or command == "resiliency-score",
+            )
+        except ValueError as exc:
+            logging.error("%s", exc)
+            return -1
+
+        if hist_window is not None:
+            logging.info(
+                "Historical resiliency window '%s' provided. Chaos scenarios will not be executed.",
+                hist_window.label,
+            )
+            chaos_scenarios = []
         wait_duration = get_yaml_item_value(config["tunings"], "wait_duration", 60)
         iterations = get_yaml_item_value(config["tunings"], "iterations", 1)
         daemon_mode = get_yaml_item_value(config["tunings"], "daemon_mode", False)
@@ -332,6 +356,15 @@ def main(options, command: Optional[str]) -> int:
                     telemetry_ocp, options.run_uuid, options.scenario_type
                 )
             )
+        elif command == "resiliency-score":
+            if hist_window is None:
+                logging.error(
+                    "resiliency-score command requires a time window: "
+                    "use --past-resiliency-score <duration> (e.g. 24h) "
+                    "or --start-time/--end-time for an explicit range"
+                )
+                sys.exit(-1)
+            chaos_scenarios = []
 
         # Initialize the start iteration to 0
         iteration = 0
@@ -536,13 +569,13 @@ def main(options, command: Optional[str]) -> int:
         else:
             logging.info("No error logs collected during chaos run")
             chaos_telemetry.error_logs = []
-        if resiliency_obj:
+        if resiliency_obj and hist_window is None:
             try:
                 resiliency_obj.attach_compact_to_telemetry(chaos_telemetry)
             except Exception as exc:
                 logging.error("Failed to embed per-scenario resiliency in telemetry: %s", exc)
 
-        if resiliency_obj:
+        if resiliency_obj and hist_window is None:
             try:
                 resiliency_obj.finalize_and_save(
                     prom_cli=prometheus,
@@ -557,7 +590,16 @@ def main(options, command: Optional[str]) -> int:
 
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
-        if resiliency_obj and hasattr(resiliency_obj, "summary") and resiliency_obj.summary is not None:
+        if hist_window is not None:
+            try:
+                apply_historical_resiliency(hist_window, resiliency_obj, prometheus, decoded_chaos_run_telemetry)
+            except RuntimeError as exc:
+                logging.error("%s", exc)
+                return -1
+            except Exception as exc:
+                logging.error("Failed to compute historical resiliency score: %s", exc)
+                return -1
+        elif resiliency_obj and hasattr(resiliency_obj, "summary") and resiliency_obj.summary is not None:
             summary_dict = resiliency_obj.get_summary()
             decoded_chaos_run_telemetry.overall_resiliency_report = ResiliencyReport(
                 json_object=summary_dict,
@@ -712,7 +754,9 @@ if __name__ == "__main__":
         usage="%prog [options] [command]\n\n"
               "Commands:\n"
               "  list-rollback     List rollback version files in a tree-like format\n"
-              "  execute-rollback  Execute rollback version files and cleanup if successful\n\n"
+              "  execute-rollback  Execute rollback version files and cleanup if successful\n"
+              "  resiliency-score  Query historical resiliency score without running chaos scenarios.\n"
+              "                    Requires --start-time/--end-time or --past-resiliency-score.\n\n"
               "If no command is specified, kraken will run chaos scenarios.",
     )
     parser.add_option(
@@ -774,6 +818,42 @@ if __name__ == "__main__":
         dest="debug",
         help="enable debug logging",
         default=False,
+    )
+
+    parser.add_option(
+        "--past-resiliency-score",
+        dest="past_resiliency_score",
+        help="Query historical resiliency score over a trailing window (e.g. 1h, 24h, 7d) "
+             "without running chaos scenarios. Mutually exclusive with --start-time/--end-time.",
+        default=None,
+    )
+
+    parser.add_option(
+        "--resiliency-score",
+        dest="resiliency_score",
+        action="store_true",
+        help="Indicate that --start-time/--end-time define a historical resiliency score query. "
+             "Required when using --start-time/--end-time. "
+             "Implied automatically by the resiliency-score command.",
+        default=False,
+    )
+
+    parser.add_option(
+        "--start-time",
+        dest="hist_start_time",
+        help="Start of explicit historical resiliency window (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD, UTC). "
+             "Must be used together with --end-time and --resiliency-score. "
+             "Mutually exclusive with --past-resiliency-score.",
+        default=None,
+    )
+
+    parser.add_option(
+        "--end-time",
+        dest="hist_end_time",
+        help="End of explicit historical resiliency window (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD, UTC). "
+             "Must be used together with --start-time and --resiliency-score. "
+             "Mutually exclusive with --past-resiliency-score.",
+        default=None,
     )
 
     (options, args) = parser.parse_args()
