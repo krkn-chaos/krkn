@@ -1,0 +1,12 @@
+storage_throttle_scenario:
+  pvc_name: throttle-test-pvc     # Target PVC name
+  pod_name: ""                    # Auto-resolved from PVC
+  namespace: nginx-test           # Namespace of the target PVC/pod
+  mount_path: /data               # Mount path to throttle
+  throttle_type: bandwidth        # "iops", "bandwidth", or "both"
+  read_iops: 100                  # Max read IOPS
+  write_iops: 50                  # Max write IOPS
+  read_bps: 1048576               # Max read bytes/sec (1 MB/s)
+  write_bps: 524288               # Max write bytes/sec (512 KB/s)
+  duration: 30                    # How long to hold the throttle in seconds
+  image: quay.io/krkn-chaos/krkn:tools
