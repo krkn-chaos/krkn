@@ -11,6 +11,10 @@ If you would like to contribute to Krkn, but are not sure exactly what to work o
 
 Please start by discussing potential solutions and your proposed approach for the issue you plan to work on. We encourage you to gather feedback from maintainers and contributors and to have the issue assigned to you before opening a pull request with a solution.
 
+## Proposing Roadmap Items
+
+If you have an idea that is larger in scope than a single bug fix or configuration option — a new capability, a new integration, or a significant architectural change — consider proposing it as a roadmap item. See the [Roadmap contribution process](ROADMAP.md#proposing-a-roadmap-item) for the full steps, including how to open a proposal issue, the community discussion period, and how the Maintainer Council votes on inclusion.
+
 ## Adding New Scenarios and Configurations
 
 ### New Scenarios
