@@ -540,10 +540,19 @@
     "required": "false"
   },
   {
-    "name": "kubevirt-node-node",
+    "name": "kubevirt-node-name",
     "short_description": "KubeVirt node to filter vms on",
     "description": "Only track VMs in KubeVirt on given node name",
     "variable": "KUBE_VIRT_NODE_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false"
+  },
+  {
+    "name": "kubevirt-label-selector",
+    "short_description": "KubeVirt label selector to filter vms",
+    "description": "Label selector to filter VMs in KubeVirt",
+    "variable": "KUBE_VIRT_LABEL_SELECTOR",
     "type": "string",
     "default": "",
     "required": "false"
@@ -584,5 +593,4 @@
     "required": "false",
     "mount_path": "/home/krkn/resiliency-file.yaml"
   }
-
 ]

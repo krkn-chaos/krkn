@@ -837,5 +837,101 @@ class TestVirtHealthCheckPluginFactory(unittest.TestCase):
         self.assertEqual(plugin3.__class__.__name__, "VirtHealthCheckPlugin")
 
 
+class TestVirtHealthCheckPluginLabelSelector(unittest.TestCase):
+    """Tests for label_selector support in VirtHealthCheckPlugin._initialize_from_config"""
+
+    def setUp(self):
+        self.factory = HealthCheckFactory()
+        if "virt_health_check" not in self.factory.loaded_plugins:
+            self.skipTest("Virt health check plugin not loaded (missing dependencies)")
+        self.mock_kubecli = MagicMock()
+        self.plugin = self.factory.create_plugin(
+            "virt_health_check", iterations=1, krkn_lib=self.mock_kubecli
+        )
+
+    def _mock_vmi(self, name, ip="10.0.0.1", node="worker-1", namespace="default"):
+        return {
+            "metadata": {"name": name, "namespace": namespace},
+            "status": {
+                "nodeName": node,
+                "interfaces": [{"ipAddress": ip}],
+            },
+        }
+
+    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    def test_initialize_with_label_selector_only(self, mock_plugin_class):
+        """Test _initialize_from_config filters VMIs by label_selector when name is not set"""
+        mock_plugin = MagicMock()
+        mock_plugin_class.return_value = mock_plugin
+        mock_plugin.k8s_client = self.mock_kubecli
+        self.mock_kubecli.get_vmis.return_value = [self._mock_vmi("labeled-vm")]
+
+        config = {"namespace": "default", "label_selector": "app=myvm", "interval": 2}
+
+        result = self.plugin._initialize_from_config(config)
+
+        self.assertTrue(result)
+        self.assertEqual(len(self.plugin.vm_list), 1)
+        self.mock_kubecli.get_vmis.assert_called_once_with(
+            ".*", "default", label_selector="app=myvm"
+        )
+
+    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    def test_initialize_with_name_and_label_selector(self, mock_plugin_class):
+        """Test _initialize_from_config passes both name and label_selector to get_vmis"""
+        mock_plugin = MagicMock()
+        mock_plugin_class.return_value = mock_plugin
+        mock_plugin.k8s_client = self.mock_kubecli
+        self.mock_kubecli.get_vmis.return_value = [self._mock_vmi("test-vm")]
+
+        config = {
+            "namespace": "default",
+            "name": "test-vm",
+            "label_selector": "env=chaos",
+            "interval": 2,
+        }
+
+        result = self.plugin._initialize_from_config(config)
+
+        self.assertTrue(result)
+        self.mock_kubecli.get_vmis.assert_called_once_with(
+            "test-vm", "default", label_selector="env=chaos"
+        )
+
+    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    def test_initialize_no_name_no_label_selector_defaults_to_match_all(self, mock_plugin_class):
+        """Test _initialize_from_config falls back to '.*' when neither name nor label_selector is set"""
+        mock_plugin = MagicMock()
+        mock_plugin_class.return_value = mock_plugin
+        mock_plugin.k8s_client = self.mock_kubecli
+        self.mock_kubecli.get_vmis.return_value = []
+
+        config = {"namespace": "default", "interval": 2}
+
+        result = self.plugin._initialize_from_config(config)
+
+        self.assertTrue(result)
+        self.mock_kubecli.get_vmis.assert_called_once_with(
+            ".*", "default", label_selector=None
+        )
+
+    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    def test_initialize_empty_label_selector_treated_as_none(self, mock_plugin_class):
+        """Test that an empty string label_selector is treated as not set, falling back to '.*'"""
+        mock_plugin = MagicMock()
+        mock_plugin_class.return_value = mock_plugin
+        mock_plugin.k8s_client = self.mock_kubecli
+        self.mock_kubecli.get_vmis.return_value = []
+
+        config = {"namespace": "default", "label_selector": "", "interval": 2}
+
+        result = self.plugin._initialize_from_config(config)
+
+        self.assertTrue(result)
+        self.mock_kubecli.get_vmis.assert_called_once_with(
+            ".*", "default", label_selector=None
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
