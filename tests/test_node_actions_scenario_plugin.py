@@ -687,7 +687,8 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         scenario_yaml = {
             "node_scenarios": [
                 {
-                    "cloud_type": "unsupported"
+                    "cloud_type": "unsupported",
+                    "actions": ["node_stop_scenario"]
                 }
             ]
         }
@@ -702,6 +703,73 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, 1)
         mock_logging.assert_called()
+
+    def _assert_run_returns_error_for_invalid_actions(self, node_scenario):
+        scenario_yaml = {
+            "node_scenarios": [
+                node_scenario
+            ]
+        }
+
+        with patch('yaml.safe_load', return_value=scenario_yaml):
+            with self.assertLogs('root', level='ERROR') as log_ctx:
+                result = self.plugin.run(
+                    "test-uuid",
+                    "/path/to/scenario.yaml",
+                    self.mock_lib_telemetry,
+                    self.mock_scenario_telemetry
+                )
+
+        self.assertEqual(result, 1)
+        self.assertTrue(
+            any("actions" in msg for msg in log_ctx.output),
+            f"Expected 'actions' in error log, got: {log_ctx.output}",
+        )
+        self.assertTrue(
+            any("/path/to/scenario.yaml" in msg for msg in log_ctx.output),
+            f"Expected scenario file path in error log, got: {log_ctx.output}",
+        )
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_run_returns_error_when_actions_empty(self, mock_file, mock_general_scenarios):
+        """
+        Test run returns 1 when actions is an empty list
+        """
+        self._assert_run_returns_error_for_invalid_actions(
+            {
+                "cloud_type": "generic",
+                "actions": []
+            }
+        )
+        mock_general_scenarios.assert_not_called()
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_run_returns_error_when_actions_missing(self, mock_file, mock_general_scenarios):
+        """
+        Test run returns 1 when actions is missing
+        """
+        self._assert_run_returns_error_for_invalid_actions(
+            {
+                "cloud_type": "generic"
+            }
+        )
+        mock_general_scenarios.assert_not_called()
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_run_returns_error_when_actions_none(self, mock_file, mock_general_scenarios):
+        """
+        Test run returns 1 when actions is None
+        """
+        self._assert_run_returns_error_for_invalid_actions(
+            {
+                "cloud_type": "generic",
+                "actions": None
+            }
+        )
+        mock_general_scenarios.assert_not_called()
 
     @patch('logging.info')
     def test_multiprocess_nodes(self, mock_logging):

@@ -28,6 +28,37 @@ CLASS_ID = "100:1"
 NETEM_HANDLE = "101:"
 
 
+def _normalize_rate(value: Optional[str]) -> str:
+    """Accept "100" or "100mbit"/"1gbit"; always return a tc-valid rate string."""
+    if value is None:
+        return "1gbit"
+    s = value.strip()
+    try:
+        float(s)
+        return f"{s}mbit"
+    except ValueError:
+        return s
+
+
+def _normalize_delay(value: Optional[str]) -> str:
+    """Accept "50" or "50ms"; always return a tc-valid delay string."""
+    if value is None:
+        return "0ms"
+    s = value.strip()
+    try:
+        float(s)
+        return f"{s}ms"
+    except ValueError:
+        return s
+
+
+def _normalize_loss(value: Optional[str]) -> str:
+    """Accept "10" or "10%"; return the bare numeric string (% appended by caller)."""
+    if value is None:
+        return "0"
+    return value.strip().rstrip("%")
+
+
 def run(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, check=check, text=True, capture_output=True)
 
@@ -64,15 +95,15 @@ def get_egress_shaping_comand(
 ) -> list[str]:
 
     rate_commands = []
-    rate = f"{rate_mbit}mbit" if rate_mbit is not None else "1gbit"
-    d = delay_ms if delay_ms is not None else 0
-    l = loss_pct if loss_pct is not None else 0
+    rate = _normalize_rate(rate_mbit)
+    d = _normalize_delay(delay_ms)
+    l = _normalize_loss(loss_pct)
     for dev in devices:
         rate_commands.append(
             f"tc class change dev {dev} parent {ROOT_HANDLE} classid {CLASS_ID} htb rate {rate}"
         )
         rate_commands.append(
-            f"tc qdisc change dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay {d}ms loss {l}%"
+            f"tc qdisc change dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay {d} loss {l}%"
         )
     return rate_commands
 
@@ -108,12 +139,12 @@ def get_ingress_shaping_commands(
     )
     rate_commands.append(
         f"tc class add dev {ifb_dev} parent {ROOT_HANDLE} classid {CLASS_ID} "
-        f"htb rate {rate_mbit if rate_mbit else '1gbit'} || true"
+        f"htb rate {_normalize_rate(rate_mbit)} || true"
     )
     rate_commands.append(
         f"tc qdisc add dev {ifb_dev} parent {CLASS_ID} handle {NETEM_HANDLE} "
-        f"netem delay {delay_ms if delay_ms else '0ms'} "
-        f"loss {loss_pct if loss_pct else '0'}% || true"
+        f"netem delay {_normalize_delay(delay_ms)} "
+        f"loss {_normalize_loss(loss_pct)}% || true"
     )
 
     return rate_commands
