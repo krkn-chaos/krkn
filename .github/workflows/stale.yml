@@ -2,6 +2,7 @@ name: Manage Stale Issues and Pull Requests
 
 on:
   schedule:
+    # Run daily at 1:00 AM UTC
     - cron: "0 1 * * *"
   workflow_dispatch:
 
