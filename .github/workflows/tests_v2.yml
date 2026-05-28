@@ -35,6 +35,8 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r CI/tests_v2/requirements.txt
+          # Force setuptools==81.0.0 after all deps (some may try to upgrade it to 82+, which removes pkg_resources)
+          pip install --force-reinstall --no-deps setuptools==81.0.0
 
       - name: Run tests_v2
         run: |

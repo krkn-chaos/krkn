@@ -392,6 +392,8 @@ class TestHttpHealthCheckPlugin(unittest.TestCase):
         self.assertFalse(self.health_check_queue.empty())
         telemetry = self.health_check_queue.get()
         self.assertGreaterEqual(len(telemetry), 1)
+        change_entry = telemetry[0]
+        self.assertFalse(change_entry.status)
 
     @patch('krkn.health_checks.http_health_check_plugin.HttpHealthCheckPlugin.make_request')
     @patch('time.sleep')
