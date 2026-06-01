@@ -175,20 +175,7 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
             ip_address = interfaces[0].get("ipAddress")
             namespace = vmi.get("metadata", {}).get("namespace")
 
-            # Filter by node names if specified
-            if len(node_name_list) > 0 and node_name in node_name_list:
-                self.vm_list.append(
-                    VirtCheck(
-                        {
-                            "vm_name": vmi_name,
-                            "ip_address": ip_address,
-                            "namespace": namespace,
-                            "node_name": node_name,
-                            "new_ip_address": "",
-                        }
-                    )
-                )
-            elif len(node_name_list) == 0:
+            if not node_name_list or node_name in node_name_list:
                 self.vm_list.append(
                     VirtCheck(
                         {
@@ -271,6 +258,54 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
 
         return False, None, None
 
+    def _get_ssh_status(self, vm) -> bool:
+        """
+        Check SSH accessibility for a VM, updating vm.new_ip_address and vm.node_name
+        in-place if the VM has migrated.
+
+        :param vm: VirtCheck object representing the VM
+        :return: True if SSH access succeeded, False otherwise
+        """
+        if not self.disconnected:
+            return self.get_vm_access(vm.vm_name, vm.namespace)
+
+        ip = vm.new_ip_address or vm.ip_address
+        vm_status, new_ip_address, new_node_name = self.check_disconnected_access(
+            ip, vm.node_name, vm.vm_name
+        )
+        # Only update tracked addresses on first migration discovery
+        if not vm.new_ip_address:
+            if new_ip_address and vm.ip_address != new_ip_address:
+                vm.new_ip_address = new_ip_address
+            if new_node_name and vm.node_name != new_node_name:
+                vm.node_name = new_node_name
+        return vm_status
+
+    def check_vmi_ready(self, vmi_name: str, namespace: str) -> bool:
+        """
+        Check if a VMI is in Running phase with a Ready=True condition.
+
+        :param vmi_name: VMI name
+        :param namespace: namespace
+        :return: True if VMI is ready, False otherwise
+        """
+        try:
+            vmi = self.krkn_lib.get_vmi(vmi_name, namespace)
+            if vmi is None:
+                return False
+            phase = vmi.get("status", {}).get("phase", "")
+            if phase != "Running":
+                logging.debug(f"VMI {vmi_name} phase is '{phase}', not Running")
+                return False
+            for cond in vmi.get("status", {}).get("conditions", []):
+                if cond.get("type") == "Ready" and cond.get("status") == "True":
+                    return True
+            logging.debug(f"VMI {vmi_name} has no Ready=True condition")
+            return False
+        except Exception:
+            logging.exception(f"Exception checking VMI ready state for {vmi_name}")
+            return False
+
     def get_vm_access(self, vm_name: str = "", namespace: str = "") -> bool:
         """
         Check VM accessibility using virtctl protocol.
@@ -290,6 +325,45 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
                 return True
             return False
 
+    @staticmethod
+    def _compute_check_type(ssh_status: bool, vmi_ready: bool) -> str:
+        """
+        Derive the check_type discriminator from individual check results.
+
+        :param ssh_status: result of the SSH access check
+        :param vmi_ready: result of the VMI readiness check
+        :return: 'both', 'ssh_access', 'vmi_ready', or 'healthy'
+        """
+        if not ssh_status and not vmi_ready:
+            return "both"
+        if not ssh_status:
+            return "ssh_access"
+        if not vmi_ready:
+            return "vmi_ready"
+        return "healthy"
+
+    def _make_tracker_entry(self, vm, ssh_status: bool, vmi_ready: bool) -> dict:
+        """
+        Build a fresh tracker entry dict for a VM with the current check results.
+
+        :param vm: VirtCheck object representing the VM
+        :param ssh_status: result of the SSH access check
+        :param vmi_ready: result of the VMI readiness check
+        :return: tracker entry dict
+        """
+        return {
+            "vm_name": vm.vm_name,
+            "ip_address": vm.ip_address,
+            "namespace": vm.namespace,
+            "node_name": vm.node_name,
+            "ssh_status": ssh_status,
+            "vmi_ready": vmi_ready,
+            "status": ssh_status and vmi_ready,
+            "check_type": self._compute_check_type(ssh_status, vmi_ready),
+            "start_timestamp": datetime.now(),
+            "new_ip_address": vm.new_ip_address,
+        }
+
     def thread_join(self):
         """Join all worker threads."""
         for thread in self.threads:
@@ -303,14 +377,10 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         if self.batch_size > 0:
             for i in range(0, len(self.vm_list), self.batch_size):
-                if i + self.batch_size > len(self.vm_list):
-                    sub_list = self.vm_list[i:]
-                else:
-                    sub_list = self.vm_list[i : i + self.batch_size]
-                index = i
+                sub_list = self.vm_list[i : i + self.batch_size]
                 t = threading.Thread(
                     target=self._run_virt_check_batch,
-                    name=str(index),
+                    name=str(i),
                     args=(sub_list, telemetry_queue),
                 )
                 self.threads.append(t)
@@ -322,110 +392,94 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         Run health checks for a batch of VMs (executed in worker thread).
 
+        Each VM gets a single combined tracker entry that carries both ssh_status
+        and vmi_ready. An entry is closed and a new one started whenever either
+        check changes state.
+
         :param vm_list_batch: list of VMs to check
         :param virt_check_telemetry_queue: queue for telemetry
         """
         virt_check_telemetry = []
-        virt_check_tracker = {}
+        vm_tracker = {}
 
         while True:
-            # Thread-safe read of current_iterations
             with self.iteration_lock:
                 current = self.current_iterations
             if current >= self.iterations or self._stop_event.is_set():
                 break
 
             for vm in vm_list_batch:
-                start_time = datetime.now()
                 try:
-                    if not self.disconnected:
-                        vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
-                    else:
-                        # Use new IP if available
-                        if vm.new_ip_address:
-                            vm_status, new_ip_address, new_node_name = (
-                                self.check_disconnected_access(
-                                    vm.new_ip_address, vm.node_name, vm.vm_name
-                                )
-                            )
-                        else:
-                            vm_status, new_ip_address, new_node_name = (
-                                self.check_disconnected_access(
-                                    vm.ip_address, vm.node_name, vm.vm_name
-                                )
-                            )
-                            if new_ip_address and vm.ip_address != new_ip_address:
-                                vm.new_ip_address = new_ip_address
-                            if new_node_name and vm.node_name != new_node_name:
-                                vm.node_name = new_node_name
+                    ssh_status = self._get_ssh_status(vm)
                 except Exception:
                     logging.exception("Exception in get vm status")
-                    vm_status = False
+                    ssh_status = False
 
-                if vm.vm_name not in virt_check_tracker:
-                    start_timestamp = datetime.now()
-                    virt_check_tracker[vm.vm_name] = {
-                        "vm_name": vm.vm_name,
-                        "ip_address": vm.ip_address,
-                        "namespace": vm.namespace,
-                        "node_name": vm.node_name,
-                        "status": vm_status,
-                        "start_timestamp": start_timestamp,
-                        "new_ip_address": vm.new_ip_address,
-                    }
-                else:
-                    if vm_status != virt_check_tracker[vm.vm_name]["status"]:
-                        end_timestamp = datetime.now()
-                        start_timestamp = virt_check_tracker[vm.vm_name][
-                            "start_timestamp"
-                        ]
-                        duration = (end_timestamp - start_timestamp).total_seconds()
-                        virt_check_tracker[vm.vm_name][
-                            "end_timestamp"
-                        ] = end_timestamp.isoformat()
-                        virt_check_tracker[vm.vm_name]["duration"] = duration
-                        virt_check_tracker[vm.vm_name][
-                            "start_timestamp"
-                        ] = start_timestamp.isoformat()
-                        if vm.new_ip_address:
-                            virt_check_tracker[vm.vm_name][
-                                "new_ip_address"
-                            ] = vm.new_ip_address
+                vmi_ready = self.check_vmi_ready(vm.vm_name, vm.namespace)
 
-                        if self.only_failures:
-                            if not virt_check_tracker[vm.vm_name]["status"]:
-                                virt_check_telemetry.append(
-                                    VirtCheck(virt_check_tracker[vm.vm_name])
-                                )
-                        else:
-                            virt_check_telemetry.append(
-                                VirtCheck(virt_check_tracker[vm.vm_name])
-                            )
-                        del virt_check_tracker[vm.vm_name]
+                if vm.vm_name not in vm_tracker:
+                    vm_tracker[vm.vm_name] = self._make_tracker_entry(
+                        vm, ssh_status, vmi_ready
+                    )
+                elif (
+                    ssh_status != vm_tracker[vm.vm_name]["ssh_status"]
+                    or vmi_ready != vm_tracker[vm.vm_name]["vmi_ready"]
+                ):
+                    if not vmi_ready and vm_tracker[vm.vm_name]["vmi_ready"]:
+                        logging.warning(
+                            f"VMI {vm.vm_name} in namespace {vm.namespace} transitioned to not-ready"
+                        )
+                    if vm.new_ip_address:
+                        vm_tracker[vm.vm_name]["new_ip_address"] = vm.new_ip_address
+                    self._close_tracker_entry(
+                        vm_tracker, vm.vm_name, virt_check_telemetry
+                    )
+                    vm_tracker[vm.vm_name] = self._make_tracker_entry(
+                        vm, ssh_status, vmi_ready
+                    )
 
             time.sleep(self.interval)
 
-        # Record final status
-        virt_check_end_time_stamp = datetime.now()
-        for vm in virt_check_tracker.keys():
-            final_start_timestamp = virt_check_tracker[vm]["start_timestamp"]
-            final_duration = (
-                virt_check_end_time_stamp - final_start_timestamp
-            ).total_seconds()
-            virt_check_tracker[vm]["end_timestamp"] = virt_check_end_time_stamp.isoformat()
-            virt_check_tracker[vm]["duration"] = final_duration
-            virt_check_tracker[vm]["start_timestamp"] = final_start_timestamp.isoformat()
-
-            if self.only_failures:
-                if not virt_check_tracker[vm]["status"]:
-                    virt_check_telemetry.append(VirtCheck(virt_check_tracker[vm]))
-            else:
-                virt_check_telemetry.append(VirtCheck(virt_check_tracker[vm]))
+        # Record final status for all open tracker entries
+        end_timestamp = datetime.now()
+        for vm_name in vm_tracker:
+            self._close_tracker_entry(
+                vm_tracker, vm_name, virt_check_telemetry, end_timestamp, delete=False
+            )
 
         try:
             virt_check_telemetry_queue.put(virt_check_telemetry)
         except Exception as e:
             logging.error(f"Put queue error: {str(e)}")
+
+    def _close_tracker_entry(
+        self,
+        tracker: dict,
+        vm_name: str,
+        telemetry: list,
+        end_timestamp: datetime = None,
+        delete: bool = True,
+    ) -> None:
+        """
+        Finalize a tracker entry: stamp timestamps/duration, conditionally append
+        to telemetry, and optionally remove from the tracker.
+
+        :param tracker: the vm_tracker dict
+        :param vm_name: key into tracker
+        :param telemetry: list to append VirtCheck to
+        :param end_timestamp: override end time; defaults to now
+        :param delete: whether to remove the entry from tracker after closing
+        """
+        if end_timestamp is None:
+            end_timestamp = datetime.now()
+        start = tracker[vm_name]["start_timestamp"]
+        tracker[vm_name]["end_timestamp"] = end_timestamp.isoformat()
+        tracker[vm_name]["duration"] = (end_timestamp - start).total_seconds()
+        tracker[vm_name]["start_timestamp"] = start.isoformat()
+        if not self.only_failures or not tracker[vm_name]["status"]:
+            telemetry.append(VirtCheck(tracker[vm_name]))
+        if delete:
+            del tracker[vm_name]
 
     def gather_post_virt_checks(self, kubevirt_check_telem):
         """
@@ -440,10 +494,9 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         if self.batch_size > 0:
             for i in range(0, len(self.vm_list), self.batch_size):
                 sub_list = self.vm_list[i : i + self.batch_size]
-                index = i
                 t = threading.Thread(
                     target=self._run_post_virt_check,
-                    name=str(index),
+                    name=str(i),
                     args=(sub_list, kubevirt_check_telem, post_kubevirt_check_queue),
                 )
                 post_threads.append(t)
@@ -467,46 +520,48 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         post_virt_check_queue: queue.SimpleQueue,
     ):
         """
-        Run post-chaos VM health check for a batch.
+        Run post-chaos VM health check for a batch. Emits one combined VirtCheck
+        entry per VM containing both ssh_status and vmi_ready.
 
         :param vm_list_batch: list of VMs to check
         :param virt_check_telemetry: telemetry data
         :param post_virt_check_queue: queue for results
         """
         virt_check_telemetry = []
-        virt_check_tracker = {}
         start_timestamp = datetime.now()
 
         for vm in vm_list_batch:
             try:
-                if not self.disconnected:
-                    vm_status = self.get_vm_access(vm.vm_name, vm.namespace)
-                else:
-                    vm_status, new_ip_address, new_node_name = (
-                        self.check_disconnected_access(
-                            vm.ip_address, vm.node_name, vm.vm_name
-                        )
-                    )
-                    if new_ip_address and vm.ip_address != new_ip_address:
-                        vm.new_ip_address = new_ip_address
-                    if new_node_name and vm.node_name != new_node_name:
-                        vm.node_name = new_node_name
+                ssh_status = self._get_ssh_status(vm)
             except Exception:
-                vm_status = False
+                ssh_status = False
 
-            if not vm_status:
-                virt_check_tracker = {
-                    "vm_name": vm.vm_name,
-                    "ip_address": vm.ip_address,
-                    "namespace": vm.namespace,
-                    "node_name": vm.node_name,
-                    "status": vm_status,
-                    "start_timestamp": start_timestamp.isoformat(),
-                    "new_ip_address": vm.new_ip_address,
-                    "duration": 0,
-                    "end_timestamp": start_timestamp.isoformat(),
-                }
-                virt_check_telemetry.append(VirtCheck(virt_check_tracker))
+            vmi_ready = self.check_vmi_ready(vm.vm_name, vm.namespace)
+            combined_status = ssh_status and vmi_ready
+
+            if not combined_status:
+                if not vmi_ready:
+                    logging.warning(
+                        f"Post-check: VMI {vm.vm_name} in namespace {vm.namespace} is not ready"
+                    )
+                virt_check_telemetry.append(
+                    VirtCheck(
+                        {
+                            "vm_name": vm.vm_name,
+                            "ip_address": vm.ip_address,
+                            "namespace": vm.namespace,
+                            "node_name": vm.node_name,
+                            "ssh_status": ssh_status,
+                            "vmi_ready": vmi_ready,
+                            "status": combined_status,
+                            "check_type": self._compute_check_type(ssh_status, vmi_ready),
+                            "start_timestamp": start_timestamp.isoformat(),
+                            "new_ip_address": vm.new_ip_address,
+                            "duration": 0,
+                            "end_timestamp": start_timestamp.isoformat(),
+                        }
+                    )
+                )
 
         post_virt_check_queue.put(virt_check_telemetry)
 
