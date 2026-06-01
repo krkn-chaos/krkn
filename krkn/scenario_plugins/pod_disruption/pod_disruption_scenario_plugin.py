@@ -53,7 +53,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     # a missing value exits cleanly without launching a future.
                     if not kill_scenario_config.namespace_pattern:
                         logging.error('Namespace pattern must be specified')
-                        return 1
+                        continue
                     future_snapshot=self.start_monitoring(
                         kill_scenario_config,
                         lib_telemetry
