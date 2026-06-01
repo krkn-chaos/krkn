@@ -705,7 +705,7 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         self.assertEqual(result[0].vm_name, "vm-fail")
 
     def test_run_post_virt_check_healthy_vm_not_in_telemetry(self):
-        """Test _run_post_virt_check skips healthy VMs"""
+        """Test _run_post_virt_check skips healthy VMs (ssh up and VMI ready)"""
         mock_vm = MagicMock()
         mock_vm.vm_name = "vm-ok"
         mock_vm.namespace = "default"
@@ -714,7 +714,8 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         mock_vm.new_ip_address = ""
         self.plugin.disconnected = False
 
-        with patch.object(self.plugin, "get_vm_access", return_value=True):
+        with patch.object(self.plugin, "get_vm_access", return_value=True), \
+             patch.object(self.plugin, "check_vmi_ready", return_value=True):
             result_queue = queue.SimpleQueue()
             self.plugin._run_post_virt_check([mock_vm], [], result_queue)
 
