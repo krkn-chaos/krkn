@@ -49,6 +49,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 cont_scenario_config = yaml.safe_load(f)
                 for kill_scenario in cont_scenario_config:
                     kill_scenario_config = InputParams(kill_scenario["config"])
+                    # Validate namespace_pattern before starting monitoring so
+                    # a missing value exits cleanly without launching a future.
+                    if not kill_scenario_config.namespace_pattern:
+                        logging.error('Namespace pattern must be specified')
+                        return 1
                     future_snapshot=self.start_monitoring(
                         kill_scenario_config,
                         lib_telemetry
@@ -218,13 +223,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         # region Select target pods
         try:
             namespace = config.namespace_pattern
-            if not namespace: 
-                logging.error('Namespace pattern must be specified')
 
-            pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+            pods = self.get_pods(config.name_pattern,config.label_selector,namespace, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
             exclude_pods = set()
             if config.exclude_label:
-                _exclude_pods = self.get_pods("",config.exclude_label,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+                _exclude_pods = self.get_pods("",config.exclude_label,namespace, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
                 for pod in _exclude_pods:
                     exclude_pods.add(pod[0])
 
@@ -245,7 +248,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     logging.info(f'Deleting pod {pod[0]}')
                     kubecli.delete_pod(pod[0], pod[1])
             
-            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,namespace, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         except Exception as e:
             raise(e)
 
