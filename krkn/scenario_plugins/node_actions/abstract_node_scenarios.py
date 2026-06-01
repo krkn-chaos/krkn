@@ -103,6 +103,9 @@ class abstract_node_scenarios:
     def stop_start_kubelet_scenario(self, instance_kill_count, node, timeout):
         logging.info("Starting stop_start_kubelet_scenario injection")
         self.stop_kubelet_scenario(instance_kill_count, node, timeout)
+        # node_reboot_scenario is used intentionally: stopping the kubelet leaves the node NotReady,
+        # and oc debug cannot connect to a NotReady node, so restart_kubelet_scenario would fail.
+        # A hard reboot restarts the node and brings it back to Ready state.
         self.node_reboot_scenario(instance_kill_count, node, timeout)
         self.affected_nodes_status.merge_affected_nodes()
         logging.info("stop_start_kubelet_scenario has been successfully injected!")
