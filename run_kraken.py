@@ -451,7 +451,7 @@ def main(options, command: Optional[str]) -> int:
                                 config,
                                 telemetry_ocp,
                                 get_signal_fn=(
-                                    lambda: server.get_status(address)
+                                    (lambda: server.get_status(address))
                                     if publish_running_status
                                     else None
                                 ),

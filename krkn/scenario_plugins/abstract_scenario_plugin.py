@@ -185,10 +185,11 @@ class AbstractScenarioPlugin(ABC):
             scenario_telemetries.append(scenario_telemetry)
             cerberus.publish_kraken_status(start_time,end_time)
             logging.info(f"waiting {wait_duration} before running the next scenario")
-            # Interruptible sleep: poll the signal every second so a STOP
-            # signal is honoured promptly instead of waiting the full
-            # wait_duration. PAUSE is handled by the outer loop in run_kraken.py.
-            for _ in range(int(wait_duration)):
+            # Interruptible sleep: use a monotonic deadline to preserve
+            # sub-second wait_duration semantics (int() would floor 0.5 → 0).
+            # PAUSE is handled by the outer loop in run_kraken.py.
+            end = time.monotonic() + wait_duration
+            while time.monotonic() < end:
                 if get_signal_fn is not None and get_signal_fn() == "STOP":
                     logging.info(
                         "STOP signal received during inter-scenario wait, "

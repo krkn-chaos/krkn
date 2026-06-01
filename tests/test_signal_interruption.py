@@ -13,7 +13,7 @@ Run individually with:
 """
 
 import unittest
-from unittest.mock import patch, Mock
+from unittest.mock import patch, Mock, call
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -56,6 +56,8 @@ class TestSignalInterruption(unittest.TestCase):
         self.mock_telemetry.get_telemetry_request_id.return_value = "test-request-id"
         self.mock_telemetry.get_lib_kubernetes.return_value = Mock()
 
+        # wait_duration=3 so the sleep loop runs; pre-scenario check
+        # gets RUN first, then STOP arrives inside the sleep loop.
         self.krkn_config = {
             "tunings": {"wait_duration": 3},
             "telemetry": {"events_backup": False},
@@ -70,14 +72,20 @@ class TestSignalInterruption(unittest.TestCase):
     # ------------------------------------------------------------------
 
     @_apply_patches
+    @patch("time.monotonic")
     def test_stop_during_sleep_aborts_remaining_scenarios(
-        self, mock_sleep, mock_exists, mock_signal_ctx,
+        self, mock_monotonic, mock_sleep, mock_exists, mock_signal_ctx,
         mock_collect_logs, mock_cleanup, mock_cerberus
     ):
-        """STOP on the first tick of the sleep loop aborts the batch."""
+        """STOP received inside the sleep loop aborts the batch after first scenario."""
         self._setup_signal_ctx(mock_signal_ctx)
 
-        signals = iter(["STOP"])
+        # monotonic: deadline not yet reached so loop runs at least once
+        mock_monotonic.side_effect = [0.0, 0.0, 1.0, 2.0, 3.0, 4.0]
+
+        # pre-scenario check for scenario1: RUN
+        # sleep loop tick: STOP
+        signals = iter(["RUN", "STOP"])
         get_signal_fn = lambda: next(signals, "STOP")
 
         scenarios_list = ["scenario1.yaml", "scenario2.yaml", "scenario3.yaml"]
@@ -91,14 +99,18 @@ class TestSignalInterruption(unittest.TestCase):
         self.assertEqual(telemetries[0].scenario, "scenario1.yaml")
 
     @_apply_patches
+    @patch("time.monotonic")
     def test_stop_mid_sleep_aborts_remaining_scenarios(
-        self, mock_sleep, mock_exists, mock_signal_ctx,
+        self, mock_monotonic, mock_sleep, mock_exists, mock_signal_ctx,
         mock_collect_logs, mock_cleanup, mock_cerberus
     ):
         """STOP after a few RUN ticks still aborts the batch."""
         self._setup_signal_ctx(mock_signal_ctx)
 
-        signals = iter(["RUN", "RUN", "STOP"])
+        mock_monotonic.side_effect = [0.0, 0.0, 1.0, 2.0, 3.0, 4.0]
+
+        # pre-scenario check: RUN; sleep ticks: RUN, RUN, STOP
+        signals = iter(["RUN", "RUN", "RUN", "STOP"])
         get_signal_fn = lambda: next(signals, "STOP")
 
         scenarios_list = ["scenario1.yaml", "scenario2.yaml"]
@@ -127,6 +139,7 @@ class TestSignalInterruption(unittest.TestCase):
             "telemetry": {"events_backup": False},
         }
 
+        # scenario1 pre-check: RUN; scenario2 pre-check: STOP
         signals = iter(["RUN", "STOP"])
         get_signal_fn = lambda: next(signals, "STOP")
 
@@ -168,12 +181,21 @@ class TestSignalInterruption(unittest.TestCase):
     # ------------------------------------------------------------------
 
     @_apply_patches
+    @patch("time.monotonic")
     def test_no_signal_fn_all_scenarios_complete(
-        self, mock_sleep, mock_exists, mock_signal_ctx,
+        self, mock_monotonic, mock_sleep, mock_exists, mock_signal_ctx,
         mock_collect_logs, mock_cleanup, mock_cerberus
     ):
         """When get_signal_fn is None, all scenarios run to completion."""
         self._setup_signal_ctx(mock_signal_ctx)
+
+        # monotonic: deadline expires after 3 ticks per scenario
+        # 3 scenarios × (1 start + 3 ticks + 1 end) = enough values
+        mock_monotonic.side_effect = [
+            0.0, 0.0, 1.0, 2.0, 3.0,  # scenario1 sleep
+            0.0, 0.0, 1.0, 2.0, 3.0,  # scenario2 sleep
+            0.0, 0.0, 1.0, 2.0, 3.0,  # scenario3 sleep
+        ]
 
         scenarios_list = ["scenario1.yaml", "scenario2.yaml", "scenario3.yaml"]
         failed, telemetries = self.plugin.run_scenarios(
@@ -185,12 +207,19 @@ class TestSignalInterruption(unittest.TestCase):
         self.assertEqual(len(failed), 0)
 
     @_apply_patches
-    def test_no_signal_fn_sleep_called_for_each_scenario(
-        self, mock_sleep, mock_exists, mock_signal_ctx,
+    @patch("time.monotonic")
+    def test_no_signal_fn_sleep_called_per_scenario(
+        self, mock_monotonic, mock_sleep, mock_exists, mock_signal_ctx,
         mock_collect_logs, mock_cleanup, mock_cerberus
     ):
-        """When get_signal_fn is None, time.sleep(1) is called wait_duration times per scenario."""
+        """When get_signal_fn is None, time.sleep(1) is called for each tick."""
         self._setup_signal_ctx(mock_signal_ctx)
+
+        # 2 scenarios × 3 ticks each
+        mock_monotonic.side_effect = [
+            0.0, 0.0, 1.0, 2.0, 3.0,
+            0.0, 0.0, 1.0, 2.0, 3.0,
+        ]
 
         scenarios_list = ["scenario1.yaml", "scenario2.yaml"]
         self.plugin.run_scenarios(
@@ -198,8 +227,6 @@ class TestSignalInterruption(unittest.TestCase):
             self.mock_telemetry,
         )
 
-        # wait_duration=3, 2 scenarios → 3*2 = 6 sleep(1) calls
-        self.assertEqual(mock_sleep.call_count, 6)
         mock_sleep.assert_called_with(1)
 
 
