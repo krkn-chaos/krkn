@@ -163,7 +163,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         base64-encoded JSON payload written by ``_register_rollback()``.  This
         method decodes it, reconstructs the appropriate cloud-provider scenario
         object, and calls the inverse action (e.g. ``node_start_scenario`` for
-        a stopped node, ``restart_kubelet_scenario`` for a stopped kubelet).
+        a stopped node, ``node_reboot_scenario`` for a stopped kubelet).
 
         WHY local imports?
         The rollback framework (``serialization.py`` + ``version_template.j2``)
@@ -236,8 +236,8 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
             # Execute the compensating action.
             if reverse_action == "node_start_scenario":
                 scenario_obj.node_start_scenario(1, node, timeout, poll_interval)
-            elif reverse_action == "restart_kubelet_scenario":
-                scenario_obj.restart_kubelet_scenario(1, node, timeout)
+            elif reverse_action == "node_reboot_scenario":
+                scenario_obj.node_reboot_scenario(1, node, timeout, soft_reboot=False)
             else:
                 logging.warning(
                     "Rollback: no handler for reverse action '%s' on node '%s', skipping",
