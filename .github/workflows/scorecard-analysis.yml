@@ -41,6 +41,11 @@ jobs:
           # extract the results instead of relying on our own infrastructure to run scans.
           # And it's free for you!
           publish_results: true
+          # Fine-grained PAT with Administration:read is required so Scorecard can read
+          # classic branch protection rules. GITHUB_TOKEN cannot access these regardless
+          # of workflow permissions. See:
+          # https://github.com/ossf/scorecard-action/blob/main/docs/authentication/fine-grained-auth-token.md
+          repo_token: ${{ secrets.SCORECARD_TOKEN }}
 
       # Upload the results as artifacts (optional). Commenting out will disable
       # uploads of run results in SARIF format to the repository Actions tab.

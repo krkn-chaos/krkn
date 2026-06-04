@@ -95,23 +95,30 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         self.vmis_status = VmisStatus()
         try:
             params = config.get("parameters", {})
-            vm_name = params.get("vm_name")
+            vm_name = params.get("vm_name") or None
+            label_selector = params.get("label_selector") or None
             namespace = params.get("namespace", "default")
             timeout = params.get("timeout", 60)
             kill_count = params.get("kill_count", 1)
             disable_auto_restart = params.get("disable_auto_restart", False)
 
-            if not vm_name:
-                logging.error("vm_name parameter is required")
+            if not vm_name and not label_selector:
+                logging.error("Either vm_name or label_selector parameter is required")
                 return self.vmis_status
             self.vmis_status = VmisStatus()
-            self.vmis_list = self.k8s_client.get_vmis(vm_name,namespace)
+            name_regex = vm_name or ".*"
+            self.vmis_list = self.k8s_client.get_vmis(name_regex, namespace, label_selector=label_selector)
+            if not self.vmis_list:
+                target = f"label_selector={label_selector}" if label_selector else f"vm_name={vm_name}"
+                logging.error(f"No VMIs found matching {target} in namespace {namespace}")
+                return self.vmis_status
             for _ in range(kill_count):
-                
+
                 rand_int = random.randint(0, len(self.vmis_list) - 1)
                 vmi = self.vmis_list[rand_int]
-                    
-                logging.info(f"Starting KubeVirt VM outage scenario for VM: {vm_name} in namespace: {namespace}")
+
+                target = f"label_selector={label_selector}" if label_selector else f"vm_name={vm_name}"
+                logging.info(f"Starting KubeVirt VM outage scenario for {target} in namespace: {namespace}")
                 vmi_name = vmi.get("metadata").get("name")
                 vmi_namespace = vmi.get("metadata").get("namespace")
 
@@ -127,12 +134,12 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
 
                 vmi = self.k8s_client.get_vmi(vmi_name, vmi_namespace)
                 if not vmi:
-                    logging.error(f"VMI {vm_name} not found in namespace {namespace}")
+                    logging.error(f"VMI {vmi_name} not found in namespace {vmi_namespace}")
                     self.vmis_status.unrecovered.append(self.affected_vmi)
                     continue
-                    
+
                 self.original_vmi = vmi
-                logging.info(f"Captured initial state of VMI: {vm_name}")
+                logging.info(f"Captured initial state of VMI: {vmi_name}")
                 result = self.delete_vmi(vmi_name, vmi_namespace, disable_auto_restart)
                 if result != 0:
                     self.vmis_status.unrecovered.append(self.affected_vmi)
@@ -149,7 +156,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 )
 
                 self.vmis_status.recovered.append(self.affected_vmi)
-                logging.info(f"Successfully completed KubeVirt VM outage scenario for VM: {vm_name}")
+                logging.info(f"Successfully completed KubeVirt VM outage scenario for VM: {vmi_name}")
             
             return self.vmis_status
             

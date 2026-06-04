@@ -1,0 +1,12 @@
+storage_throttle_scenario:
+  pvc_name: <pvc_name>            # Target PVC name. If set, pod_name is auto-resolved from PVC.
+  pod_name: <pod_name>            # Target pod name. Ignored if pvc_name is set.
+  namespace: <namespace>          # Namespace of the target PVC/pod
+  mount_path: ""                  # Specific mount path to throttle. If empty, first PVC mount is used.
+  throttle_type: bandwidth        # "iops", "bandwidth", or "both"
+  read_iops: 100                  # Max read IOPS (used when throttle_type is "iops" or "both")
+  write_iops: 50                  # Max write IOPS (used when throttle_type is "iops" or "both")
+  read_bps: 1048576               # Max read bytes/sec, 1 MB/s (used when throttle_type is "bandwidth" or "both")
+  write_bps: 524288               # Max write bytes/sec, 512 KB/s (used when throttle_type is "bandwidth" or "both")
+  duration: 120                   # How long to hold the throttle in seconds
+  image: quay.io/krkn-chaos/krkn:tools  # Image for the privileged helper pod

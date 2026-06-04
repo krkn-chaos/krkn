@@ -228,6 +228,9 @@ def main(options, command: Optional[str]) -> int:
                 e,
             )
             return -1
+            logging.error("Failed to initialize Kubernetes clients: %s" % e)
+            kubecli = KrknKubernetes(kubeconfig_path=None)
+            ocpcli = KrknOpenshift(kubeconfig_path=None)
 
         distribution = "kubernetes"
         if ocpcli.is_openshift():
