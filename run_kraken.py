@@ -68,8 +68,8 @@ report_file = ""
 # Main function
 def main(options, command: Optional[str]) -> int:
     # Start kraken
-    print(pyfiglet.figlet_format("kraken"))
-    logging.info("Starting kraken")
+    print(pyfiglet.figlet_format("krkn"))
+    logging.info("Starting krkn")
 
     
 
