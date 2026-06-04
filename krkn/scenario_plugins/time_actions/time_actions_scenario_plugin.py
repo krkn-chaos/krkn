@@ -77,6 +77,44 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 break
         return response
 
+    def exec_with_shell_fallback(self, command, pod_name, namespace, container_name, kubecli: KrknKubernetes, max_retries=3):
+        """
+        Execute command in pod with shell fallback on failure.
+        
+        Args:
+            command: Command to execute (string or list)
+            pod_name: Name of the pod
+            namespace: Namespace of the pod
+            container_name: Name of the container
+            kubecli: Kubernetes client
+            max_retries: Maximum number of retries
+            
+        Returns:
+            Command output or False on persistent failure
+        """
+        # Try direct execution first
+        for attempt in range(max_retries):
+            try:
+                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
+                if response and not ("unauthorized" in response.lower() or "authorization" in response.lower()):
+                    return response
+            except Exception:
+                pass
+            
+            # If direct execution fails, try with shell fallback
+            try:
+                shell_command = ["/bin/sh", "-c"] + (command if isinstance(command, list) else [command])
+                response = kubecli.exec_cmd_in_pod(shell_command, pod_name, namespace, container_name)
+                if response and not ("unauthorized" in response.lower() or "authorization" in response.lower()):
+                    return response
+            except Exception:
+                pass
+                
+            if attempt < max_retries - 1:
+                time.sleep(1)
+        
+        return False
+
     # krkn_lib
     def get_container_name(
         self, pod_name, namespace, kubecli: KrknKubernetes, container_name=""
