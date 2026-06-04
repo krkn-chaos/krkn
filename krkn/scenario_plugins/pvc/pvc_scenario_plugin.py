@@ -146,6 +146,18 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 logging.info("Container path: %s" % container_name)
                 logging.info("Mount path: %s" % mount_path)
 
+                # Validate that the container has a usable shell before proceeding
+                shell = lib_telemetry.get_lib_kubernetes().get_pod_shell(
+                    pod_name, namespace, container_name
+                )
+                if shell is None:
+                    logging.error(
+                        "PvcScenarioPlugin container '%s' in pod '%s' has no "
+                        "usable shell (/bin/bash or /bin/sh); cannot execute "
+                        "commands inside the container" % (str(container_name), str(pod_name))
+                    )
+                    return 1
+
                 # Get PVC capacity and used bytes
                 command = "df %s -B 1024 | sed 1d" % (str(mount_path))
                 command_output = (
