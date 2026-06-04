@@ -21,7 +21,8 @@ Example configuration in config.yaml:
 kubevirt_checks:
     type: virt_health_check
     namespace: "default"
-    name: ".*"                    # VMI name regex pattern
+    name: ".*"                    # optional VMI name regex pattern; matches all if omitted
+    label_selector: ""            # optional label selector (e.g. "app=myvm"); if set, name is not required
     interval: 2                   # Check interval in seconds
     disconnected: false           # Use disconnected SSH access
     only_failures: false          # Only report failures
@@ -141,7 +142,8 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         self.ssh_node = get_yaml_item_value(config, "ssh_node", "")
         self.node_names = get_yaml_item_value(config, "node_names", "")
         self.exit_on_failure = get_yaml_item_value(config, "exit_on_failure", False)
-        vmi_name_match = get_yaml_item_value(config, "name", ".*")
+        vmi_name_match = get_yaml_item_value(config, "name", None) or ".*"
+        label_selector = get_yaml_item_value(config, "label_selector", None) or None
 
         if self.namespace == "":
             logging.info("kubevirt checks config namespace is not defined, skipping them")
@@ -151,7 +153,7 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
             self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=self.krkn_lib)
             self.vmis_list = self.kube_vm_plugin.k8s_client.get_vmis(
-                vmi_name_match, self.namespace
+                vmi_name_match, self.namespace, label_selector=label_selector
             )
         except Exception as e:
             logging.error(f"Virt Check init exception: {str(e)}")

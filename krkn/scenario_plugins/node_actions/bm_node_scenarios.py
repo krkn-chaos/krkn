@@ -253,9 +253,9 @@ class bm_node_scenarios(abstract_node_scenarios):
                     " %s. Test Failed. Most errors are caused by "
                     "an incorrect ipmi address or login" % (e)
                 )
-                traceback.print_exc()
+                logging.error(traceback.format_exc())
                 logging.error("node_reboot_scenario injection failed!")
-                raise e
+                raise
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     def node_disk_detach_attach_scenario(self, instance_kill_count, node, timeout, duration):

@@ -644,6 +644,126 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.assertEqual(result, ["kubevirt_vm_outage"])
         self.assertEqual(len(result), 1)
 
+    # ==================== label_selector Tests ====================
+
+    def test_execute_scenario_missing_both_vm_name_and_label_selector(self):
+        """
+        Test execute_scenario returns empty status when neither vm_name nor label_selector is set
+        """
+        config = {"parameters": {"namespace": "default"}}
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsInstance(result, VmisStatus)
+        self.assertEqual(len(result.recovered), 0)
+        self.assertEqual(len(result.unrecovered), 0)
+        self.k8s_client.get_vmis.assert_not_called()
+
+    def test_execute_scenario_with_label_selector_only(self):
+        """
+        Test execute_scenario succeeds using label_selector without vm_name
+        """
+        config = {
+            "parameters": {
+                "label_selector": "app=test-vm",
+                "namespace": "default",
+            }
+        }
+
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [{"metadata": {"name": "test-vm"}}]
+
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi["metadata"]["creationTimestamp"] = "2023-01-01T00:05:00Z"
+
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,  # validate_environment
+            self.mock_vmi,  # execute_scenario
+            new_vmi,        # delete_vmi - recreated
+            new_vmi,        # wait_for_running
+        ]
+        self.k8s_client.delete_vmi.return_value = None
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsInstance(result, VmisStatus)
+        self.assertEqual(len(result.recovered), 1)
+        self.k8s_client.get_vmis.assert_called_once_with(
+            ".*", "default", label_selector="app=test-vm"
+        )
+
+    def test_execute_scenario_with_both_vm_name_and_label_selector(self):
+        """
+        Test execute_scenario passes both vm_name and label_selector to get_vmis
+        """
+        config = {
+            "parameters": {
+                "vm_name": "test-vm",
+                "label_selector": "app=test-vm",
+                "namespace": "default",
+            }
+        }
+
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [{"metadata": {"name": "test-vm"}}]
+
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi["metadata"]["creationTimestamp"] = "2023-01-01T00:05:00Z"
+
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,
+            self.mock_vmi,
+            new_vmi,
+            new_vmi,
+        ]
+        self.k8s_client.delete_vmi.return_value = None
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsInstance(result, VmisStatus)
+        self.assertEqual(len(result.recovered), 1)
+        self.k8s_client.get_vmis.assert_called_once_with(
+            "test-vm", "default", label_selector="app=test-vm"
+        )
+
+    def test_execute_scenario_empty_vmis_list_returns_early(self):
+        """
+        Test execute_scenario returns empty status without crashing when no VMIs match
+        """
+        config = {
+            "parameters": {
+                "vm_name": "nonexistent-vm",
+                "namespace": "default",
+            }
+        }
+        self.k8s_client.get_vmis.return_value = []
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsInstance(result, VmisStatus)
+        self.assertEqual(len(result.recovered), 0)
+        self.assertEqual(len(result.unrecovered), 0)
+        self.k8s_client.delete_vmi.assert_not_called()
+
+    def test_execute_scenario_empty_label_selector_treated_as_none(self):
+        """
+        Test that an empty string label_selector is treated the same as not set,
+        so vm_name is still required
+        """
+        config = {
+            "parameters": {
+                "label_selector": "",
+                "namespace": "default",
+            }
+        }
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsInstance(result, VmisStatus)
+        self.assertEqual(len(result.recovered), 0)
+        self.assertEqual(len(result.unrecovered), 0)
+        self.k8s_client.get_vmis.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
