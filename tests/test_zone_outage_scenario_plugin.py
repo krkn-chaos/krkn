@@ -394,6 +394,144 @@ class TestZoneOutageRun(unittest.TestCase):
         mock_lib_kubernetes.list_killable_nodes.assert_called_once()
         mock_cloud.node_stop_scenario.assert_called()
         mock_cloud.node_start_scenario.assert_called()
+    
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.gcp_node_scenarios"
+    )
+    @patch(
+        "krkn.scenario_plugins.node_actions."
+        "common_node_functions.wait_for_ready_status"
+    )
+    def test_gcp_ready_time_populated_in_telemetry(
+        self, mock_wait, mock_gcp_class, mock_sleep
+    ):
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_scenario_telemetry.affected_nodes = []
+
+        mock_lib_kubernetes.list_killable_nodes.return_value = ["node-1", "node-2"]
+        mock_cloud = MagicMock()
+        mock_gcp_class.return_value = mock_cloud
+        mock_cloud.affected_nodes_status.affected_nodes = []
+
+        from krkn_lib.models.k8s import AffectedNode
+        def fake_wait(node, timeout, kubecli, affected_node):
+            affected_node.ready_time = 42.5
+            return affected_node
+        mock_wait.side_effect = fake_wait
+
+        plugin = ZoneOutageScenarioPlugin()
+        result = plugin.run(
+            run_uuid=str(uuid.uuid4()),
+            scenario=scenario_file,
+            lib_telemetry=mock_lib_telemetry,
+            scenario_telemetry=mock_scenario_telemetry,
+        )
+
+        self.assertEqual(result, 0)
+        self.assertEqual(mock_wait.call_count, 2)
+
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.AWS"
+    )
+    @patch(
+        "krkn.scenario_plugins.node_actions."
+        "common_node_functions.wait_for_ready_status"
+    )
+    def test_aws_ready_time_populated_in_telemetry(
+        self, mock_wait, mock_aws_class, mock_sleep
+    ):
+        config = {
+            "cloud_type": "aws",
+            "vpc_id": "vpc-123",
+            "subnet_id": ["subnet-1"],
+            "duration": 1,
+            "timeout": 10,
+            "zone": "us-east-1a",
+        }
+        scenario_file = self._create_scenario_file(config)
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_scenario_telemetry.affected_nodes = []
+
+        mock_aws = MagicMock()
+        mock_aws_class.return_value = mock_aws
+        mock_aws.describe_network_acls.return_value = (
+            [{"SubnetId": "subnet-1", "NetworkAclAssociationId": "assoc-1"}],
+            "acl-original",
+        )
+        mock_aws.create_default_network_acl.return_value = "acl-new"
+        mock_aws.replace_network_acl_association.return_value = "assoc-new"
+
+        mock_lib_kubernetes.list_killable_nodes.return_value = ["node-1"]
+
+        from krkn_lib.models.k8s import AffectedNode
+        def fake_wait(node, timeout, kubecli, affected_node):
+            affected_node.ready_time = 30.0
+            return affected_node
+        mock_wait.side_effect = fake_wait
+
+        plugin = ZoneOutageScenarioPlugin()
+        result = plugin.run(
+            run_uuid=str(uuid.uuid4()),
+            scenario=scenario_file,
+            lib_telemetry=mock_lib_telemetry,
+            scenario_telemetry=mock_scenario_telemetry,
+        )
+
+        self.assertEqual(result, 0)
+        mock_wait.assert_called_once()
+
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.AWS"
+    )
+    @patch(
+        "krkn.scenario_plugins.node_actions."
+        "common_node_functions.wait_for_ready_status"
+    )
+    def test_aws_no_zone_skips_node_tracking(
+        self, mock_wait, mock_aws_class, mock_sleep
+    ):
+        config = {
+            "cloud_type": "aws",
+            "vpc_id": "vpc-123",
+            "subnet_id": ["subnet-1"],
+            "duration": 1,
+        }
+        scenario_file = self._create_scenario_file(config)
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_scenario_telemetry.affected_nodes = []
+
+        mock_aws = MagicMock()
+        mock_aws_class.return_value = mock_aws
+        mock_aws.describe_network_acls.return_value = (
+            [{"SubnetId": "subnet-1", "NetworkAclAssociationId": "assoc-1"}],
+            "acl-original",
+        )
+        mock_aws.create_default_network_acl.return_value = "acl-new"
+        mock_aws.replace_network_acl_association.return_value = "assoc-new"
+
+        plugin = ZoneOutageScenarioPlugin()
+        result = plugin.run(
+            run_uuid=str(uuid.uuid4()),
+            scenario=scenario_file,
+            lib_telemetry=mock_lib_telemetry,
+            scenario_telemetry=mock_scenario_telemetry,
+        )
+
+        self.assertEqual(result, 0)
+        mock_wait.assert_not_called()
 
     def test_run_unsupported_cloud_type(self):
         """Test run returns 1 for unsupported cloud type"""
