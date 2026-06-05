@@ -77,6 +77,7 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     )
                     for action in actions:
                         start_time = int(time.time())
+                        nodes_before = len(scenario_telemetry.affected_nodes)
                         self.inject_node_scenario(
                             action,
                             node_scenario,
@@ -86,9 +87,8 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                         )
                         end_time = int(time.time())
                         cerberus.get_status(start_time, end_time)
-                        recovery_summary = build_recovery_time_summary(
-                            scenario_telemetry.affected_nodes
-                        )
+                        new_nodes = scenario_telemetry.affected_nodes[nodes_before:]
+                        recovery_summary = build_recovery_time_summary(new_nodes)
 
                         if recovery_summary is not None:
                             log_recovery_time_summary(action, recovery_summary)
