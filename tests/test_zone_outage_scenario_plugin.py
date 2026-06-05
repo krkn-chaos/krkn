@@ -407,7 +407,7 @@ class TestZoneOutageRun(unittest.TestCase):
     def test_gcp_ready_time_populated_in_telemetry(
         self, mock_wait, mock_gcp_class, mock_sleep
     ):
-        scenario_file = self._create_scenario_file()
+        scenario_file = self._create_scenario_file({"kube_check": False})
         mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
             self._create_mocks()
         )
@@ -434,6 +434,10 @@ class TestZoneOutageRun(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertEqual(mock_wait.call_count, 2)
+        # verify ready_time values flow into scenario_telemetry
+        self.assertEqual(len(mock_scenario_telemetry.affected_nodes), 2)
+        for entry in mock_scenario_telemetry.affected_nodes:
+            self.assertAlmostEqual(entry.ready_time, 42.5)
 
     @patch("time.sleep")
     @patch(
@@ -488,6 +492,11 @@ class TestZoneOutageRun(unittest.TestCase):
 
         self.assertEqual(result, 0)
         mock_wait.assert_called_once()
+        # verify ready_time flows into scenario_telemetry
+        self.assertEqual(len(mock_scenario_telemetry.affected_nodes), 1)
+        self.assertAlmostEqual(
+            mock_scenario_telemetry.affected_nodes[0].ready_time, 30.0
+        )
 
     @patch("time.sleep")
     @patch(

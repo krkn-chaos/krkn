@@ -115,13 +115,7 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 zip(repeat(1), nodes, repeat(timeout), repeat(None)),
             )
             pool.close()
-            # wait for each node to reach Ready and populate ready_time in affected_nodes_status
-            for node in nodes:
-                affected_node = AffectedNode(node)
-                affected_node = wait_for_ready_status(node, timeout, kubecli, affected_node)
-                self.cloud_object.affected_nodes_status.affected_nodes.append(
-                    affected_node
-                )           
+        
 
             logging.info(
                 "Waiting for the specified duration " "in the config: %s" % duration
@@ -135,6 +129,18 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 zip(repeat(1), nodes, repeat(timeout), repeat(None)),
             )
             pool.close()
+            # wait for each node to reach Ready and populate ready_time
+            # only when kube_check is False — when True, node_start_scenario
+            # already calls wait_for_ready_status internally
+            if not kube_check:
+                for node in nodes:
+                    affected_node = AffectedNode(node)
+                    affected_node = wait_for_ready_status(
+                        node, timeout, kubecli, affected_node
+                    )
+                    self.cloud_object.affected_nodes_status.affected_nodes.append(
+                        affected_node
+                    )
         except Exception as e:
             logging.info(
                 f"Node based zone outage scenario failed with exception: {e}"
@@ -244,6 +250,14 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 # new association_id to use during the recovery
                 ids[new_association_id] = original_acl_id
 
+            # capture nodes before outage for recovery tracking
+            zone = scenario_config.get("zone", "")
+            timeout = scenario_config.get("timeout", 180)
+            pre_outage_nodes = []
+            if zone:
+                label_selector = f"topology.kubernetes.io/zone={zone}"
+                pre_outage_nodes = kubecli.list_killable_nodes(label_selector)
+            
             # wait for the specified duration
             logging.info(
                 "Waiting for the specified duration " "in the config: %s" % duration
@@ -255,24 +269,28 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 self.cloud_object.replace_network_acl_association(
                     new_association_id, original_acl_id
                 )
+            
+            # measure recovery immediately after ACL restore
+            if pre_outage_nodes:
+                affected_nodes_status = AffectedNodeStatus()
+                for node in pre_outage_nodes:
+                    affected_node = AffectedNode(node)
+                    try:
+                        affected_node = wait_for_ready_status(
+                            node, timeout, kubecli, affected_node
+                        )
+                    except Exception as e:
+                        logging.warning(
+                            "wait_for_ready_status failed for node %s: %s" % (node, e)
+                        )
+                    affected_nodes_status.affected_nodes.append(affected_node)
+                scenario_telemetry.affected_nodes.extend(
+                    affected_nodes_status.affected_nodes
+                )
             logging.info(
                 "Wating for 60 seconds to make sure " "the changes are in place"
             )
             time.sleep(60)
-            # track node recovery after ACL restore
-            zone = scenario_config.get("zone", "")
-            timeout = scenario_config.get("timeout", 180)
-            if zone:
-                label_selector = f"topology.kubernetes.io/zone={zone}"
-                nodes = kubecli.list_killable_nodes(label_selector)
-                affected_nodes_status = AffectedNodeStatus()
-                for node in nodes:
-                    affected_node = AffectedNode(node)
-                    affected_node = wait_for_ready_status(node, timeout, kubecli, affected_node)
-                    affected_nodes_status.affected_nodes.append(affected_node)
-                scenario_telemetry.affected_nodes.extend(
-                    affected_nodes_status.affected_nodes
-    )    
 
             # delete the network acl created for the run
             for acl_id in acl_ids_created:
