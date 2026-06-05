@@ -45,6 +45,11 @@ from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import (
 from krkn.scenario_plugins.node_actions.ibmcloud_power_node_scenarios import (
      ibmcloud_power_node_scenarios,
 )
+
+from krkn.scenario_plugins.node_actions.recovery_time_summary import (
+    build_recovery_time_summary,
+    log_recovery_time_summary,
+)
 node_general = False
 
 
@@ -81,6 +86,15 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                         )
                         end_time = int(time.time())
                         cerberus.get_status(start_time, end_time)
+                        recovery_summary = build_recovery_time_summary(
+                            scenario_telemetry.affected_nodes
+                        )
+
+                        if recovery_summary is not None:
+                            log_recovery_time_summary(action, recovery_summary)
+                            scenario_telemetry.recovery_time_summary = (
+                                recovery_summary.to_dict()
+                            )
                 except (RuntimeError, Exception) as e:
                     logging.error("Node Actions exiting due to Exception %s" % e)
                     return 1
