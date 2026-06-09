@@ -23,7 +23,7 @@ import time
 import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-from krkn_lib.models.krkn import  HogConfig, HogType
+from krkn_lib.models.krkn import HogConfig, HogType
 from krkn_lib.models.k8s import NodeResources
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.utils import get_random_string
@@ -32,9 +32,16 @@ from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugi
 from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
 
+# How close a metric must be to the pre-chaos baseline to be considered
+# "recovered" (5 % tolerance).
+_RECOVERY_TOLERANCE = 0.05
+
+# Default maximum seconds to wait for node resources to return to baseline.
+_DEFAULT_RECOVERY_TIMEOUT = 120
+
 
 class HogsScenarioPlugin(AbstractScenarioPlugin):
-    
+
     @set_rollback_context_decorator
     def run(self, run_uuid: str, scenario: str, lib_telemetry: KrknTelemetryOpenshift,
             scenario_telemetry: ScenarioTelemetry) -> int:
@@ -42,10 +49,17 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             with open(scenario, "r") as f:
                 scenario = yaml.safe_load(f)
             scenario_config = HogConfig.from_yaml_dict(scenario)
-            
+
+            # Optional: maximum seconds to wait for node resources to recover
+            # after the hog completes (mirrors krkn_pod_recovery_time in
+            # pod_disruption scenario).  Defaults to _DEFAULT_RECOVERY_TIMEOUT.
+            scenario_config.krkn_node_recovery_timeout = int(
+                scenario.get("node-recovery-timeout", _DEFAULT_RECOVERY_TIMEOUT)
+            )
+
             # Get node-name if provided
             node_name = scenario.get('node-name')
-            
+
             has_selector = True
             if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
                 if scenario_config.node_selector:
@@ -71,8 +85,21 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             if scenario_config.number_of_nodes and len(available_nodes) > scenario_config.number_of_nodes:
                 available_nodes = random.sample(available_nodes, scenario_config.number_of_nodes)
 
+            # Ensure scenario_telemetry.parameters is a dict so per-node
+            # metrics can be written into it thread-safely.
+            if not isinstance(scenario_telemetry.parameters, dict):
+                scenario_telemetry.parameters = {}
+
+            telemetry_lock = threading.Lock()
             exception_queue = queue.Queue()
-            self.run_scenario(scenario_config, lib_telemetry.get_lib_kubernetes(), available_nodes, exception_queue)
+            self.run_scenario(
+                scenario_config,
+                lib_telemetry.get_lib_kubernetes(),
+                available_nodes,
+                exception_queue,
+                scenario_telemetry,
+                telemetry_lock,
+            )
             return 0
         except Exception as e:
             logging.error(f"scenario exception: {e}")
@@ -81,9 +108,15 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
     def get_scenario_types(self) -> list[str]:
         return ["hog_scenarios"]
 
-    def run_scenario_worker(self, config: HogConfig,
-                            lib_k8s: KrknKubernetes, node: str,
-                            exception_queue: queue.Queue):
+    def run_scenario_worker(
+        self,
+        config: HogConfig,
+        lib_k8s: KrknKubernetes,
+        node: str,
+        exception_queue: queue.Queue,
+        scenario_telemetry: ScenarioTelemetry,
+        telemetry_lock: threading.Lock,
+    ):
         try:
             if not config.workers:
                 config.workers = lib_k8s.get_node_cpu_count(node)
@@ -95,7 +128,10 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             # precisely deploy each workload on each selected node
             config.node_selector = f"kubernetes.io/hostname={node}"
             pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
+
+            # Capture pre-chaos baseline
             node_resources_start = lib_k8s.get_node_resources_info(node)
+
             self.rollback_handler.set_rollback_callable(
                 self.rollback_hog_pod,
                 RollbackContent(
@@ -112,16 +148,21 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             samples: list[NodeResources] = []
             avg_node_resources = NodeResources()
 
-            while time.time() - start < config.duration-1:
+            while time.time() - start < config.duration - 1:
                 samples.append(lib_k8s.get_node_resources_info(node))
 
             max_wait = 30
             wait = 0
-            logging.info(f"[{node}] waiting {max_wait} up to seconds pod: {pod_name} namespace: {config.namespace} to finish")
+            logging.info(
+                f"[{node}] waiting {max_wait} up to seconds pod: {pod_name} "
+                f"namespace: {config.namespace} to finish"
+            )
             while lib_k8s.is_pod_running(pod_name, config.namespace):
                 if wait >= max_wait:
-                    raise Exception(f"[{node}] hog workload pod: {pod_name} namespace: {config.namespace} "
-                                    f"didn't finish after {max_wait}")
+                    raise Exception(
+                        f"[{node}] hog workload pod: {pod_name} "
+                        f"namespace: {config.namespace} didn't finish after {max_wait}"
+                    )
                 time.sleep(1)
                 wait += 1
                 continue
@@ -129,38 +170,129 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             logging.info(f"[{node}] deleting pod: {pod_name} namespace: {config.namespace}")
             lib_k8s.delete_pod(pod_name, config.namespace)
 
-            for resource in samples:
-                avg_node_resources.cpu += resource.cpu
-                avg_node_resources.memory += resource.memory
-                avg_node_resources.disk_space += resource.disk_space
+            # ── Injection impact metrics ──────────────────────────────────────
+            # Compute averages from samples collected during the hog duration.
+            if samples:
+                for resource in samples:
+                    avg_node_resources.cpu += resource.cpu
+                    avg_node_resources.memory += resource.memory
+                    avg_node_resources.disk_space += resource.disk_space
 
-            avg_node_resources.cpu = avg_node_resources.cpu/len(samples)
-            avg_node_resources.memory = avg_node_resources.memory / len(samples)
-            avg_node_resources.disk_space = avg_node_resources.disk_space / len(samples)
+                avg_node_resources.cpu = avg_node_resources.cpu / len(samples)
+                avg_node_resources.memory = avg_node_resources.memory / len(samples)
+                avg_node_resources.disk_space = avg_node_resources.disk_space / len(samples)
+            else:
+                logging.warning(f"[{node}] no resource samples collected; skipping average computation")
 
             if config.type == HogType.cpu:
-                logging.info(f"[{node}] detected cpu consumption: "
-                             f"{(avg_node_resources.cpu / (config.workers * 1000000000)) * 100} %")
+                logging.info(
+                    f"[{node}] detected cpu consumption: "
+                    f"{(avg_node_resources.cpu / (config.workers * 1_000_000_000)) * 100:.2f} %"
+                )
             if config.type == HogType.memory:
-                logging.info(f"[{node}] detected memory increase: "
-                             f"{avg_node_resources.memory / node_resources_start.memory * 100} %")
+                logging.info(
+                    f"[{node}] detected memory increase: "
+                    f"{avg_node_resources.memory / node_resources_start.memory * 100:.2f} %"
+                )
             if config.type == HogType.io:
-                logging.info(f"[{node}] detected disk space allocated: "
-                             f"{(avg_node_resources.disk_space - node_resources_end.disk_space) / 1024 / 1024} MB")
+                logging.info(
+                    f"[{node}] detected disk space allocated: "
+                    f"{(avg_node_resources.disk_space - node_resources_end.disk_space) / 1_048_576:.2f} MB"
+                )
+
+            # ── Resource-level recovery time ──────────────────────────────────
+            # Poll until all relevant metrics return within _RECOVERY_TOLERANCE
+            # of the pre-chaos baseline, up to krkn_node_recovery_timeout seconds.
+            recovery_timeout = getattr(config, "krkn_node_recovery_timeout", _DEFAULT_RECOVERY_TIMEOUT)
+            recovery_start = time.time()
+            recovery_elapsed: float = -1  # -1 means "did not recover within timeout"
+
+            logging.info(
+                f"[{node}] waiting up to {recovery_timeout}s for node resources "
+                "to return to pre-chaos baseline"
+            )
+
+            while time.time() - recovery_start < recovery_timeout:
+                current = lib_k8s.get_node_resources_info(node)
+                recovered = self._is_recovered(config.type, current, node_resources_start)
+                if recovered:
+                    recovery_elapsed = time.time() - recovery_start
+                    logging.info(
+                        f"[{node}] node resources recovered to baseline in "
+                        f"{recovery_elapsed:.1f}s"
+                    )
+                    break
+                time.sleep(5)
+
+            if recovery_elapsed < 0:
+                logging.warning(
+                    f"[{node}] node resources did NOT return to pre-chaos baseline "
+                    f"within {recovery_timeout}s"
+                )
+
+            # ── Write metrics into scenario_telemetry ─────────────────────────
+            node_metrics = {
+                "avg_cpu_nanocores": avg_node_resources.cpu,
+                "avg_memory_available_bytes": avg_node_resources.memory,
+                "avg_disk_available_bytes": avg_node_resources.disk_space,
+                "baseline_cpu_nanocores": node_resources_start.cpu,
+                "baseline_memory_available_bytes": node_resources_start.memory,
+                "baseline_disk_available_bytes": node_resources_start.disk_space,
+                "resource_recovery_time_seconds": recovery_elapsed,
+            }
+
+            with telemetry_lock:
+                if "node_resource_metrics" not in scenario_telemetry.parameters:
+                    scenario_telemetry.parameters["node_resource_metrics"] = {}
+                scenario_telemetry.parameters["node_resource_metrics"][node] = node_metrics
+
         except Exception as e:
             exception_queue.put(e)
 
-    def run_scenario(self, config: HogConfig,
-                     lib_k8s: KrknKubernetes,
-                     available_nodes: list[str],
-                     exception_queue: queue.Queue):
+    # ── helpers ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _is_recovered(hog_type: HogType, current: NodeResources, baseline: NodeResources) -> bool:
+        """Return True when the metric relevant to *hog_type* is back within
+        ``_RECOVERY_TOLERANCE`` (5 %) of the pre-chaos *baseline* value."""
+        tolerance = _RECOVERY_TOLERANCE
+
+        if hog_type == HogType.cpu:
+            if baseline.cpu == 0:
+                return True
+            return abs(current.cpu - baseline.cpu) / baseline.cpu <= tolerance
+
+        if hog_type == HogType.memory:
+            if baseline.memory == 0:
+                return True
+            return abs(current.memory - baseline.memory) / baseline.memory <= tolerance
+
+        if hog_type == HogType.io:
+            if baseline.disk_space == 0:
+                return True
+            return abs(current.disk_space - baseline.disk_space) / baseline.disk_space <= tolerance
+
+        # Unknown type — treat as recovered to avoid blocking indefinitely.
+        return True
+
+    def run_scenario(
+        self,
+        config: HogConfig,
+        lib_k8s: KrknKubernetes,
+        available_nodes: list[str],
+        exception_queue: queue.Queue,
+        scenario_telemetry: ScenarioTelemetry,
+        telemetry_lock: threading.Lock,
+    ):
         workers = []
         logging.info(f"running {config.type.value} hog scenario")
         logging.info(f"targeting nodes: [{','.join(available_nodes)}]")
         for node in available_nodes:
             config_copy = copy.deepcopy(config)
-            worker = threading.Thread(target=self.run_scenario_worker,
-                                      args=(config_copy, lib_k8s, node, exception_queue))
+            worker = threading.Thread(
+                target=self.run_scenario_worker,
+                args=(config_copy, lib_k8s, node, exception_queue, scenario_telemetry, telemetry_lock),
+            )
             worker.daemon = True
             worker.start()
             workers.append(worker)
