@@ -214,7 +214,9 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
 
             while time.time() - recovery_start < recovery_timeout:
                 current = lib_k8s.get_node_resources_info(node)
-                recovered = self._is_recovered(config.type, current, node_resources_start)
+                recovered = self._is_recovered(
+                    config.type, current, node_resources_start, avg_node_resources
+                )
                 if recovered:
                     recovery_elapsed = time.time() - recovery_start
                     logging.info(
@@ -252,15 +254,40 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
     # ── helpers ───────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _is_recovered(hog_type: HogType, current: NodeResources, baseline: NodeResources) -> bool:
+    def _is_recovered(
+        hog_type: HogType,
+        current: NodeResources,
+        baseline: NodeResources,
+        chaos_avg: NodeResources,
+    ) -> bool:
         """Return True when the metric relevant to *hog_type* is back within
-        ``_RECOVERY_TOLERANCE`` (5 %) of the pre-chaos *baseline* value."""
+        ``_RECOVERY_TOLERANCE`` of the pre-chaos *baseline*.
+
+        For CPU the check is delta-based: the chaos injection delta
+        (``chaos_avg.cpu - baseline.cpu``) is used as the scale so that
+        normal idle-node noise (which is small relative to the baseline
+        nanocores value but large relative to a tiny relative tolerance)
+        does not cause a false-positive "already recovered" on the very
+        first poll.  If the measured delta was zero or negative (no
+        meaningful CPU injection occurred) we fall back to an absolute
+        threshold of 100 000 000 nanocores (~10 % of one core).
+
+        For memory and disk the relative check against the baseline value
+        is retained because those metrics are ``availableBytes`` and the
+        idle-node noise is proportionally small.
+        """
         tolerance = _RECOVERY_TOLERANCE
 
         if hog_type == HogType.cpu:
-            if baseline.cpu == 0:
-                return True
-            return abs(current.cpu - baseline.cpu) / baseline.cpu <= tolerance
+            cpu_delta = chaos_avg.cpu - baseline.cpu
+            if cpu_delta > 0:
+                # Recovered when current is within tolerance*delta of baseline.
+                return abs(current.cpu - baseline.cpu) <= tolerance * cpu_delta
+            else:
+                # No significant injection measured; use a fixed absolute
+                # threshold (100 ms worth of CPU in nanocores).
+                _CPU_ABSOLUTE_THRESHOLD = 100_000_000
+                return abs(current.cpu - baseline.cpu) <= _CPU_ABSOLUTE_THRESHOLD
 
         if hog_type == HogType.memory:
             if baseline.memory == 0:
