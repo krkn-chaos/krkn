@@ -135,6 +135,14 @@ class TestCpuHog(BaseScenarioTest):
             proc.kill()
             out, err = proc.communicate()
             raise
+        except BaseException:
+            # Any poll/assert failure before communicate() must still tear down the
+            # background Kraken process, otherwise its hog pod keeps stressing the node
+            # and races against subsequent --reruns on the same target.
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            raise
         result = subprocess.CompletedProcess(args=[], returncode=proc.returncode, stdout=out, stderr=err)
         assert_kraken_success(result, context=f"node={node} namespace={ns}", tmp_path=self.tmp_path)
         _wait_for_no_hog_pods(self.k8s_core, ns, timeout=HOG_POD_CLEANUP_TIMEOUT)
