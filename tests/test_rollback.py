@@ -232,6 +232,33 @@ class TestRollbackCommand:
                 "scenario",
                 ignore_auto_rollback_config=True
             )
+            
+    def test_list_rollback_filters_by_exact_run_uuid(self, tmp_path, capsys):
+        """Verify that run_uuid filtering requires an exact UUID match and does
+        not match timestamp or UUID substrings."""
+        from krkn.rollback.command import list_rollback
+        from krkn.rollback.config import RollbackConfig
+        from unittest.mock import patch
+
+        rollback_dir = tmp_path / "rollback"
+        rollback_dir.mkdir()
+        (
+            rollback_dir /"123456789-abcd1234-1111-2222-333344445555"
+        ).mkdir()
+
+        (
+            rollback_dir /"113456780-efgh5678-aaaa-bbbb-ccccddddeeee"
+        ).mkdir()
+
+        with patch.object(RollbackConfig,"versions_directory",str(rollback_dir)):
+            list_rollback(run_uuid="11")
+
+        captured = capsys.readouterr()
+
+        # "11" appears as a substring in the rollback directory names but is not
+        # an exact run UUID, therefore no directories should be matched.
+        assert "abcd1234-1111-2222-333344445555" not in captured.out
+        assert "efgh5678-aaaa-bbbb-ccccddddeeee" not in captured.out 
 
 class TestRollbackAbstractScenarioPlugin:
 
