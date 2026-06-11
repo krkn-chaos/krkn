@@ -22,21 +22,38 @@ def _kraken_cmd(config_path: str, repo_root: Path):
     return [python, "run_kraken.py", "-c", str(config_path)]
 
 
+def _stash_kraken_output(request, result):
+    """Stash a Kraken run's stdout/stderr on the test node so the HTML report hook can attach it."""
+    outputs = getattr(request.node, "_kraken_outputs", None)
+    if outputs is None:
+        outputs = []
+        request.node._kraken_outputs = outputs
+    outputs.append(
+        {
+            "returncode": result.returncode,
+            "stdout": result.stdout or "",
+            "stderr": result.stderr or "",
+        }
+    )
+
+
 @pytest.fixture
-def run_kraken(repo_root):
+def run_kraken(repo_root, request):
     """Run Kraken with the given config path. Returns CompletedProcess. Default timeout 300s."""
 
     def run(config_path, timeout=300, extra_args=None):
         cmd = _kraken_cmd(config_path, repo_root)
         if extra_args:
             cmd.extend(extra_args)
-        return subprocess.run(
+        result = subprocess.run(
             cmd,
             cwd=repo_root,
             capture_output=True,
             text=True,
             timeout=timeout,
         )
+        _stash_kraken_output(request, result)
+        return result
 
     return run
 
