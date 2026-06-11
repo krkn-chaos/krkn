@@ -22,6 +22,15 @@ def _kraken_cmd(config_path: str, repo_root: Path):
     return [python, "run_kraken.py", "-c", str(config_path)]
 
 
+def _as_text(value):
+    """Coerce subprocess output (str/bytes/None) to text for the HTML report."""
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", "replace")
+    return value
+
+
 def _stash_kraken_output(request, result):
     """Stash a Kraken run's stdout/stderr on the test node so the HTML report hook can attach it."""
     outputs = getattr(request.node, "_kraken_outputs", None)
@@ -45,13 +54,21 @@ def run_kraken(repo_root, request):
         cmd = _kraken_cmd(config_path, repo_root)
         if extra_args:
             cmd.extend(extra_args)
-        result = subprocess.run(
-            cmd,
-            cwd=repo_root,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                cwd=repo_root,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as exc:
+            # Stash partial output (rc=124 = timeout) so timed-out runs still attach logs.
+            timed_out = subprocess.CompletedProcess(
+                cmd, 124, _as_text(exc.stdout), _as_text(exc.stderr)
+            )
+            _stash_kraken_output(request, timed_out)
+            raise
         _stash_kraken_output(request, result)
         return result
 

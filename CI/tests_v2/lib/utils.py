@@ -269,8 +269,9 @@ def assert_scenario_executed(result, scenario_name: str, context: str = "", tmp_
     lines = combined.splitlines()
     tail = "\n".join(lines[-30:]) if lines else "(empty)"
     context_str = f" {context}" if context else ""
+    path_hint = f"\nFull logs: {tmp_path}/kraken_stdout.log, {tmp_path}/kraken_stderr.log" if tmp_path else ""
     raise AssertionError(
         f"Scenario {scenario_name!r} exited {result.returncode} but no execution evidence found"
-        f"{context_str}.\nExpected pattern: {pattern}\n"
+        f"{context_str}.{path_hint}\nExpected pattern: {pattern}\n"
         f"--- krkn output (last 30 lines) ---\n{tail}"
     )
