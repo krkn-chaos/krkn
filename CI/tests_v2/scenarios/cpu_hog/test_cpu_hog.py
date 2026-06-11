@@ -11,12 +11,17 @@ failure on invalid selector/config.
 
 import logging
 import subprocess
-import time
 
 import pytest
 
 from lib.base import BaseScenarioTest
-from lib.utils import assert_kraken_failure, assert_kraken_success
+from lib.utils import (
+    assert_kraken_failure,
+    assert_kraken_success,
+    schedulable_worker_nodes,
+    wait_for_no_pods_by_prefix,
+    wait_for_scheduled_pod_by_prefix,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -24,65 +29,6 @@ HOG_POD_PREFIX = "cpu-hog-"
 HOG_POD_CREATE_TIMEOUT = 120
 HOG_POD_CLEANUP_TIMEOUT = 60
 KRAKEN_RUN_TIMEOUT = 300
-
-
-def _list_hog_pods(k8s_core, namespace):
-    """Return hog pods (name prefix cpu-hog-) currently in the namespace."""
-    pods = k8s_core.list_namespaced_pod(namespace=namespace)
-    return [
-        p for p in pods.items
-        if p.metadata and p.metadata.name and p.metadata.name.startswith(HOG_POD_PREFIX)
-    ]
-
-
-def _wait_for_scheduled_hog_pod(k8s_core, namespace, timeout):
-    """Poll until a hog pod exists and is scheduled (spec.node_name set). Return it, or the last seen pod (may be None)."""
-    deadline = time.monotonic() + timeout
-    last = None
-    while time.monotonic() < deadline:
-        for p in _list_hog_pods(k8s_core, namespace):
-            last = p
-            if p.spec and p.spec.node_name:
-                return p
-        time.sleep(0.5)
-    return last
-
-
-def _wait_for_no_hog_pods(k8s_core, namespace, timeout):
-    """Assert all hog pods are removed from the namespace within timeout."""
-    deadline = time.monotonic() + timeout
-    last = []
-    while time.monotonic() < deadline:
-        last = _list_hog_pods(k8s_core, namespace)
-        if not last:
-            return
-        time.sleep(1)
-    raise AssertionError(
-        f"Hog pods still present in namespace={namespace} after {timeout}s: "
-        f"{[p.metadata.name for p in last]}"
-    )
-
-
-def _schedulable_worker_nodes(k8s_core):
-    """Return names of Ready nodes that are not control-plane/master and carry no NoSchedule/NoExecute taint."""
-    names = []
-    for node in k8s_core.list_node().items:
-        labels = (node.metadata.labels or {}) if node.metadata else {}
-        if (
-            "node-role.kubernetes.io/control-plane" in labels
-            or "node-role.kubernetes.io/master" in labels
-        ):
-            continue
-        taints = (node.spec.taints or []) if node.spec else []
-        if any(getattr(t, "effect", None) in ("NoSchedule", "NoExecute") for t in taints):
-            continue
-        ready = any(
-            c.type == "Ready" and c.status == "True"
-            for c in ((node.status.conditions or []) if node.status else [])
-        )
-        if ready:
-            names.append(node.metadata.name)
-    return names
 
 
 @pytest.mark.functional
@@ -105,7 +51,7 @@ class TestCpuHog(BaseScenarioTest):
     @pytest.mark.order(1)
     def test_cpu_hog_success_lifecycle_and_targeting(self):
         """Happy path: a hog pod is created on the node-selector target, the run succeeds, and the pod is cleaned up."""
-        nodes = _schedulable_worker_nodes(self.k8s_core)
+        nodes = schedulable_worker_nodes(self.k8s_core)
         if not nodes:
             pytest.skip("No schedulable worker node available for CPU hog targeting")
         node = nodes[0]
@@ -121,7 +67,7 @@ class TestCpuHog(BaseScenarioTest):
         )
         proc = self.run_kraken_background(config_path)
         try:
-            pod = _wait_for_scheduled_hog_pod(self.k8s_core, ns, timeout=HOG_POD_CREATE_TIMEOUT)
+            pod = wait_for_scheduled_pod_by_prefix(self.k8s_core, ns, HOG_POD_PREFIX, timeout=HOG_POD_CREATE_TIMEOUT)
             assert pod is not None, (
                 f"Expected a CPU hog pod (prefix {HOG_POD_PREFIX!r}) to be created in namespace={ns}"
             )
@@ -145,7 +91,7 @@ class TestCpuHog(BaseScenarioTest):
             raise
         result = subprocess.CompletedProcess(args=[], returncode=proc.returncode, stdout=out, stderr=err)
         assert_kraken_success(result, context=f"node={node} namespace={ns}", tmp_path=self.tmp_path)
-        _wait_for_no_hog_pods(self.k8s_core, ns, timeout=HOG_POD_CLEANUP_TIMEOUT)
+        wait_for_no_pods_by_prefix(self.k8s_core, ns, HOG_POD_PREFIX, timeout=HOG_POD_CLEANUP_TIMEOUT)
 
     @pytest.mark.no_workload
     @pytest.mark.order(2)
@@ -165,7 +111,7 @@ class TestCpuHog(BaseScenarioTest):
         assert_kraken_failure(
             result, context=f"invalid node-selector namespace={ns}", tmp_path=self.tmp_path
         )
-        _wait_for_no_hog_pods(self.k8s_core, ns, timeout=HOG_POD_CLEANUP_TIMEOUT)
+        wait_for_no_pods_by_prefix(self.k8s_core, ns, HOG_POD_PREFIX, timeout=HOG_POD_CLEANUP_TIMEOUT)
 
     @pytest.mark.no_workload
     @pytest.mark.order(3)
