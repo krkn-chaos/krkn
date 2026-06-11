@@ -1,6 +1,6 @@
 # Pytest Functional Tests (tests_v2)
 
-This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, and **CPU hog** scenarios with proper assertions, retries, and reporting.
+This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, and **memory hog** scenarios with proper assertions, retries, and reporting.
 
 Each test runs in its **own ephemeral Kubernetes namespace** (`krkn-test-<uuid>`). Before the test, the framework creates the namespace, deploys the target workload, and waits for pods to be ready. After the test, the namespace is deleted (cascading all resources). **You do not need to deploy any workloads manually.**
 
@@ -127,6 +127,12 @@ pytest CI/tests_v2/ -v -m application_outage
 pytest CI/tests_v2/ -v -m cpu_hog
 ```
 
+### Run only memory hog tests
+
+```bash
+pytest CI/tests_v2/ -v -m memory_hog
+```
+
 ### Run with verbose output and no capture
 
 ```bash
@@ -186,9 +192,15 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
   - **test_cpu_hog_invalid_selector_fails**: A `node-selector` matching zero nodes causes Kraken to exit non-zero (no available nodes to schedule).
   - **test_cpu_hog_invalid_config_fails**: Omitting the mandatory `hog-type` field causes Kraken to exit non-zero at config parsing.
 
+- **scenarios/memory_hog/**
+  Memory hog scenario (`hog_scenarios`), migrated from the legacy `CI/tests/test_memory_hog.sh`. Memory hog targets nodes (not workloads): Kraken deploys a short-lived hog pod (name prefix `memory-hog-`) onto each selected node, runs `stress-ng` for the configured duration with the configured `memory-vm-bytes`, then deletes the pod. Tests use `@pytest.mark.no_workload` (no app deployment needed); `scenario_base.yaml` is a flat hog config patched per test (with a small fixed `memory-vm-bytes` instead of the production `90%`). Tests include:
+  - **test_memory_hog_success_lifecycle_and_targeting**: Happy path — a hog pod is created on the `node-selector` target with the configured memory size, the run exits 0, and the pod is cleaned up afterward.
+  - **test_memory_hog_invalid_selector_fails**: A `node-selector` matching zero nodes causes Kraken to exit non-zero (no available nodes to schedule).
+  - **test_memory_hog_invalid_config_fails**: Omitting the mandatory `hog-type` field causes Kraken to exit non-zero at config parsing.
+
 ## Configuration
 
-- **pytest.ini**: Markers (`functional`, `pod_disruption`, `application_outage`, `storage_throttle`, `cpu_hog`, `no_workload`). Use `--timeout=300`, `--reruns=2`, `--reruns-delay=10` on the command line for full runs.
+- **pytest.ini**: Markers (`functional`, `pod_disruption`, `application_outage`, `storage_throttle`, `cpu_hog`, `memory_hog`, `no_workload`). Use `--timeout=300`, `--reruns=2`, `--reruns-delay=10` on the command line for full runs.
 - **conftest.py**: Re-exports fixtures from `lib/k8s.py`, `lib/namespace.py`, `lib/deploy.py`, `lib/kraken.py` (e.g. `test_namespace`, `deploy_workload`, `k8s_core`, `wait_for_pods_running`, `run_kraken`, `build_config`). Configs are built from `CI/tests_v2/config/common_test_config.yaml` with monitoring disabled for local runs. Timeout constants in `lib/base.py` can be overridden via env vars.
 - **Cluster access**: Reads and applies use the Kubernetes Python client; `kubectl` is still used for `port-forward` and for running Kraken.
 - **utils.py**: Pod/network policy helpers and assertion helpers (`assert_all_pods_running_and_ready`, `assert_pod_count_unchanged`, `assert_kraken_success`, `assert_kraken_failure`, `patch_namespace_in_docs`).
