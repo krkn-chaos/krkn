@@ -52,8 +52,12 @@ def list_rollback(run_uuid: Optional[str]=None, scenario_type: Optional[str]=Non
             item_path = os.path.join(versions_directory, item)
             if os.path.isdir(item_path):
                 # Apply run_uuid filter if specified
-                if run_uuid is None or run_uuid in item:
+                if run_uuid is None:
                     run_dirs.append(item)
+                else:
+                    _, dir_uuid = item.split("-", 1)
+                    if dir_uuid == run_uuid:
+                        run_dirs.append(item)
         
         if not run_dirs:
             if run_uuid:
