@@ -287,12 +287,20 @@ def ensure_node_container_running(node, k8s_core=None, timeout: float = 180) -> 
         logger.warning("No container runtime on PATH; cannot ensure node %s is running", node)
         return
     try:
-        proc = subprocess.run([runtime, "start", node], capture_output=True, text=True, timeout=60)
-        if proc.returncode != 0:
-            logger.warning(
-                "'%s start %s' exited %s: %s", runtime, node, proc.returncode,
-                (proc.stderr or "").strip(),
-            )
+        running = subprocess.run(
+            [runtime, "inspect", "-f", "{{.State.Running}}", node],
+            capture_output=True, text=True, timeout=30,
+        )
+        if running.returncode == 0 and (running.stdout or "").strip() == "true":
+            # Already running (e.g. after a reboot scenario) -- nothing to restore, stay quiet.
+            pass
+        else:
+            proc = subprocess.run([runtime, "start", node], capture_output=True, text=True, timeout=60)
+            if proc.returncode != 0:
+                logger.warning(
+                    "'%s start %s' exited %s: %s", runtime, node, proc.returncode,
+                    (proc.stderr or "").strip(),
+                )
     except Exception as e:  # noqa: BLE001 - a finalizer must never raise
         logger.warning("Failed to start container for node %s via %s: %s", node, runtime, e)
         return
