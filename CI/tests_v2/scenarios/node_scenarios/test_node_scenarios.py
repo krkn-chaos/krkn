@@ -94,6 +94,53 @@ def wait_node_ready(k8s_core, node, timeout):
     return False
 
 
+def _container_started_at(node):
+    """Return the node container's State.StartedAt string, or None if it cannot be read.
+
+    A KinD node is a container, so a successful stop/start or restart advances StartedAt. This
+    gives a deterministic, runtime-level proof that a destructive action actually cycled the
+    node -- independent of Kubernetes node-status timing and of Krkn's in-process kube_check.
+    """
+    runtime = _container_runtime()
+    if not runtime:
+        return None
+    try:
+        proc = subprocess.run(
+            [runtime, "inspect", "-f", "{{.State.StartedAt}}", node],
+            capture_output=True, text=True, timeout=30,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Could not inspect container %s via %s: %s", node, runtime, e)
+        return None
+    if proc.returncode != 0:
+        logger.warning(
+            "'%s inspect %s' exited %s: %s", runtime, node, proc.returncode,
+            (proc.stderr or "").strip(),
+        )
+        return None
+    return (proc.stdout or "").strip() or None
+
+
+def _assert_container_cycled(node, started_before, action):
+    """Assert the node container was actually restarted (StartedAt advanced).
+
+    No-op when the container runtime is unavailable or StartedAt could not be read on either
+    side, so the check never yields a false negative off-cluster; on KinD (a runtime is always
+    present) it deterministically proves the action disrupted the node.
+    """
+    started_after = _container_started_at(node)
+    if started_before is None or started_after is None:
+        logger.warning(
+            "Skipping container-cycle check for %s (%s): StartedAt unavailable "
+            "(before=%r, after=%r)", node, action, started_before, started_after,
+        )
+        return
+    assert started_after != started_before, (
+        f"Node container {node} StartedAt did not advance ({started_before!r}); "
+        f"{action} did not actually cycle the container"
+    )
+
+
 def _assert_injection_marker(result, marker, context, tmp_path):
     """Assert Krkn stdout/stderr contains an action marker (real execution evidence, not a silent no-op)."""
     combined = f"{result.stdout or ''}\n{result.stderr or ''}"
@@ -144,14 +191,21 @@ class TestNodeScenarios(BaseScenarioTest):
     @pytest.mark.no_workload
     @pytest.mark.order(1)
     def test_node_reboot_targets_node_name_and_recovers(self, request):
-        """Happy path: node_reboot_scenario targeted by node_name reboots the worker container; with kube_check Krkn waits for the node to go Unknown then Ready, so success proves the disruption-recovery cycle."""
+        """Happy path: node_reboot_scenario targeted by node_name reboots the worker container.
+
+        Krkn runs with kube_check disabled: its in-process wait for the node to flip
+        Unknown->Ready is brittle behind the multi-control-plane KinD API load balancer, which
+        surfaces transient "Response ended prematurely" connection drops as a hard scenario
+        failure. Real disruption is instead proven deterministically by the node container's
+        StartedAt advancing, and recovery by the node returning Ready.
+        """
         node = self._target_worker(request)
         scenario = self._scenario(
             {
                 "actions": ["node_reboot_scenario"],
                 "node_name": node,
                 "cloud_type": "docker",
-                "kube_check": True,
+                "kube_check": False,
                 "timeout": 120,
             },
             drop=["label_selector"],
@@ -160,12 +214,14 @@ class TestNodeScenarios(BaseScenarioTest):
         config_path = self.build_config(
             self.SCENARIO_TYPE, str(scenario_path), filename="node_reboot_config.yaml"
         )
+        started_before = _container_started_at(node)
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context=f"node_reboot node={node}", tmp_path=self.tmp_path)
         _assert_injection_marker(
             result, "node_reboot_scenario has been successfully injected",
             context=f"node={node}", tmp_path=self.tmp_path,
         )
+        _assert_container_cycled(node, started_before, "reboot")
         assert wait_node_ready(self.k8s_core, node, timeout=NODE_READY_TIMEOUT), (
             f"Node {node} did not return Ready within {NODE_READY_TIMEOUT}s after reboot"
         )
@@ -173,7 +229,13 @@ class TestNodeScenarios(BaseScenarioTest):
     @pytest.mark.no_workload
     @pytest.mark.order(2)
     def test_node_stop_start_targets_label_selector_and_recovers(self, request):
-        """Happy path: node_stop_start_scenario targeted by label_selector stops then starts the worker; with kube_check the node goes Unknown then Ready and Krkn succeeds."""
+        """Happy path: node_stop_start_scenario targeted by label_selector stops then starts the worker.
+
+        Like the reboot happy path, Krkn runs with kube_check disabled (the in-process
+        Unknown->Ready wait is brittle behind the multi-control-plane KinD API load balancer).
+        Disruption is proven by the node container's StartedAt advancing and recovery by the
+        node returning Ready.
+        """
         node = self._target_worker(request)
         scenario = self._scenario(
             {
@@ -181,7 +243,7 @@ class TestNodeScenarios(BaseScenarioTest):
                 "label_selector": f"kubernetes.io/hostname={node}",
                 "instance_count": 1,
                 "cloud_type": "docker",
-                "kube_check": True,
+                "kube_check": False,
                 "duration": 5,
                 "timeout": 120,
             },
@@ -191,12 +253,14 @@ class TestNodeScenarios(BaseScenarioTest):
         config_path = self.build_config(
             self.SCENARIO_TYPE, str(scenario_path), filename="node_stop_start_config.yaml"
         )
+        started_before = _container_started_at(node)
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context=f"node_stop_start node={node}", tmp_path=self.tmp_path)
         _assert_injection_marker(
             result, "node_start_scenario has been successfully injected",
             context=f"node={node}", tmp_path=self.tmp_path,
         )
+        _assert_container_cycled(node, started_before, "stop/start")
         assert wait_node_ready(self.k8s_core, node, timeout=NODE_READY_TIMEOUT), (
             f"Node {node} did not return Ready within {NODE_READY_TIMEOUT}s after stop/start"
         )
