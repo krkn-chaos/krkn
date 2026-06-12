@@ -29,6 +29,22 @@ from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 
 
 def slo_passed(prometheus_result: List[Any]) -> Optional[bool]:
+    """Evaluate whether a Prometheus query result indicates an SLO has passed.
+
+    For range vector results (``"values"`` key), all samples across all series
+    are checked. For instant vector results (``"value"`` key), all returned
+    series are checked. If **any** sample or series has a non-zero value, the
+    SLO is considered failed.
+
+    Args:
+        prometheus_result: List of series dicts returned by a Prometheus query.
+
+    Returns:
+        ``True``  if all samples are zero (SLO passed),
+        ``False`` if any sample is non-zero (SLO failed),
+        ``None``  if the result contained no evaluable samples (query returned
+        no data — caller decides how to treat this).
+    """
     if not prometheus_result:
         return None
     has_samples = False
@@ -44,9 +60,12 @@ def slo_passed(prometheus_result: List[Any]) -> Optional[bool]:
         elif "value" in series:
             has_samples = True
             try:
-                return float(series["value"][1]) == 0
+                # If any series fails the SLO (!= 0), return False immediately.
+                # If it passes (== 0), continue checking remaining series.
+                if float(series["value"][1]) != 0:
+                    return False
             except (TypeError, ValueError):
-                return False
+                continue
 
     # If we reached here and never saw any samples, skip
     return None if not has_samples else True

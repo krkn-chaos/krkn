@@ -96,6 +96,25 @@ class TestSLOPassed(unittest.TestCase):
         result = slo_passed(prometheus_result)
         self.assertIsNone(result)
 
+    def test_multi_series_instant_vector_first_passes_second_fails(self):
+        """Test that all instant-vector series must be evaluated."""
+        prometheus_result = [
+            {"value": [1234567890, "0"]},   
+            {"value": [1234567890, "3.5"]}, 
+        ]
+        result = slo_passed(prometheus_result)
+        self.assertFalse(result)
+
+    def test_multi_series_instant_vector_all_pass(self):
+        """Test that multiple instant-vector series all passing returns True."""
+        prometheus_result = [
+            {"value": [1234567890, "0"]},
+            {"value": [1234567891, "0"]},
+            {"value": [1234567892, "0"]},
+        ]
+        result = slo_passed(prometheus_result)
+        self.assertTrue(result)
+
     def test_result_with_invalid_value_type_in_values(self):
         """Test handling of invalid value types in 'values' field."""
         prometheus_result = [
