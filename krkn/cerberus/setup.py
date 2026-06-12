@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import atexit
 import logging
 import requests
 import sys
@@ -22,9 +21,27 @@ check_application_routes = ""
 cerberus_url = None
 exit_on_failure = False
 cerberus_enabled = False
-http_session = requests.Session()  # Singleton for connection pooling
-atexit.register(http_session.close)  # Cleanup on process exit
 
+
+
+def _get_application_routes_setting(config):
+    """
+    Read check_application_routes from config with fallback to legacy misspelled key.
+    """
+    import warnings
+    cerberus_config = config.get("cerberus", {})
+    if "check_application_routes" in cerberus_config:
+        return cerberus_config["check_application_routes"]
+    if "check_applicaton_routes" in cerberus_config:
+        warnings.warn(
+            "Config key 'check_applicaton_routes' is misspelled. "
+            "Use 'check_application_routes' instead. "
+            "The legacy key will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return cerberus_config["check_applicaton_routes"]
+    return ""
 
 def set_url(config):
     global exit_on_failure
@@ -35,14 +52,12 @@ def set_url(config):
         global cerberus_url
         cerberus_url = get_yaml_item_value(config["cerberus"],"cerberus_url", "")
         global check_application_routes
-        check_application_routes = \
-            get_yaml_item_value(config["cerberus"],"check_application_routes","")
+        check_application_routes = _get_application_routes_setting(config)
 
 def get_status(start_time, end_time):
     """
     Get cerberus status
     """
-    global check_application_routes
     cerberus_status = True
     application_routes_status = True
     if cerberus_enabled:
@@ -52,7 +67,7 @@ def get_status(start_time, end_time):
                 "is not provided."
             )
             sys.exit(1)
-        cerberus_status = http_session.get(cerberus_url, timeout=60).content
+        cerberus_status = requests.get(cerberus_url, timeout=60).content
         cerberus_status = True if cerberus_status == b"True" else False
 
         # Fail if the application routes monitored by cerberus
@@ -80,9 +95,15 @@ def get_status(start_time, end_time):
                 "the cluster is unhealthy. Please check the Cerberus "
                 "report for more details. Test failed."
             )
-
-        if not application_routes_status or not cerberus_status:
-            sys.exit(1)
+            if exit_on_failure:
+                sys.exit(1)
+        elif not application_routes_status:
+            logging.error(
+                "Application routes monitored by cerberus encountered "
+                "downtime during the run, failing"
+            )
+            if exit_on_failure:
+                sys.exit(1)
         else:
             logging.info(
                 "Received a go signal from Ceberus, the cluster is healthy. "
@@ -91,7 +112,7 @@ def get_status(start_time, end_time):
     return cerberus_status
 
 
-def publish_kraken_status( start_time, end_time):
+def publish_kraken_status(start_time, end_time):
     """
     Publish kraken status to cerberus
     """
@@ -108,21 +129,9 @@ def publish_kraken_status( start_time, end_time):
                 "Cerberus status is not healthy and post action scenarios "
                 "are still failing"
             )
-    else:
-        if exit_on_failure:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing, exiting kraken run"
-            )
-            sys.exit(1)
-        else:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing"
-            )
 
 
-def application_status( start_time, end_time):
+def application_status(start_time, end_time):
     """
     Check application availability
     """
@@ -144,7 +153,7 @@ def application_status( start_time, end_time):
         try:
             failed_routes = []
             status = True
-            metrics = http_session.get(url, timeout=60).content
+            metrics = requests.get(url, timeout=60).content
             metrics_json = json.loads(metrics)
             for entry in metrics_json["history"]["failures"]:
                 if entry["component"] == "route":
