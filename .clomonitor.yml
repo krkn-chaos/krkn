@@ -1,0 +1,6 @@
+# CLOMonitor metadata file
+# https://github.com/cncf/clomonitor
+
+exemptions:
+  - check: artifacthub_badge
+    reason: "Krkn is a Python chaos engineering framework, not a Kubernetes artifact type that gets indexed by Artifact Hub."
