@@ -207,6 +207,66 @@ def get_default_interface(node: str, pod_template, kubecli: KrknKubernetes, imag
     return interfaces
 
 
+def _is_ip_help_output(output: str) -> bool:
+    """
+    Detects whether the `ip` command returned its usage/help text instead of
+    the expected output. On some hosts (e.g. RHEL CoreOS) or when the debug pod
+    lacks the required network access, `ip` may exit 0 while printing help text,
+    which would otherwise be silently parsed into a nonsensical interface list.
+    """
+    if not output:
+        return True
+    return output.lstrip().lower().startswith("usage:")
+
+
+def _parse_brief_interface_list(output: str) -> typing.List[str]:
+    """Parses the interface names from `ip -br addr show` output."""
+    return [line.split()[0] for line in output.splitlines() if line.split()]
+
+
+def _parse_full_interface_list(output: str) -> typing.List[str]:
+    """Parses the interface names from `ip addr show` (non-brief) output."""
+    interfaces = []
+    for line in output.splitlines():
+        match = re.match(r"^\d+:\s+([^:@\s]+)", line)
+        if match:
+            interfaces.append(match.group(1))
+    return interfaces
+
+
+def get_node_interface_list(pod_name: str, kubecli: KrknKubernetes) -> typing.List[str]:
+    """
+    Returns the list of interface names visible from the query pod.
+
+    Uses `ip -br addr show` and falls back to `ip addr show` when the brief
+    flag is unsupported (the `ip` binary prints help text instead of the
+    interface list). Exits with a clear error if neither command yields a
+    usable interface list.
+    """
+    cmd = ["ip", "-br", "addr", "show"]
+    output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
+
+    if not output or _is_ip_help_output(output):
+        logging.warning(
+            "`ip -br addr show` did not return a valid interface list "
+            "(brief flag may be unsupported); falling back to `ip addr show`"
+        )
+        cmd = ["ip", "addr", "show"]
+        output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
+
+        if not output or _is_ip_help_output(output):
+            logging.error(
+                "Unable to retrieve the node interface list: `ip addr show` "
+                "returned no usable output. Verify that the query pod has the "
+                "required host network access."
+            )
+            sys.exit(1)
+
+        return _parse_full_interface_list(output)
+
+    return _parse_brief_interface_list(output)
+
+
 def verify_interface(
     input_interface_list: typing.List[str], node: str, pod_template, kubecli: KrknKubernetes, image: str
 ) -> typing.List[str]:
@@ -254,17 +314,7 @@ def verify_interface(
             input_interface_list = [default_route.split()[4]]
 
         else:
-            cmd = ["ip", "-br", "addr", "show"]
-            output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
-
-            if not output:
-                logging.error("Exception occurred while executing command in pod")
-                sys.exit(1)
-
-            interface_ip = output.split("\n")
-            node_interface_list = [
-                interface.split()[0] for interface in interface_ip[:-1]
-            ]
+            node_interface_list = get_node_interface_list(pod_name, kubecli)
 
             for interface in input_interface_list:
                 if interface not in node_interface_list:
