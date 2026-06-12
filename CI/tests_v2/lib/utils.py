@@ -3,6 +3,8 @@ Shared helpers for CI/tests_v2 functional tests.
 """
 
 import logging
+import os
+import re
 import time
 from pathlib import Path
 from typing import List, Optional, Union
@@ -12,6 +14,31 @@ import yaml
 from kubernetes.client import V1NetworkPolicy, V1NetworkPolicyList, V1Pod, V1PodList
 
 logger = logging.getLogger(__name__)
+
+# Per-scenario regex markers that prove the scenario actually executed its core logic.
+# A scenario exiting rc=0 without one of these lines in its stdout/stderr is a silent
+# no-op (e.g. a selector matched nothing) and the happy-path test should fail.
+SCENARIO_EXECUTION_MARKERS = {
+    "pod_disruption": r"Deleting pod |waiting up to .* seconds for pod recovery",
+    "application_outage": r"Creating the network policy|Deleting the network policy",
+    "storage_throttle": r"Setting io\.max|Verified blkio settings|Privileged pod deployed",
+}
+
+# nodeid -> {"scenario", "pattern", "verified"}; consumed by conftest to build the
+# HTML report evidence line and the GitHub Actions execution-evidence summary table.
+# Last-write-wins per nodeid so multi-run tests and reruns report their final state.
+EXECUTION_EVIDENCE = {}
+
+
+def _record_execution_evidence(scenario_name: str, pattern: str, verified: bool) -> None:
+    """Record evidence result keyed by the current test nodeid (from PYTEST_CURRENT_TEST)."""
+    nodeid = os.environ.get("PYTEST_CURRENT_TEST", "").split(" (")[0]
+    if nodeid:
+        EXECUTION_EVIDENCE[nodeid] = {
+            "scenario": scenario_name,
+            "pattern": pattern,
+            "verified": verified,
+        }
 
 
 def _pods(pod_list: Union[V1PodList, List[V1Pod]]) -> List[V1Pod]:
@@ -107,6 +134,72 @@ def restart_counts(pod_list: Union[V1PodList, List[V1Pod]]) -> int:
         for cs in p.status.container_statuses:
             total += getattr(cs, "restart_count", 0)
     return total
+
+
+def list_pods_by_prefix(k8s_core, namespace: str, name_prefix: str) -> List[V1Pod]:
+    """Return pods in the namespace whose name starts with name_prefix."""
+    pods = k8s_core.list_namespaced_pod(namespace=namespace)
+    return [
+        p for p in _pods(pods)
+        if p.metadata and p.metadata.name and p.metadata.name.startswith(name_prefix)
+    ]
+
+
+def wait_for_scheduled_pod_by_prefix(
+    k8s_core, namespace: str, name_prefix: str, timeout: float
+) -> Optional[V1Pod]:
+    """
+    Poll until a pod with name_prefix exists and is scheduled (spec.node_name set).
+    Return it, or the last seen matching pod (may be None) if none get scheduled in time.
+    """
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() < deadline:
+        for p in list_pods_by_prefix(k8s_core, namespace, name_prefix):
+            last = p
+            if p.spec and p.spec.node_name:
+                return p
+        time.sleep(0.5)
+    return last
+
+
+def wait_for_no_pods_by_prefix(
+    k8s_core, namespace: str, name_prefix: str, timeout: float
+) -> None:
+    """Assert all pods with name_prefix are removed from the namespace within timeout."""
+    deadline = time.monotonic() + timeout
+    last = []
+    while time.monotonic() < deadline:
+        last = list_pods_by_prefix(k8s_core, namespace, name_prefix)
+        if not last:
+            return
+        time.sleep(1)
+    raise AssertionError(
+        f"Pods with prefix {name_prefix!r} still present in namespace={namespace} "
+        f"after {timeout}s: {[p.metadata.name for p in last]}"
+    )
+
+
+def schedulable_worker_nodes(k8s_core) -> List[str]:
+    """Return names of Ready nodes that are not control-plane/master and carry no NoSchedule/NoExecute taint."""
+    names = []
+    for node in k8s_core.list_node().items:
+        labels = (node.metadata.labels or {}) if node.metadata else {}
+        if (
+            "node-role.kubernetes.io/control-plane" in labels
+            or "node-role.kubernetes.io/master" in labels
+        ):
+            continue
+        taints = (node.spec.taints or []) if node.spec else []
+        if any(getattr(t, "effect", None) in ("NoSchedule", "NoExecute") for t in taints):
+            continue
+        ready = any(
+            c.type == "Ready" and c.status == "True"
+            for c in ((node.status.conditions or []) if node.status else [])
+        )
+        if ready:
+            names.append(node.metadata.name)
+    return names
 
 
 def get_network_policies_list(k8s_networking, namespace: str) -> V1NetworkPolicyList:
@@ -209,4 +302,42 @@ def assert_kraken_failure(result, context: str = "", tmp_path=None) -> None:
         f"Expected Krkn to fail but it succeeded (rc=0){context_str}.{path_hint}\n"
         f"--- stderr ---\n{result.stderr or '(empty)'}\n"
         f"--- stdout (last 20 lines) ---\n{tail_stdout}"
+    )
+
+
+def assert_scenario_executed(result, scenario_name: str, context: str = "", tmp_path=None) -> None:
+    """
+    Assert that Krkn actually executed the scenario's core logic by matching a
+    scenario-specific marker in stdout/stderr. Guards against false positives where
+    Krkn exits 0 but silently did nothing (e.g. a selector that matches no targets).
+
+    Skipped when KRKN_TEST_DRY_RUN=1. Negative tests must not call this helper.
+    """
+    if os.environ.get("KRKN_TEST_DRY_RUN", "0") == "1":
+        return
+    pattern = SCENARIO_EXECUTION_MARKERS.get(scenario_name)
+    if pattern is None:
+        raise AssertionError(
+            f"No execution-evidence marker defined for scenario {scenario_name!r}. "
+            "Add one to SCENARIO_EXECUTION_MARKERS in CI/tests_v2/lib/utils.py."
+        )
+    combined = f"{result.stdout or ''}\n{result.stderr or ''}"
+    found = re.search(pattern, combined) is not None
+    _record_execution_evidence(scenario_name, pattern, found)
+    if found:
+        return
+    if tmp_path is not None:
+        try:
+            (tmp_path / "kraken_stdout.log").write_text(result.stdout or "")
+            (tmp_path / "kraken_stderr.log").write_text(result.stderr or "")
+        except Exception as e:
+            logger.warning("Could not write Kraken logs to tmp_path: %s", e)
+    lines = combined.splitlines()
+    tail = "\n".join(lines[-30:]) if lines else "(empty)"
+    context_str = f" {context}" if context else ""
+    path_hint = f"\nFull logs: {tmp_path}/kraken_stdout.log, {tmp_path}/kraken_stderr.log" if tmp_path else ""
+    raise AssertionError(
+        f"Scenario {scenario_name!r} exited {result.returncode} but no execution evidence found"
+        f"{context_str}.{path_hint}\nExpected pattern: {pattern}\n"
+        f"--- krkn output (last 30 lines) ---\n{tail}"
     )
