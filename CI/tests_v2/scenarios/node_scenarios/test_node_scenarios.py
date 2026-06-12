@@ -62,7 +62,7 @@ class TestNodeScenarios(BaseScenarioTest):
         return scenario
 
     def _target_worker(self, request):
-        """Pick the last schedulable worker (hog tests use the first) and register a restore finalizer."""
+        """Pick the last schedulable worker (sorted order; hog tests use the first) and register a restore finalizer."""
         nodes = schedulable_worker_nodes(self.k8s_core)
         if not nodes:
             pytest.skip("No schedulable worker node available for node scenario targeting")

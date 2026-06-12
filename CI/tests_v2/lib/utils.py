@@ -183,7 +183,12 @@ def wait_for_no_pods_by_prefix(
 
 
 def schedulable_worker_nodes(k8s_core) -> List[str]:
-    """Return names of Ready nodes that are not control-plane/master and carry no NoSchedule/NoExecute taint."""
+    """Return names of Ready nodes that are not control-plane/master and carry no NoSchedule/NoExecute taint.
+
+    The list is sorted by node name so selection is deterministic: the Kubernetes API does not
+    guarantee node ordering, and callers rely on a stable order to keep the hog tests (first
+    worker) and the destructive node tests (last worker) on separate nodes.
+    """
     names = []
     for node in k8s_core.list_node().items:
         labels = (node.metadata.labels or {}) if node.metadata else {}
@@ -201,7 +206,7 @@ def schedulable_worker_nodes(k8s_core) -> List[str]:
         )
         if ready:
             names.append(node.metadata.name)
-    return names
+    return sorted(names)
 
 
 def wait_node_ready(k8s_core, node: str, timeout: float) -> bool:
