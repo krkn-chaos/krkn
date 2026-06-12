@@ -1,12 +1,12 @@
 """
-Functional tests for the CPU hog scenario (hog_scenarios), migrated from the legacy
-CI/tests/test_cpu_hog.sh.
+Functional tests for the memory hog scenario (hog_scenarios), migrated from the legacy
+CI/tests/test_memory_hog.sh.
 
-CPU hog targets nodes (not workloads): Krkn deploys a short-lived hog pod (name prefix
-"cpu-hog-") onto each selected node, runs it for the configured duration, then deletes the
+Memory hog targets nodes (not workloads): Krkn deploys a short-lived hog pod (name prefix
+"memory-hog-") onto each selected node, runs it for the configured duration, then deletes the
 pod. These tests therefore use @pytest.mark.no_workload (no app deployment is needed) and
-verify execution success, node-selector targeting, duration/lifecycle, cleanup, and graceful
-failure on invalid selector/config.
+verify execution success, node-selector targeting, duration/lifecycle, memory size parameter
+handling, cleanup, and graceful failure on invalid selector/config.
 """
 
 import logging
@@ -25,18 +25,18 @@ from lib.utils import (
 
 logger = logging.getLogger(__name__)
 
-HOG_POD_PREFIX = "cpu-hog-"
+HOG_POD_PREFIX = "memory-hog-"
 HOG_POD_CREATE_TIMEOUT = 120
 HOG_POD_CLEANUP_TIMEOUT = 60
 KRAKEN_RUN_TIMEOUT = 300
 
 
 @pytest.mark.functional
-@pytest.mark.cpu_hog
-class TestCpuHog(BaseScenarioTest):
-    """CPU hog scenario: deploy a CPU hog pod on selected node(s), then verify success and cleanup."""
+@pytest.mark.memory_hog
+class TestMemoryHog(BaseScenarioTest):
+    """Memory hog scenario: deploy a memory hog pod on selected node(s), then verify success and cleanup."""
 
-    SCENARIO_NAME = "cpu_hog"
+    SCENARIO_NAME = "memory_hog"
     SCENARIO_TYPE = "hog_scenarios"
     NAMESPACE_KEY_PATH = ["namespace"]
     NAMESPACE_IS_REGEX = False
@@ -49,30 +49,31 @@ class TestCpuHog(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(1)
-    def test_cpu_hog_success_lifecycle_and_targeting(self):
-        """Happy path: a hog pod is created on the node-selector target, the run succeeds, and the pod is cleaned up."""
+    def test_memory_hog_success_lifecycle_and_targeting(self):
+        """Happy path: a hog pod is created on the node-selector target with the configured memory size, the run succeeds, and the pod is cleaned up."""
         nodes = schedulable_worker_nodes(self.k8s_core)
         if not nodes:
-            pytest.skip("No schedulable worker node available for CPU hog targeting")
+            pytest.skip("No schedulable worker node available for memory hog targeting")
         node = nodes[0]
         ns = self.ns
         scenario = self._scenario(ns, {
             "node-selector": f"kubernetes.io/hostname={node}",
             "number-of-nodes": 1,
             "duration": 20,
+            "memory-vm-bytes": "256m",
         })
         scenario_path = self.write_scenario(self.tmp_path, scenario)
         config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="cpu_hog_success_config.yaml"
+            self.SCENARIO_TYPE, str(scenario_path), filename="memory_hog_success_config.yaml"
         )
         proc = self.run_kraken_background(config_path)
         try:
             pod = wait_for_scheduled_pod_by_prefix(self.k8s_core, ns, HOG_POD_PREFIX, timeout=HOG_POD_CREATE_TIMEOUT)
             assert pod is not None, (
-                f"Expected a CPU hog pod (prefix {HOG_POD_PREFIX!r}) to be created in namespace={ns}"
+                f"Expected a memory hog pod (prefix {HOG_POD_PREFIX!r}) to be created in namespace={ns}"
             )
             assert pod.spec and pod.spec.node_name == node, (
-                f"CPU hog pod {pod.metadata.name} scheduled on "
+                f"Memory hog pod {pod.metadata.name} scheduled on "
                 f"{getattr(pod.spec, 'node_name', None)!r}, expected node-selector target {node!r} "
                 f"(namespace={ns})"
             )
@@ -95,7 +96,7 @@ class TestCpuHog(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(2)
-    def test_cpu_hog_invalid_selector_fails(self):
+    def test_memory_hog_invalid_selector_fails(self):
         """Negative: a node-selector matching zero nodes makes Krkn fail (no available nodes to schedule)."""
         ns = self.ns
         scenario = self._scenario(ns, {
@@ -105,7 +106,7 @@ class TestCpuHog(BaseScenarioTest):
         })
         scenario_path = self.write_scenario(self.tmp_path, scenario)
         config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="cpu_hog_invalid_selector_config.yaml"
+            self.SCENARIO_TYPE, str(scenario_path), filename="memory_hog_invalid_selector_config.yaml"
         )
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_failure(
@@ -115,14 +116,14 @@ class TestCpuHog(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(3)
-    def test_cpu_hog_invalid_config_fails(self):
+    def test_memory_hog_invalid_config_fails(self):
         """Negative: omitting the mandatory hog-type field makes Krkn fail at config parsing."""
         ns = self.ns
         scenario = self._scenario(ns, {"duration": 20})
         scenario.pop("hog-type", None)
         scenario_path = self.write_scenario(self.tmp_path, scenario)
         config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="cpu_hog_invalid_config_config.yaml"
+            self.SCENARIO_TYPE, str(scenario_path), filename="memory_hog_invalid_config_config.yaml"
         )
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_failure(
