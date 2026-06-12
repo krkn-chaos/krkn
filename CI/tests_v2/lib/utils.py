@@ -221,8 +221,16 @@ def wait_node_ready(k8s_core, node: str, timeout: float) -> bool:
 
 
 def container_runtime() -> Optional[str]:
-    """Return 'docker' or 'podman' if available on PATH, else None (a KinD node is a container)."""
-    for runtime in ("docker", "podman"):
+    """Return the container runtime backing the KinD cluster, or None if none is on PATH.
+
+    A KinD node is a container. KinD's provider is selected by ``KIND_EXPERIMENTAL_PROVIDER``;
+    when it is set to ``podman`` we must inspect/start with ``podman`` (and vice versa), otherwise
+    we'd point the wrong CLI at the node container. Honor that env var first, then fall back to
+    whichever runtime is available, preferring ``docker`` (KinD's default provider).
+    """
+    preferred = (os.environ.get("KIND_EXPERIMENTAL_PROVIDER") or "").strip().lower()
+    order = ("podman", "docker") if preferred == "podman" else ("docker", "podman")
+    for runtime in order:
         if shutil.which(runtime):
             return runtime
     return None
