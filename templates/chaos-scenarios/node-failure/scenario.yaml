@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../../plugin.schema.json
+# Node Failure Chaos Scenario Template
+# Simulates node failure to test cluster resiliency
+- id: node-failure
+  config:
+    instance_count: 1
+    node_name: ""  # Leave empty to select random node
+    label_selector: "node-role.kubernetes.io/worker="
+    timeout: 300
+    # Optional: Specific node to target
+    # node_name: "worker-node-1"
+    # Optional: Cloud provider specific actions
+    # cloud_type: "aws"  # aws, gcp, azure
+    # region: "us-west-2"
