@@ -15,6 +15,7 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+from typing import Callable, Optional
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -81,6 +82,7 @@ class AbstractScenarioPlugin(ABC):
         scenarios_list: list[str],
         krkn_config: dict[str, any],
         telemetry: KrknTelemetryOpenshift,
+        get_signal_fn: Optional[Callable[[], str]] = None,
     ) -> tuple[list[str], list[ScenarioTelemetry]]:
 
         scenario_telemetries: list[ScenarioTelemetry] = []
@@ -95,6 +97,17 @@ class AbstractScenarioPlugin(ABC):
                 )
                 failed_scenarios.append(scenario_config)
                 break
+
+            # Check signal before starting each scenario so a STOP sent
+            # while the previous scenario was running is honoured immediately.
+            if get_signal_fn is not None:
+                signal = get_signal_fn()
+                if signal == "STOP":
+                    logging.info(
+                        "STOP signal received before starting next scenario, "
+                        "aborting remaining scenarios in this batch"
+                    )
+                    return failed_scenarios, scenario_telemetries
 
             scenario_telemetry = ScenarioTelemetry()
             scenario_telemetry.scenario = scenario_config
@@ -172,7 +185,18 @@ class AbstractScenarioPlugin(ABC):
             scenario_telemetries.append(scenario_telemetry)
             cerberus.publish_kraken_status(start_time,end_time)
             logging.info(f"waiting {wait_duration} before running the next scenario")
-            time.sleep(wait_duration)
+            # Interruptible sleep: use a monotonic deadline to preserve
+            # sub-second wait_duration semantics (int() would floor 0.5 → 0).
+            # PAUSE is handled by the outer loop in run_kraken.py.
+            end = time.monotonic() + wait_duration
+            while time.monotonic() < end:
+                if get_signal_fn is not None and get_signal_fn() == "STOP":
+                    logging.info(
+                        "STOP signal received during inter-scenario wait, "
+                        "aborting remaining scenarios in this batch"
+                    )
+                    return failed_scenarios, scenario_telemetries
+                time.sleep(1)
             
         return failed_scenarios, scenario_telemetries
 
