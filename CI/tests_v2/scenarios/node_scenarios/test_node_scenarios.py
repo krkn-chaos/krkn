@@ -16,8 +16,8 @@ multi-worker cluster (CI provisions two workers via the repo-root kind-config.ym
 destructive tests target the *last* schedulable worker while hog tests target the *first*, so
 they don't share a node; on a single-worker cluster (the kind-config-dev.yml local default)
 both resolve to the same node and overlap is only mitigated by test ordering. Either way the
-finalizer restarts the node container and waits for it to become Ready again before returning.
-See CI/tests_v2/README.md.
+finalizer ensures the node container is running (starting it only if it was left stopped) and
+waits for it to become Ready again before returning. See CI/tests_v2/README.md.
 """
 
 import copy
