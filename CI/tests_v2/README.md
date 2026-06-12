@@ -1,6 +1,6 @@
 # Pytest Functional Tests (tests_v2)
 
-This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, and **node scenarios** scenarios with proper assertions, retries, and reporting.
+This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, and **node** scenarios with proper assertions, retries, and reporting.
 
 Each test runs in its **own ephemeral Kubernetes namespace** (`krkn-test-<uuid>`). Before the test, the framework creates the namespace, deploys the target workload, and waits for pods to be ready. After the test, the namespace is deleted (cascading all resources). **You do not need to deploy any workloads manually.**
 
