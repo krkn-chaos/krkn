@@ -139,7 +139,7 @@ class TestNodeScenarios(BaseScenarioTest):
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context=f"node_stop_start node={node}", tmp_path=self.tmp_path)
         assert_kraken_marker(
-            result, "node_start_scenario has been successfully injected",
+            result, "node_stop_start_scenario has been successfully injected",
             context=f"node={node}", tmp_path=self.tmp_path,
         )
         assert_container_cycled(node, started_before, "stop/start")
