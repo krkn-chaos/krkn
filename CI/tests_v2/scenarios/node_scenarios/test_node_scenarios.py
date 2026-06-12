@@ -21,142 +21,24 @@ See CI/tests_v2/README.md.
 """
 
 import copy
-import logging
-import re
-import shutil
-import subprocess
-import time
 
 import pytest
 
 from lib.base import BaseScenarioTest
 from lib.utils import (
+    assert_container_cycled,
     assert_kraken_failure,
+    assert_kraken_marker,
     assert_kraken_success,
+    container_started_at,
+    ensure_node_container_running,
     load_scenario_base,
     schedulable_worker_nodes,
+    wait_node_ready,
 )
-
-logger = logging.getLogger(__name__)
 
 KRAKEN_RUN_TIMEOUT = 300
 NODE_READY_TIMEOUT = 180
-
-
-def _container_runtime():
-    """Return 'docker' or 'podman' if available on PATH, else None (a KinD node is a container)."""
-    for runtime in ("docker", "podman"):
-        if shutil.which(runtime):
-            return runtime
-    return None
-
-
-def ensure_node_container_running(node, k8s_core=None, timeout=NODE_READY_TIMEOUT):
-    """Best-effort restore of a KinD node container after a destructive test (finalizer).
-
-    Starts the container and, when ``k8s_core`` is given, waits for the node to report Ready so
-    a later rerun (``--reruns``) never picks up an unrecovered node. Never raises -- a non-zero
-    ``start`` exit and any exception are logged so the finalizer cannot mask the test result.
-    """
-    runtime = _container_runtime()
-    if not runtime:
-        logger.warning("No container runtime on PATH; cannot ensure node %s is running", node)
-        return
-    try:
-        proc = subprocess.run([runtime, "start", node], capture_output=True, text=True, timeout=60)
-        if proc.returncode != 0:
-            logger.warning(
-                "'%s start %s' exited %s: %s", runtime, node, proc.returncode,
-                (proc.stderr or "").strip(),
-            )
-    except Exception as e:  # noqa: BLE001 - a finalizer must never raise
-        logger.warning("Failed to start container for node %s via %s: %s", node, runtime, e)
-        return
-    if k8s_core is not None and not wait_node_ready(k8s_core, node, timeout):
-        logger.warning(
-            "Node %s did not report Ready within %ss during finalizer restore", node, timeout
-        )
-
-
-def wait_node_ready(k8s_core, node, timeout):
-    """Poll until the node reports Ready=True. Return True if it does within timeout."""
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        try:
-            n = k8s_core.read_node(node)
-        except Exception:  # noqa: BLE001 - node may be mid-restart / API briefly unreachable
-            time.sleep(2)
-            continue
-        conditions = (n.status.conditions or []) if n.status else []
-        if any(c.type == "Ready" and c.status == "True" for c in conditions):
-            return True
-        time.sleep(2)
-    return False
-
-
-def _container_started_at(node):
-    """Return the node container's State.StartedAt string, or None if it cannot be read.
-
-    A KinD node is a container, so a successful stop/start or restart advances StartedAt. This
-    gives a deterministic, runtime-level proof that a destructive action actually cycled the
-    node -- independent of Kubernetes node-status timing and of Krkn's in-process kube_check.
-    """
-    runtime = _container_runtime()
-    if not runtime:
-        return None
-    try:
-        proc = subprocess.run(
-            [runtime, "inspect", "-f", "{{.State.StartedAt}}", node],
-            capture_output=True, text=True, timeout=30,
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.warning("Could not inspect container %s via %s: %s", node, runtime, e)
-        return None
-    if proc.returncode != 0:
-        logger.warning(
-            "'%s inspect %s' exited %s: %s", runtime, node, proc.returncode,
-            (proc.stderr or "").strip(),
-        )
-        return None
-    return (proc.stdout or "").strip() or None
-
-
-def _assert_container_cycled(node, started_before, action):
-    """Assert the node container was actually restarted (StartedAt advanced).
-
-    No-op when the container runtime is unavailable or StartedAt could not be read on either
-    side, so the check never yields a false negative off-cluster; on KinD (a runtime is always
-    present) it deterministically proves the action disrupted the node.
-    """
-    started_after = _container_started_at(node)
-    if started_before is None or started_after is None:
-        logger.warning(
-            "Skipping container-cycle check for %s (%s): StartedAt unavailable "
-            "(before=%r, after=%r)", node, action, started_before, started_after,
-        )
-        return
-    assert started_after != started_before, (
-        f"Node container {node} StartedAt did not advance ({started_before!r}); "
-        f"{action} did not actually cycle the container"
-    )
-
-
-def _assert_injection_marker(result, marker, context, tmp_path):
-    """Assert Krkn stdout/stderr contains an action marker (real execution evidence, not a silent no-op)."""
-    combined = f"{result.stdout or ''}\n{result.stderr or ''}"
-    if re.search(re.escape(marker), combined):
-        return
-    if tmp_path is not None:
-        try:
-            (tmp_path / "kraken_stdout.log").write_text(result.stdout or "")
-            (tmp_path / "kraken_stderr.log").write_text(result.stderr or "")
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Could not write Kraken logs to tmp_path: %s", e)
-    tail = "\n".join(combined.splitlines()[-30:]) or "(empty)"
-    raise AssertionError(
-        f"Expected node action marker {marker!r} in Krkn output ({context}) but it was missing.\n"
-        f"--- krkn output (last 30 lines) ---\n{tail}"
-    )
 
 
 @pytest.mark.functional
@@ -214,14 +96,14 @@ class TestNodeScenarios(BaseScenarioTest):
         config_path = self.build_config(
             self.SCENARIO_TYPE, str(scenario_path), filename="node_reboot_config.yaml"
         )
-        started_before = _container_started_at(node)
+        started_before = container_started_at(node)
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context=f"node_reboot node={node}", tmp_path=self.tmp_path)
-        _assert_injection_marker(
+        assert_kraken_marker(
             result, "node_reboot_scenario has been successfully injected",
             context=f"node={node}", tmp_path=self.tmp_path,
         )
-        _assert_container_cycled(node, started_before, "reboot")
+        assert_container_cycled(node, started_before, "reboot")
         assert wait_node_ready(self.k8s_core, node, timeout=NODE_READY_TIMEOUT), (
             f"Node {node} did not return Ready within {NODE_READY_TIMEOUT}s after reboot"
         )
@@ -253,14 +135,14 @@ class TestNodeScenarios(BaseScenarioTest):
         config_path = self.build_config(
             self.SCENARIO_TYPE, str(scenario_path), filename="node_stop_start_config.yaml"
         )
-        started_before = _container_started_at(node)
+        started_before = container_started_at(node)
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context=f"node_stop_start node={node}", tmp_path=self.tmp_path)
-        _assert_injection_marker(
+        assert_kraken_marker(
             result, "node_start_scenario has been successfully injected",
             context=f"node={node}", tmp_path=self.tmp_path,
         )
-        _assert_container_cycled(node, started_before, "stop/start")
+        assert_container_cycled(node, started_before, "stop/start")
         assert wait_node_ready(self.k8s_core, node, timeout=NODE_READY_TIMEOUT), (
             f"Node {node} did not return Ready within {NODE_READY_TIMEOUT}s after stop/start"
         )
@@ -356,7 +238,7 @@ class TestNodeScenarios(BaseScenarioTest):
         )
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context="unknown action", tmp_path=self.tmp_path)
-        _assert_injection_marker(
+        assert_kraken_marker(
             result, "There is no node action that matches",
             context="unknown action", tmp_path=self.tmp_path,
         )
