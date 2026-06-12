@@ -11,10 +11,13 @@ control-plane safety guard, and graceful failure on invalid selector/node/action
 actions, and unsupported cloud type.
 
 Parallelism note: stopping/rebooting a worker is cluster-wide disruption. When the suite runs
-with `-n auto`, other tests scheduled on the same worker may be briefly affected; the
-destructive tests target the *last* schedulable worker (hog tests use the first) to reduce
-overlap, restore the node container in a finalizer, and wait for the node to become Ready
-again before returning. See CI/tests_v2/README.md.
+with `-n auto`, other tests scheduled on the same worker may be briefly affected. On a
+multi-worker cluster (CI provisions two workers via the repo-root kind-config.yml) the
+destructive tests target the *last* schedulable worker while hog tests target the *first*, so
+they don't share a node; on a single-worker cluster (the kind-config-dev.yml local default)
+both resolve to the same node and overlap is only mitigated by test ordering. Either way the
+finalizer restarts the node container and waits for it to become Ready again before returning.
+See CI/tests_v2/README.md.
 """
 
 import copy
@@ -48,16 +51,31 @@ def _container_runtime():
     return None
 
 
-def ensure_node_container_running(node):
-    """Best-effort restore of a KinD node container after a destructive test (finalizer)."""
+def ensure_node_container_running(node, k8s_core=None, timeout=NODE_READY_TIMEOUT):
+    """Best-effort restore of a KinD node container after a destructive test (finalizer).
+
+    Starts the container and, when ``k8s_core`` is given, waits for the node to report Ready so
+    a later rerun (``--reruns``) never picks up an unrecovered node. Never raises -- a non-zero
+    ``start`` exit and any exception are logged so the finalizer cannot mask the test result.
+    """
     runtime = _container_runtime()
     if not runtime:
         logger.warning("No container runtime on PATH; cannot ensure node %s is running", node)
         return
     try:
-        subprocess.run([runtime, "start", node], capture_output=True, text=True, timeout=60)
+        proc = subprocess.run([runtime, "start", node], capture_output=True, text=True, timeout=60)
+        if proc.returncode != 0:
+            logger.warning(
+                "'%s start %s' exited %s: %s", runtime, node, proc.returncode,
+                (proc.stderr or "").strip(),
+            )
     except Exception as e:  # noqa: BLE001 - a finalizer must never raise
         logger.warning("Failed to start container for node %s via %s: %s", node, runtime, e)
+        return
+    if k8s_core is not None and not wait_node_ready(k8s_core, node, timeout):
+        logger.warning(
+            "Node %s did not report Ready within %ss during finalizer restore", node, timeout
+        )
 
 
 def wait_node_ready(k8s_core, node, timeout):
@@ -120,20 +138,20 @@ class TestNodeScenarios(BaseScenarioTest):
         if not nodes:
             pytest.skip("No schedulable worker node available for node scenario targeting")
         node = nodes[-1]
-        request.addfinalizer(lambda: ensure_node_container_running(node))
+        request.addfinalizer(lambda: ensure_node_container_running(node, self.k8s_core))
         return node
 
     @pytest.mark.no_workload
     @pytest.mark.order(1)
     def test_node_reboot_targets_node_name_and_recovers(self, request):
-        """Happy path: node_reboot_scenario targeted by node_name reboots the worker container; Krkn succeeds and the node returns Ready."""
+        """Happy path: node_reboot_scenario targeted by node_name reboots the worker container; with kube_check Krkn waits for the node to go Unknown then Ready, so success proves the disruption-recovery cycle."""
         node = self._target_worker(request)
         scenario = self._scenario(
             {
                 "actions": ["node_reboot_scenario"],
                 "node_name": node,
                 "cloud_type": "docker",
-                "kube_check": False,
+                "kube_check": True,
                 "timeout": 120,
             },
             drop=["label_selector"],
