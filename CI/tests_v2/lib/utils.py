@@ -22,6 +22,7 @@ SCENARIO_EXECUTION_MARKERS = {
     "pod_disruption": r"Deleting pod |waiting up to .* seconds for pod recovery",
     "application_outage": r"Creating the network policy|Deleting the network policy",
     "storage_throttle": r"Setting io\.max|Verified blkio settings|Privileged pod deployed",
+    "container_scenarios": r"Killing container .+ in pod",
 }
 
 # nodeid -> {"scenario", "pattern", "verified"}; consumed by conftest to build the
@@ -134,6 +135,72 @@ def restart_counts(pod_list: Union[V1PodList, List[V1Pod]]) -> int:
         for cs in p.status.container_statuses:
             total += getattr(cs, "restart_count", 0)
     return total
+
+
+def list_pods_by_prefix(k8s_core, namespace: str, name_prefix: str) -> List[V1Pod]:
+    """Return pods in the namespace whose name starts with name_prefix."""
+    pods = k8s_core.list_namespaced_pod(namespace=namespace)
+    return [
+        p for p in _pods(pods)
+        if p.metadata and p.metadata.name and p.metadata.name.startswith(name_prefix)
+    ]
+
+
+def wait_for_scheduled_pod_by_prefix(
+    k8s_core, namespace: str, name_prefix: str, timeout: float
+) -> Optional[V1Pod]:
+    """
+    Poll until a pod with name_prefix exists and is scheduled (spec.node_name set).
+    Return it, or the last seen matching pod (may be None) if none get scheduled in time.
+    """
+    deadline = time.monotonic() + timeout
+    last = None
+    while time.monotonic() < deadline:
+        for p in list_pods_by_prefix(k8s_core, namespace, name_prefix):
+            last = p
+            if p.spec and p.spec.node_name:
+                return p
+        time.sleep(0.5)
+    return last
+
+
+def wait_for_no_pods_by_prefix(
+    k8s_core, namespace: str, name_prefix: str, timeout: float
+) -> None:
+    """Assert all pods with name_prefix are removed from the namespace within timeout."""
+    deadline = time.monotonic() + timeout
+    last = []
+    while time.monotonic() < deadline:
+        last = list_pods_by_prefix(k8s_core, namespace, name_prefix)
+        if not last:
+            return
+        time.sleep(1)
+    raise AssertionError(
+        f"Pods with prefix {name_prefix!r} still present in namespace={namespace} "
+        f"after {timeout}s: {[p.metadata.name for p in last]}"
+    )
+
+
+def schedulable_worker_nodes(k8s_core) -> List[str]:
+    """Return names of Ready nodes that are not control-plane/master and carry no NoSchedule/NoExecute taint."""
+    names = []
+    for node in k8s_core.list_node().items:
+        labels = (node.metadata.labels or {}) if node.metadata else {}
+        if (
+            "node-role.kubernetes.io/control-plane" in labels
+            or "node-role.kubernetes.io/master" in labels
+        ):
+            continue
+        taints = (node.spec.taints or []) if node.spec else []
+        if any(getattr(t, "effect", None) in ("NoSchedule", "NoExecute") for t in taints):
+            continue
+        ready = any(
+            c.type == "Ready" and c.status == "True"
+            for c in ((node.status.conditions or []) if node.status else [])
+        )
+        if ready:
+            names.append(node.metadata.name)
+    return names
 
 
 def get_network_policies_list(k8s_networking, namespace: str) -> V1NetworkPolicyList:

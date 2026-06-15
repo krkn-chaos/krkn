@@ -83,6 +83,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         kill_action = get_yaml_item_value(cont_scenario, "action", 1)
         kill_count = get_yaml_item_value(cont_scenario, "count", 1)
         exclude_label = get_yaml_item_value(cont_scenario, "exclude_label", "")
+        dry_run = get_yaml_item_value(cont_scenario, "dry_run", False)
         if not isinstance(kill_action, int):
             logging.error(
                 "Please make sure the action parameter defined in the "
@@ -168,7 +169,8 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                                 c_name,
                             ]
                         )
-                        self.retry_container_killing(
+                        self._kill_or_dry_run(
+                            dry_run,
                             kill_action,
                             selected_container_pod[0],
                             selected_container_pod[1],
@@ -180,7 +182,8 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                     killed_container_list.append(
                         [selected_container_pod[0], selected_container_pod[1], c_name]
                     )
-                    self.retry_container_killing(
+                    self._kill_or_dry_run(
+                        dry_run,
                         kill_action,
                         selected_container_pod[0],
                         selected_container_pod[1],
@@ -192,6 +195,27 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             killed_count += 1
         logging.info("Scenario " + scenario_name + " successfully injected")
         return killed_container_list
+
+    def _kill_or_dry_run(
+        self,
+        dry_run: bool,
+        kill_action,
+        podname,
+        namespace,
+        container_name,
+        kubecli: KrknKubernetes,
+    ):
+        if dry_run:
+            logging.info(
+                "Dry run: skipping kill of container %s in pod %s (ns %s)",
+                container_name,
+                podname,
+                namespace,
+            )
+            return
+        self.retry_container_killing(
+            kill_action, podname, namespace, container_name, kubecli
+        )
 
     def retry_container_killing(
         self, kill_action, podname, namespace, container_name, kubecli: KrknKubernetes
