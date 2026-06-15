@@ -165,12 +165,13 @@ class TestNamespaceDeletion(BaseScenarioTest):
     @pytest.mark.no_workload
     def test_no_match_namespace_fails(self):
         """A regex matching zero namespaces makes Krkn exit non-zero with a clear error."""
+        ns = "krkn-test-nonexistent-zzz-00000000"
         result = self.run_scenario(
-            self.tmp_path, "krkn-test-nonexistent-zzz-00000000",
+            self.tmp_path, ns,
             overrides={"delete_count": 1, "runs": 1},
             config_filename="ns_del_nomatch.yaml",
         )
-        assert_kraken_failure(result, context=f"namespace={self.ns}", tmp_path=self.tmp_path)
+        assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
         combined = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
         assert "no namespaces matching" in combined or "not enough namespaces" in combined, (
             "Expected a 'no namespaces matching' error in Krkn output"
@@ -179,12 +180,16 @@ class TestNamespaceDeletion(BaseScenarioTest):
     @pytest.mark.no_workload
     def test_namespace_and_label_mutual_exclusion_fails(self):
         """Setting both namespace and label_selector makes Krkn exit 1 with a mutual-exclusion error."""
+        ns = "krkn-test-mutual-excl"
+        label_selector = "app=foo"
         result = self.run_scenario(
-            self.tmp_path, "krkn-test-mutual-excl",
-            overrides={"label_selector": "app=foo", "delete_count": 1, "runs": 1},
+            self.tmp_path, ns,
+            overrides={"label_selector": label_selector, "delete_count": 1, "runs": 1},
             config_filename="ns_del_mutual.yaml",
         )
-        assert_kraken_failure(result, context=f"namespace={self.ns}", tmp_path=self.tmp_path)
+        assert_kraken_failure(
+            result, context=f"namespace={ns}, label_selector={label_selector}", tmp_path=self.tmp_path
+        )
         combined = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
         assert "you can only have namespace or label set" in combined, (
             "Expected the mutual-exclusion error in Krkn output"
