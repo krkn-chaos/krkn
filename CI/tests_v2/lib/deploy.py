@@ -73,6 +73,29 @@ def wait_for_no_deployment(k8s_apps, namespace: str, name: str, timeout: int = 4
     )
 
 
+def service_exists(k8s_core, namespace: str, name: str) -> bool:
+    """Return True if the named service exists in the namespace, False on 404."""
+    try:
+        k8s_core.read_namespaced_service(name=name, namespace=namespace)
+        return True
+    except ApiException as e:
+        if e.status == 404:
+            return False
+        raise
+
+
+def wait_for_no_service(k8s_core, namespace: str, name: str, timeout: int = 45) -> None:
+    """Poll until the named service is gone from the namespace; raise if it persists."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not service_exists(k8s_core, namespace, name):
+            return
+        time.sleep(1)
+    raise AssertionError(
+        f"Service {name} still present in namespace={namespace} after {timeout}s"
+    )
+
+
 def wait_for_present_deployment_count(
     k8s_apps, namespaces, name: str, expected: int, timeout: int = 45
 ) -> list:

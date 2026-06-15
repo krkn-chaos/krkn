@@ -23,6 +23,7 @@ from lib.deploy import (
     deploy_manifest_to_namespace,
     deployment_exists,
     wait_for_no_deployment,
+    wait_for_no_service,
     wait_for_present_deployment_count,
 )
 from lib.utils import (
@@ -68,10 +69,7 @@ class TestNamespaceDeletion(BaseScenarioTest):
         )
         if os.environ.get("KRKN_TEST_DRY_RUN", "0") != "1":
             wait_for_no_deployment(self.k8s_apps, ns, _TARGET_NAME)
-            services = self.k8s_core.list_namespaced_service(ns).items
-            assert all(s.metadata.name != _TARGET_NAME for s in services), (
-                f"Service {_TARGET_NAME} should have been deleted in namespace={ns}"
-            )
+            wait_for_no_service(self.k8s_core, ns, _TARGET_NAME)
 
     @pytest.mark.no_workload
     def test_multiple_namespace_delete_count(self, make_namespace):
