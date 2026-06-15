@@ -16,6 +16,17 @@ logger = logging.getLogger(__name__)
 
 STALE_NS_AGE_MINUTES = 30
 
+# Privileged pod-security labels applied to ephemeral test namespaces so the same
+# workloads are admitted on both Kubernetes and OpenShift. Shared by the test_namespace
+# fixture and the make_namespace factory.
+POD_SECURITY_PRIVILEGED_LABELS = {
+    "pod-security.kubernetes.io/audit": "privileged",
+    "pod-security.kubernetes.io/enforce": "privileged",
+    "pod-security.kubernetes.io/enforce-version": "v1.24",
+    "pod-security.kubernetes.io/warn": "privileged",
+    "security.openshift.io/scc.podSecurityLabelSync": "false",
+}
+
 
 def _namespace_age_minutes(metadata) -> float:
     """Return age of namespace in minutes from its creation_timestamp."""
@@ -47,6 +58,32 @@ def _wait_for_namespace_gone(k8s_core, name: str, timeout: int = 60):
     raise TimeoutError(f"Namespace {name} did not disappear within {timeout}s")
 
 
+def create_labeled_namespace(k8s_core, name: str, extra_labels: dict = None) -> str:
+    """Create a namespace with privileged pod-security labels plus any extra_labels.
+
+    Reusable across scenarios that need ad-hoc namespaces (e.g. multi-namespace
+    selection or label-selector targeting). Returns the namespace name.
+    """
+    labels = dict(POD_SECURITY_PRIVILEGED_LABELS)
+    if extra_labels:
+        labels.update(extra_labels)
+    body = client.V1Namespace(metadata=client.V1ObjectMeta(name=name, labels=labels))
+    k8s_core.create_namespace(body=body)
+    logger.info("Created test namespace: %s", name)
+    return name
+
+
+def delete_namespace_quietly(k8s_core, name: str) -> None:
+    """Background-delete a namespace, logging (never raising) on failure. Safe in finalizers."""
+    try:
+        k8s_core.delete_namespace(
+            name=name,
+            body=client.V1DeleteOptions(propagation_policy="Background"),
+        )
+    except Exception as e:  # noqa: BLE001 - cleanup must never raise
+        logger.warning("Failed to delete namespace %s: %s", name, e)
+
+
 @pytest.fixture(scope="function")
 def test_namespace(request, k8s_core):
     """
@@ -57,13 +94,7 @@ def test_namespace(request, k8s_core):
     ns = client.V1Namespace(
         metadata=client.V1ObjectMeta(
             name=name,
-            labels={
-                "pod-security.kubernetes.io/audit": "privileged",
-                "pod-security.kubernetes.io/enforce": "privileged",
-                "pod-security.kubernetes.io/enforce-version": "v1.24",
-                "pod-security.kubernetes.io/warn": "privileged",
-                "security.openshift.io/scc.podSecurityLabelSync": "false",
-            },
+            labels=dict(POD_SECURITY_PRIVILEGED_LABELS),
         )
     )
     k8s_core.create_namespace(body=ns)
@@ -86,6 +117,25 @@ def test_namespace(request, k8s_core):
         logger.debug("Scheduled background deletion for namespace: %s", name)
     except Exception as e:
         logger.warning("Failed to delete namespace %s: %s", name, e)
+
+
+@pytest.fixture(scope="function")
+def make_namespace(request, k8s_core):
+    """
+    Factory fixture to create ad-hoc privileged test namespaces during a test.
+
+    Returns a callable make(name, extra_labels=None) -> name. Each created namespace
+    is registered for background deletion at test teardown. Useful for scenarios that
+    need several namespaces (multi-namespace selection) or a uniquely labelled namespace
+    (label-selector targeting).
+    """
+
+    def _make(name: str, extra_labels: dict = None) -> str:
+        create_labeled_namespace(k8s_core, name, extra_labels=extra_labels)
+        request.addfinalizer(lambda: delete_namespace_quietly(k8s_core, name))
+        return name
+
+    return _make
 
 
 @pytest.fixture(scope="session", autouse=True)
