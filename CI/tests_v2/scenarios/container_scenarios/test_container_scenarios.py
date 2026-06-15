@@ -27,6 +27,8 @@ class TestContainerScenarios(BaseScenarioTest):
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/container_scenarios/resource.yaml"
     WORKLOAD_IS_PATH = True
     LABEL_SELECTOR = "scenario=container"
+    DECOY_LABEL_SELECTOR = "scenario=decoy"
+    DECOY_MANIFEST = "CI/tests_v2/scenarios/container_scenarios/resource_decoy.yaml"
     SCENARIO_NAME = "container_scenarios"
     SCENARIO_TYPE = "container_scenarios"
     NAMESPACE_KEY_PATH = ["scenarios", 0, "namespace"]
@@ -67,14 +69,20 @@ class TestContainerScenarios(BaseScenarioTest):
         assert_all_pods_running_and_ready(after, namespace=ns)
 
     @pytest.mark.order(2)
-    def test_container_label_selector_targeting(self, wait_for_pods_running):
-        """Label selector and namespace filtering target the expected workload."""
+    def test_container_label_selector_targeting(self, wait_for_pods_running, deploy_workload):
+        """Label selector must target only matching pods when a decoy workload shares the namespace."""
         ns = self.ns
-        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
+        deploy_workload(self.DECOY_MANIFEST, self.DECOY_LABEL_SELECTOR)
+
+        before_target = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
+        before_decoy = get_pods_list(self.k8s_core, ns, self.DECOY_LABEL_SELECTOR)
+        before_target_uids = pod_uids(before_target)
+        before_target_restarts = restart_counts(before_target)
+        before_decoy_restarts = restart_counts(before_decoy)
 
         result = self.run_scenario(self.tmp_path, ns, overrides={
             "container_name": "fedtools",
-            "label_selector": "scenario=container",
+            "label_selector": self.LABEL_SELECTOR,
             "expected_recovery_time": 30,
         })
         assert_kraken_success(
@@ -85,10 +93,28 @@ class TestContainerScenarios(BaseScenarioTest):
             context=f"label_selector namespace={ns}", tmp_path=self.tmp_path,
         )
 
+        after_target = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
+        after_decoy = get_pods_list(self.k8s_core, ns, self.DECOY_LABEL_SELECTOR)
+        target_uids_changed = set(pod_uids(after_target)) != set(before_target_uids)
+        target_restarts_increased = restart_counts(after_target) > before_target_restarts
+        assert target_uids_changed or target_restarts_increased, (
+            f"Label selector {self.LABEL_SELECTOR!r} did not disrupt the target workload "
+            f"in namespace={ns}."
+        )
+
+        after_decoy_restarts = restart_counts(after_decoy)
+        assert after_decoy_restarts == before_decoy_restarts, (
+            f"Label selector {self.LABEL_SELECTOR!r} disrupted decoy pods "
+            f"({self.DECOY_LABEL_SELECTOR!r}): before restarts={before_decoy_restarts}, "
+            f"after restarts={after_decoy_restarts} (namespace={ns})"
+        )
+
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_TIMEOUT)
-        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        assert_pod_count_unchanged(before, after, namespace=ns)
-        assert_all_pods_running_and_ready(after, namespace=ns)
+        wait_for_pods_running(ns, self.DECOY_LABEL_SELECTOR, timeout=READINESS_TIMEOUT)
+        assert_all_pods_running_and_ready(
+            get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR), namespace=ns
+        )
+        assert_all_pods_running_and_ready(after_decoy, namespace=ns)
 
     @pytest.mark.order(3)
     def test_container_dry_run_behavior(self):

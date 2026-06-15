@@ -39,6 +39,16 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 cont_scenario_config = yaml.safe_load(f)
                 
                 for kill_scenario in cont_scenario_config["scenarios"]:
+                    dry_run = get_yaml_item_value(kill_scenario, "dry_run", False)
+                    if dry_run:
+                        logging.info(
+                            "Dry run enabled for scenario %s; skipping pod monitoring",
+                            get_yaml_item_value(kill_scenario, "name", ""),
+                        )
+                        self.container_killing_in_pod(
+                            kill_scenario, lib_telemetry.get_lib_kubernetes()
+                        )
+                        continue
                     future_snapshot = self.start_monitoring(
                         kill_scenario,
                         lib_telemetry
