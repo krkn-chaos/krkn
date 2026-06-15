@@ -98,8 +98,16 @@ class TestNamespaceDeletion(BaseScenarioTest):
         if os.environ.get("KRKN_TEST_DRY_RUN", "0") != "1":
             wait_for_present_deployment_count(self.k8s_apps, namespaces, _TARGET_NAME, expected=1)
 
-    def test_multiple_runs_repeat_deletion(self):
-        """runs=2 repeats the deletion loop: the selection/delete log appears at least twice."""
+    def test_multiple_runs_repeat_disruption_loop(self):
+        """runs=2 executes the disruption loop twice.
+
+        The plugin logs "Delete objects in selected namespace" once per run, so the
+        count proves the outer runs loop iterated twice. Actual object removal is
+        asserted in test_single_namespace_object_deletion; here the workload is deleted
+        in run 1 and never recreated (Krkn does not redeploy between runs), so run 2
+        re-selects the now-empty namespace and deletes nothing. This test therefore
+        verifies that the loop repeats, not that deletion recurs against live objects.
+        """
         ns = self.ns
         result = self.run_scenario(
             self.tmp_path, ns,
@@ -114,7 +122,8 @@ class TestNamespaceDeletion(BaseScenarioTest):
             combined = f"{result.stdout or ''}\n{result.stderr or ''}"
             count = combined.count("Delete objects in selected namespace")
             assert count >= 2, (
-                f"Expected >=2 deletion iterations for runs=2, saw {count} (namespace={ns})"
+                f"Expected the disruption loop to iterate >=2 times for runs=2, "
+                f"saw {count} (namespace={ns})"
             )
 
     def test_wait_time_accepted(self):
@@ -183,10 +192,14 @@ class TestNamespaceDeletion(BaseScenarioTest):
             overrides={"delete_count": 1, "runs": 1},
             config_filename="ns_del_nomatch.yaml",
         )
+        if os.environ.get("KRKN_TEST_DRY_RUN", "0") == "1":
+            return  # Krkn is skipped under dry-run; the failure path can't be exercised.
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
         combined = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
-        assert "no namespaces matching" in combined or "not enough namespaces" in combined, (
-            "Expected a 'no namespaces matching' error in Krkn output"
+        # The service_disruption plugin only ever logs "not enough namespaces matching ..."
+        # (service_disruption_scenario_plugin.py:82-90); there is no "no namespaces matching" path.
+        assert "not enough namespaces" in combined, (
+            "Expected a 'not enough namespaces matching' error in Krkn output"
         )
 
     @pytest.mark.no_workload
@@ -199,6 +212,8 @@ class TestNamespaceDeletion(BaseScenarioTest):
             overrides={"label_selector": label_selector, "delete_count": 1, "runs": 1},
             config_filename="ns_del_mutual.yaml",
         )
+        if os.environ.get("KRKN_TEST_DRY_RUN", "0") == "1":
+            return  # Krkn is skipped under dry-run; the failure path can't be exercised.
         assert_kraken_failure(
             result, context=f"namespace={ns}, label_selector={label_selector}", tmp_path=self.tmp_path
         )
@@ -215,6 +230,8 @@ class TestNamespaceDeletion(BaseScenarioTest):
             overrides={"delete_count": 5, "runs": 1, "sleep": 1},
             config_filename="ns_del_exceeds.yaml",
         )
+        if os.environ.get("KRKN_TEST_DRY_RUN", "0") == "1":
+            return  # Krkn is skipped under dry-run; the failure path can't be exercised.
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
         combined = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
         assert "not enough namespaces" in combined, (
