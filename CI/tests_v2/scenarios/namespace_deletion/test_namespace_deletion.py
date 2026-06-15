@@ -186,7 +186,9 @@ class TestNamespaceDeletion(BaseScenarioTest):
     @pytest.mark.no_workload
     def test_no_match_namespace_fails(self):
         """A regex matching zero namespaces makes Krkn exit non-zero with a clear error."""
-        ns = "krkn-test-nonexistent-zzz-00000000"
+        # UUID-based name so the regex is guaranteed not to match any pre-existing
+        # namespace (e.g. leftover from a previous run); this namespace is never created.
+        ns = f"krkn-test-nonexistent-{uuid.uuid4().hex}"
         result = self.run_scenario(
             self.tmp_path, ns,
             overrides={"delete_count": 1, "runs": 1},
