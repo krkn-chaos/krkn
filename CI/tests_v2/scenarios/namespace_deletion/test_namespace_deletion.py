@@ -66,11 +66,12 @@ class TestNamespaceDeletion(BaseScenarioTest):
         assert_scenario_executed(
             result, self.SCENARIO_NAME, context=f"namespace={ns}", tmp_path=self.tmp_path
         )
-        wait_for_no_deployment(self.k8s_apps, ns, _TARGET_NAME)
-        services = self.k8s_core.list_namespaced_service(ns).items
-        assert all(s.metadata.name != _TARGET_NAME for s in services), (
-            f"Service {_TARGET_NAME} should have been deleted in namespace={ns}"
-        )
+        if os.environ.get("KRKN_TEST_DRY_RUN", "0") != "1":
+            wait_for_no_deployment(self.k8s_apps, ns, _TARGET_NAME)
+            services = self.k8s_core.list_namespaced_service(ns).items
+            assert all(s.metadata.name != _TARGET_NAME for s in services), (
+                f"Service {_TARGET_NAME} should have been deleted in namespace={ns}"
+            )
 
     @pytest.mark.no_workload
     def test_multiple_namespace_delete_count(self, make_namespace):
@@ -94,7 +95,8 @@ class TestNamespaceDeletion(BaseScenarioTest):
             result, self.SCENARIO_NAME, context=f"prefix={prefix}", tmp_path=self.tmp_path
         )
         # Exactly one of the three namespaces should still hold its deployment.
-        wait_for_present_deployment_count(self.k8s_apps, namespaces, _TARGET_NAME, expected=1)
+        if os.environ.get("KRKN_TEST_DRY_RUN", "0") != "1":
+            wait_for_present_deployment_count(self.k8s_apps, namespaces, _TARGET_NAME, expected=1)
 
     def test_multiple_runs_repeat_deletion(self):
         """runs=2 repeats the deletion loop: the selection/delete log appears at least twice."""
@@ -155,6 +157,14 @@ class TestNamespaceDeletion(BaseScenarioTest):
         config_path = self.build_config(
             self.SCENARIO_TYPE, str(scenario_path), filename="ns_del_label.yaml"
         )
+        # This test bypasses run_scenario (to blank the namespace field), so the dry-run
+        # short-circuit in BaseScenarioTest.run_scenario does not apply here. Honor it
+        # explicitly: skip the real Kraken invocation and the cluster post-check.
+        if os.environ.get("KRKN_TEST_DRY_RUN", "0") == "1":
+            logger.info(
+                "[dry-run] Would run Kraken with config=%s (label-selector mode)", config_path
+            )
+            return
         result = self.run_kraken(config_path)
         assert_kraken_success(result, context=f"namespace={name}", tmp_path=self.tmp_path)
         assert_scenario_executed(
