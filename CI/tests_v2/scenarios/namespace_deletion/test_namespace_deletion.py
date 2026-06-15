@@ -118,9 +118,11 @@ class TestNamespaceDeletion(BaseScenarioTest):
     def test_wait_time_accepted(self):
         """A configured wait_time is accepted and the scenario completes successfully."""
         ns = self.ns
+        # Use a non-default wait_time (base scenario_base.yaml defaults to 30) so the test
+        # actually exercises override patching rather than passing on the base value.
         result = self.run_scenario(
             self.tmp_path, ns,
-            overrides={"wait_time": 30, "delete_count": 1, "runs": 1, "sleep": 1},
+            overrides={"wait_time": 5, "delete_count": 1, "runs": 1, "sleep": 1},
             config_filename="ns_del_wait.yaml",
         )
         assert_kraken_success(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
