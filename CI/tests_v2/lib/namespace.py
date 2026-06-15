@@ -84,6 +84,14 @@ def delete_namespace_quietly(k8s_core, name: str) -> None:
         logger.warning("Failed to delete namespace %s: %s", name, e)
 
 
+def _keep_namespace_on_fail(request) -> bool:
+    """True when --keep-ns-on-fail is set and the test's call phase failed."""
+    keep_on_fail = request.config.getoption("--keep-ns-on-fail", False)
+    rep_call = getattr(request.node, "rep_call", None)
+    failed = rep_call is not None and rep_call.failed
+    return bool(keep_on_fail and failed)
+
+
 @pytest.fixture(scope="function")
 def test_namespace(request, k8s_core):
     """
@@ -102,21 +110,11 @@ def test_namespace(request, k8s_core):
 
     yield name
 
-    keep_on_fail = request.config.getoption("--keep-ns-on-fail", False)
-    rep_call = getattr(request.node, "rep_call", None)
-    failed = rep_call is not None and rep_call.failed
-    if keep_on_fail and failed:
+    if _keep_namespace_on_fail(request):
         logger.info("[keep-ns-on-fail] Keeping namespace %s for debugging", name)
         return
 
-    try:
-        k8s_core.delete_namespace(
-            name=name,
-            body=client.V1DeleteOptions(propagation_policy="Background"),
-        )
-        logger.debug("Scheduled background deletion for namespace: %s", name)
-    except Exception as e:
-        logger.warning("Failed to delete namespace %s: %s", name, e)
+    delete_namespace_quietly(k8s_core, name)
 
 
 @pytest.fixture(scope="function")
@@ -125,14 +123,21 @@ def make_namespace(request, k8s_core):
     Factory fixture to create ad-hoc privileged test namespaces during a test.
 
     Returns a callable make(name, extra_labels=None) -> name. Each created namespace
-    is registered for background deletion at test teardown. Useful for scenarios that
-    need several namespaces (multi-namespace selection) or a uniquely labelled namespace
-    (label-selector targeting).
+    is registered for teardown deletion, honouring --keep-ns-on-fail the same way the
+    test_namespace fixture does. Useful for scenarios that need several namespaces
+    (multi-namespace selection) or a uniquely labelled namespace (label-selector targeting).
     """
 
     def _make(name: str, extra_labels: dict = None) -> str:
         create_labeled_namespace(k8s_core, name, extra_labels=extra_labels)
-        request.addfinalizer(lambda: delete_namespace_quietly(k8s_core, name))
+
+        def _finalize(ns_name=name):
+            if _keep_namespace_on_fail(request):
+                logger.info("[keep-ns-on-fail] Keeping namespace %s for debugging", ns_name)
+                return
+            delete_namespace_quietly(k8s_core, ns_name)
+
+        request.addfinalizer(_finalize)
         return name
 
     return _make
