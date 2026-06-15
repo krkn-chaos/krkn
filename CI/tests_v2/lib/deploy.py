@@ -112,7 +112,13 @@ def deploy_manifest_to_namespace(
     if not path.is_absolute() and repo_root is not None:
         path = Path(repo_root) / path
     docs = patch_namespace_in_docs(list(yaml.safe_load_all(path.read_text())), namespace)
-    k8s_utils.create_from_yaml(k8s_client, yaml_objects=docs, namespace=namespace)
+    try:
+        k8s_utils.create_from_yaml(k8s_client, yaml_objects=docs, namespace=namespace)
+    except k8s_utils.FailToCreateError as e:
+        msgs = [str(exc) for exc in e.api_exceptions]
+        raise RuntimeError(
+            f"Failed to create resources in namespace={namespace}: {'; '.join(msgs)}"
+        ) from e
     wait_for_deployment_replicas(k8s_apps, namespace, deployment_name, timeout=timeout)
 
 
