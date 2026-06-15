@@ -198,10 +198,13 @@ class TestNamespaceDeletion(BaseScenarioTest):
             return  # Krkn is skipped under dry-run; the failure path can't be exercised.
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
         combined = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
-        # The service_disruption plugin only ever logs "not enough namespaces matching ..."
-        # (service_disruption_scenario_plugin.py:82-90); there is no "no namespaces matching" path.
-        assert "not enough namespaces" in combined, (
-            "Expected a 'not enough namespaces matching' error in Krkn output"
+        # A regex matching zero namespaces makes krkn_lib's check_namespaces raise before the
+        # plugin's delete loop, surfacing "there exists no namespaces matching: {...}". The plugin's
+        # own "not enough namespaces matching" message (service_disruption_scenario_plugin.py:82-90)
+        # only fires when >=1 namespace matches but fewer than delete_count -- that path is covered by
+        # test_delete_count_exceeds_available_fails.
+        assert "no namespaces matching" in combined, (
+            "Expected a 'no namespaces matching' error in Krkn output"
         )
 
     @pytest.mark.no_workload
