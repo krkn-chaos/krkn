@@ -140,8 +140,10 @@ class TestNamespaceDeletion(BaseScenarioTest):
             self.k8s_client, self.k8s_apps, self.WORKLOAD_MANIFEST, name,
             _TARGET_NAME, repo_root=self.repo_root,
         )
-        # Build the scenario directly: blanking the namespace can't go through run_scenario,
-        # whose **overrides would collide with the positional `namespace` argument.
+        # Build the scenario directly: label-selector mode requires the namespace field to be a
+        # literal empty string (""), but NAMESPACE_IS_REGEX=True makes load_and_patch_scenario wrap
+        # any namespace as ^...$, so an empty namespace through run_scenario would become "^$".
+        # We patch with a real name (harmless) and then blank the namespace to "" explicitly.
         scenario = self.load_and_patch_scenario(
             self.repo_root, name,
             label_selector=f"{label_key}={label_value}", delete_count=1, runs=1, sleep=1,
