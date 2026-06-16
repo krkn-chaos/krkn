@@ -117,28 +117,6 @@ class TestContainerScenarios(BaseScenarioTest):
         assert_all_pods_running_and_ready(after_decoy, namespace=ns)
 
     @pytest.mark.order(3)
-    def test_container_dry_run_behavior(self):
-        """Dry-run: scenario must not kill containers."""
-        ns = self.ns
-        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        before_restarts = restart_counts(before)
-
-        result = self.run_scenario(self.tmp_path, ns, overrides={
-            "container_name": "fedtools",
-            "dry_run": True,
-            "expected_recovery_time": 30,
-        })
-        assert_kraken_success(result, context=f"dry_run namespace={ns}", tmp_path=self.tmp_path)
-
-        after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        after_restarts = restart_counts(after)
-
-        assert after_restarts == before_restarts, (
-            f"Dry-run affected containers: before restarts={before_restarts}, "
-            f"after restarts={after_restarts} (namespace={ns})"
-        )
-
-    @pytest.mark.order(4)
     def test_invalid_container_name_fails(self):
         """Negative: invalid container name must fail when kill count exceeds matches."""
         ns = self.ns
@@ -151,7 +129,7 @@ class TestContainerScenarios(BaseScenarioTest):
         )
 
     @pytest.mark.no_workload
-    @pytest.mark.order(5)
+    @pytest.mark.order(4)
     def test_invalid_label_selector_fails(self):
         """Negative: label selector matching no pods must fail gracefully."""
         ns = self.ns

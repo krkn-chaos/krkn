@@ -8,4 +8,3 @@ scenarios:
     count: 1
     expected_recovery_time: 120
     exclude_label: ""
-    dry_run: false
