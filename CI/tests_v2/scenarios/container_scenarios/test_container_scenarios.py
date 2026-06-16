@@ -114,7 +114,9 @@ class TestContainerScenarios(BaseScenarioTest):
         assert_all_pods_running_and_ready(
             get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR), namespace=ns
         )
-        assert_all_pods_running_and_ready(after_decoy, namespace=ns)
+        assert_all_pods_running_and_ready(
+            get_pods_list(self.k8s_core, ns, self.DECOY_LABEL_SELECTOR), namespace=ns
+        )
 
     @pytest.mark.order(3)
     def test_invalid_container_name_fails(self):
@@ -128,11 +130,12 @@ class TestContainerScenarios(BaseScenarioTest):
             result, context=f"invalid_container namespace={ns}", tmp_path=self.tmp_path
         )
 
-    @pytest.mark.no_workload
     @pytest.mark.order(4)
-    def test_invalid_label_selector_fails(self):
-        """Negative: label selector matching no pods must fail gracefully."""
+    def test_invalid_label_selector_fails(self, wait_for_pods_running):
+        """Negative: selector must fail when pods exist but none match the label."""
         ns = self.ns
+        wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_TIMEOUT)
+
         result = self.run_scenario(self.tmp_path, ns, overrides={
             "container_name": "fedtools",
             "label_selector": "nonexistent=label",
