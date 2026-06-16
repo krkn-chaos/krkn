@@ -194,11 +194,11 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             container_pod_list.remove(selected_container_pod)
             if container_found:
                 killed_count += 1
-            elif len(container_pod_list) == 0:
+            elif killed_count == 0 and len(container_pod_list) == 0:
                 logging.error("Scenario " + scenario_name + " failed")
                 raise RuntimeError(
                     f"Container '{container_name}' not found in any matching pod. "
-                    f"{killed_count} of {kill_count} requested container(s) were killed."
+                    f"No containers were killed."
                 )
         logging.info("Scenario " + scenario_name + " successfully injected")
         return killed_container_list
