@@ -198,7 +198,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                 logging.error("Scenario " + scenario_name + " failed")
                 raise RuntimeError(
                     f"Container '{container_name}' not found in any matching pod. "
-                    f"No containers were killed."
+                    f"{killed_count} of {kill_count} requested container(s) were killed."
                 )
         logging.info("Scenario " + scenario_name + " successfully injected")
         return killed_container_list
