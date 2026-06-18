@@ -1,0 +1,9 @@
+scenarios:
+- name: "kill container"
+  namespace: "^default$"
+  label_selector: "scenario=container"
+  container_name: "app"
+  action: 1
+  count: 1
+  expected_recovery_time: 120
+  exclude_label: ""
