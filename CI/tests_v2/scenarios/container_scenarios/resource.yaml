@@ -1,9 +1,9 @@
-# Target workload for container_scenarios scenario tests.
+# Multi-container deployment targeted by container chaos scenario.
 # Namespace is patched at deploy time by the test framework.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: container-target
+  name: krkn-container-target
 spec:
   replicas: 1
   selector:
@@ -15,7 +15,10 @@ spec:
         scenario: container
     spec:
       containers:
-      - name: fedtools
+      - name: app
         image: nginx:alpine
         ports:
         - containerPort: 80
+      - name: sidecar
+        image: alpine:latest
+        command: ["sleep", "infinity"]
