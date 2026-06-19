@@ -45,10 +45,36 @@ from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import (
 from krkn.scenario_plugins.node_actions.ibmcloud_power_node_scenarios import (
      ibmcloud_power_node_scenarios,
 )
+from krkn.rollback.handler import set_rollback_context_decorator
+from krkn.rollback.config import RollbackContent
+from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
+from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
+from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
+from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
+from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import IbmCloud
+
 node_general = False
 
 
+def _get_node_cloud_object(cloud_type: str):
+    """Return cloud provider instance for rollback. Mirrors shut_down_scenario_plugin pattern."""
+    ct = cloud_type.lower()
+    if ct == "aws":
+        return AWS()
+    elif ct == "gcp":
+        return GCP()
+    elif ct == "openstack":
+        return OPENSTACKCLOUD()
+    elif ct in ("azure", "az"):
+        return Azure()
+    elif ct in ("ibm", "ibmcloud"):
+        return IbmCloud()
+    else:
+        raise ValueError(f"Cloud type '{cloud_type}' is not supported for node outage rollback")
+
+
 class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -220,6 +246,25 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     )
                 nodes = [node for node in nodes if node not in exclude_nodes]
 
+        ROLLBACK_ACTIONS = {"node_stop_scenario", "node_termination_scenario"}
+        cloud_type = node_scenario.get("cloud_type", "generic")
+        if action in ROLLBACK_ACTIONS and cloud_type != "generic":
+            try:
+                cloud_object = _get_node_cloud_object(cloud_type)
+                instance_ids = tuple(cloud_object.get_instance_id(node) for node in nodes)
+                rollback_content = RollbackContent(
+                    cloud_type=cloud_type,
+                    instance_ids=instance_ids,
+                    skip_kubernetes=True,
+                )
+                self.rollback_handler.set_rollback_callable(
+                    NodeActionsScenarioPlugin.rollback_node_outage,
+                    rollback_content,
+                )
+                logging.info(f"Registered rollback for {len(nodes)} nodes on {cloud_type}")
+            except Exception as e:
+                logging.warning(f"Could not register node outage rollback: {e}")
+
         # GCP api doesn't support multiprocessing calls, will only actually run 1
         if parallel_nodes:
             self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
@@ -341,3 +386,85 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
 
     def get_scenario_types(self) -> list[str]:
         return ["node_scenarios"]
+
+    @staticmethod
+    def rollback_node_outage(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift = None):
+        """
+        Restore stopped/terminated nodes. Operates independently of Kubernetes API.
+        Called by execute_rollback_version_files() on scenario failure.
+        """
+        import time
+        try:
+            cloud_type = rollback_content.cloud_type
+            node_ids = list(rollback_content.instance_ids or ())
+            if not cloud_type or not node_ids:
+                # Legacy fallback
+                content_parts = rollback_content.resource_identifier.split(":", 1)
+                if len(content_parts) != 2:
+                    logging.error(f"Invalid rollback content: {rollback_content.resource_identifier}")
+                    return
+                cloud_type = content_parts[0]
+                node_ids = [n.strip() for n in content_parts[1].split(",") if n.strip()]
+            if not node_ids:
+                logging.warning("No node IDs found in rollback content")
+                return
+            if cloud_type.lower() == "aws":
+                from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
+                cloud_object = AWS()
+            elif cloud_type.lower() == "gcp":
+                from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
+                cloud_object = GCP()
+            elif cloud_type.lower() == "openstack":
+                from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
+                cloud_object = OPENSTACKCLOUD()
+            elif cloud_type.lower() in ["azure", "az"]:
+                from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
+                cloud_object = Azure()
+            elif cloud_type.lower() in ["ibm", "ibmcloud"]:
+                from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import IbmCloud
+                cloud_object = IbmCloud()
+            else:
+                logging.error(f"Unsupported cloud type for rollback: {cloud_type}")
+                return
+            timeout = 300
+            failed = []
+            for node_id in node_ids:
+                try:
+                    logging.info(f"Starting node for rollback: {node_id}")
+                    if isinstance(node_id, tuple):
+                        cloud_object.start_instances(node_id[1], node_id[0])
+                    else:
+                        cloud_object.start_instances(node_id)
+                except Exception as e:
+                    logging.error(f"Failed to start {node_id}: {e}")
+                    failed.append(node_id)
+            for node_id in node_ids:
+                if node_id in failed:
+                    continue
+                try:
+                    if isinstance(node_id, tuple):
+                        node_status = cloud_object.wait_until_running(node_id[1], node_id[0], timeout, None)
+                    else:
+                        node_status = cloud_object.wait_until_running(node_id, timeout, None)
+                    if not node_status:
+                        logging.warning(f"Timeout waiting for {node_id}")
+                        failed.append(node_id)
+                    else:
+                        logging.info(f"Node {node_id} restored")
+                except Exception as e:
+                    logging.error(f"Error waiting for {node_id}: {e}")
+                    failed.append(node_id)
+            total = len(node_ids)
+            restored = total - len(failed)
+            if not failed:
+                logging.info(f"Node outage rollback complete: {total}/{total} restored")
+            else:
+                logging.warning(f"Node outage rollback partial: {restored}/{total} restored. Failed: {failed}")
+            if restored > 0:
+                logging.info("Waiting 60s for cluster initialization...")
+                time.sleep(60)
+            logging.info("rollback_node_outage complete.")
+        except Exception as e:
+            logging.error(f"rollback_node_outage failed: {e}")
+            raise
+
