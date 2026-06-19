@@ -436,5 +436,77 @@ class TestZoneOutageRun(unittest.TestCase):
         self.assertEqual(result, 1)
 
 
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.gcp_node_scenarios"
+    )
+    def test_node_based_zone_logs_error_on_exception(
+        self, mock_gcp_class, mock_sleep
+    ):
+        """Test node_based_zone uses logging.error for exceptions"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+
+        mock_lib_kubernetes.list_killable_nodes.return_value = ["node-1"]
+        mock_cloud = MagicMock()
+        mock_cloud.node_stop_scenario.side_effect = Exception("stop failed")
+        mock_gcp_class.return_value = mock_cloud
+
+        plugin = ZoneOutageScenarioPlugin()
+        with self.assertLogs(level="ERROR") as logs:
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
+        self.assertTrue(
+            any(
+                "Node based zone outage scenario failed" in log
+                for log in logs.output
+            )
+        )
+
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.ThreadPool"
+    )
+    def test_node_based_zone_pool_close_on_exception(
+        self, mock_thread_pool, mock_sleep
+    ):
+        """Test pool.close() is called via finally when starmap raises"""
+        mock_pool_instance = MagicMock()
+        mock_pool_instance.starmap.side_effect = Exception("stop failed")
+        mock_thread_pool.return_value = mock_pool_instance
+
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.list_killable_nodes.return_value = ["node-1"]
+
+        with patch(
+            "krkn.scenario_plugins.zone_outage."
+            "zone_outage_scenario_plugin.gcp_node_scenarios"
+        ) as mock_gcp:
+            mock_gcp.return_value = MagicMock()
+            plugin = ZoneOutageScenarioPlugin()
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
+        mock_pool_instance.close.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
