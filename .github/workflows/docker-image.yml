@@ -13,7 +13,7 @@ jobs:
     if: github.event_name == 'pull_request'
     steps:
     - name: Check out code
-      uses: actions/checkout@v3
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
     - name: Install Grype
       run: |
@@ -67,10 +67,10 @@ jobs:
             runner: ubuntu-24.04-arm
     steps:
     - name: Check out code
-      uses: actions/checkout@v3
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
     - name: Test Build the Docker images
       if: github.event_name == 'pull_request'
@@ -130,7 +130,7 @@ jobs:
 
     - name: Login to krkn-chaos quay
       if: startsWith(github.ref, 'refs/tags')
-      uses: docker/login-action@v3
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
@@ -152,7 +152,7 @@ jobs:
 
     - name: Login to redhat-chaos quay
       if: startsWith(github.ref, 'refs/tags')
-      uses: docker/login-action@v3
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USER_1 }}
@@ -173,7 +173,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags')
     steps:
     - name: Login to krkn-chaos quay
-      uses: docker/login-action@v3
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
@@ -193,7 +193,7 @@ jobs:
         docker manifest push quay.io/krkn-chaos/krkn:latest
 
     - name: Login to redhat-chaos quay
-      uses: docker/login-action@v3
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USER_1 }}
@@ -213,7 +213,7 @@ jobs:
         docker manifest push quay.io/redhat-chaos/krkn:latest
 
     - name: Rebuild krkn-hub
-      uses: redhat-chaos/actions/krkn-hub@main
+      uses: redhat-chaos/actions/krkn-hub@aa421229ca6d4ad13785039d0736611c6439fc3e # main
       with:
         QUAY_USER: ${{ secrets.QUAY_USERNAME }}
         QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
@@ -229,17 +229,17 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
       - name: Check out doc repo
-        uses: actions/checkout@master
+        uses: actions/checkout@61b9e3751b92087fd0b06925ba6dd6314e06f089 # master
         with:
           repository: krkn-chaos/krkn-lib-docs
           path: krkn-lib-docs
           ssh-key: ${{ secrets.KRKN_LIB_DOCS_PRIV_KEY }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       - name: Build image for security scan
         run: |
