@@ -1,0 +1,105 @@
+name: Issue Management
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  handle-issue:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: read
+
+    steps:
+      - name: Request issue approval and assignment
+        uses: actions/github-script@v7
+        env: 
+          REVIEWERS: "krkn-maintainers"
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const action = context.payload.action;
+
+            const labels = issue.labels ? issue.labels.map(l => l.name) : [];
+            const isBug = labels.includes('kind/bug') || labels.includes('bug') ;
+
+            // 1. Auto-Triage on Issue Open
+            if (action === 'opened') {
+              
+              // Bug Bypass Flow
+              if (isBug) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: 'Thanks for reporting this bug! This issue has bypassed the standard triage requirement and is ready to be worked on immediately.'
+                });
+                console.log(`Issue #${issue.number} is a bug - bypassing triage.`);
+                return;
+              }
+
+              // Standard Triage Flow
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                labels: ['needs-triage']
+              });
+
+              // Post comment and tag the reviewers
+              const reviewers = `@${context.repo.owner}/${process.env.REVIEWERS}`;
+
+              const comment = `Thanks for opening this issue! A maintainer will review it shortly. Please wait for approval before starting work on a PR. See our [contributing guidelines](https://krkn-chaos.dev/docs/contribution-guidelines/) for more details. \n\nCC: ${reviewers}`;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: comment
+              });
+
+              console.log(`Issue #${issue.number} labeled and reviewers notified`);
+            }
+            
+            // 2. Maintainer Approval Flow
+            if (action === 'labeled') {
+              if (context.payload.label.name !== 'triage/accepted') {
+                console.log(`Label ${context.payload.label.name} added - no action needed`);
+                return;
+              }
+              
+              // Remove needs-triage
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  name: 'needs-triage'
+                });
+                console.log(`Removed 'needs-triage' label from issue #${issue.number}`);
+              } catch (error) {
+                console.log(`Error removing label: ${error.message}`);
+              }
+
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                assignees: [issue.user.login] 
+              });
+
+              const comment = `This issue has been approved by a maintainer. @${issue.user.login} you've been assigned since you reported this issue — you get first priority! Please submit a PR within 14 days using Fixes #<issue_number> in the PR description. If no PR is submitted, the issue will be opened up for other contributors.`;
+
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: comment
+              });
+
+              console.log(`Issue #${issue.number} assigned to ${issue.user.login}`); }
