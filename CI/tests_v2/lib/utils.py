@@ -25,6 +25,7 @@ SCENARIO_EXECUTION_MARKERS = {
     "application_outage": r"Creating the network policy|Deleting the network policy",
     "storage_throttle": r"Setting io\.max|Verified blkio settings|Privileged pod deployed",
     "container_scenarios": r"Killing container .+ in pod",
+    "namespace_deletion": r"Delete objects in selected namespace|Deleted all objects in namespace",
 }
 
 # nodeid -> {"scenario", "pattern", "verified"}; consumed by conftest to build the
