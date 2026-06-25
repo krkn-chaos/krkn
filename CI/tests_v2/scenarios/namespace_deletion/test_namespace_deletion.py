@@ -178,6 +178,7 @@ class TestNamespaceDeletion(BaseScenarioTest):
             result, self.SCENARIO_NAME, context=f"namespace={name}", tmp_path=self.tmp_path
         )
         wait_for_no_deployment(self.k8s_apps, name, _TARGET_NAME)
+        wait_for_no_service(self.k8s_core, name, _TARGET_NAME)
 
     # --- negative / failure-mode tests ---------------------------------------
 
