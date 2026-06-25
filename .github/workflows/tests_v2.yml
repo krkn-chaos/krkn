@@ -12,6 +12,12 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v3
 
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune -af
+          df -h
+
       - name: Create KinD cluster
         uses: redhat-chaos/actions/kind@main
 
