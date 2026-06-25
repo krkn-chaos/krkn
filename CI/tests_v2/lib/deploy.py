@@ -104,9 +104,12 @@ def wait_for_present_deployment_count(
     Returns the namespaces where it is still present. Useful for delete_count assertions.
     """
     deadline = time.monotonic() + timeout
-    present = list(namespaces)
+    # Snapshot once so a one-shot iterable (e.g. generator) is not exhausted by the
+    # first poll, which would make every subsequent iteration see an empty list.
+    ns_list = list(namespaces)
+    present = list(ns_list)
     while time.monotonic() < deadline:
-        present = [n for n in namespaces if deployment_exists(k8s_apps, n, name)]
+        present = [n for n in ns_list if deployment_exists(k8s_apps, n, name)]
         if len(present) == expected:
             return present
         time.sleep(1)
