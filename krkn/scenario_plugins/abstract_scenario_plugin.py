@@ -22,16 +22,17 @@ from krkn import utils, cerberus
 from krkn.rollback.handler import (
     RollbackHandler,
     execute_rollback_version_files,
-    cleanup_rollback_version_files
+    cleanup_rollback_version_files,
 )
 from krkn.rollback.signal import signal_handler
 from krkn.rollback.serialization import Serializer
+
 
 class AbstractScenarioPlugin(ABC):
 
     def __init__(self, scenario_type: str = "placeholder_scenario_type"):
         """Initializes the AbstractScenarioPlugin with the scenario type and rollback configuration.
-        
+
         :param scenario_type: the scenario type defined in the config.yaml
         """
         serializer = Serializer(
@@ -117,7 +118,7 @@ class AbstractScenarioPlugin(ABC):
             with signal_handler.signal_context(
                 run_uuid=run_uuid,
                 scenario_type=scenario_telemetry.scenario_type,
-                telemetry_ocp=telemetry
+                telemetry_ocp=telemetry,
             ):
                 try:
                     logging.info(
@@ -130,6 +131,12 @@ class AbstractScenarioPlugin(ABC):
                         lib_telemetry=telemetry,
                         scenario_telemetry=scenario_telemetry,
                     )
+                except SystemExit as e:
+                    logging.error(
+                        f"scenario `run()` called sys.exit({e.code}): "
+                        f"intercepting to execute rollback before terminating"
+                    )
+                    return_value = 1
                 except Exception as e:
                     logging.error(
                         f"uncaught exception on scenario `run()` method: {e} "
@@ -155,7 +162,7 @@ class AbstractScenarioPlugin(ABC):
                 parsed_scenario_config,
                 telemetry.get_telemetry_request_id(),
                 start_time,
-                end_time
+                end_time,
             )
 
             if events_backup:
@@ -164,16 +171,14 @@ class AbstractScenarioPlugin(ABC):
                     parsed_scenario_config,
                     telemetry.get_lib_kubernetes(),
                     start_time,
-                    end_time
+                    end_time,
                 )
 
             if scenario_telemetry.exit_status != 0:
                 failed_scenarios.append(scenario_config)
             scenario_telemetries.append(scenario_telemetry)
-            cerberus.publish_kraken_status(start_time,end_time)
+            cerberus.publish_kraken_status(start_time, end_time)
             logging.info(f"waiting {wait_duration} before running the next scenario")
             time.sleep(wait_duration)
-            
-        return failed_scenarios, scenario_telemetries
 
-    
+        return failed_scenarios, scenario_telemetries
