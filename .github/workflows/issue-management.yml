@@ -102,4 +102,108 @@ jobs:
                 body: comment
               });
 
-              console.log(`Issue #${issue.number} assigned to ${issue.user.login}`); }
+              console.log(`Issue #${issue.number} assigned to ${issue.user.login}`);
+              }
+  handle-pr:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    name: Check linked issue
+    permissions:
+      pull-requests: write
+      issues: read
+
+    steps:
+      - name: Check linked issue and assign reviewers
+        uses: nearform-actions/github-action-check-linked-issues@v1
+        id: check-linked-issues
+        with:
+          exclude-branches: "release/**, dependabot/**"
+      - name: Assign reviewers based on linked issue
+        uses: actions/github-script@v7
+        env:
+          LINKED_ISSUES_COUNT: ${{ steps.check-linked-issues.outputs.linked_issues_count }}
+          ISSUES_OUTPUT: ${{ steps.check-linked-issues.outputs.issues }}
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const prCreator = pr.user.login;
+
+            const linkedIssueCount = parseInt(process.env.LINKED_ISSUES_COUNT || '0');
+            const issuesOutput = process.env.ISSUES_OUTPUT || '[]';
+
+            if (linkedIssueCount === 0) {
+              const comment = `Thanks for your contribution! This PR does not appear to have a linked issue. Please refer to our [contribution guidelines](CONTRIBUTING.md) for the proper PR process.`;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: comment
+              });
+
+              console.log('No linked issue found - posted comment');
+              return;
+            }
+                       // Check the first linked issue
+            const issues = JSON.parse(issuesOutput);
+
+            if (!issues || issues.length === 0) {
+              console.log('No issues in output despite count > 0');
+              return;
+            }
+
+            // Extract issue number - handle both "#123" and "123" formats
+            const issueRef = issues[0];
+            const issueNumber = parseInt(issueRef.replace('#', ''));
+
+            try {
+              const { data: issue } = await github.rest.issues.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber
+              });
+
+              const issueAssignees = issue.assignees.map(a => a.login);
+
+              if (!issueAssignees.includes(prCreator)) {
+                const comment = `Thanks for your contribution! However, this PR is linked to issue #${issueNumber}, which is not assigned to you. Please refer to our [contribution guidelines](CONTRIBUTING.md). PRs should only be opened by contributors who are assigned to the linked issue.`;
+
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: comment
+                });
+
+                console.log(`PR creator ${prCreator} is not assigned to issue #${issueNumber}`);
+                return;
+              }
+
+              // PR creator is assigned to the issue - assign reviewers
+              const reviewers = ['tejugang'];
+
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+                reviewers: reviewers
+              });
+              console.log(`Assigned reviewers: ${reviewers.join(', ')}`);
+
+            } catch (error) {
+              console.error(`Error checking issue #${issueNumber}:`, error);
+
+              const comment = `Unable to verify the linked issue #${issueNumber}. Please ensure the issue exists and is properly configured.`;
+
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body: comment
+              });
+            }
+
+
+
+
+
