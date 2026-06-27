@@ -1,8 +1,6 @@
 import unittest
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import patch, mock_open
 from types import SimpleNamespace
-
-from krkn_lib.utils.functions import get_yaml_item_value
 
 from run_kraken import main
 
@@ -18,7 +16,7 @@ class TestRunKraken(unittest.TestCase):
         """
         mock_isfile.side_effect = lambda p: p == "/fake/config.yaml"
         mock_yaml_load.return_value = {
-            "kraken": {},
+            "kraken": {"rollback_versions_directory": "/tmp/krkn-test-rollback"},
             "tunings": {},
             "performance_monitoring": {},
             "elastic": {},
