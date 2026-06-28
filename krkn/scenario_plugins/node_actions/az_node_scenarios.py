@@ -25,6 +25,10 @@ from azure.mgmt.network.models import SecurityRule, Subnet
 from azure.identity import DefaultAzureCredential
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+from krkn_lib.utils import get_random_string
+
+from krkn.rollback.config import RollbackContent
 
 class Azure:
     def __init__(self):
@@ -226,6 +230,9 @@ class azure_node_scenarios(abstract_node_scenarios):
         logging.info("init in azure")
         self.azure = Azure()
         self.node_action_kube_check = node_action_kube_check
+        # Set by NodeActionsScenarioPlugin.run() so node scenarios (e.g. node_block)
+        # can register cloud-only rollbacks. None when constructed outside the plugin.
+        self.rollback_handler = None
         
 
     # Node scenario to start the node
@@ -351,27 +358,56 @@ class azure_node_scenarios(abstract_node_scenarios):
     def node_block_scenario(self, instance_kill_count, node, timeout, duration):
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
+            # Unique NSG name so parallel/repeated blocks never collide and so the
+            # rollback targets exactly the NSG this run created (the old hardcoded
+            # "chaos" name was ambiguous across concurrent node blocks).
+            nsg_name = f"krkn-chaos-{get_random_string(5)}"
+            # Track injection state so the deny NSG is always rolled back, even if the
+            # scenario is interrupted or fails mid-window.
+            block_applied = False
+            block_restored = False
+            subnet = virtual_network = network_resource_group = None
+            old_network_group = None
             try:
                 logging.info("Starting node_block_scenario injection")
                 vm_name, resource_group = self.azure.get_instance_id(node)
 
                 subnet, virtual_network, private_ip, network_resource_group, location = self.azure.get_network_interface(vm_name, resource_group)
                 affected_node.node_id = vm_name
- 
+
                 logging.info(
                     "block the node %s with instance ID: %s "
                     % (vm_name, network_resource_group)
                 )
-                network_group_id = self.azure.create_security_group(network_resource_group, "chaos", location, private_ip)
-                old_network_group= self.azure.update_subnet(network_group_id, network_resource_group, subnet, virtual_network)
+                network_group_id = self.azure.create_security_group(network_resource_group, nsg_name, location, private_ip)
+                old_network_group = self.azure.update_subnet(network_group_id, network_resource_group, subnet, virtual_network)
+                block_applied = True
+
+                # Register a cloud-only rollback BEFORE the (long) block window. A
+                # SIGINT/SIGTERM during time.sleep runs the serialized rollback file
+                # and then terminates the process before the finally below can fire,
+                # so the registered callable is what prevents a permanently isolated
+                # subnet. Mirrors ShutDownScenarioPlugin's power-outage rollback.
+                if self.rollback_handler is not None:
+                    self.rollback_handler.set_rollback_callable(
+                        self.rollback_node_block,
+                        RollbackContent(
+                            cloud_type="azure",
+                            instance_ids=(
+                                old_network_group,
+                                network_resource_group,
+                                subnet,
+                                virtual_network,
+                                nsg_name,
+                            ),
+                            skip_kubernetes=True,
+                        ),
+                    )
+
                 logging.info("Node with instance ID: %s has been blocked" % (vm_name))
                 logging.info("Waiting for %s seconds before resetting the subnet" % (duration))
                 time.sleep(duration)
 
-                # replace old network security group
-                self.azure.update_subnet(old_network_group, network_resource_group, subnet, virtual_network)
-                self.azure.delete_security_group(network_resource_group, "chaos")
-                
                 logging.info("node_block_scenario has been successfully injected!")
             except Exception as e:
                 logging.error(
@@ -381,4 +417,72 @@ class azure_node_scenarios(abstract_node_scenarios):
                 logging.error("node_block_scenario injection failed!")
 
                 raise RuntimeError()
+            finally:
+                # Best-effort inline restore of the subnet's original NSG and removal of
+                # the chaos NSG. Guarded so failures before the block was applied are
+                # skipped, and so a double restore (finally + auto-rollback file) is safe.
+                if block_applied and not block_restored:
+                    try:
+                        self.azure.update_subnet(old_network_group, network_resource_group, subnet, virtual_network)
+                        self.azure.delete_security_group(network_resource_group, nsg_name)
+                        block_restored = True
+                    except Exception as restore_exc:
+                        logging.error(
+                            "Inline restore of subnet %s failed after node_block; "
+                            "deferring to the registered auto-rollback. Exception: %s"
+                            % (subnet, restore_exc)
+                        )
             self.affected_nodes_status.affected_nodes.append(affected_node)
+            # If the inline restore failed on an otherwise-successful run, fail the
+            # scenario so run() returns non-zero. A 0 return makes run_scenarios delete
+            # the serialized rollback file (cleanup_rollback_version_files), leaving the
+            # chaos NSG bound with no retry; a non-zero return runs
+            # execute_rollback_version_files -> rollback_node_block instead.
+            if block_applied and not block_restored:
+                raise RuntimeError(
+                    "node_block_scenario failed to restore subnet %s; "
+                    "deferring to auto-rollback" % subnet
+                )
+
+    @staticmethod
+    def rollback_node_block(
+        rollback_content: RollbackContent,
+        lib_telemetry: KrknTelemetryOpenshift = None,
+    ):
+        """
+        Restore the subnet's original NSG and delete the chaos NSG created by
+        node_block_scenario. Registered before the block is applied so the subnet is
+        recovered even when krkn is interrupted (SIGINT/SIGTERM) during the block
+        window. Cloud-only: does not touch the Kubernetes API.
+
+        Restore parameters are packed into ``rollback_content.instance_ids`` as
+        ``(old_nsg_id, network_resource_group, subnet, vnet, chaos_nsg_name)``.
+
+        :param rollback_content: Rollback content carrying the Azure restore parameters.
+        :param lib_telemetry: Unused (cloud-only rollback); accepted for signature parity.
+        """
+        from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
+
+        try:
+            params = rollback_content.instance_ids or ()
+            if len(params) != 5:
+                logging.error(
+                    f"Invalid azure node_block rollback content: {rollback_content}"
+                )
+                return
+            old_nsg_id, network_resource_group, subnet, vnet, chaos_nsg_name = params
+
+            azure = Azure()
+            if old_nsg_id:
+                logging.info(
+                    f"Rolling back node_block: restoring subnet {subnet} NSG to {old_nsg_id}"
+                )
+                azure.update_subnet(old_nsg_id, network_resource_group, subnet, vnet)
+            azure.delete_security_group(network_resource_group, chaos_nsg_name)
+            logging.info("node_block_scenario rollback completed successfully.")
+        except Exception as e:
+            # Re-raise so execute_rollback_version_files records the failure and does
+            # NOT rename the version file to .executed, keeping it available for a
+            # manual `execute-rollback` retry (matches rollback_shutdown_nodes).
+            logging.error(f"Failed to rollback node_block_scenario: {e}")
+            raise

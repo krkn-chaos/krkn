@@ -15,6 +15,7 @@ from unittest.mock import Mock, patch
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
+from krkn.rollback.config import RollbackContent
 from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure, azure_node_scenarios
 
 
@@ -778,6 +779,153 @@ class TestAzureNodeScenarios(unittest.TestCase):
 
         # Verify sleep was called with the correct duration
         mock_sleep.assert_called_with(120)
+
+    @patch('time.sleep', side_effect=KeyboardInterrupt)
+    @patch('logging.error')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.Azure')
+    def test_node_block_scenario_restores_subnet_on_interrupt(
+        self, mock_azure_class, mock_logging, mock_sleep
+    ):
+        """An interruption (SIGINT) during the block window must still restore the subnet.
+
+        FAILS on the buggy code: the restore ran inline after time.sleep(), so a
+        KeyboardInterrupt during the sleep left the subnet attached to the chaos NSG
+        (update_subnet called once, NSG never deleted).
+        PASSES on the fixed code: the finally block restores the original NSG and
+        deletes the chaos NSG before the interrupt propagates.
+        """
+        mock_azure = Mock()
+        mock_azure_class.return_value = mock_azure
+        mock_azure.get_instance_id.return_value = ("test-vm", "test-rg")
+        mock_azure.get_network_interface.return_value = (
+            "test-subnet", "test-vnet", "10.0.1.5", "network-rg", "eastus"
+        )
+        mock_azure.create_security_group.return_value = "/new-nsg-id"
+        mock_azure.update_subnet.return_value = "/old-nsg-id"
+
+        scenarios = azure_node_scenarios(self.mock_kubecli, False, self.affected_nodes_status)
+
+        with self.assertRaises(KeyboardInterrupt):
+            scenarios.node_block_scenario(1, "test-node", 300, 60)
+
+        # apply (#1) + restore (#2)
+        self.assertEqual(mock_azure.update_subnet.call_count, 2)
+        restore_call = mock_azure.update_subnet.call_args_list[1]
+        self.assertEqual(restore_call.args[0], "/old-nsg-id")
+        mock_azure.delete_security_group.assert_called_once()
+
+    @patch('time.sleep')
+    @patch('logging.info')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.Azure')
+    def test_node_block_scenario_registers_rollback(
+        self, mock_azure_class, mock_logging, mock_sleep
+    ):
+        """When a rollback handler is wired in, a cloud-only rollback is registered
+        before the block window so a hard kill (SIGTERM) is still recoverable.
+
+        FAILS on the buggy code: node_block_scenario never registered a rollback.
+        """
+        mock_azure = Mock()
+        mock_azure_class.return_value = mock_azure
+        mock_azure.get_instance_id.return_value = ("test-vm", "test-rg")
+        mock_azure.get_network_interface.return_value = (
+            "test-subnet", "test-vnet", "10.0.1.5", "network-rg", "eastus"
+        )
+        mock_azure.create_security_group.return_value = "/new-nsg-id"
+        mock_azure.update_subnet.return_value = "/old-nsg-id"
+
+        scenarios = azure_node_scenarios(self.mock_kubecli, False, self.affected_nodes_status)
+        mock_handler = Mock()
+        scenarios.rollback_handler = mock_handler
+
+        scenarios.node_block_scenario(1, "test-node", 300, 60)
+
+        mock_handler.set_rollback_callable.assert_called_once()
+        callable_arg, content_arg = mock_handler.set_rollback_callable.call_args.args
+        self.assertEqual(callable_arg, azure_node_scenarios.rollback_node_block)
+        self.assertTrue(content_arg.skip_kubernetes)
+        self.assertEqual(content_arg.cloud_type, "azure")
+        # (old_nsg, net_rg, subnet, vnet, chaos_nsg_name)
+        self.assertEqual(content_arg.instance_ids[0], "/old-nsg-id")
+        self.assertEqual(content_arg.instance_ids[1], "network-rg")
+        self.assertEqual(content_arg.instance_ids[2], "test-subnet")
+
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.Azure')
+    def test_rollback_node_block_restores_and_deletes(self, mock_azure_class):
+        """The registered rollback callable restores the original NSG and removes chaos."""
+        mock_azure = Mock()
+        mock_azure_class.return_value = mock_azure
+
+        content = RollbackContent(
+            cloud_type="azure",
+            instance_ids=(
+                "/old-nsg-id", "network-rg", "test-subnet", "test-vnet", "krkn-chaos-abcde"
+            ),
+            skip_kubernetes=True,
+        )
+
+        azure_node_scenarios.rollback_node_block(content, None)
+
+        mock_azure.update_subnet.assert_called_once_with(
+            "/old-nsg-id", "network-rg", "test-subnet", "test-vnet"
+        )
+        mock_azure.delete_security_group.assert_called_once_with("network-rg", "krkn-chaos-abcde")
+
+    @patch('time.sleep')
+    @patch('logging.error')
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.Azure')
+    def test_node_block_scenario_fails_when_inline_restore_fails(
+        self, mock_azure_class, mock_logging, mock_sleep
+    ):
+        """A failed inline restore on an otherwise-successful run must fail the scenario.
+
+        FAILS on the buggy code: the restore exception was only logged, node_block_scenario
+        returned normally (run() -> 0), and run_scenarios deleted the rollback file, leaving
+        the subnet blocked with no retry.
+        PASSES on the fixed code: node_block_scenario raises so run() returns non-zero and
+        execute_rollback_version_files runs the registered rollback.
+        """
+        mock_azure = Mock()
+        mock_azure_class.return_value = mock_azure
+        mock_azure.get_instance_id.return_value = ("test-vm", "test-rg")
+        mock_azure.get_network_interface.return_value = (
+            "test-subnet", "test-vnet", "10.0.1.5", "network-rg", "eastus"
+        )
+        mock_azure.create_security_group.return_value = "/new-nsg-id"
+        # 1st call applies the block (returns old NSG); 2nd call (restore) fails.
+        mock_azure.update_subnet.side_effect = ["/old-nsg-id", Exception("restore failed")]
+
+        scenarios = azure_node_scenarios(self.mock_kubecli, False, self.affected_nodes_status)
+
+        with self.assertRaises(RuntimeError):
+            scenarios.node_block_scenario(1, "test-node", 300, 60)
+
+        # apply (#1) + attempted restore (#2)
+        self.assertEqual(mock_azure.update_subnet.call_count, 2)
+
+    @patch('krkn.scenario_plugins.node_actions.az_node_scenarios.Azure')
+    def test_rollback_node_block_reraises_on_failure(self, mock_azure_class):
+        """The registered rollback must re-raise on failure.
+
+        FAILS on the buggy code: the handler swallowed the exception, so
+        execute_rollback_version_files would mark it successful and rename the version
+        file to .executed, hiding the failed restore.
+        PASSES on the fixed code: the exception propagates (matches rollback_shutdown_nodes).
+        """
+        mock_azure = Mock()
+        mock_azure_class.return_value = mock_azure
+        mock_azure.update_subnet.side_effect = Exception("azure unreachable")
+
+        content = RollbackContent(
+            cloud_type="azure",
+            instance_ids=(
+                "/old-nsg-id", "network-rg", "test-subnet", "test-vnet", "krkn-chaos-abcde"
+            ),
+            skip_kubernetes=True,
+        )
+
+        with self.assertRaises(Exception):
+            azure_node_scenarios.rollback_node_block(content, None)
 
 
 if __name__ == "__main__":
