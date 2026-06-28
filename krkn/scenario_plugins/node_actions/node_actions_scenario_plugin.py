@@ -25,6 +25,7 @@ from krkn_lib.utils import get_yaml_item_value, log_exception
 
 from krkn import cerberus, utils
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.rollback.handler import set_rollback_context_decorator
 from krkn.scenario_plugins.node_actions import common_node_functions
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import aws_node_scenarios
 from krkn.scenario_plugins.node_actions.az_node_scenarios import azure_node_scenarios
@@ -49,6 +50,10 @@ node_general = False
 
 
 class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
+    # Sets the rollback context (run_uuid) so node scenarios that register a rollback
+    # callable (e.g. azure node_block) serialize it under the correct run directory and
+    # have it executed on SIGINT/SIGTERM.
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -70,6 +75,9 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     node_scenario_object = self.get_node_scenario_object(
                         node_scenario, lib_telemetry.get_lib_kubernetes()
                     )
+                    # Expose the plugin-level rollback handler so node scenarios can
+                    # register cloud-only rollbacks for the chaos they're about to inject.
+                    node_scenario_object.rollback_handler = self.rollback_handler
                     for action in actions:
                         start_time = int(time.time())
                         self.inject_node_scenario(
