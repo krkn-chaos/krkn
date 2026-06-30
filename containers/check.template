@@ -99,11 +99,7 @@ RUN ${PYTHON_CMD} -m pip install --upgrade pip setuptools==81.0.0
 RUN rm -rf "$(pip cache dir)"
 RUN rm -rf /tmp/*
 RUN rm -rf /usr/local/lib/${PYTHON_CMD}/ensurepip/_bundled
-<<<<<<< HEAD
-RUN ${PYTHON_CMD} -m pip install -r requirements.txt
-=======
 RUN ${PYTHON_CMD} -m pip install --no-build-isolation -r requirements.txt
->>>>>>> 7166cc0 (fix: add build isolation flag to fix pkg_resources error)
 RUN ${PYTHON_CMD} -m pip install jsonschema
 # Force setuptools==81.0.0 after all deps (some may try to upgrade it to 82+)
 RUN ${PYTHON_CMD} -m pip install --force-reinstall --no-deps setuptools==81.0.0
