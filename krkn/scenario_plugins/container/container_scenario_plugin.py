@@ -43,9 +43,21 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                         kill_scenario,
                         lib_telemetry
                     )
-                    self.container_killing_in_pod(
+                    sucess = self.container_killing_in_pod(
                         kill_scenario, lib_telemetry.get_lib_kubernetes()
                     )
+                    # Skip the scenario gracefully if no matching container targets are found
+                    if sucess is None:
+                        logging.info(
+                            "Waiting for monitoring future to complete"
+                        )
+
+                        snapshot = future_snapshot.result()
+                        result = snapshot.get_pods_status()
+                        scenario_telemetry.affected_pods = result
+                        
+                        continue
+                    
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
@@ -148,13 +160,16 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         killed_container_list = []
         while killed_count < kill_count:
             if len(container_pod_list) == 0:
-                logging.error(
-                    "Trying to kill more containers than were found, try lowering kill count"
+                logging.warning(
+                    "Skipping scenario %s: requested_count=%s but no matching targets were found",
+                    scenario_name,
+                    kill_count
                 )
-                logging.error("Scenario " + scenario_name + " failed")
                 # removed_exit
                 # sys.exit(1)
-                raise RuntimeError()
+                # removed runtimeError
+                # raise RuntimeError()
+                return
             selected_container_pod = container_pod_list[
                 random.randint(0, len(container_pod_list) - 1)
             ]
