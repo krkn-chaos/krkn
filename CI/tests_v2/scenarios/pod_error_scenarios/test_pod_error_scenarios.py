@@ -80,6 +80,9 @@ class TestPodErrorScenarios(BaseScenarioTest):
         ns = self.ns
         result = self.run_scenario(self.tmp_path, ns, overrides={"kill": 100})
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
+        # Expected error text must match the message raised at
+        # pod_disruption_scenario_plugin.py:234. Update both together
+        # if that message wording changes.
         self.assert_failure_logs_contain(
             result, ns, expected_reasons=["not enough pods match", "expected 100", "found only 2 pods"]
         )
