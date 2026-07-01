@@ -53,15 +53,30 @@ class SingletonMeta(type):
 class RollbackContent:
     """
     RollbackContent is a dataclass that defines the necessary fields for rollback operations.
+    For cloud-only scenarios (e.g. shut_down) set skip_kubernetes=True and populate
+    cloud_type and instance_ids instead of resource_identifier/namespace.
     """
 
-    resource_identifier: str
+    resource_identifier: str = ""
     namespace: Optional[str] = None
+    cloud_type: Optional[str] = None
+    instance_ids: Optional[tuple] = None
+    skip_kubernetes: bool = False
 
     def __str__(self):
         namespace = f'"{self.namespace}"' if self.namespace else "None"
         resource_identifier = f'"{self.resource_identifier}"'
-        return f"RollbackContent(namespace={namespace}, resource_identifier={resource_identifier})"
+        cloud_type = f'"{self.cloud_type}"' if self.cloud_type else "None"
+        instance_ids = repr(self.instance_ids) if self.instance_ids is not None else "None"
+        return (
+            f"RollbackContent("
+            f"namespace={namespace}, "
+            f"resource_identifier={resource_identifier}, "
+            f"cloud_type={cloud_type}, "
+            f"instance_ids={instance_ids}, "
+            f"skip_kubernetes={self.skip_kubernetes}"
+            f")"
+        )
 
 
 class RollbackContext(str):

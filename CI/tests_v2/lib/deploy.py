@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 import yaml
 from kubernetes import utils as k8s_utils
+from kubernetes.client.rest import ApiException
 
 from lib.base import READINESS_TIMEOUT
 from lib.utils import patch_namespace_in_docs
@@ -47,6 +48,104 @@ def wait_for_deployment_replicas(k8s_apps, namespace: str, name: str, timeout: i
     raise TimeoutError(
         f"Deployment {namespace}/{name} did not become ready within {timeout}s.{diag}"
     )
+
+
+def deployment_exists(k8s_apps, namespace: str, name: str) -> bool:
+    """Return True if the named deployment exists in the namespace, False on 404."""
+    try:
+        k8s_apps.read_namespaced_deployment(name=name, namespace=namespace)
+        return True
+    except ApiException as e:
+        if e.status == 404:
+            return False
+        raise
+
+
+def wait_for_no_deployment(k8s_apps, namespace: str, name: str, timeout: int = 45) -> None:
+    """Poll until the named deployment is gone from the namespace; raise if it persists."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not deployment_exists(k8s_apps, namespace, name):
+            return
+        time.sleep(1)
+    raise AssertionError(
+        f"Deployment {name} still present in namespace={namespace} after {timeout}s"
+    )
+
+
+def service_exists(k8s_core, namespace: str, name: str) -> bool:
+    """Return True if the named service exists in the namespace, False on 404."""
+    try:
+        k8s_core.read_namespaced_service(name=name, namespace=namespace)
+        return True
+    except ApiException as e:
+        if e.status == 404:
+            return False
+        raise
+
+
+def wait_for_no_service(k8s_core, namespace: str, name: str, timeout: int = 45) -> None:
+    """Poll until the named service is gone from the namespace; raise if it persists."""
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not service_exists(k8s_core, namespace, name):
+            return
+        time.sleep(1)
+    raise AssertionError(
+        f"Service {name} still present in namespace={namespace} after {timeout}s"
+    )
+
+
+def wait_for_present_deployment_count(
+    k8s_apps, namespaces, name: str, expected: int, timeout: int = 45
+) -> list:
+    """
+    Poll until exactly `expected` of the given namespaces still contain the named deployment.
+    Returns the namespaces where it is still present. Useful for delete_count assertions.
+    """
+    deadline = time.monotonic() + timeout
+    # Snapshot once so a one-shot iterable (e.g. generator) is not exhausted by the
+    # first poll, which would make every subsequent iteration see an empty list.
+    ns_list = list(namespaces)
+    present = list(ns_list)
+    while time.monotonic() < deadline:
+        present = [n for n in ns_list if deployment_exists(k8s_apps, n, name)]
+        if len(present) == expected:
+            return present
+        time.sleep(1)
+    raise AssertionError(
+        f"Expected {expected} namespace(s) with {name} present, "
+        f"found {len(present)}: {present}"
+    )
+
+
+def deploy_manifest_to_namespace(
+    k8s_client,
+    k8s_apps,
+    manifest,
+    namespace: str,
+    deployment_name: str,
+    *,
+    repo_root=None,
+    timeout: int = READINESS_TIMEOUT,
+) -> None:
+    """
+    Apply a manifest file into `namespace` (overriding each doc's namespace) and wait for the
+    named deployment to become ready. `manifest` may be absolute or relative to repo_root.
+    Reusable by any scenario that needs to seed a namespace with a target workload.
+    """
+    path = Path(manifest)
+    if not path.is_absolute() and repo_root is not None:
+        path = Path(repo_root) / path
+    docs = patch_namespace_in_docs(list(yaml.safe_load_all(path.read_text())), namespace)
+    try:
+        k8s_utils.create_from_yaml(k8s_client, yaml_objects=docs, namespace=namespace)
+    except k8s_utils.FailToCreateError as e:
+        msgs = [str(exc) for exc in e.api_exceptions]
+        raise RuntimeError(
+            f"Failed to create resources in namespace={namespace}: {'; '.join(msgs)}"
+        ) from e
+    wait_for_deployment_replicas(k8s_apps, namespace, deployment_name, timeout=timeout)
 
 
 @pytest.fixture
