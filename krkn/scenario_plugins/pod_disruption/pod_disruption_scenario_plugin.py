@@ -50,6 +50,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             with open(scenario, "r") as f:
                 cont_scenario_config = yaml.safe_load(f)
+                executed_scenarios = 0
                 for kill_scenario in cont_scenario_config:
                     kill_scenario_config = InputParams(kill_scenario["config"])
                     # Validate namespace_pattern before starting monitoring so
@@ -81,7 +82,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
                         logging.error("PodDisruptionScenarioPlugin failed during setup" + str(result))
                         return 1
-                    
+
+                    executed_scenarios += 1
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
@@ -92,7 +94,14 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     if ret > 0:
                         logging.info("PodDisruptionScenarioPlugin failed")
                         return 1
-                    
+
+                if executed_scenarios == 0:
+                    logging.error(
+                        "PodDisruptionScenarioPlugin: no scenarios were executed "
+                        "(all entries were skipped due to missing namespace_pattern)"
+                    )
+                    return 1
+
         except (RuntimeError, Exception) as e:
             logging.error("Stack trace:\n%s", traceback.format_exc())
             logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
