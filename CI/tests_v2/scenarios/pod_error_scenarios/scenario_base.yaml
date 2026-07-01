@@ -1,0 +1,6 @@
+- id: kill-pods
+  config:
+    namespace_pattern: "^default$"
+    label_selector: app=krkn-pod-error-target
+    krkn_pod_recovery_time: 120
+    kill: 1

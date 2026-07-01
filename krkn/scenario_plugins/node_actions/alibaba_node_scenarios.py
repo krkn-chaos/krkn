@@ -12,6 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import sys
+
+# --- Python 3.12+ aliyunsdkcore vendored six compatibility patch ---
+import importlib
+import importlib.util
+
+class VendoredSixRedirect:
+    def find_spec(self, fullname, path, target=None):
+        if '.six' in fullname:
+            parts = fullname.split('.')
+            if 'six' in parts:
+                idx = parts.index('six')
+                std_fullname = '.'.join(['six'] + parts[idx+1:])
+                try:
+                    mod = importlib.import_module(std_fullname)
+                    sys.modules[fullname] = mod
+                    return importlib.util.find_spec(std_fullname)
+                except Exception:
+                    pass
+        return None
+
+sys.meta_path.insert(0, VendoredSixRedirect())
+# -------------------------------------------------------------------
+
 import time
 import logging
 import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
