@@ -1,0 +1,17 @@
+# Base node_scenarios scenario (list under the top-level `node_scenarios:` key, as read by
+# krkn/scenario_plugins/node_actions/node_actions_scenario_plugin.py). Tests load this and
+# patch the single entry per case (actions, node_name/label_selector, cloud_type, kube_check,
+# duration, timeout). Defaults target a KinD/Docker worker by the worker role label.
+#
+# Node scenarios are destructive at the node level: they stop/start/reboot the container that
+# backs a Kubernetes node (KinD uses the `docker` cloud type). Values here are tuned for
+# functional testing on a KinD cluster (single node, short duration, worker only).
+node_scenarios:
+  - actions:
+      - node_reboot_scenario
+    label_selector: node-role.kubernetes.io/worker=
+    instance_count: 1
+    runs: 1
+    timeout: 120
+    cloud_type: docker
+    kube_check: false

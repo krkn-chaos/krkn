@@ -62,11 +62,12 @@ def set_rollback_context_decorator(func):
 
     def wrapper(self, *args, **kwargs):
         self = cast("AbstractScenarioPlugin", self)
-        # Since `AbstractScenarioPlugin.run_scenarios` will call `self.run` and pass all parameters as `kwargs`
+        # `run_scenarios` passes kwargs; unit tests may call `run` with positional args.
         logger.debug(f"kwargs of ScenarioPlugin.run: {kwargs}")
-        run_uuid = kwargs.get("run_uuid", None)
-        # so we can safely assume that `run_uuid` will be present in `kwargs`
-        assert run_uuid is not None, "run_uuid must be provided in kwargs"
+        run_uuid = kwargs.get("run_uuid")
+        if run_uuid is None and args:
+            run_uuid = args[0]
+        assert run_uuid is not None, "run_uuid must be provided in kwargs or as the first positional argument"
 
         # Set context if run_uuid is available and rollback_handler exists
         if run_uuid and hasattr(self, "rollback_handler"):
@@ -167,7 +168,15 @@ def execute_rollback_version_files(
             rollback_callable, rollback_content = _parse_rollback_module(version_file)
             # Execute the rollback function
             logger.info('Executing rollback callable...')
-            rollback_callable(rollback_content, telemetry_ocp)
+            # Only treat skip_kubernetes as enabled when it is explicitly True.
+            # This avoids accidental truthy values (e.g. Mock objects) disabling telemetry.
+            skip_kubernetes = getattr(rollback_content, "skip_kubernetes", False) is True
+            telemetry_arg = None if skip_kubernetes else telemetry_ocp
+            if telemetry_arg is None and not skip_kubernetes:
+                logger.warning(
+                    "telemetry_ocp is None but skip_kubernetes is not set; rollback callable will receive None"
+                )
+            rollback_callable(rollback_content, telemetry_arg)
             logger.info('Rollback completed.')
             success = True
         except Exception as e:

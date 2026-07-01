@@ -249,7 +249,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
             ).total_seconds()
             final_record = {
                 "url": url,
-                "status": True,
+                "status": health_check_tracker[url]["status_code"] == 200,
                 "status_code": health_check_tracker[url]["status_code"],
                 "start_timestamp": health_check_tracker[url][
                     "start_timestamp"

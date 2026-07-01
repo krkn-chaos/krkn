@@ -18,6 +18,7 @@ from lib.utils import (
     assert_kraken_failure,
     assert_kraken_success,
     assert_pod_count_unchanged,
+    assert_scenario_executed,
     get_pods_list,
 )
 
@@ -49,6 +50,9 @@ class TestStorageThrottle(BaseScenarioTest):
             "duration": 15,
         })
         assert_kraken_success(result, context=f"bandwidth namespace={ns}", tmp_path=self.tmp_path)
+        assert_scenario_executed(
+            result, self.SCENARIO_NAME, context=f"bandwidth namespace={ns}", tmp_path=self.tmp_path
+        )
 
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_TIMEOUT)
         after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
@@ -72,6 +76,9 @@ class TestStorageThrottle(BaseScenarioTest):
             config_filename="test_iops_config.yaml",
         )
         assert_kraken_success(result, context=f"iops namespace={ns}", tmp_path=self.tmp_path)
+        assert_scenario_executed(
+            result, self.SCENARIO_NAME, context=f"iops namespace={ns}", tmp_path=self.tmp_path
+        )
 
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_TIMEOUT)
         after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
@@ -97,6 +104,9 @@ class TestStorageThrottle(BaseScenarioTest):
             config_filename="test_both_config.yaml",
         )
         assert_kraken_success(result, context=f"both namespace={ns}", tmp_path=self.tmp_path)
+        assert_scenario_executed(
+            result, self.SCENARIO_NAME, context=f"both namespace={ns}", tmp_path=self.tmp_path
+        )
 
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_TIMEOUT)
         after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
