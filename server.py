@@ -88,9 +88,9 @@ def get_status(address):
     server = address[0]
     port = address[1]
     httpc = HTTPConnection(server, port)
-    logging.info("connection set up")
+    logging.debug("connection set up")
     httpc.request("GET", "/")
     response = httpc.getresponse()
     status = response.read()
-    logging.info("response " + str(status.decode()))
+    logging.debug("response " + str(status.decode()))
     return status.decode()

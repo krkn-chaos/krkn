@@ -196,7 +196,10 @@ class AbstractScenarioPlugin(ABC):
                         "aborting remaining scenarios in this batch"
                     )
                     return failed_scenarios, scenario_telemetries
-                time.sleep(1)
+                # Sleep only the remaining slice so we never overshoot the
+                # deadline by a full second (important for sub-second
+                # wait_duration values).
+                time.sleep(min(1, max(0, end - time.monotonic())))
             
         return failed_scenarios, scenario_telemetries
 
