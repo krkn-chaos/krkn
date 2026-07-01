@@ -29,7 +29,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
 
     # -- Helper assertions -------------------------------------------
 
-    def assert_no_hang_and_correct_logs(self, result, ns, expected_reasons, expected_keywords=None):
+    def assert_failure_logs_contain(self, result, ns, expected_reasons, expected_keywords=None):
         # Timeouts / hangs are caught at the execution level by run_kraken (raises
         # TimeoutExpired) or pytest timeout budgets. Reaching here guarantees the run completed.
         
@@ -80,7 +80,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
         ns = self.ns
         result = self.run_scenario(self.tmp_path, ns, overrides={"kill": 100})
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
-        self.assert_no_hang_and_correct_logs(
+        self.assert_failure_logs_contain(
             result, ns, expected_reasons=["not enough pods match", "expected 100", "found only 2 pods"]
         )
 
@@ -95,7 +95,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
         
         # Verify no hang and logs contain namespace and expected timeout/recovery errors
-        self.assert_no_hang_and_correct_logs(
+        self.assert_failure_logs_contain(
             result, ns, expected_reasons=["timeout", "recover"]
         )
         
@@ -113,7 +113,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
         )
         result = self.run_kraken(config_path)
         assert_kraken_failure(result, context="invalid namespace pattern", tmp_path=self.tmp_path)
-        self.assert_no_hang_and_correct_logs(
+        self.assert_failure_logs_contain(
             result, "nonexistent-ns-xyz", expected_reasons=["not enough pods match", "expected 1", "found only 0 pods"]
         )
 
@@ -121,6 +121,6 @@ class TestPodErrorScenarios(BaseScenarioTest):
         ns = self.ns
         result = self.run_scenario(self.tmp_path, ns, overrides={"label_selector": "app=nonexistent"})
         assert_kraken_failure(result, context=f"namespace={ns}, label mismatch", tmp_path=self.tmp_path)
-        self.assert_no_hang_and_correct_logs(
+        self.assert_failure_logs_contain(
             result, ns, expected_reasons=["not enough pods match", "expected 1", "found only 0 pods"]
         )
