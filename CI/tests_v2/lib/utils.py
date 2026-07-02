@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # no-op (e.g. a selector matched nothing) and the happy-path test should fail.
 SCENARIO_EXECUTION_MARKERS = {
     "pod_disruption": r"Deleting pod |waiting up to .* seconds for pod recovery",
+    "pod_error_scenarios": r"Deleting pod |waiting up to .* seconds for pod recovery",
     "application_outage": r"Creating the network policy|Deleting the network policy",
     "storage_throttle": r"Setting io\.max|Verified blkio settings|Privileged pod deployed",
     "container_scenarios": r"Killing container .+ in pod",
