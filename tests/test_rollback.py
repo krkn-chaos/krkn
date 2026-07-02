@@ -232,6 +232,35 @@ class TestRollbackCommand:
                 "scenario",
                 ignore_auto_rollback_config=True
             )
+        
+class TestRollbackHandler:
+
+    def test_set_rollback_callable_propagates_serialization_errors(self):
+        from unittest.mock import Mock
+        from krkn.rollback.handler import RollbackHandler
+
+        serializer = Mock()
+        serializer.serialize_callable.side_effect = PermissionError(
+            "permission denied"
+        )
+
+        rollback_handler = RollbackHandler(
+            scenario_type="test_scenario",
+            serializer=serializer,
+        )
+
+        rollback_handler.rollback_context = "test-context"
+
+        rollback_content = Mock()
+
+        def rollback_fn(content, telemetry):
+            pass
+
+        with pytest.raises(PermissionError):
+            rollback_handler.set_rollback_callable(
+                rollback_fn,
+                rollback_content,
+            )
 
 class TestRollbackAbstractScenarioPlugin:
 
