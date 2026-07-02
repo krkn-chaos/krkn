@@ -162,6 +162,29 @@ Implement: stop, start, reboot, terminate instances.
     scenario_type: <type>  # Must match plugin's get_scenario_types()
 ```
 
+### Wait Until Condition
+
+Scenarios support an optional `wait_until` block that polls a user-provided condition after chaos injection and before log collection. This allows waiting for the system to recover (e.g., pods ready, endpoints healthy) instead of using a fixed sleep.
+
+```yaml
+- id: kill-pods
+  config:
+    namespace_pattern: ^openshift-etcd$
+  wait_until:
+    type: python                          # "python" or "script"
+    target: my_module.check_pods_ready    # module.function or /path/to/script.sh
+    max_wait_time: 300                    # max seconds to wait (required)
+    poll_interval: 5                      # seconds between checks (default: 10)
+```
+
+**Condition types:**
+- **`python`**: `target` is a `module.function` path. Signature: `(kubeconfig: str, scenario: str) -> bool`. Return `True` when condition is met.
+- **`script`**: `target` is a path to a shell script. Receives kubeconfig and scenario path as arguments. Exit code `0` = condition met.
+
+**Timeout behavior**: If the condition is not met within `max_wait_time`, krkn logs a warning and continues — it does not fail the scenario.
+
+**Implementation**: `krkn/utils/wait_until.py` (polling utility), integrated in `abstract_scenario_plugin.py` after rollback and before `end_timestamp`/log collection.
+
 ## Code Style
 
 - **Import order**: Standard library, third-party, local imports
