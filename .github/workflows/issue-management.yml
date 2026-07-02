@@ -1,0 +1,16 @@
+name: Issue Management
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+  issues:
+    types: [opened, labeled]
+
+jobs: 
+    issue-management: 
+      permissions: 
+        issues: write
+        contents: read
+        pull-requests: write
+      uses: krkn-chaos/actions/.github/workflows/issue-management.yml@main
+        
