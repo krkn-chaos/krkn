@@ -170,6 +170,7 @@ def main(options, command: Optional[str]) -> int:
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
         )
+        config["telemetry"] = get_yaml_item_value(config, "telemetry", {})
         telemetry_api_url = config["telemetry"].get("api_url", "")
         telemetry_enabled = config["telemetry"].get("enabled", True)
         
