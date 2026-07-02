@@ -26,12 +26,15 @@ from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
 from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
 from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import IbmCloud
+from krkn.rollback.handler import set_rollback_context_decorator
+from krkn.rollback.config import RollbackContent
 
 import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 
 from krkn_lib.models.k8s import AffectedNodeStatus, AffectedNode
 
 class ShutDownScenarioPlugin(AbstractScenarioPlugin):
+    @set_rollback_context_decorator
     def run(
         self,
         run_uuid: str,
@@ -119,6 +122,19 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
         for _ in range(runs):
             logging.info("Starting cluster_shut_down scenario injection")
             stopping_nodes = set(node_id)
+            
+            # Register rollback callable before shutting down nodes
+            rollback_content = RollbackContent(
+                cloud_type=cloud_type,
+                instance_ids=tuple(node_id),
+                skip_kubernetes=True,
+            )
+            self.rollback_handler.set_rollback_callable(
+                self.rollback_shutdown_nodes,
+                rollback_content
+            )
+            logging.info(f"Registered rollback callable for {len(node_id)} nodes on {cloud_type}")
+            
             self.multiprocess_nodes(cloud_object.stop_instances, node_id, processes)
             stopped_nodes = stopping_nodes.copy()
             start_time = time.time()
@@ -176,3 +192,123 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
 
     def get_scenario_types(self) -> list[str]:
         return ["cluster_shut_down_scenarios"]
+
+    @staticmethod
+    def rollback_shutdown_nodes(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift = None):
+        """
+        Rollback function to restore powered-off nodes back to running state.
+        This function works independently of the Kubernetes API server to ensure
+        rollback can function even when all nodes are down (including control plane).
+        
+        :param rollback_content: Rollback content containing node information and cloud provider details.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift (optional, not used to avoid API server dependency).
+        """
+        import time
+
+        try:
+            # Prefer structured content for cloud-only rollback.
+            cloud_type = rollback_content.cloud_type
+            node_ids = list(rollback_content.instance_ids or ())
+
+            # Backward compatibility for already-serialized rollback files.
+            if not cloud_type or not node_ids:
+                content_parts = rollback_content.resource_identifier.split(":", 1)
+                if len(content_parts) != 2:
+                    logging.error(
+                        f"Invalid rollback content format: {rollback_content.resource_identifier}"
+                    )
+                    return
+                cloud_type = content_parts[0]
+                node_ids_str = content_parts[1]
+                node_ids = [
+                    node_id.strip() for node_id in node_ids_str.split(",") if node_id.strip()
+                ]
+            
+            if not node_ids:
+                logging.warning("No node IDs found in rollback content")
+                return
+            
+            logging.info(f"Rolling back shutdown for {len(node_ids)} nodes on {cloud_type}")
+            logging.info(f"Node IDs: {node_ids}")
+            
+            # Initialize cloud provider
+            # Import at function level to ensure they're available during serialization
+            if cloud_type.lower() == "aws":
+                from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
+                cloud_object = AWS()
+            elif cloud_type.lower() == "gcp":
+                from krkn.scenario_plugins.node_actions.gcp_node_scenarios import GCP
+                cloud_object = GCP()
+            elif cloud_type.lower() == "openstack":
+                from krkn.scenario_plugins.node_actions.openstack_node_scenarios import OPENSTACKCLOUD
+                cloud_object = OPENSTACKCLOUD()
+            elif cloud_type.lower() in ["azure", "az"]:
+                from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
+                cloud_object = Azure()
+            elif cloud_type.lower() in ["ibm", "ibmcloud"]:
+                from krkn.scenario_plugins.node_actions.ibmcloud_node_scenarios import IbmCloud
+                cloud_object = IbmCloud()
+            else:
+                logging.error(f"Unsupported cloud type for rollback: {cloud_type}")
+                return
+            
+            # Start instances one at a time — cloud providers accept a single instance,
+            # not a list (see multiprocess_nodes in cluster_shut_down).
+            logging.info("Starting instances for rollback...")
+            timeout = 300  # 5 minutes timeout for rollback
+            successful_restores = 0
+            failed_restores = []
+
+            for node_id in node_ids:
+                try:
+                    logging.info(f"Starting instance for rollback: {node_id}")
+                    if isinstance(node_id, tuple):
+                        # Azure stores (vm_name, resource_group)
+                        cloud_object.start_instances(node_id[1], node_id[0])
+                    else:
+                        cloud_object.start_instances(node_id)
+                except Exception as e:
+                    logging.error(f"Failed to start instance {node_id}: {e}")
+                    failed_restores.append(node_id)
+                    continue
+
+            logging.info("Waiting for instances to be running...")
+            for node_id in node_ids:
+                if node_id in failed_restores:
+                    continue
+                try:
+                    logging.info(f"Waiting for node {node_id} to be running...")
+                    if isinstance(node_id, tuple):
+                        node_status = cloud_object.wait_until_running(
+                            node_id[1], node_id[0], timeout, None
+                        )
+                    else:
+                        node_status = cloud_object.wait_until_running(node_id, timeout, None)
+                    if node_status:
+                        logging.info(f"Successfully restored node: {node_id}")
+                        successful_restores += 1
+                    else:
+                        logging.warning(f"Timeout waiting for node {node_id} to be running")
+                        failed_restores.append(node_id)
+                except Exception as e:
+                    logging.error(f"Error waiting for node {node_id} to be running: {e}")
+                    failed_restores.append(node_id)
+            
+            # Log rollback summary
+            if successful_restores == len(node_ids):
+                logging.info(f"Rollback completed successfully for all {len(node_ids)} nodes")
+            else:
+                logging.warning(f"Rollback completed with issues: {successful_restores}/{len(node_ids)} nodes restored successfully")
+                if failed_restores:
+                    logging.warning(f"Failed to restore nodes: {failed_restores}")
+            
+            # Wait for cluster components to initialize after rollback
+            if successful_restores > 0:
+                logging.info("Waiting for cluster components to initialize after rollback...")
+                time.sleep(60)  # Shorter wait for rollback scenario
+            
+            logging.info("Rollback of shutdown nodes completed.")
+            
+        except Exception as e:
+            logging.error(f"Failed to rollback shutdown nodes: {e}")
+            raise

@@ -158,6 +158,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             selected_container_pod = container_pod_list[
                 random.randint(0, len(container_pod_list) - 1)
             ]
+            container_found = False
             for c_name in selected_container_pod[2]:
                 if container_name != "":
                     if c_name == container_name:
@@ -175,6 +176,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                             c_name,
                             kubecli,
                         )
+                        container_found = True
                         break
                 else:
                     killed_container_list.append(
@@ -187,9 +189,17 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                         c_name,
                         kubecli,
                     )
+                    container_found = True
                     break
             container_pod_list.remove(selected_container_pod)
-            killed_count += 1
+            if container_found:
+                killed_count += 1
+            elif killed_count == 0 and len(container_pod_list) == 0:
+                logging.error("Scenario " + scenario_name + " failed")
+                raise RuntimeError(
+                    f"Container '{container_name}' not found in any matching pod. "
+                    f"No containers were killed."
+                )
         logging.info("Scenario " + scenario_name + " successfully injected")
         return killed_container_list
 
