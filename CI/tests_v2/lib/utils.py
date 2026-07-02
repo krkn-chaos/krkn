@@ -24,6 +24,7 @@ SCENARIO_EXECUTION_MARKERS = {
     "pod_disruption": r"Deleting pod |waiting up to .* seconds for pod recovery",
     "application_outage": r"Creating the network policy|Deleting the network policy",
     "storage_throttle": r"Setting io\.max|Verified blkio settings|Privileged pod deployed",
+    "node_network_chaos": r"creating workload to inject network chaos in node|removing tc rules",
 }
 
 # nodeid -> {"scenario", "pattern", "verified"}; consumed by conftest to build the
@@ -239,6 +240,32 @@ def container_runtime() -> Optional[str]:
         if shutil.which(runtime):
             return runtime
     return None
+
+
+def clean_node_tc_rules(node: str) -> None:
+    """Best-effort removal of Krkn-style htb/netem tc rules on a KinD node container.
+
+    With ``force: false``, node network chaos skips injection when complex tc rules already
+    exist on the node. Repeated test runs can leave rules behind, so functional tests reset
+    the node tc state before each chaos run.
+    """
+    runtime = container_runtime()
+    if not runtime:
+        logger.warning("No container runtime on PATH; skipping tc cleanup on %s", node)
+        return
+    for cmd in (
+        ["tc", "qdisc", "del", "dev", "eth0", "ingress"],
+        ["tc", "qdisc", "del", "dev", "eth0", "root"],
+        ["tc", "qdisc", "del", "dev", "ifb0", "root"],
+        ["ip", "link", "del", "ifb0"],
+    ):
+        try:
+            subprocess.run(
+                [runtime, "exec", node] + cmd,
+                capture_output=True, text=True, timeout=30,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("tc cleanup %r on %s failed: %s", cmd, node, e)
 
 
 def container_started_at(node: str) -> Optional[str]:
