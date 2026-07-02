@@ -166,5 +166,60 @@ class TestTimeActionsScenarioPlugin(unittest.TestCase):
         self.assertEqual(result, "success")
 
 
+    def test_pod_skew_date_uses_s_flag(self):
+        """
+        Test that pod skew_date uses -s flag, not --date.
+        --date only displays a formatted date; -s actually changes the clock.
+        -s works in both GNU date and BusyBox date (Alpine containers).
+        """
+        mock_kubecli = MagicMock()
+        mock_kubecli.list_pods.return_value = ["test-pod"]
+
+        with (
+            unittest.mock.patch.object(self.plugin, 'get_container_name', return_value="test-container"),
+            unittest.mock.patch.object(self.plugin, 'pod_exec') as mock_pod_exec,
+        ):
+            mock_pod_exec.return_value = "fake output"
+            self.plugin.skew_time(
+                {
+                    "action": "skew_date",
+                    "object_type": "pod",
+                    "namespace": "default",
+                },
+                mock_kubecli,
+            )
+
+        command = mock_pod_exec.call_args[0][1]
+        self.assertIn("-s", command)
+        self.assertNotIn("--date", command)
+
+    def test_pod_skew_time_uses_s_flag(self):
+        """
+        Test that pod skew_time uses -s flag, not --date.
+        -s works in both GNU date and BusyBox date (Alpine containers).
+        """
+        mock_kubecli = MagicMock()
+        mock_kubecli.list_pods.return_value = ["test-pod"]
+
+        with (
+            unittest.mock.patch.object(self.plugin, 'get_container_name', return_value="test-container"),
+            unittest.mock.patch.object(self.plugin, 'pod_exec') as mock_pod_exec,
+        ):
+            mock_pod_exec.return_value = "fake output"
+            self.plugin.skew_time(
+                {
+                    "action": "skew_time",
+                    "object_type": "pod",
+                    "namespace": "default",
+                },
+                mock_kubecli,
+            )
+
+        command = mock_pod_exec.call_args[0][1]
+        self.assertIn("-s", command)
+        self.assertNotIn("--date", command)
+        self.assertIn("01:01:01", command)
+
+
 if __name__ == "__main__":
     unittest.main()
