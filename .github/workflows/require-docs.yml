@@ -8,20 +8,109 @@ jobs:
   check-docs:
     name: Check Documentation Update
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
     steps:
+      - name: Scan PR diff for user-facing changes
+        id: scan_diff
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+
+            // Added lines in Python files that typically expose new user-facing knobs
+            const pythonPatterns = [
+              /\bos\.getenv\s*\(/,
+              /\bos\.environ\b/,
+              /\badd_argument\s*\(/,
+            ];
+
+            // Config and scenario YAML files users interact with directly
+            const userFacingYaml = /^(config\.ya?ml|scenarios\/.+\.ya?ml)$/;
+
+            const flaggedFiles = [];
+
+            for (const file of files) {
+              const patch = file.patch || '';
+              const addedLines = patch
+                .split('\n')
+                .filter(l => l.startsWith('+') && !l.startsWith('+++'));
+
+              if (
+                file.filename.endsWith('.py') &&
+                addedLines.some(l => pythonPatterns.some(p => p.test(l)))
+              ) {
+                flaggedFiles.push(file.filename);
+              } else if (userFacingYaml.test(file.filename) && patch !== '') {
+                // flag on any change (additions or deletions) to user-facing YAML
+                flaggedFiles.push(file.filename);
+              }
+            }
+
+            const detected = flaggedFiles.length > 0;
+            core.setOutput('user_facing_changes', String(detected));
+            core.setOutput('flagged_files', flaggedFiles.join('\n'));
+
       - name: Check if Documentation is Required
         id: check_docs
         run: |
+          PR_BODY=$(jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH")
+
           # Read PR body from the event JSON file — never from shell interpolation.
           # jq handles all escaping; the shell never sees the user-controlled string.
-          if jq -r '.pull_request.body // ""' "$GITHUB_EVENT_PATH" | \
-             grep -qi '\[x\].*documentation needed'; then
-            echo "Documentation required detected."
+          if printf '%s\n' "$PR_BODY" | grep -qi '\[x\].*documentation needed'; then
             echo "docs_required=true" >> "$GITHUB_OUTPUT"
           else
-            echo "Documentation not required."
             echo "docs_required=false" >> "$GITHUB_OUTPUT"
           fi
+
+          if printf '%s\n' "$PR_BODY" | grep -q '<!-- docs-not-needed -->'; then
+            echo "docs_not_needed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_not_needed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fail if user-facing changes have no docs decision
+        if: |
+          steps.scan_diff.outputs.user_facing_changes == 'true' &&
+          steps.check_docs.outputs.docs_required == 'false' &&
+          steps.check_docs.outputs.docs_not_needed == 'false'
+        uses: actions/github-script@v7
+        env:
+          FLAGGED_FILES: ${{ steps.scan_diff.outputs.flagged_files }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fileList = process.env.FLAGGED_FILES
+              .split('\n')
+              .filter(Boolean)
+              .map(f => `- \`${f}\``)
+              .join('\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: [
+                '**Docs decision required**',
+                '',
+                'This PR touches files that may expose user-facing changes (env vars, config keys, scenario parameters):',
+                '',
+                fileList,
+                '',
+                'Pick one before this can merge:',
+                '- Check `[x] documentation needed` in the PR description and open a corresponding PR in the [website repo](https://github.com/krkn-chaos/website)',
+                '- Add `<!-- docs-not-needed -->` to the PR body if the changes are internal and need no doc update',
+              ].join('\n'),
+            });
+
+            core.setFailed('User-facing changes detected — docs decision required. See PR comment.');
 
       - name: Enforce Documentation Update (if required)
         if: steps.check_docs.outputs.docs_required == 'true'
