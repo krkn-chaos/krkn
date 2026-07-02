@@ -81,48 +81,39 @@ def get_status(start_time, end_time):
                 "report for more details. Test failed."
             )
 
-        if not application_routes_status or not cerberus_status:
-            sys.exit(1)
-        else:
+        if application_routes_status and cerberus_status:
             logging.info(
-                "Received a go signal from Ceberus, the cluster is healthy. "
+                "Received a go signal from Cerberus, the cluster is healthy. "
                 "Test passed."
             )
-    return cerberus_status
+            return True
+
+        if exit_on_failure:
+            logging.info(
+                "Cerberus health check failed "
+                "(cluster_status=%s, application_routes_status=%s), "
+                "exiting kraken run",
+                cerberus_status,
+                application_routes_status
+            )
+            sys.exit(1)
+
+        return False
+    return True
 
 
-def publish_kraken_status( start_time, end_time):
+def publish_kraken_status(start_time, end_time):
     """
     Publish kraken status to cerberus
     """
     cerberus_status = get_status(start_time, end_time)
-    if not cerberus_status:
-        if exit_on_failure:
-            logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing, exiting kraken run"
-            )
-            sys.exit(1)
-        else:
-            logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing"
-            )
+    if cerberus_status:
+        logging.info("Cerberus status is healthy")
     else:
-        if exit_on_failure:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing, exiting kraken run"
-            )
-            sys.exit(1)
-        else:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing"
-            )
+        logging.info("Cerberus status is not healthy")
 
 
-def application_status( start_time, end_time):
+def application_status(start_time, end_time):
     """
     Check application availability
     """
