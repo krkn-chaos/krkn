@@ -88,7 +88,6 @@ jobs:
             yq -i '.elastic.password="${{env.ELASTIC_PASSWORD}}"' CI/config/common_test_config.yaml
             yq -i '.performance_monitoring.prometheus_url="http://localhost:9090"' CI/config/common_test_config.yaml
             echo "test_app_outages" > ./CI/tests/functional_tests
-            echo "test_container" >> ./CI/tests/functional_tests
             echo "test_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_customapp_pod" >> ./CI/tests/functional_tests
             echo "test_io_hog" >> ./CI/tests/functional_tests

@@ -1,0 +1,24 @@
+# Multi-container deployment targeted by container chaos scenario.
+# Namespace is patched at deploy time by the test framework.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-container-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      scenario: container
+  template:
+    metadata:
+      labels:
+        scenario: container
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+      - name: sidecar
+        image: alpine:latest
+        command: ["sleep", "infinity"]
