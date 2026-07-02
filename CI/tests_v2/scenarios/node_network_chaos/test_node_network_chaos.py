@@ -26,6 +26,7 @@ from lib.utils import (
     container_runtime,
     load_scenario_base,
     schedulable_worker_nodes,
+    seed_node_complex_tc_rules,
     wait_for_no_pods_by_prefix,
     wait_node_ready,
 )
@@ -60,25 +61,39 @@ class TestNodeNetworkChaos(BaseScenarioTest):
         return scenario
 
     def _target_worker(self):
-        """Return first schedulable worker (stable, kind-safe)."""
+        """Return last schedulable worker — hog tests use nodes[0]; node chaos uses nodes[-1]."""
         nodes = schedulable_worker_nodes(self.k8s_core)
         if not nodes:
             pytest.skip("No schedulable worker node available for node network chaos")
-        return nodes[0]
+        return nodes[-1]
 
     def _prepare_node_tc(self, overrides=None):
         """Reset leftover tc rules so force:false runs still inject and clean up."""
         o = overrides or {}
         target = o.get("target")
-        if target and not str(target).startswith("fake-"):
+        if target:
             clean_node_tc_rules(target)
         elif o.get("label_selector"):
             for node in schedulable_worker_nodes(self.k8s_core):
                 clean_node_tc_rules(node)
 
-    def _run_chaos(self, namespace, overrides=None, drop=None, suffix="", config_name=None):
-        """Build scenario + config, run Krkn, return CompletedProcess."""
-        self._prepare_node_tc(overrides)
+    def _run_chaos(
+        self,
+        namespace,
+        overrides=None,
+        drop=None,
+        suffix="",
+        config_name=None,
+        *,
+        prepare_tc=True,
+    ):
+        """Build scenario + config, run Krkn, return CompletedProcess.
+
+        Set ``prepare_tc=False`` when the target is not a real KinD node container
+        (negative tests) or when pre-seeded tc rules must be preserved (force:false guard).
+        """
+        if prepare_tc:
+            self._prepare_node_tc(overrides)
         scenario = self._scenario(namespace, overrides=overrides, drop=drop)
         scenario_path = self.write_scenario(self.tmp_path, scenario, suffix=suffix)
         config_path = self.build_config(
@@ -240,34 +255,33 @@ class TestNodeNetworkChaos(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(6)
-    def test_force_false_control_plane_protected(self):
-        """With force: false (default), control-plane nodes are never worker-scenario targets."""
-        all_nodes = self.k8s_core.list_node().items
-        control_plane = [
-            n.metadata.name for n in all_nodes
-            if {"node-role.kubernetes.io/control-plane", "node-role.kubernetes.io/master"}
-            & set((n.metadata.labels or {}).keys())
-        ]
-        if not control_plane:
-            pytest.skip("Cluster has no labeled control-plane node to assert exclusion against")
-        workers = schedulable_worker_nodes(self.k8s_core)
-        overlap = set(control_plane) & set(workers)
-        assert not overlap, (
-            f"Control-plane node(s) {sorted(overlap)} must not be selected as chaos targets; "
-            f"worker set was {workers}"
-        )
+    def test_force_false_skips_injection_when_tc_rules_exist(self, request):
+        """With force: false, existing complex tc rules warn and skip injection (no override)."""
         node = self._target_worker()
+        request.addfinalizer(lambda: clean_node_tc_rules(node))
+        if not seed_node_complex_tc_rules(node):
+            pytest.skip("Container runtime unavailable; cannot seed tc rules on KinD node")
         ns = self.ns
         result = self._run_chaos(
             ns,
             {"target": node, "force": False, "test_duration": TEST_DURATION},
             suffix="_force_false",
+            prepare_tc=False,
         )
-        self._assert_happy_run(result, context=f"force_false node={node} ns={ns}")
+        assert_kraken_success(
+            result, context=f"force_false node={node} ns={ns}", tmp_path=self.tmp_path
+        )
         combined = f"{result.stdout or ''}\n{result.stderr or ''}"
-        assert "forcing node network configuration override" not in combined, (
-            "force=false must not log a forced override on a worker target"
+        assert_kraken_marker(
+            result,
+            "already has tc rules set for",
+            context=f"force_false node={node}",
+            tmp_path=self.tmp_path,
         )
+        assert "removing tc rules" not in combined, (
+            "force=false must not inject or clean tc when complex rules already exist"
+        )
+        assert "forcing node network configuration override" not in combined
 
     @pytest.mark.no_workload
     @pytest.mark.order(7)
@@ -278,6 +292,7 @@ class TestNodeNetworkChaos(BaseScenarioTest):
             ns,
             {"target": "fake-node-xyz", "test_duration": TEST_DURATION},
             suffix="_bad_target",
+            prepare_tc=False,
         )
         assert_kraken_failure(
             result, context="nonexistent target node", tmp_path=self.tmp_path

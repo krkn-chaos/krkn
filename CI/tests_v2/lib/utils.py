@@ -270,6 +270,34 @@ def clean_node_tc_rules(node: str) -> None:
             logger.warning("tc cleanup %r on %s failed: %s", cmd, node, e)
 
 
+def seed_node_complex_tc_rules(node: str) -> bool:
+    """Install non-simple htb+netem rules on a KinD node; return False if runtime unavailable."""
+    runtime = container_runtime()
+    if not runtime:
+        return False
+    clean_node_tc_rules(node)
+    for cmd in (
+        ["tc", "qdisc", "add", "dev", "eth0", "root", "handle", "100:", "htb", "default", "1"],
+        ["tc", "class", "add", "dev", "eth0", "parent", "100:", "classid", "100:1", "htb", "rate", "1gbit"],
+        ["tc", "qdisc", "add", "dev", "eth0", "parent", "100:1", "handle", "101:", "netem", "loss", "10%"],
+    ):
+        try:
+            proc = subprocess.run(
+                [runtime, "exec", node] + cmd,
+                capture_output=True, text=True, timeout=30,
+            )
+            if proc.returncode != 0:
+                logger.warning(
+                    "tc seed %r on %s exited %s: %s",
+                    cmd, node, proc.returncode, (proc.stderr or "").strip(),
+                )
+                return False
+        except Exception as e:  # noqa: BLE001
+            logger.warning("tc seed %r on %s failed: %s", cmd, node, e)
+            return False
+    return True
+
+
 def container_started_at(node: str) -> Optional[str]:
     """Return the node container's State.StartedAt string, or None if it cannot be read.
 
