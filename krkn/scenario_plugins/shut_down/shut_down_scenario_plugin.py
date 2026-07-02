@@ -62,9 +62,9 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
             return 1
 
     def multiprocess_nodes(self, cloud_object_function, nodes, processes=0):
+        # pool object with number of element
+        pool = None
         try:
-            # pool object with number of element
-
             if processes == 0:
                 pool = ThreadPool(processes=len(nodes))
             else:
@@ -82,9 +82,12 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
             else:
                 logging.info("pool type" + str(type(nodes)))
                 pool.map(cloud_object_function, nodes)
-            pool.close()
         except Exception as e:
-            logging.info("Error on pool multiprocessing: " + str(e))
+            logging.error("Error on pool multiprocessing: " + str(e))
+        finally:
+            if pool:
+                pool.close()
+                pool.join()
 
     # Inject the cluster shut down scenario
     # krkn_lib
