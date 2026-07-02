@@ -218,7 +218,6 @@ def main(options, command: Optional[str]) -> int:
         safe_logger = SafeLogger(filename=telemetry_log_file)
 
         try:
-            kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
             # krkn-lib-kubernetes init
             kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
