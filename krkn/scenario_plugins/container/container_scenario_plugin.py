@@ -233,9 +233,9 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         self, killed_container_list, wait_time, kubecli: KrknKubernetes
     ):
 
-        container_ready = []
         timer = 0
         while timer <= wait_time:
+            container_ready = []
             for killed_container in killed_container_list:
                 # pod namespace contain name
                 pod_output = kubecli.get_pod_info(
@@ -248,7 +248,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                             container_ready.append(killed_container)
             if len(container_ready) != 0:
                 for item in container_ready:
-                    killed_container_list = killed_container_list.remove(item)
+                    killed_container_list.remove(item)
             if killed_container_list is None or len(killed_container_list) == 0:
                 return []
             timer += 5
