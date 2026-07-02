@@ -174,5 +174,5 @@ from lib.k8s import (  # noqa: E402, F401
     k8s_networking,
     kubectl,
 )
-from lib.namespace import _cleanup_stale_namespaces, test_namespace  # noqa: E402, F401
+from lib.namespace import _cleanup_stale_namespaces, make_namespace, test_namespace  # noqa: E402, F401
 from lib.preflight import _preflight_checks  # noqa: E402, F401
