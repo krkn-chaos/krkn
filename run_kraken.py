@@ -218,15 +218,12 @@ def main(options, command: Optional[str]) -> int:
         safe_logger = SafeLogger(filename=telemetry_log_file)
 
         try:
-            kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
-            # krkn-lib-kubernetes init
             kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
             ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
-        except Exception as e:
-            logging.error("Failed to initialize Kubernetes clients: %s" % e)
-            kubecli = KrknKubernetes(kubeconfig_path=None)
-            ocpcli = KrknOpenshift(kubeconfig_path=None)
+        except Exception:
+            logging.exception("Failed to initialize Kubernetes/OpenShift clients")
+            return -1
 
         distribution = "kubernetes"
         if ocpcli.is_openshift():
