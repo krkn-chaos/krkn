@@ -51,6 +51,7 @@ class TestRollbackServiceHijacking(unittest.TestCase):
             "service_namespace": "default",
             "original_selectors": {"app": "original-app"},
             "webservice_pod_name": "test-webservice",
+            "webservice_config_map_name": "test-webservice-cm",
         }
         json_str = json.dumps(rollback_data)
         encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
@@ -71,6 +72,7 @@ class TestRollbackServiceHijacking(unittest.TestCase):
             "metadata": {"name": "test-service"}
         }
         mock_lib_kubernetes.delete_pod.return_value = None
+        mock_lib_kubernetes.cli.delete_namespaced_config_map.return_value = None
 
         # Call the rollback method
         ServiceHijackingScenarioPlugin.rollback_service_hijacking(
@@ -84,6 +86,44 @@ class TestRollbackServiceHijacking(unittest.TestCase):
         mock_lib_kubernetes.delete_pod.assert_called_once_with(
             "test-webservice", "default"
         )
+        mock_lib_kubernetes.cli.delete_namespaced_config_map.assert_called_once_with(
+            "test-webservice-cm", "default"
+        )
+
+    def test_rollback_service_hijacking_legacy_data_without_configmap(self):
+        """
+        Backwards compatibility: rollback data written before the ConfigMap-cleanup fix
+        is missing webservice_config_map_name. Rollback should still restore selectors
+        and delete the pod without raising.
+        """
+        rollback_data = {
+            "service_name": "test-service",
+            "service_namespace": "default",
+            "original_selectors": {"app": "original-app"},
+            "webservice_pod_name": "test-webservice",
+        }
+        encoded_data = base64.b64encode(
+            json.dumps(rollback_data).encode("utf-8")
+        ).decode("utf-8")
+        rollback_content = RollbackContent(
+            resource_identifier=encoded_data, namespace="default"
+        )
+
+        mock_lib_telemetry = MagicMock()
+        mock_lib_kubernetes = MagicMock()
+        mock_lib_telemetry.get_lib_kubernetes.return_value = mock_lib_kubernetes
+        mock_lib_kubernetes.replace_service_selector.return_value = {
+            "metadata": {"name": "test-service"}
+        }
+
+        ServiceHijackingScenarioPlugin.rollback_service_hijacking(
+            rollback_content, mock_lib_telemetry
+        )
+
+        mock_lib_kubernetes.delete_pod.assert_called_once_with(
+            "test-webservice", "default"
+        )
+        mock_lib_kubernetes.cli.delete_namespaced_config_map.assert_not_called()
 
     @patch("krkn.scenario_plugins.service_hijacking.service_hijacking_scenario_plugin.logging")
     def test_rollback_service_hijacking_invalid_data(self, mock_logging):
@@ -174,6 +214,7 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_webservice = MagicMock()
         mock_webservice.pod_name = "hijacker-pod"
         mock_webservice.selector = "app=hijacker"
+        mock_webservice.config_map_name = "hijacker-cm"
         mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
         mock_lib_kubernetes.replace_service_selector.return_value = {
             "metadata": {"name": "nginx-service"},
@@ -235,6 +276,7 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_webservice = MagicMock()
         mock_webservice.pod_name = "hijacker-pod"
         mock_webservice.selector = "app=hijacker"
+        mock_webservice.config_map_name = "hijacker-cm"
         mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
         # Patching returns None (failure)
         mock_lib_kubernetes.replace_service_selector.return_value = None
@@ -262,6 +304,7 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_webservice = MagicMock()
         mock_webservice.pod_name = "hijacker-pod"
         mock_webservice.selector = "app=hijacker"
+        mock_webservice.config_map_name = "hijacker-cm"
         mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
         # First call (patch) succeeds, second call (restore) fails
         mock_lib_kubernetes.replace_service_selector.side_effect = [
@@ -294,6 +337,7 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_webservice = MagicMock()
         mock_webservice.pod_name = "hijacker-pod"
         mock_webservice.selector = "app=hijacker"
+        mock_webservice.config_map_name = "hijacker-cm"
         mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
         mock_lib_kubernetes.replace_service_selector.return_value = {
             "metadata": {"name": "nginx-service"},
@@ -327,6 +371,7 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_webservice = MagicMock()
         mock_webservice.pod_name = "hijacker-pod"
         mock_webservice.selector = "app=hijacker"
+        mock_webservice.config_map_name = "hijacker-cm"
         mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
         mock_lib_kubernetes.replace_service_selector.return_value = {
             "metadata": {"name": "nginx-service"},
@@ -381,6 +426,7 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_webservice = MagicMock()
         mock_webservice.pod_name = "hijacker-pod"
         mock_webservice.selector = "app=hijacker"
+        mock_webservice.config_map_name = "hijacker-cm"
         mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
         mock_lib_kubernetes.replace_service_selector.return_value = {
             "metadata": {"name": "nginx-service"},
