@@ -17,3 +17,12 @@ spec:
         image: nginx:alpine
         ports:
         - containerPort: 80
+        # Delay Ready so a short krkn_pod_recovery_time cannot succeed on a fast cluster.
+        # Happy-path tests use recovery_time=120, which is well above this delay.
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 20
+          periodSeconds: 2
+          failureThreshold: 1
