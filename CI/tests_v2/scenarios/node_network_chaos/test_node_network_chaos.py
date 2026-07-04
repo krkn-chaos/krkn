@@ -230,15 +230,22 @@ class TestNodeNetworkChaos(BaseScenarioTest):
     @pytest.mark.no_workload
     @pytest.mark.order(5)
     def test_instance_count_with_label_selector(self):
-        """When multiple nodes match, only instance_count nodes are targeted."""
+        """When multiple nodes match, only instance_count nodes are targeted.
+
+        KinD workers often lack ``node-role.kubernetes.io/worker`` (role column is
+        empty), so the selector is built from known worker hostnames — same label
+        node_scenarios uses for real targeting.
+        """
         workers = schedulable_worker_nodes(self.k8s_core)
         if len(workers) < 2:
             pytest.skip("Need at least two worker nodes to verify instance_count limiting")
+        # Match all schedulable workers; KinD does not set node-role.kubernetes.io/worker.
+        label_selector = "kubernetes.io/hostname in (" + ",".join(workers) + ")"
         ns = self.ns
         result = self._run_chaos(
             ns,
             {
-                "label_selector": "node-role.kubernetes.io/worker=",
+                "label_selector": label_selector,
                 "instance_count": 1,
                 "target": "",
                 "test_duration": TEST_DURATION,
