@@ -11,6 +11,7 @@ node targeting, serial execution, and graceful failure on invalid inputs.
 
 import copy
 import logging
+import subprocess
 import time
 import uuid
 from contextlib import contextmanager
@@ -40,7 +41,8 @@ TOOLS_IMAGE = "quay.io/krkn-chaos/krkn:tools"
 KRAKEN_RUN_TIMEOUT = 360
 PROBE_POD_TIMEOUT = 180
 JOB_CLEANUP_TIMEOUT = 60
-WORKER_ROLE_LABEL = "node-role.kubernetes.io/worker"
+# Job sleeps 30s before tc_set; allow scheduling + fedtools probe + that sleep.
+NETEM_APPEAR_TIMEOUT = 120
 
 
 @pytest.mark.functional
@@ -74,17 +76,39 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
             pytest.skip("No schedulable worker node available for network chaos targeting")
         return nodes[0]
 
-    def _ensure_worker_role_label(self, node: str) -> None:
-        """KinD workers often lack the worker role label; add it for label_selector tests."""
-        body = {"metadata": {"labels": {WORKER_ROLE_LABEL: ""}}}
-        self.k8s_core.patch_node(node, body)
-
     def _run_scenario(self, scenario, config_filename: str):
         scenario_path = self.write_scenario(self.tmp_path, scenario)
         config_path = self.build_config(
             self.SCENARIO_TYPE, str(scenario_path), filename=config_filename,
         )
         return self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
+
+    def _run_scenario_proving_netem(self, scenario, config_filename: str, probe_pod: str, iface: str):
+        """Run Krkn in the background and assert netem is visible on iface during injection.
+
+        Log markers alone are insufficient: the plugin logs `tc qdisc add` before the Job
+        runs, and wait_for_job treats failed Jobs as done so Krkn can exit 0 without netem.
+        """
+        scenario_path = self.write_scenario(self.tmp_path, scenario)
+        config_path = self.build_config(
+            self.SCENARIO_TYPE, str(scenario_path), filename=config_filename,
+        )
+        proc = self.run_kraken_background(config_path)
+        try:
+            self._wait_for_netem(probe_pod, iface)
+            out, err = proc.communicate(timeout=KRAKEN_RUN_TIMEOUT)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, err = proc.communicate()
+            raise
+        except BaseException:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            raise
+        return subprocess.CompletedProcess(
+            args=[], returncode=proc.returncode, stdout=out, stderr=err,
+        )
 
     def _delete_pod_best_effort(self, name: str) -> None:
         try:
@@ -167,6 +191,19 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
         """Remove stale netem left by a prior failed/interrupted run."""
         self._exec_in_pod(probe_pod, f"tc qdisc del dev {iface} root 2>/dev/null || true")
 
+    def _wait_for_netem(self, probe_pod: str, iface: str, timeout: float = NETEM_APPEAR_TIMEOUT) -> str:
+        """Poll until netem is present on iface (proves tc was actually applied)."""
+        deadline = time.monotonic() + timeout
+        last = ""
+        while time.monotonic() < deadline:
+            last = self._tc_qdisc_show(probe_pod, iface)
+            if self._has_netem_rules(last):
+                return last
+            time.sleep(2)
+        raise AssertionError(
+            f"netem never observed on {iface} within {timeout}s (last tc output: {last!r})"
+        )
+
     def _wait_for_tc_clean(self, probe_pod: str, iface: str, timeout: float = 90) -> None:
         """Poll until netem is gone (job does tc_unset before exit)."""
         deadline = time.monotonic() + timeout
@@ -218,16 +255,15 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
                 },
                 drop=["label_selector"],
             )
-            result = self._run_scenario(scenario, "nc_bandwidth_latency_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_bandwidth_latency_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(
                 result, context=f"bandwidth+latency node={node}", tmp_path=self.tmp_path,
             )
             assert_scenario_executed(
                 result, self.SCENARIO_NAME, context=f"bandwidth+latency node={node}",
                 tmp_path=self.tmp_path,
-            )
-            assert_kraken_marker(
-                result, "tc qdisc add", context=f"node={node}", tmp_path=self.tmp_path,
             )
             self._wait_for_tc_clean(probe_pod, iface)
 
@@ -247,7 +283,9 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
                 },
                 drop=["label_selector"],
             )
-            result = self._run_scenario(scenario, "nc_node_name_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_node_name_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(result, context=f"node_name={node}", tmp_path=self.tmp_path)
             assert_scenario_executed(
                 result, self.SCENARIO_NAME, context=f"node_name={node}", tmp_path=self.tmp_path,
@@ -261,20 +299,22 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
     def test_node_targeting_by_label_selector(self):
         """Happy path: label_selector selects a worker node for chaos."""
         node = self._target_worker()
-        self._ensure_worker_role_label(node)
+        # Hostname pin so netem is observed on the probed node (not a random worker).
         with self._node_probe(node) as probe_pod:
             iface = self._discover_default_interface(probe_pod)
             self._ensure_tc_clean(probe_pod, iface)
             scenario = self._scenario(
                 {
                     "duration": 10,
-                    "label_selector": WORKER_ROLE_LABEL,
+                    "label_selector": f"kubernetes.io/hostname={node}",
                     "instance_count": 1,
                     "egress": {"bandwidth": "100mbit"},
                 },
                 drop=["node_name"],
             )
-            result = self._run_scenario(scenario, "nc_label_selector_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_label_selector_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(
                 result, context=f"label_selector node={node}", tmp_path=self.tmp_path,
             )
@@ -301,12 +341,11 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
                 },
                 drop=["label_selector"],
             )
-            result = self._run_scenario(scenario, "nc_interface_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_interface_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(
                 result, context=f"interface={iface} node={node}", tmp_path=self.tmp_path,
-            )
-            assert_kraken_marker(
-                result, f"dev {iface}", context=f"node={node}", tmp_path=self.tmp_path,
             )
             self._wait_for_tc_clean(probe_pod, iface)
 
@@ -327,7 +366,9 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
                 },
                 drop=["label_selector"],
             )
-            result = self._run_scenario(scenario, "nc_serial_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_serial_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(
                 result, context=f"serial execution node={node}", tmp_path=self.tmp_path,
             )
@@ -355,8 +396,11 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
                 },
                 drop=["label_selector"],
             )
-            result = self._run_scenario(scenario, "nc_loss_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_loss_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(result, context=f"loss node={node}", tmp_path=self.tmp_path)
+            # netem on the interface is the real proof; log marker is secondary config evidence.
             assert_kraken_marker(
                 result, "loss 0.02", context=f"node={node}", tmp_path=self.tmp_path,
             )
@@ -424,7 +468,9 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
                 },
                 drop=["label_selector"],
             )
-            result = self._run_scenario(scenario, "nc_cleanup_tc_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_cleanup_tc_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(
                 result, context=f"tc cleanup node={node}", tmp_path=self.tmp_path,
             )
@@ -446,7 +492,9 @@ class TestNetworkChaosLegacy(BaseScenarioTest):
                 },
                 drop=["label_selector"],
             )
-            result = self._run_scenario(scenario, "nc_cleanup_pods_config.yaml")
+            result = self._run_scenario_proving_netem(
+                scenario, "nc_cleanup_pods_config.yaml", probe_pod, iface,
+            )
             assert_kraken_success(
                 result, context=f"helper cleanup node={node}", tmp_path=self.tmp_path,
             )
