@@ -11,6 +11,7 @@ from lib.utils import (
     assert_all_pods_running_and_ready,
     assert_kraken_success,
     assert_pod_count_unchanged,
+    assert_scenario_executed,
     get_pods_list,
     pod_uids,
     restart_counts,
@@ -39,6 +40,9 @@ class TestPodDisruption(BaseScenarioTest):
 
         result = self.run_scenario(self.tmp_path, ns)
         assert_kraken_success(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
+        assert_scenario_executed(
+            result, self.SCENARIO_NAME, context=f"namespace={ns}", tmp_path=self.tmp_path
+        )
 
         after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
         after_uids = pod_uids(after)

@@ -18,6 +18,7 @@ from lib.utils import (
     assert_kraken_failure,
     assert_kraken_success,
     assert_pod_count_unchanged,
+    assert_scenario_executed,
     find_network_policy_by_prefix,
     get_network_policies_list,
     get_pods_list,
@@ -81,6 +82,10 @@ class TestApplicationOutage(BaseScenarioTest):
             )
             assert_kraken_success(
                 result, context=f"{context_name} namespace={ns}", tmp_path=self.tmp_path
+            )
+            assert_scenario_executed(
+                result, self.SCENARIO_NAME,
+                context=f"{context_name} namespace={ns}", tmp_path=self.tmp_path,
             )
             after = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
             assert_pod_count_unchanged(before, after, namespace=ns)

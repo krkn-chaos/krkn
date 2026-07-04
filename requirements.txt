@@ -19,7 +19,7 @@ jaraco-context>=6.1.0  # Fixes GHSA-58pv-8j8x-9vj2
 cbor2<5.7.0  # Pinned by arcaflow-plugin-sdk
 lxml==6.1.0
 kubernetes>=35.0.0,<36.0.0
-krkn-lib==6.1.0
+krkn-lib==6.1.2
 numpy==1.26.4
 pandas==2.2.0
 openshift-client==1.0.21

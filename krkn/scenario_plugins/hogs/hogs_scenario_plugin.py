@@ -146,7 +146,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                              f"{avg_node_resources.memory / node_resources_start.memory * 100} %")
             if config.type == HogType.io:
                 logging.info(f"[{node}] detected disk space allocated: "
-                             f"{(avg_node_resources.disk_space - node_resources_end.disk_space) / 1024 / 1024} MB")
+                             f"{(node_resources_start.disk_space - avg_node_resources.disk_space) / 1024 / 1024} MB")
         except Exception as e:
             exception_queue.put(e)
 

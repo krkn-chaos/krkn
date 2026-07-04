@@ -1,0 +1,16 @@
+# Base memory hog scenario (hog_scenarios). Tests load this and patch namespace, node-selector,
+# number-of-nodes, duration, memory-vm-bytes, etc. The memory hog targets nodes (not workloads):
+# Krkn deploys a short-lived hog pod (name prefix "memory-hog-") on each selected node, runs
+# `stress-ng` for the configured duration, then deletes the pod. Values here are tuned for
+# functional testing (light load, short duration), not performance benchmarking; in particular
+# memory-vm-bytes is a small fixed size rather than the production "90%" to avoid pressuring
+# kind nodes.
+duration: 20
+workers: 1
+hog-type: memory
+image: quay.io/krkn-chaos/krkn-hog
+namespace: default
+memory-vm-bytes: 256m
+node-selector: "node-role.kubernetes.io/worker="
+number-of-nodes: 1
+taints: []
