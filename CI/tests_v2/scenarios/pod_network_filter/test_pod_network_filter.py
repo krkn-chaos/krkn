@@ -296,7 +296,15 @@ class TestPodNetworkFilter(BaseScenarioTest):
                 f"Expected {self.HELPER_POD_PREFIX}* helper pod during run (namespace={ns})"
             )
         finally:
-            stdout, stderr = proc.communicate(timeout=KRAKEN_PROC_WAIT_TIMEOUT)
+            try:
+                stdout, stderr = proc.communicate(timeout=KRAKEN_PROC_WAIT_TIMEOUT)
+            except subprocess.TimeoutExpired:
+                proc.terminate()
+                try:
+                    stdout, stderr = proc.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    stdout, stderr = proc.communicate()
             result = subprocess.CompletedProcess(
                 proc.args, proc.returncode, stdout, stderr
             )
