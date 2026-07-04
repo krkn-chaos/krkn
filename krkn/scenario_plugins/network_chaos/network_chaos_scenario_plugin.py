@@ -172,7 +172,12 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
             else:
                 cmd = "ip -br addr show|awk -v ORS=',' '{print $1}'"
                 output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
-                interface_lst = output[:-1].split(",")
+                # ip -br prints peer suffixes (eth0@if6); tc/device names use the base (eth0).
+                interface_lst = [
+                    iface.split("@", 1)[0]
+                    for iface in output[:-1].split(",")
+                    if iface
+                ]
                 for interface in test_interface:
                     if interface not in interface_lst:
                         logging.error(
