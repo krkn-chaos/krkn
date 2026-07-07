@@ -6,11 +6,21 @@ on:
       - main
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  docs_only:
+    name: Detect docs-only PR
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/docs-only-check.yml
+
   security-scan-source:
     name: Security Scan - Source Code & Dependencies
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    needs: docs_only
+    if: always() && github.event_name == 'pull_request' && needs.docs_only.result == 'success' && needs.docs_only.outputs.docs_only != 'true'
     steps:
     - name: Check out code
       uses: actions/checkout@v3
@@ -58,6 +68,8 @@ jobs:
 
   build:
     runs-on: ${{ matrix.runner }}
+    needs: docs_only
+    if: always() && (github.event_name != 'pull_request' || (needs.docs_only.result == 'success' && needs.docs_only.outputs.docs_only != 'true'))
     strategy:
       matrix:
         include:
