@@ -1,20 +1,20 @@
-# Vulnerability Remediation (2026-05-18):
-# - Go 1.25.10: Stable release used for all Go binaries (oc, virtctl, yq)
+# Vulnerability Remediation (2026-06-30):
+# - Go 1.26: Required by kubevirt go.work (>= 1.26.0); also used for oc, yq
 # - oc release-5.1: Latest OpenShift CLI with newer dependencies
 # - Fedora 45: Latest base image with updated system packages
-# - yq v4.44.6: Compiled from source with Go 1.25.10 (Fedora/latest have Go 1.26.x)
+# - yq v4.44.6: Compiled from source with Go 1.26
 # - docker 7.0+: Native Unix socket support, allows requests>=2.32
 # - Pinned Go modules: go-git v5.19.0, fulcio v1.8.5, sigstore v1.10.4
 # - See requirements.txt and SECURITY.md for accepted risks
 
 # oc build
-FROM golang:1.25.10 AS oc-build
+FROM golang:1.26 AS oc-build
 RUN apt-get update && apt-get install -y --no-install-recommends libkrb5-dev
 WORKDIR /tmp
 # oc build
 RUN git clone --branch release-5.1 https://github.com/openshift/oc.git
 WORKDIR /tmp/oc
-RUN go mod edit -go 1.25.10 &&\
+RUN go mod edit -go 1.26 &&\
     go mod edit -require github.com/go-git/go-git/v5@v5.19.0 &&\
     go mod edit -require github.com/go-git/go-billy/v5@v5.9.0 &&\
     go mod edit -require go.opentelemetry.io/otel@v1.41.0 &&\
@@ -37,16 +37,17 @@ RUN make GO_REQUIRED_MIN_VERSION:= oc
 WORKDIR /tmp
 RUN git clone https://github.com/kubevirt/kubevirt.git
 WORKDIR /tmp/kubevirt
-RUN go mod edit -go 1.25.10 &&\
+RUN go mod edit -go 1.26 &&\
     go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1 &&\
     go mod edit -replace github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream=github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream@v1.7.8 &&\
     go mod edit -replace github.com/aws/aws-sdk-go-v2/service/s3=github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3 &&\
+    go work edit -go 1.26 &&\
     go mod tidy &&\
     go work use &&\
     go work vendor &&\
     go build -o virtctl ./cmd/virtctl/
 
-# yq build (compile with Go 1.25.10 to avoid stdlib CVEs)
+# yq build
 WORKDIR /tmp
 RUN git clone --depth 1 --branch v4.44.6 https://github.com/mikefarah/yq.git
 WORKDIR /tmp/yq
@@ -99,7 +100,7 @@ RUN ${PYTHON_CMD} -m pip install --upgrade pip setuptools==81.0.0
 RUN rm -rf "$(pip cache dir)"
 RUN rm -rf /tmp/*
 RUN rm -rf /usr/local/lib/${PYTHON_CMD}/ensurepip/_bundled
-RUN ${PYTHON_CMD} -m pip install -r requirements.txt
+RUN ${PYTHON_CMD} -m pip install --no-build-isolation -r requirements.txt
 RUN ${PYTHON_CMD} -m pip install jsonschema
 # Force setuptools==81.0.0 after all deps (some may try to upgrade it to 82+)
 RUN ${PYTHON_CMD} -m pip install --force-reinstall --no-deps setuptools==81.0.0

@@ -1,0 +1,12 @@
+# Base service_disruption (namespace deletion) scenario.
+# Tests load this and patch scenarios[0].namespace with ^<ns>$ (NAMESPACE_IS_REGEX),
+# and override delete_count / runs / sleep / wait_time / label_selector as needed.
+# The service_disruption plugin deletes all objects (deployments, daemonsets,
+# statefulsets, replicasets, services) inside each matched namespace.
+scenarios:
+- namespace: "^krkn-test-namespace-deletion-placeholder$"
+  label_selector: ""
+  delete_count: 1
+  runs: 1
+  sleep: 1
+  wait_time: 30
