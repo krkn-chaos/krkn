@@ -44,12 +44,12 @@ python -m coverage run -a -m unittest discover -s tests -v
 ### Python Environment
 - **Python 3.11+** required
 - **NEVER install packages globally** - always use virtual environment
-- **CRITICAL**: `docker` must be <7.0 and `requests` must be <2.32 (Unix socket compatibility)
+- **CRITICAL**: `docker` >=7.0.0 and `requests` >=2.32.4 (see requirements.txt for current pins)
 
-### Key Dependencies
-- **krkn-lib** (5.1.13): Core library for Kubernetes/OpenShift operations
-- **kubernetes** (34.1.0): Kubernetes Python client
-- **docker** (<7.0), **requests** (<2.32): DO NOT upgrade without verifying compatibility
+### Key Dependencies (see requirements.txt for current pinned versions)
+- **krkn-lib**: Core library for Kubernetes/OpenShift operations
+- **kubernetes**: Kubernetes Python client
+- **docker**, **requests**: Verify compatibility with requirements.txt before upgrading
 - Cloud SDKs: boto3 (AWS), azure-mgmt-* (Azure), google-cloud-compute (GCP), ibm_vpc (IBM), pyVmomi (VMware)
 
 ## Plugin Architecture (CRITICAL)
@@ -237,7 +237,7 @@ git push -u origin feature/your-feature-name
 2. Running functional tests without cluster setup
 3. Ignoring exit codes
 4. Modifying krkn-lib directly (it's a separate package)
-5. Upgrading docker/requests beyond version constraints
+5. Upgrading docker/requests beyond versions pinned in requirements.txt
 
 ## Before Writing Code
 
