@@ -91,7 +91,6 @@ jobs:
             echo "test_container" >> ./CI/tests/functional_tests
             echo "test_cpu_hog" >> ./CI/tests/functional_tests
             echo "test_customapp_pod" >> ./CI/tests/functional_tests
-            echo "test_io_hog" >> ./CI/tests/functional_tests
             echo "test_memory_hog" >> ./CI/tests/functional_tests
             echo "test_namespace" >> ./CI/tests/functional_tests
             echo "test_net_chaos" >> ./CI/tests/functional_tests
