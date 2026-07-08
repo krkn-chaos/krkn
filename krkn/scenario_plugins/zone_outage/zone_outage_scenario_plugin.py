@@ -34,6 +34,9 @@ from krkn.rollback.handler import set_rollback_context_decorator
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
 
+from krkn_lib.models.k8s import AffectedNode
+from krkn.scenario_plugins.node_actions.common_node_functions import wait_for_ready_status
+
 
 class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
     @set_rollback_context_decorator
@@ -51,14 +54,13 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                 cloud_type = scenario_config["cloud_type"]
                 kube_check = get_yaml_item_value(scenario_config, "kube_check", True)
                 start_time = int(time.time())
+                kubecli = lib_telemetry.get_lib_kubernetes()
                 if cloud_type.lower() == "aws":
                     self.cloud_object = AWS()
-                    kubecli = lib_telemetry.get_lib_kubernetes()
                     result = self.network_based_zone(scenario_config,kubecli, scenario_telemetry)
                     if result != 0:
                         return 1
                 else:
-                    kubecli = lib_telemetry.get_lib_kubernetes()
                     if cloud_type.lower() == "gcp":
                         affected_nodes_status = AffectedNodeStatus()
                         self.cloud_object = gcp_node_scenarios(kubecli, kube_check, affected_nodes_status)
@@ -83,8 +85,6 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             return 0
 
     def node_based_zone(self, scenario_config: dict[str, any], kubecli: KrknKubernetes):
-        from krkn_lib.models.k8s import AffectedNode
-        from krkn.scenario_plugins.node_actions.common_node_functions import wait_for_ready_status
         zone = scenario_config["zone"]
         duration = get_yaml_item_value(scenario_config, "duration", 60)
         timeout = get_yaml_item_value(scenario_config, "timeout", 180)
