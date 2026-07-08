@@ -1,0 +1,10 @@
+# Base scenario for container_scenarios (used by build_config with scenario_type: container_scenarios).
+scenarios:
+  - name: "container disruption"
+    namespace: "default"
+    label_selector: "scenario=container"
+    container_name: "fedtools"
+    action: 1
+    count: 1
+    expected_recovery_time: 120
+    exclude_label: ""
