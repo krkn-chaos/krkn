@@ -172,8 +172,7 @@ to generate scenario plugins **MUST** verify:
 AI tools may suggest dependency versions that conflict with Krkn's
 requirements. Contributors **MUST** verify:
 
-- `docker` package remains <7.0
-- `requests` package remains <2.32
+- `docker` and `requests` versions match the pins in `requirements.txt`
 - New dependencies are compatible with the existing dependency tree
 - Dependencies are pinned to specific versions in `requirements.txt`
 - Dependencies are checked for known security vulnerabilities
