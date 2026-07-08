@@ -154,11 +154,14 @@ class TestVmMigrationChaosScenarioPlugin(unittest.TestCase):
     def test_cleanup_vmim(self):
         mock_kubecli = MagicMock(spec=KrknKubernetes)
         mock_custom = MagicMock()
-        mock_kubecli.custom_object_client.return_value = mock_custom
+        mock_kubecli.custom_object_client = mock_custom
 
         self.plugin._cleanup_vmim(mock_kubecli, "test-vm", "default")
 
         mock_custom.delete_namespaced_custom_object.assert_called_once()
+
+    def test_supports_standalone_false(self):
+        self.assertFalse(self.plugin.supports_standalone())
 
 
 if __name__ == "__main__":

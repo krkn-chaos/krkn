@@ -79,12 +79,16 @@ class StandaloneFileScenarioPlugin(AbstractScenarioPlugin):
                 )
                 threading.Event().wait(timeout=duration)
 
-
                 for target in targets:
                     self._revert_file_chaos(
                         ssh_executor, target, action, file_path,
                         revert_data.get(target, {})
                     )
+            else:
+                logging.warning(
+                    "duration=0: file chaos will NOT be auto-reverted. "
+                    "Manual cleanup may be required."
+                )
 
             return 0
         except Exception as e:
@@ -163,14 +167,26 @@ class StandaloneFileScenarioPlugin(AbstractScenarioPlugin):
                 )
 
         elif action == "delete":
-            ssh.execute(
+            cp_exit, _, cp_stderr = ssh.execute(
                 host,
                 "sudo cp %s %s.krkn_bak" % (safe_path, safe_path),
                 timeout=10,
             )
+            if cp_exit != 0:
+                raise Exception(
+                    "[%s] Failed to backup %s before delete: %s"
+                    % (host, file_path, cp_stderr)
+                )
             revert_info["backup_path"] = file_path + ".krkn_bak"
             logging.info("[%s] Deleting %s" % (host, file_path))
-            ssh.execute(host, "sudo rm -f %s" % safe_path, timeout=10)
+            rm_exit, _, rm_stderr = ssh.execute(
+                host, "sudo rm -f %s" % safe_path, timeout=10,
+            )
+            if rm_exit != 0:
+                logging.error(
+                    "[%s] Failed to delete %s: %s"
+                    % (host, file_path, rm_stderr)
+                )
 
         else:
             raise ValueError(

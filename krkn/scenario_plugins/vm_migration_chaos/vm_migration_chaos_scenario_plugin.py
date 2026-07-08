@@ -14,6 +14,8 @@
 import logging
 import os
 import shlex
+import shutil
+import subprocess
 import threading
 import time
 
@@ -108,7 +110,7 @@ class VmMigrationChaosScenarioPlugin(AbstractScenarioPlugin):
             "spec": {"vmiName": vm_name},
         }
         try:
-            kubecli.custom_object_client().create_namespaced_custom_object(
+            kubecli.custom_object_client.create_namespaced_custom_object(
                 group="kubevirt.io", version="v1",
                 namespace=vm_namespace,
                 plural="virtualmachineinstancemigrations",
@@ -205,14 +207,29 @@ class VmMigrationChaosScenarioPlugin(AbstractScenarioPlugin):
             % (source_node, vm_name)
         )
 
-        try:
-            kubecli.kubectl(
-                "adm", "cordon", source_node
+        kubectl_bin = shutil.which("oc") or shutil.which("kubectl")
+        if not kubectl_bin:
+            logging.error(
+                "Neither 'oc' nor 'kubectl' found in PATH"
             )
-            kubecli.kubectl(
-                "adm", "drain", source_node,
-                "--ignore-daemonsets", "--delete-emptydir-data",
-                "--timeout=%ds" % timeout,
+            return 1
+
+        try:
+            subprocess.run(
+                [kubectl_bin, "adm", "cordon", source_node],
+                check=True, capture_output=True, text=True,
+                timeout=60,
+            )
+            subprocess.run(
+                [kubectl_bin, "adm", "drain", source_node,
+                 "--ignore-daemonsets", "--delete-emptydir-data",
+                 "--timeout=%ds" % timeout],
+                check=True, capture_output=True, text=True,
+                timeout=timeout + 60,
+            )
+        except subprocess.CalledProcessError as e:
+            logging.warning(
+                "Node drain encountered issue: %s" % e.stderr
             )
         except Exception as e:
             logging.warning("Node drain encountered issue: %s" % e)
@@ -224,7 +241,11 @@ class VmMigrationChaosScenarioPlugin(AbstractScenarioPlugin):
         recovery_time = time.time() - start_time
 
         try:
-            kubecli.kubectl("adm", "uncordon", source_node)
+            subprocess.run(
+                [kubectl_bin, "adm", "uncordon", source_node],
+                check=True, capture_output=True, text=True,
+                timeout=60,
+            )
         except Exception:
             pass
 
@@ -371,10 +392,9 @@ class VmMigrationChaosScenarioPlugin(AbstractScenarioPlugin):
             vm_namespace,
             label_selector="kubevirt.io/domain=%s" % vm_name,
         )
-        running_pods = [p for p in pods if not p.endswith("-migration")]
-        if len(running_pods) > 1:
+        if len(pods) > 1:
             logging.error(
-                "Dual virt-launcher pods detected: %s" % running_pods
+                "Dual virt-launcher pods detected: %s" % pods
             )
             return True
         return False
@@ -383,7 +403,7 @@ class VmMigrationChaosScenarioPlugin(AbstractScenarioPlugin):
         self, kubecli: KrknKubernetes, vm_name: str, vm_namespace: str
     ) -> None:
         try:
-            kubecli.custom_object_client().delete_namespaced_custom_object(
+            kubecli.custom_object_client.delete_namespaced_custom_object(
                 group="kubevirt.io",
                 version="v1",
                 namespace=vm_namespace,
@@ -394,7 +414,7 @@ class VmMigrationChaosScenarioPlugin(AbstractScenarioPlugin):
             pass
 
     def supports_standalone(self) -> bool:
-        return True
+        return False
 
     def get_scenario_types(self) -> list[str]:
         return ["vm_migration_chaos_scenarios"]

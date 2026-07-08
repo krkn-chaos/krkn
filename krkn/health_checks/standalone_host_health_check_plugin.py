@@ -130,6 +130,12 @@ class StandaloneHostHealthCheckPlugin(AbstractHealthCheckPlugin):
                             "start_timestamp": datetime.now(),
                             "url": "%s/%s" % (host, check_type),
                         }
+                        if not status and self.ret_value == 0:
+                            exit_on_failure = host_config.get(
+                                "exit_on_failure", False
+                            )
+                            if exit_on_failure:
+                                self.ret_value = 3
                     elif status != status_tracker[check_key]["status"]:
                         end_timestamp = datetime.now()
                         start_timestamp = status_tracker[check_key][

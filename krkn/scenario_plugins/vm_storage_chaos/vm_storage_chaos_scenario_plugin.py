@@ -125,9 +125,14 @@ class VmStorageChaosScenarioPlugin(AbstractScenarioPlugin):
 
 
             logging.info("[%s] Restarting storage service: %s" % (host, service))
-            ssh.execute(
+            start_exit, _, start_stderr = ssh.execute(
                 host, "sudo systemctl start %s" % safe_service, timeout=60
             )
+            if start_exit != 0:
+                logging.error(
+                    "[%s] Failed to restart %s: %s"
+                    % (host, service, start_stderr)
+                )
 
             recovery_time = time.time() - start_time
             affected_node.set_affected_node_status("recovered", recovery_time)

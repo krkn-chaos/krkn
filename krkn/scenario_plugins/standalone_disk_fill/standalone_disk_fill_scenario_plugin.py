@@ -150,7 +150,9 @@ class StandaloneDiskFillScenarioPlugin(AbstractScenarioPlugin):
 
         exit_code, _, stderr = ssh.execute(host, cmd, timeout=120)
         if exit_code != 0:
-            fill_mb = fill_bytes // (1024 * 1024) if not fill_size else 1024
+            if fill_size:
+                fill_bytes = self._parse_size_to_bytes(fill_size)
+            fill_mb = max(1, fill_bytes // (1024 * 1024))
             cmd_dd = "dd if=/dev/zero of=%s bs=1M count=%d" % (safe_fill_file, fill_mb)
             logging.warning(
                 "[%s] fallocate failed, falling back to dd" % host
@@ -158,6 +160,15 @@ class StandaloneDiskFillScenarioPlugin(AbstractScenarioPlugin):
             ssh.execute(host, cmd_dd, timeout=300)
 
         logging.info("[%s] Disk fill complete: %s" % (host, fill_file))
+
+    @staticmethod
+    def _parse_size_to_bytes(size_str: str) -> int:
+        """Parse a human-readable size string (e.g. '1G', '500M') to bytes."""
+        units = {"B": 1, "K": 1024, "M": 1024**2, "G": 1024**3, "T": 1024**4}
+        size_str = size_str.strip().upper()
+        if size_str[-1] in units:
+            return int(size_str[:-1]) * units[size_str[-1]]
+        return int(size_str)
 
     def _cleanup(self, ssh: SSHExecutor, host: str, fill_path: str = "/tmp") -> None:
         fill_file = "%s/%s" % (fill_path, FILL_FILE_NAME)

@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "krkn-analysis-mcp": {
+      "command": "/Users/sahil/krkn_analysis_mcp/krkn_analysis_mcp_env/bin/python",
+      "args": ["/Users/sahil/krkn_analysis_mcp/krkn_analysis_mcp.py"],
+      "disabled": true,
+      "env": {
+        "ES_SERVER": "https://search-ocp-qe-perf-scale-test-elk-hcm7wtsqpxy7xogbu72bor4uve.us-east-1.es.amazonaws.com:443",
+        "ES_USER": "ocp-qe",
+        "ES_PASS": "Best-footballplayer-test8"
+      }
+    },
+    "prow-mcp-server": {
+      "command": "/Users/sahil/prow-mcp-server/.venv/bin/python",
+      "args": ["/Users/sahil/prow-mcp-server/main.py"],
+      "disabled": true,
+      "env": {
+        "DEFAULT_ORG_REPO": "redhat-chaos_prow-scripts",
+        "DEFAULT_JOB_NAME": "periodic-ci-redhat-chaos-*"
+      }
+    },
+    "orion-mcp": {
+      "command": "/Users/sahil/orion-mcp/.venv/bin/python3",
+      "args": ["/Users/sahil/orion-mcp/orion_mcp.py"],
+      "disabled": true,
+      "env": {
+        "ES_SERVER": "https://ocp-qe:Best-footballplayer-test8@search-ocp-qe-perf-scale-test-elk-hcm7wtsqpxy7xogbu72bor4uve.us-east-1.es.amazonaws.com",
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  }
+}
