@@ -8,7 +8,8 @@
     "default": "False",
     "allowed_values": "True,False",
     "separator": ",",
-    "required": "false"
+    "required": "false",
+    "group": "cerberus"
   },
   {
     "name": "cerberus-url",
@@ -18,18 +19,8 @@
     "type": "string",
     "default": "http://0.0.0.0:8080",
     "validator": "^(http|https):\/\/.*",
-    "required": "false"
-  },
-  {
-    "name": "distribution",
-    "short_description": "Orchestrator distribution",
-    "description": "Selects the orchestrator distribution",
-    "variable": "DISTRIBUTION",
-    "type": "enum",
-    "default": "openshift",
-    "allowed_values": "openshift,kubernetes",
-    "separator": ",",
-    "required": "false"
+    "required": "false",
+    "group": "cerberus"
   },
   {
     "name": "ssh-public-key",
@@ -38,7 +29,8 @@
     "variable": "KRKN_SSH_PUBLIC",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "general"
   },
   {
     "name": "ssh-private-key",
@@ -47,7 +39,8 @@
     "variable": "KRKN_SSH_PRIVATE",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "general"
   },
   {
     "name": "krkn-kubeconfig",
@@ -56,7 +49,8 @@
     "variable": "KRKN_KUBE_CONFIG",
     "type": "string",
     "default": "/home/krkn/.kube/config",
-    "required": "false"
+    "required": "false",
+    "group": "general"
   },
   {
     "name": "wait-duration",
@@ -64,7 +58,8 @@
     "description": "waits for a certain amount of time after the scenario",
     "variable": "WAIT_DURATION",
     "type": "number",
-    "default": "1"
+    "default": "1",
+    "group": "general"
   },
   {
     "name": "iterations",
@@ -72,7 +67,8 @@
     "description": "number of times the same chaos scenario will be executed",
     "variable": "ITERATIONS",
     "type": "number",
-    "default": "1"
+    "default": "1",
+    "group": "general"
   },
   {
     "name": "daemon-mode",
@@ -83,7 +79,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "general"
   },
   {
     "name": "prometheus-url",
@@ -92,7 +89,8 @@
     "variable": "PROMETHEUS_URL",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "prometheus-token",
@@ -101,7 +99,8 @@
     "variable": "PROMETHEUS_TOKEN",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "uuid",
@@ -110,7 +109,8 @@
     "variable": "UUID",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "general"
   },
   {
     "name": "capture-metrics",
@@ -121,7 +121,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "enable-alerts",
@@ -132,7 +133,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "alerts-path",
@@ -141,7 +143,8 @@
     "variable": "ALERTS_PATH",
     "type": "string",
     "default": "config/alerts.yaml",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "metrics-path",
@@ -150,7 +153,8 @@
     "variable": "METRICS_PATH",
     "type": "string",
     "default": "config/metrics-aggregated.yaml",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "enable-es",
@@ -161,7 +165,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-run-tag",
@@ -170,7 +175,8 @@
     "variable": "ES_RUN_TAG",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-server",
@@ -179,7 +185,8 @@
     "variable": "ES_SERVER",
     "type": "string",
     "default": "http://0.0.0.0",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-port",
@@ -188,7 +195,8 @@
     "variable": "ES_PORT",
     "type": "number",
     "default": "443",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-username",
@@ -197,7 +205,8 @@
     "variable": "ES_USERNAME",
     "type": "string",
     "default": "elastic",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-password",
@@ -206,7 +215,8 @@
     "variable": "ES_PASSWORD",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-verify-certs",
@@ -217,7 +227,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-metrics-index",
@@ -226,7 +237,8 @@
     "variable": "ES_METRICS_INDEX",
     "type": "string",
     "default": "krkn-metrics",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-alerts-index",
@@ -235,7 +247,8 @@
     "variable": "ES_ALERTS_INDEX",
     "type": "string",
     "default": "krkn-alerts",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-telemetry-index",
@@ -244,7 +257,8 @@
     "variable": "ES_TELEMETRY_INDEX",
     "type": "string",
     "default": "krkn-telemetry",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "check-critical-alerts",
@@ -255,7 +269,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "telemetry-enabled",
@@ -266,7 +281,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-api-url",
@@ -276,7 +292,8 @@
     "type": "string",
     "default": "https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production",
     "validator": "^(http|https):\/\/.*",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-username",
@@ -285,7 +302,8 @@
     "variable": "TELEMETRY_USERNAME",
     "type": "string",
     "default": "redhat-chaos",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-password",
@@ -294,7 +312,8 @@
     "variable": "TELEMETRY_PASSWORD",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-prometheus-backup",
@@ -305,7 +324,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "True",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-full-prometheus-backup",
@@ -316,7 +336,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-backup-threads",
@@ -325,7 +346,8 @@
     "variable": "TELEMETRY_BACKUP_THREADS",
     "type": "number",
     "default": "5",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-archive-path",
@@ -334,7 +356,8 @@
     "variable": "TELEMETRY_ARCHIVE_PATH",
     "type": "string",
     "default": "/tmp",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-max-retries",
@@ -343,7 +366,8 @@
     "variable": "TELEMETRY_MAX_RETRIES",
     "type": "number",
     "default": "0",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-run-tag",
@@ -352,7 +376,8 @@
     "variable": "TELEMETRY_RUN_TAG",
     "type": "string",
     "default": "chaos",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-group",
@@ -361,7 +386,8 @@
     "variable": "TELEMETRY_GROUP",
     "type": "string",
     "default": "default",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-archive-size",
@@ -370,7 +396,8 @@
     "variable": "TELEMETRY_ARCHIVE_SIZE",
     "type": "number",
     "default": "1000",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-logs-backup",
@@ -381,7 +408,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-filter-pattern",
@@ -390,7 +418,8 @@
     "variable": "TELEMETRY_FILTER_PATTERN",
     "type": "string",
     "default": "[\"(\\\\w{3}\\\\s\\\\d{1,2}\\\\s\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d+).+\",\"kinit (\\\\d+/\\\\d+/\\\\d+\\\\s\\\\d{2}:\\\\d{2}:\\\\d{2})\\\\s+\",\"(\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d+Z).+\"]",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-cli-path",
@@ -399,7 +428,8 @@
     "variable": "TELEMETRY_CLI_PATH",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-events-backup",
@@ -410,7 +440,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "True",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "health-check-interval",
@@ -419,7 +450,8 @@
     "variable": "HEALTH_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-url",
@@ -428,7 +460,8 @@
     "variable": "HEALTH_CHECK_URL",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-auth",
@@ -437,7 +470,8 @@
     "variable": "HEALTH_CHECK_AUTH",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-bearer-token",
@@ -446,7 +480,8 @@
     "variable": "HEALTH_CHECK_BEARER_TOKEN",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-exit",
@@ -457,7 +492,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-verify",
@@ -468,7 +504,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "kubevirt-check-interval",
@@ -477,7 +514,8 @@
     "variable": "KUBE_VIRT_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-namespace",
@@ -486,7 +524,8 @@
     "variable": "KUBE_VIRT_NAMESPACE",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-name",
@@ -495,7 +534,8 @@
     "variable": "KUBE_VIRT_NAME",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-only-failures",
@@ -506,7 +546,8 @@
     "allowed_values": "True,False,true,false",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-disconnected",
@@ -517,7 +558,8 @@
     "allowed_values": "True,False,true,false",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-ssh-node",
@@ -526,7 +568,8 @@
     "variable": "KUBE_VIRT_SSH_NODE",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-exit-on-failure",
@@ -537,7 +580,8 @@
     "allowed_values": "True,False,true,false",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-node-name",
@@ -546,7 +590,8 @@
     "variable": "KUBE_VIRT_NODE_NAME",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-label-selector",
@@ -555,7 +600,8 @@
     "variable": "KUBE_VIRT_LABEL_SELECTOR",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "krkn-debug",
@@ -566,7 +612,8 @@
     "allowed_values": "True,False",
     "separator": ",",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "general"
   },
   {
     "name": "resiliency-score",
@@ -574,7 +621,8 @@
     "description": "The system outputs a detailed resiliency score as a single-line JSON object, facilitating easy aggregation across multiple test scenarios.",
     "variable": "RESILIENCY_SCORE",
     "type": "boolean",
-    "required": "false"
+    "required": "false",
+    "group": "resiliency"
   },
   {
     "name": "disable-resiliency-score",
@@ -582,7 +630,8 @@
     "description": "Disable resiliency score calculation",
     "variable": "DISABLE_RESILIENCY_SCORE",
     "type": "boolean",
-    "required": "false"
+    "required": "false",
+    "group": "resiliency"
   },
   {
     "name": "resiliency-file",
@@ -591,6 +640,7 @@
     "variable": "RESILIENCY_FILE",
     "type": "file",
     "required": "false",
-    "mount_path": "/home/krkn/resiliency-file.yaml"
+    "mount_path": "/home/krkn/resiliency-file.yaml",
+    "group": "resiliency"
   }
 ]
