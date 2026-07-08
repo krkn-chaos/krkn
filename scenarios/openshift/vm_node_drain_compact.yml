@@ -1,0 +1,19 @@
+# Scenario 6 (P1): Node drain on compact cluster
+# Bug: CNV-81533 — VM migration not triggered during node drain in some cases on compact clusters
+#
+# Purpose: Drain a node running VMs on a compact (3-node) cluster to verify
+# that VM migration IS triggered and VMs land on healthy nodes.
+#
+# Expected behavior:
+#   - Node drain should trigger VM live migration
+#   - VMs should migrate to remaining nodes
+#   - No VMs should be lost or stuck
+#
+# If migration is NOT triggered, it reproduces CNV-81533.
+
+vm_migration_chaos:
+  vm_name: <VM_NAME>
+  vm_namespace: default
+  migration_action: drain_node
+  verify_no_dual_pods: true
+  timeout: 600

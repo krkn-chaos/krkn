@@ -75,6 +75,16 @@ class AbstractScenarioPlugin(ABC):
         """
         pass
 
+    def supports_standalone(self) -> bool:
+        """Indicates whether this plugin can run in standalone mode (no Kubernetes).
+
+        Plugins that support standalone mode should override this and return True.
+        The default is False, meaning the plugin requires Kubernetes.
+
+        :return: True if standalone execution is supported
+        """
+        return False
+
     def run_scenarios(
         self,
         run_uuid: str,
@@ -150,15 +160,16 @@ class AbstractScenarioPlugin(ABC):
             scenario_telemetry.end_timestamp = time.time()
             start_time = int(scenario_telemetry.start_timestamp)
             end_time = int(scenario_telemetry.end_timestamp)
-            utils.collect_and_put_ocp_logs(
-                telemetry,
-                parsed_scenario_config,
-                telemetry.get_telemetry_request_id(),
-                start_time,
-                end_time
-            )
+            if telemetry.get_lib_kubernetes() is not None:
+                utils.collect_and_put_ocp_logs(
+                    telemetry,
+                    parsed_scenario_config,
+                    telemetry.get_telemetry_request_id(),
+                    start_time,
+                    end_time
+                )
 
-            if events_backup:
+            if events_backup and telemetry.get_lib_kubernetes() is not None:
                 utils.populate_cluster_events(
                     krkn_config,
                     parsed_scenario_config,

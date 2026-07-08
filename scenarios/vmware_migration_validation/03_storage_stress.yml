@@ -1,0 +1,15 @@
+# Step 3: Storage IO stress on VM host nodes
+# Validates storage resilience — catches CNV-79002 (IO burst crashes VMI)
+
+vm_storage_chaos:
+  action: io_burst
+  storage_targets:
+    - host: <WORKER_NODE_1>
+      path: /var/lib/containers
+  ssh_user: core
+  ssh_private_key: ~/.ssh/id_rsa
+  duration: 300
+  io_workers: 4
+  io_bytes: 1G
+  verify_vm_recovery: true
+  recovery_timeout: 300

@@ -83,7 +83,7 @@ def wait_for_unknown_status(
 
 def check_service_status(node, service, ssh_private_key, timeout):
     ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
     i = 0
     sleeper = 1
     while i <= timeout:

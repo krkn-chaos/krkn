@@ -1,0 +1,25 @@
+# Scenario 9 (P0): 5-minute IO burst crashes VMI
+# Bug: CNV-79002 — High IO for short duration (5min) causes VirtualMachineInstance crash
+#
+# Purpose: Inject sustained IO stress on storage path used by VMs to verify
+# that VMIs survive without crashing.
+#
+# Expected behavior:
+#   - VM performance degrades during IO burst
+#   - VMIs should NOT crash
+#   - After IO burst ends, VMs should return to normal performance
+#
+# If VMIs crash during IO burst, it reproduces CNV-79002.
+
+vm_storage_chaos:
+  action: io_burst
+  storage_targets:
+    - host: <WORKER_NODE_IP>
+      path: /var/lib/containers
+  ssh_user: core
+  ssh_private_key: ~/.ssh/id_rsa
+  duration: 300
+  io_workers: 4
+  io_bytes: 2G
+  verify_vm_recovery: true
+  recovery_timeout: 300

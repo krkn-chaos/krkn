@@ -383,12 +383,13 @@ class aws_node_scenarios(abstract_node_scenarios):
                 )
                 self.aws.terminate_instances(instance_id)
                 self.aws.wait_until_terminated(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
-                for _ in range(timeout):
-                    if node not in self.kubecli.list_nodes():
-                        break
-                    time.sleep(1)
-                if node in self.kubecli.list_nodes():
-                    raise Exception("Node could not be terminated")
+                if self.node_action_kube_check:
+                    for _ in range(timeout):
+                        if node not in self.kubecli.list_nodes():
+                            break
+                        time.sleep(1)
+                    if node in self.kubecli.list_nodes():
+                        raise Exception("Node could not be terminated")
                 logging.info(
                     "Node with instance ID: %s has been terminated" % (instance_id)
                 )

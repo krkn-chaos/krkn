@@ -1,0 +1,7 @@
+targets:
+  - 192.168.1.100
+ssh_user: root
+ssh_private_key: ~/.ssh/id_rsa
+fill_path: /tmp
+fill_percentage: 90
+duration: 120

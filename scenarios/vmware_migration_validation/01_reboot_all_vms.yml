@@ -1,0 +1,18 @@
+# Step 1: Reboot all migrated VMs
+# Validates migrated VMs survive restart — catches CNV-83327 (Windows disks offline)
+#
+# Replace <VM_NAME> and <NAMESPACE> with your migrated VM details.
+
+node_scenarios:
+  - actions:
+      - node_reboot_scenario
+    cloud_type: ssh
+    targets:
+      - <WORKER_NODE_1>
+      - <WORKER_NODE_2>
+    ssh_user: core
+    ssh_private_key: ~/.ssh/id_rsa
+    runs: 1
+    timeout: 600
+    kube_check: false
+    soft_reboot: true

@@ -1,0 +1,8 @@
+targets:
+  - 10.0.62.91
+ssh_user: core
+ssh_private_key: /tmp/id_rsa
+ssh_port: 22
+fill_path: /tmp
+fill_size: 50M
+duration: 10
