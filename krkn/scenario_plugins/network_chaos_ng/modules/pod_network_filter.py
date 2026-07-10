@@ -43,10 +43,36 @@ from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_filter import 
 class PodNetworkFilterModule(AbstractNetworkChaosModule):
     config: NetworkFilterConfig
 
+    def _rollback(
+        self,
+        pod_name: str,
+        input_rules: list = None,
+        output_rules: list = None,
+        pids: list = None,
+        rules_applied: bool = False,
+    ):
+        if rules_applied:
+            clean_network_rules_namespaced(
+                self.kubecli.get_lib_kubernetes(),
+                input_rules,
+                output_rules,
+                pod_name,
+                self.config.namespace,
+                pids,
+            )
+        self.kubecli.get_lib_kubernetes().delete_pod(
+            pod_name, self.config.namespace
+        )
+
     def run(self, target: str, error_queue: queue.Queue = None):
         parallel = False
         if error_queue:
             parallel = True
+        pod_name = None
+        input_rules = None
+        output_rules = None
+        pids = None
+        rules_applied = False
         try:
             pod_name = f"pod-filter-{get_random_string(5)}"
             container_name = f"fedora-container-{get_random_string(5)}"
@@ -86,6 +112,16 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                         parallel,
                         pod_name,
                     )
+                    # No rules applied yet (rules_applied is False), so this only
+                    # deletes the previously-leaked chaos pod. Best-effort: a
+                    # cleanup failure must not turn this graceful skip into a
+                    # reported scenario failure (parity with main).
+                    try:
+                        self._rollback(
+                            pod_name, input_rules, output_rules, pids, rules_applied
+                        )
+                    except Exception:
+                        pass
                     return
                 log_info(
                     f"detected network interfaces: {','.join(interfaces)}",
@@ -137,6 +173,7 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                 parallel,
                 target,
             )
+            rules_applied = True
 
             log_info(
                 f"waiting {self.config.test_duration} seconds before removing the iptables rules",
@@ -148,6 +185,12 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
 
             log_info("removing iptables rules", parallel, pod_name)
 
+            # iptables cleanup is destructive and not idempotent: disarm the
+            # rollback guard *before* cleaning so that if cleanup or pod deletion
+            # fails, the exception handler cannot run a second, destructive
+            # cleanup pass. Cleanup stays inside `try`, so its failures flow
+            # through the existing error_queue / raise handling.
+            rules_applied = False
             clean_network_rules_namespaced(
                 self.kubecli.get_lib_kubernetes(),
                 input_rules,
@@ -162,6 +205,15 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
             )
 
         except Exception as e:
+            if pod_name:
+                try:
+                    self._rollback(
+                        pod_name, input_rules, output_rules, pids, rules_applied
+                    )
+                except Exception:
+                    # best-effort cleanup: never mask or drop the original
+                    # scenario error (preserves the error_queue / raise contract)
+                    pass
             if error_queue is None:
                 raise e
             else:
