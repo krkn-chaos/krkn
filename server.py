@@ -93,4 +93,5 @@ def get_status(address):
     response = httpc.getresponse()
     status = response.read()
     logging.info("response " + str(status.decode()))
+    httpc.close()
     return status.decode()
