@@ -210,6 +210,13 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
         mock_log_error.assert_called()
         self.assertIn("no network interface", str(mock_log_error.call_args))
 
+        # The chaos pod is now cleaned up on the no-interface early return
+        # (previously it was leaked).
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
+
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_delete_limit_rules"
+    )
     @patch(
         "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.node_qdisc_is_simple"
     )
@@ -221,7 +228,12 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
     )
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.log_info")
     def test_run_complex_qdisc_without_force(
-        self, mock_log_info, mock_log_warning, mock_setup, mock_qdisc_is_simple
+        self,
+        mock_log_info,
+        mock_log_warning,
+        mock_setup,
+        mock_qdisc_is_simple,
+        mock_delete_rules,
     ):
         """
         Test run skips chaos when complex qdisc exists and force=False
@@ -240,6 +252,10 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
         # Verify warning was logged
         mock_log_warning.assert_called()
         self.assertIn("already has tc rules", str(mock_log_warning.call_args))
+
+        # No tc rules were applied on this branch, so rollback must NOT attempt
+        # tc cleanup (regression lock: behaviour is byte-for-byte unchanged here).
+        mock_delete_rules.assert_not_called()
 
         # Verify cleanup pod was still deleted
         self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
@@ -486,6 +502,146 @@ class TestNodeNetworkChaosModule(unittest.TestCase):
 
         # Verify qdisc was checked for all 3 interfaces
         self.assertEqual(mock_qdisc_is_simple.call_count, 3)
+
+
+class TestNodeNetworkChaosModuleRollback(unittest.TestCase):
+    """
+    Rollback / exception-safety tests for NodeNetworkChaosModule.
+
+    Modeled on TestVmiNetworkChaosModuleRollback. Verifies that the chaos pod
+    and any applied tc rules are cleaned up on the exception path and on the
+    no-interface early return, and that tc cleanup is gated on rules actually
+    having been applied (not merely on interfaces being known).
+    """
+
+    def setUp(self):
+        self.mock_kubecli = MagicMock()
+        self.mock_kubernetes = MagicMock()
+        self.mock_kubecli.get_lib_kubernetes.return_value = self.mock_kubernetes
+
+        self.config = NetworkChaosConfig(
+            id="test-node-network-chaos",
+            image="test-image",
+            wait_duration=1,
+            test_duration=30,
+            label_selector="",
+            service_account="",
+            taints=[],
+            namespace="default",
+            instance_count=1,
+            target="worker-1",
+            execution="parallel",
+            interfaces=["eth0"],
+            ingress=True,
+            egress=True,
+            latency="100ms",
+            loss="10",
+            bandwidth="100mbit",
+            force=False,
+        )
+
+        self.module = NodeNetworkChaosModule(self.config, self.mock_kubecli)
+
+    def test_rollback_calls_delete_limit_rules_when_rules_applied(self):
+        """When rules were applied, _rollback removes tc rules then deletes the pod."""
+        with patch(
+            "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_delete_limit_rules"
+        ) as mock_del:
+            self.module._rollback("chaos-pod", ["eth0"], rules_applied=True)
+        mock_del.assert_called_once()
+        del_args = mock_del.call_args[0]
+        self.assertEqual(del_args[2], ["eth0"])  # interfaces
+        self.assertIsNone(del_args[6])  # pids: None for node (hostNetwork=True)
+        self.mock_kubernetes.delete_pod.assert_called_once_with("chaos-pod", "default")
+
+    def test_rollback_skips_delete_limit_rules_when_not_applied(self):
+        """When no rules were applied, _rollback deletes only the pod."""
+        with patch(
+            "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_delete_limit_rules"
+        ) as mock_del:
+            self.module._rollback("chaos-pod", ["eth0"], rules_applied=False)
+        mock_del.assert_not_called()
+        self.mock_kubernetes.delete_pod.assert_called_once_with("chaos-pod", "default")
+
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_delete_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.node_qdisc_is_simple"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.setup_network_chaos_ng_scenario"
+    )
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.log_info")
+    def test_run_rollback_deletes_pod_on_exception_before_tc(
+        self, mock_log_info, mock_setup, mock_qdisc, mock_del
+    ):
+        """Exception before tc is applied: pod deleted, no tc cleanup attempted."""
+        mock_setup.return_value = (["container-123"], ["eth0"])
+        mock_qdisc.side_effect = RuntimeError("qdisc check failed")
+
+        with self.assertRaises(RuntimeError):
+            self.module.run("worker-1")
+
+        mock_del.assert_not_called()
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
+
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_delete_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_set_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.node_qdisc_is_simple"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.setup_network_chaos_ng_scenario"
+    )
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.time.sleep")
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.log_info")
+    def test_run_rollback_calls_delete_limit_rules_on_exception_after_tc(
+        self, mock_log_info, mock_sleep, mock_setup, mock_qdisc, mock_set, mock_del
+    ):
+        """Interrupted after tc is applied: tc cleanup and pod deletion both run."""
+        mock_setup.return_value = (["container-123"], ["eth0"])
+        mock_qdisc.return_value = True
+        mock_sleep.side_effect = RuntimeError("interrupted")
+
+        with self.assertRaises(RuntimeError):
+            self.module.run("worker-1")
+
+        mock_del.assert_called_once()
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
+
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_delete_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.common_set_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.node_qdisc_is_simple"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.setup_network_chaos_ng_scenario"
+    )
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.time.sleep")
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_network_chaos.log_info")
+    def test_run_rollback_passes_correct_interfaces_on_exception(
+        self, mock_log_info, mock_sleep, mock_setup, mock_qdisc, mock_set, mock_del
+    ):
+        """Rollback on the exception path targets the correct interfaces, pids=None."""
+        mock_setup.return_value = (["container-123"], ["eth0"])
+        mock_qdisc.return_value = True
+        mock_sleep.side_effect = RuntimeError("interrupted")
+
+        with self.assertRaises(RuntimeError):
+            self.module.run("worker-1")
+
+        del_args = mock_del.call_args[0]
+        self.assertEqual(del_args[2], ["eth0"])  # interfaces
+        self.assertIsNone(del_args[6])  # pids: None for node
 
 
 if __name__ == "__main__":

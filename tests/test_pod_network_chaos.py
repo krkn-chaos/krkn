@@ -238,6 +238,10 @@ class TestPodNetworkChaosModule(unittest.TestCase):
         mock_log_error.assert_called()
         self.assertIn("no network interface", str(mock_log_error.call_args))
 
+        # The chaos pod is now cleaned up on the no-interface early return
+        # (previously it was leaked).
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
+
     @patch(
         "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.setup_network_chaos_ng_scenario"
     )
@@ -258,6 +262,9 @@ class TestPodNetworkChaosModule(unittest.TestCase):
             self.module.run("test-pod")
 
         self.assertIn("impossible to resolve container id", str(context.exception))
+
+        # The chaos pod is now cleaned up before the exception propagates.
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
 
     @patch(
         "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.setup_network_chaos_ng_scenario"
@@ -282,6 +289,9 @@ class TestPodNetworkChaosModule(unittest.TestCase):
             self.module.run("test-pod")
 
         self.assertIn("impossible to resolve pid", str(context.exception))
+
+        # The chaos pod is now cleaned up before the exception propagates.
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.time.sleep")
     @patch(
@@ -445,6 +455,144 @@ class TestPodNetworkChaosModule(unittest.TestCase):
         delete_call_args = mock_delete_rules.call_args
         self.assertEqual(delete_call_args[0][0], True)  # egress
         self.assertEqual(delete_call_args[0][1], False)  # ingress
+
+
+class TestPodNetworkChaosModuleRollback(unittest.TestCase):
+    """
+    Rollback / exception-safety tests for PodNetworkChaosModule.
+
+    Modeled on TestVmiNetworkChaosModuleRollback. Verifies that the chaos pod
+    and any applied tc rules (in the target pod netns via nsenter/pids) are
+    cleaned up on the exception path and on the no-interface early return, and
+    that tc cleanup is gated on rules actually having been applied.
+    """
+
+    def setUp(self):
+        self.mock_kubecli = MagicMock()
+        self.mock_kubernetes = MagicMock()
+        self.mock_kubecli.get_lib_kubernetes.return_value = self.mock_kubernetes
+
+        self.config = NetworkChaosConfig(
+            id="test-pod-network-chaos",
+            image="test-image",
+            wait_duration=1,
+            test_duration=30,
+            label_selector="",
+            service_account="",
+            taints=[],
+            namespace="default",
+            instance_count=1,
+            target="test-pod",
+            execution="parallel",
+            interfaces=["eth0"],
+            ingress=True,
+            egress=True,
+            latency="100ms",
+            loss="10",
+            bandwidth="100mbit",
+        )
+
+        self.module = PodNetworkChaosModule(self.config, self.mock_kubecli)
+
+        self.mock_pod_info = MagicMock()
+        self.mock_pod_info.nodeName = "worker-1"
+        self.mock_kubernetes.get_pod_info.return_value = self.mock_pod_info
+
+    def test_rollback_calls_delete_limit_rules_when_rules_applied(self):
+        """When rules were applied, _rollback removes tc rules (with pids) then deletes the pod."""
+        with patch(
+            "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.common_delete_limit_rules"
+        ) as mock_del:
+            self.module._rollback(
+                "chaos-pod", ["eth0"], pids=["1234"], rules_applied=True
+            )
+        mock_del.assert_called_once()
+        del_args = mock_del.call_args[0]
+        self.assertEqual(del_args[2], ["eth0"])  # interfaces
+        self.assertEqual(del_args[6], ["1234"])  # pids
+        self.mock_kubernetes.delete_pod.assert_called_once_with("chaos-pod", "default")
+
+    def test_rollback_skips_delete_limit_rules_when_not_applied(self):
+        """When no rules were applied, _rollback deletes only the pod."""
+        with patch(
+            "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.common_delete_limit_rules"
+        ) as mock_del:
+            self.module._rollback(
+                "chaos-pod", ["eth0"], pids=["1234"], rules_applied=False
+            )
+        mock_del.assert_not_called()
+        self.mock_kubernetes.delete_pod.assert_called_once_with("chaos-pod", "default")
+
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.common_delete_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.setup_network_chaos_ng_scenario"
+    )
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.log_info")
+    def test_run_rollback_deletes_pod_on_exception_before_tc(
+        self, mock_log_info, mock_setup, mock_del
+    ):
+        """Exception before tc is applied (no pids): pod deleted, no tc cleanup."""
+        mock_setup.return_value = (["container-123"], ["eth0"])
+        self.mock_kubernetes.get_pod_pids.return_value = []  # raises before tc
+
+        with self.assertRaises(Exception):
+            self.module.run("test-pod")
+
+        mock_del.assert_not_called()
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
+
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.common_delete_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.common_set_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.setup_network_chaos_ng_scenario"
+    )
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.time.sleep")
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.log_info")
+    def test_run_rollback_calls_delete_limit_rules_on_exception_after_tc(
+        self, mock_log_info, mock_sleep, mock_setup, mock_set, mock_del
+    ):
+        """Interrupted after tc is applied: tc cleanup and pod deletion both run."""
+        mock_setup.return_value = (["container-123"], ["eth0"])
+        self.mock_kubernetes.get_pod_pids.return_value = ["1234"]
+        mock_sleep.side_effect = RuntimeError("interrupted")
+
+        with self.assertRaises(RuntimeError):
+            self.module.run("test-pod")
+
+        mock_del.assert_called_once()
+        self.assertEqual(self.mock_kubernetes.delete_pod.call_count, 1)
+
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.common_delete_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.common_set_limit_rules"
+    )
+    @patch(
+        "krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.setup_network_chaos_ng_scenario"
+    )
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.time.sleep")
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.log_info")
+    def test_run_rollback_passes_correct_pids_on_exception(
+        self, mock_log_info, mock_sleep, mock_setup, mock_set, mock_del
+    ):
+        """Rollback on the exception path targets the correct interfaces and pids."""
+        mock_setup.return_value = (["container-123"], ["eth0"])
+        self.mock_kubernetes.get_pod_pids.return_value = ["1234", "5678"]
+        mock_sleep.side_effect = RuntimeError("interrupted")
+
+        with self.assertRaises(RuntimeError):
+            self.module.run("test-pod")
+
+        del_args = mock_del.call_args[0]
+        self.assertEqual(del_args[2], ["eth0"])  # interfaces
+        self.assertEqual(del_args[6], ["1234", "5678"])  # pids
 
 
 if __name__ == "__main__":
