@@ -309,7 +309,9 @@ class TestPodNetworkFilterModuleRollback(unittest.TestCase):
         """
         If pod deletion fails after a successful cleanup, namespaced cleanup must
         NOT run a second time (it would delete unrelated rules inside the pod
-        netns). Rollback runs in `finally`, guaranteeing exactly one cleanup pass.
+        netns). Rollback runs in the `except` block; setting `rules_applied =
+        False` before clean_network_rules_namespaced disarms it, guaranteeing
+        exactly one cleanup pass.
         """
         mock_setup.return_value = (["container-123"], ["eth0"])
         mock_generate.return_value = (["in-rule"], ["out-rule"])

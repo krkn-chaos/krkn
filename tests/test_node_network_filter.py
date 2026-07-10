@@ -229,7 +229,8 @@ class TestNodeNetworkFilterModuleRollback(unittest.TestCase):
         If pod deletion fails after a successful cleanup, cleanup must NOT run a
         second time. clean_network_rules deletes INPUT/OUTPUT position 1 per
         rule, so a second pass would delete unrelated firewall rules. Rollback
-        runs in `finally`, guaranteeing exactly one cleanup pass.
+        runs in the `except` block; setting `rules_applied = False` before
+        clean_network_rules disarms it, guaranteeing exactly one cleanup pass.
         """
         mock_generate.return_value = (["in-rule"], ["out-rule"])
         self.mock_kubernetes.delete_pod.side_effect = Exception("api error")
