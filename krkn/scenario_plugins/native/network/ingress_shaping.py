@@ -185,7 +185,7 @@ def get_default_interface(node: str, pod_template, kubecli: KrknKubernetes, imag
     kubecli.create_pod(pod_body, "default", 300)
     pod_name = f"fedtools-{pod_name_regex}"
     try:
-        cmd = ["ip", "r"]
+        cmd = ["ip r"]
         output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
         if not output:
@@ -243,7 +243,7 @@ def get_node_interface_list(pod_name: str, kubecli: KrknKubernetes) -> typing.Li
     interface list). Exits with a clear error if neither command yields a
     usable interface list.
     """
-    cmd = ["ip", "-br", "addr", "show"]
+    cmd = ["ip -br addr show"]
     output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
     if not output or _is_ip_help_output(output):
@@ -251,7 +251,7 @@ def get_node_interface_list(pod_name: str, kubecli: KrknKubernetes) -> typing.Li
             "`ip -br addr show` did not return a valid interface list "
             "(brief flag may be unsupported); falling back to `ip addr show`"
         )
-        cmd = ["ip", "addr", "show"]
+        cmd = ["ip addr show"]
         output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
         if not output or _is_ip_help_output(output):
@@ -298,7 +298,7 @@ def verify_interface(
     pod_name = f"fedtools-{pod_name_regex}"
     try:
         if input_interface_list == []:
-            cmd = ["ip", "r"]
+            cmd = ["ip r"]
             output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
             if not output:
