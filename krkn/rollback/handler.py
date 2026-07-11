@@ -160,7 +160,10 @@ def execute_rollback_version_files(
 
     # Execute all version files in the directory
     logger.info(f"Executing rollback version files for run_uuid={run_uuid or '*'}, scenario_type={scenario_type or '*'}")
+    failed_rollbacks: list[tuple[str, Exception]] = []
+    
     for version_file in version_files:
+        success = False
         try:
             logger.info(f"Executing rollback version file: {version_file}")
             
@@ -180,9 +183,8 @@ def execute_rollback_version_files(
             logger.info('Rollback completed.')
             success = True
         except Exception as e:
-            success = False
             logger.error(f"Failed to execute rollback version file {version_file}: {e}")
-            raise
+            failed_rollbacks.append((version_file, e))
 
         # Rename the version file with .executed suffix if successful
         if success:
@@ -192,7 +194,16 @@ def execute_rollback_version_files(
                 logger.info(f"Renamed {version_file} to {executed_file} successfully.")
             except Exception as e:
                 logger.error(f"Failed to rename rollback version file {version_file}: {e}")
-                raise
+                failed_rollbacks.append((version_file, e))
+                
+    # Report aggregated failures
+    if failed_rollbacks:
+        error_summary = "\n".join(
+            f"  - {f}: {e}" for f, e in failed_rollbacks
+        )
+        raise RuntimeError(
+            f"{len(failed_rollbacks)} rollback(s) failed out of {len(version_files)}:\n{error_summary}"
+        )
 
 def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
     """
