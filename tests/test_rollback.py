@@ -405,7 +405,7 @@ class TestRollbackCascadeFailure:
             patch('os.rename') as mock_rename
         ):
             # Assert that the handler collects all errors and raises them at the very end
-            with pytest.raises(RuntimeError) as exc_info:
+            with pytest.raises(ExceptionGroup) as exc_info:
                 execute_rollback_version_files(
                     mock_telemetry,
                     "test-uuid",
@@ -422,7 +422,7 @@ class TestRollbackCascadeFailure:
             # Assert that file 1 and 3 were successfully renamed, but 2 was not
             assert mock_rename.call_count == 2
             
-            # Assert the exact aggregated error message is correct format
-            error_message = str(exc_info.value)
-            assert "1 rollback(s) failed out of 3" in error_message
-            assert "/tmp/file2.py: Fake Network Timeout" in error_message
+            # Assert the ExceptionGroup is correctly formatted and contains our exact exception
+            assert "1 rollback(s) failed out of 3" in str(exc_info.value)
+            assert len(exc_info.value.exceptions) == 1
+            assert str(exc_info.value.exceptions[0]) == "Fake Network Timeout"

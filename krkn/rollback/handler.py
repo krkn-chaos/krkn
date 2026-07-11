@@ -198,11 +198,10 @@ def execute_rollback_version_files(
                 
     # Report aggregated failures
     if failed_rollbacks:
-        error_summary = "\n".join(
-            f"  - {f}: {e}" for f, e in failed_rollbacks
-        )
-        raise RuntimeError(
-            f"{len(failed_rollbacks)} rollback(s) failed out of {len(version_files)}:\n{error_summary}"
+        exceptions = [e for _, e in failed_rollbacks]
+        raise ExceptionGroup(
+            f"{len(failed_rollbacks)} rollback(s) failed out of {len(version_files)}",
+            exceptions
         )
 
 def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
