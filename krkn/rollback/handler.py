@@ -36,6 +36,15 @@ if TYPE_CHECKING:
     from krkn.rollback.serialization import Serializer
 
 
+class RollbackExecutionError(RuntimeError):
+    """Raised after all rollback files run when one or more failed."""
+
+    def __init__(self, failures: list[tuple[str, Exception]]) -> None:
+        self.failures = failures
+        details = "; ".join(f"{path}: {error}" for path, error in failures)
+        super().__init__(f"{len(failures)} rollback file(s) failed: {details}")
+
+
 def set_rollback_context_decorator(func):
     """
     Decorator to automatically set and clear rollback context.
@@ -160,6 +169,7 @@ def execute_rollback_version_files(
 
     # Execute all version files in the directory
     logger.info(f"Executing rollback version files for run_uuid={run_uuid or '*'}, scenario_type={scenario_type or '*'}")
+    failures: list[tuple[str, Exception]] = []
     for version_file in version_files:
         try:
             logger.info(f"Executing rollback version file: {version_file}")
@@ -178,21 +188,22 @@ def execute_rollback_version_files(
                 )
             rollback_callable(rollback_content, telemetry_arg)
             logger.info('Rollback completed.')
-            success = True
         except Exception as e:
-            success = False
             logger.error(f"Failed to execute rollback version file {version_file}: {e}")
-            raise
+            failures.append((version_file, e))
+            continue
 
         # Rename the version file with .executed suffix if successful
-        if success:
-            try:
-                executed_file = f"{version_file}.executed"
-                os.rename(version_file, executed_file)
-                logger.info(f"Renamed {version_file} to {executed_file} successfully.")
-            except Exception as e:
-                logger.error(f"Failed to rename rollback version file {version_file}: {e}")
-                raise
+        try:
+            executed_file = f"{version_file}.executed"
+            os.rename(version_file, executed_file)
+            logger.info(f"Renamed {version_file} to {executed_file} successfully.")
+        except Exception as e:
+            logger.error(f"Failed to rename rollback version file {version_file}: {e}")
+            failures.append((version_file, e))
+
+    if failures:
+        raise RollbackExecutionError(failures)
 
 def cleanup_rollback_version_files(run_uuid: str, scenario_type: str):
     """
