@@ -13,4 +13,4 @@ permissions:
 
 jobs:
   rebase:
-    uses: krkn-chaos/actions/.github/workflows/needs-rebase.yml@main
+    uses: krkn-chaos/actions/.github/workflows/needs-rebase.yml@d17d7433f988dc95a7ae2b15b3505b1f256dc1f6 # main
