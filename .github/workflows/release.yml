@@ -10,6 +10,7 @@ jobs:
   release:
     permissions:
       contents: write
+      id-token: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -44,6 +45,7 @@ jobs:
           OUTPUT=${TEMPLATE//\{VERSION\}/$VERSION}
           OUTPUT=${OUTPUT//\{CHANGES\}/$NOTES}
           echo "$OUTPUT" > release-notes.md
+          
       - name: create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,3 +63,13 @@ jobs:
           syft . --scope all-layers --output cyclonedx-json > sbom.json
           echo "SBOM generated successfully!"
           gh release upload ${{ github.ref_name }} sbom.json
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 # v3.5.0
+
+      - name: Sign the SBOM
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cosign sign-blob --yes --bundle sbom.json.bundle sbom.json
+          gh release upload ${{ github.ref_name }} sbom.json.bundle
