@@ -1,0 +1,31 @@
+name: Docs Bypass
+on:
+  pull_request:
+    paths:
+      - '**/*.md'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  tests-v2:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  security-scan-source:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  build-and-push-krkn:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  build-push-redhat-chaos:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
