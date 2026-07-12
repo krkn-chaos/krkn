@@ -6,8 +6,6 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - '**/*.md'
 jobs:
   tests-v2:
     name: Tests v2 (pytest functional)
