@@ -44,7 +44,8 @@ def slo_passed(prometheus_result: List[Any]) -> Optional[bool]:
         elif "value" in series:
             has_samples = True
             try:
-                return float(series["value"][1]) == 0
+                if float(series["value"][1]) != 0:
+                    return False
             except (TypeError, ValueError):
                 return False
 

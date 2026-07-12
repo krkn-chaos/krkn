@@ -153,6 +153,19 @@ class TestSLOPassed(unittest.TestCase):
         result = slo_passed(prometheus_result)
         self.assertFalse(result)
 
+    def test_result_with_multiple_instant_series_later_has_nonzero(self):
+        """Test that a later non-zero value in instant vector series returns False."""
+        prometheus_result = [
+            {
+                "value": [1234567890, "0"]
+            },
+            {
+                "value": [1234567891, "2.0"]  # Non-zero in a subsequent series
+            }
+        ]
+        result = slo_passed(prometheus_result)
+        self.assertFalse(result)
+
     def test_result_with_float_zero(self):
         """Test that float zero is handled correctly."""
         prometheus_result = [
