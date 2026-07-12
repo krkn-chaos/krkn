@@ -1,9 +1,13 @@
 name: Functional & Unit Tests
 on:
   pull_request:
+    paths-ignore:
+      - '**/*.md'
   push:
     branches:
       - main
+    paths-ignore:
+      - '**/*.md'
 jobs:
   tests:
     # Common steps
