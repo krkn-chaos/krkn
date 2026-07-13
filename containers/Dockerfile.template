@@ -94,7 +94,7 @@ RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR
 RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 
 RUN ${PYTHON_CMD} -m ensurepip --upgrade --default-pip
-RUN ${PYTHON_CMD} -m pip install --upgrade pip setuptools==81.0.0 poetry-core
+RUN ${PYTHON_CMD} -m pip install --upgrade pip setuptools==81.0.0 poetry-core==2.4.1
 
 # removes the the vulnerable versions of setuptools and pip
 RUN rm -rf "$(pip cache dir)"
