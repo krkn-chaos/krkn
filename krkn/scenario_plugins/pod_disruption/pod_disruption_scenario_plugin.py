@@ -228,6 +228,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 for pod in _exclude_pods:
                     exclude_pods.add(pod[0])
 
+            pods = [pod for pod in pods if pod[0] not in exclude_pods]
 
             pods_count = len(pods)
             if len(pods) < config.kill:
@@ -239,11 +240,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             for i in range(config.kill):
                 pod = pods[i]
                 logging.info(pod)
-                if pod[0] in exclude_pods:
-                    logging.info(f"Excluding {pod[0]} from chaos")
-                else:
-                    logging.info(f'Deleting pod {pod[0]}')
-                    kubecli.delete_pod(pod[0], pod[1])
+                logging.info(f'Deleting pod {pod[0]}')
+                kubecli.delete_pod(pod[0], pod[1])
             
             return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         except Exception as e:
