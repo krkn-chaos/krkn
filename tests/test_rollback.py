@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import tempfile
+import unittest
 import uuid
 import subprocess
 
@@ -366,27 +367,26 @@ class TestSecureTempDirectories:
         assert explicit_path  # truthy, so no fallback
 
 
-class TestRollbackCascadeFailure:
+class TestRollbackCascadeFailure(unittest.TestCase):
     def test_execute_rollback_cascade_failure(self):
         """Test that a failure in one rollback file does not stop other rollback files from executing."""
         from krkn.rollback.handler import execute_rollback_version_files
         from krkn.rollback.config import RollbackConfig
         from unittest.mock import Mock, patch
-        import pytest
 
         mock_telemetry = Mock()
-        
+
         # 3 mock version files
         mock_version_files = [
             "/tmp/file1.py",
             "/tmp/file2.py",  # This one will be rigged to fail
             "/tmp/file3.py"
         ]
-        
+
         mock_callable_1 = Mock()
         mock_callable_2 = Mock(side_effect=Exception("Fake Network Timeout"))
         mock_callable_3 = Mock()
-        
+
         def mock_parse_side_effect(version_file):
             mock_content = Mock()
             mock_content.skip_kubernetes = False
@@ -405,24 +405,25 @@ class TestRollbackCascadeFailure:
             patch('os.rename') as mock_rename
         ):
             # Assert that the handler collects all errors and raises them at the very end
-            with pytest.raises(ExceptionGroup) as exc_info:
+            with self.assertRaises(ExceptionGroup) as ctx:
                 execute_rollback_version_files(
                     mock_telemetry,
                     "test-uuid",
                     "scenario",
                     ignore_auto_rollback_config=True
                 )
-            
+
             # The most important assertion: ALL 3 callables were executed!
             # The crash in callable 2 did NOT stop callable 3 from running.
             mock_callable_1.assert_called_once()
             mock_callable_2.assert_called_once()
             mock_callable_3.assert_called_once()
-            
+
             # Assert that file 1 and 3 were successfully renamed, but 2 was not
-            assert mock_rename.call_count == 2
-            
+            self.assertEqual(mock_rename.call_count, 2)
+
             # Assert the ExceptionGroup is correctly formatted and contains our exact exception
-            assert "1 rollback(s) failed out of 3" in str(exc_info.value)
-            assert len(exc_info.value.exceptions) == 1
-            assert str(exc_info.value.exceptions[0]) == "Fake Network Timeout"
+            self.assertIn("1 rollback(s) failed out of 3", str(ctx.exception))
+            self.assertEqual(len(ctx.exception.exceptions), 1)
+            self.assertEqual(str(ctx.exception.exceptions[0]), "Fake Network Timeout")
+
