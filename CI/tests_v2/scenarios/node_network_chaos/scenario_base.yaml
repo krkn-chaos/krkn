@@ -1,0 +1,21 @@
+# Base node_network_chaos scenario (list format for network_chaos_ng_scenarios plugin).
+# Tests load this and patch the single entry per case (target, loss, latency, bandwidth,
+# ingress/egress, label_selector, instance_count, force, test_duration).
+- id: node_network_chaos
+  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  wait_duration: 1
+  test_duration: 30
+  label_selector: ""
+  service_account: ""
+  taints: []
+  namespace: default
+  instance_count: 1
+  target: "<node_name>"
+  execution: parallel
+  interfaces: []
+  ingress: true
+  egress: true
+  latency: 0s
+  loss: "10"
+  bandwidth: 1gbit
+  force: false
