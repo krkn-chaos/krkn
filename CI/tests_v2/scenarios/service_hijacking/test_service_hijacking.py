@@ -18,7 +18,6 @@ from lib.utils import (
     assert_kraken_failure,
     assert_kraken_success,
     assert_scenario_executed,
-    list_pods_by_prefix,
     load_scenario_base,
     wait_for_no_pods_by_prefix,
 )
@@ -26,7 +25,8 @@ from lib.utils import (
 logger = logging.getLogger(__name__)
 
 # Prefix used by the service-hijacking plugin when deploying the hijacker pod.
-HIJACKER_POD_PREFIX = "krkn-service-hijacking"
+HIJACKER_POD_PREFIX = "service-hijacking-pod-"
+
 
 
 def _read_service_selector(k8s_core, name: str, namespace: str) -> dict:
@@ -108,11 +108,7 @@ class TestServiceHijacking(BaseScenarioTest):
         )
 
         # Hijacker pod should be gone.
-        hijacker_pods = list_pods_by_prefix(self.k8s_core, ns, HIJACKER_POD_PREFIX)
-        assert len(hijacker_pods) == 0, (
-            f"Hijacker pod(s) still present after scenario: "
-            f"{[p.metadata.name for p in hijacker_pods]} (namespace={ns})"
-        )
+        wait_for_no_pods_by_prefix(self.k8s_core, ns, HIJACKER_POD_PREFIX, timeout=30)
 
     def test_multi_step_plan(self):
         """TC-2: Multi-step plan (time-based transitions).
@@ -264,26 +260,65 @@ class TestServiceHijacking(BaseScenarioTest):
             result, context=f"fake-ns namespace={ns}", tmp_path=self.tmp_path
         )
 
-    @pytest.mark.no_workload
     def test_service_patch_failure(self):
         """TC-10: Service patch failure.
 
         Verify: Krkn exits 1 when the target service exists but selector
-        replacement fails. Simulated by targeting a service whose name matches
-        but that lives in a namespace where no service is deployed (the test
-        namespace has no workload because of no_workload marker, so
-        nginx-service does not exist there).
+        replacement fails.
         """
         ns = self.ns
-        # The test namespace is empty (no_workload), so nginx-service does not exist.
-        # This exercises the "service not found" code path in the plugin.
-        result = self.run_scenario(
-            self.tmp_path, ns,
-            config_filename="patch_failure_config.yaml",
-        )
-        assert_kraken_failure(
-            result, context=f"patch-failure namespace={ns}", tmp_path=self.tmp_path
-        )
+        import tempfile
+        import os
+        import shutil
+        from pathlib import Path
+
+        # Create a temporary directory for sitecustomize.py to mock replace_service_selector
+        custom_dir = tempfile.mkdtemp(prefix="krkn-mock-")
+        sitecustomize_path = Path(custom_dir) / "sitecustomize.py"
+        sitecustomize_path.write_text("""
+import os
+if os.environ.get("MOCK_PATCH_FAILURE") == "1":
+    try:
+        from krkn_lib.k8s import KrknKubernetes
+        original_replace = KrknKubernetes.replace_service_selector
+        def mock_replace(self, new_selectors, service_name, namespace):
+            if service_name == "nginx-service":
+                return None
+            return original_replace(self, new_selectors, service_name, namespace)
+        KrknKubernetes.replace_service_selector = mock_replace
+    except Exception:
+        pass
+""")
+
+        # Inject into PYTHONPATH and set trigger env var
+        old_pythonpath = os.environ.get("PYTHONPATH", "")
+        if old_pythonpath:
+            os.environ["PYTHONPATH"] = f"{custom_dir}{os.path.pathsep}{old_pythonpath}"
+        else:
+            os.environ["PYTHONPATH"] = custom_dir
+        os.environ["MOCK_PATCH_FAILURE"] = "1"
+
+        try:
+            result = self.run_scenario(
+                self.tmp_path, ns,
+                config_filename="patch_failure_config.yaml",
+            )
+            assert_kraken_failure(
+                result, context=f"patch-failure namespace={ns}", tmp_path=self.tmp_path
+            )
+            # Verify that the plugin output shows the patch failure log message
+            combined_output = f"{result.stdout or ''}\n{result.stderr or ''}"
+            assert "failed to patch service: nginx-service" in combined_output or "failed to patch service" in combined_output, (
+                f"Expected patch failure message in output, but got:\n{combined_output}"
+            )
+        finally:
+            # Clean up environment modifications and temp directory
+            if old_pythonpath:
+                os.environ["PYTHONPATH"] = old_pythonpath
+            else:
+                os.environ.pop("PYTHONPATH", None)
+            os.environ.pop("MOCK_PATCH_FAILURE", None)
+            shutil.rmtree(custom_dir, ignore_errors=True)
 
     # ── Rollback verification ─────────────────────────────────────────────
 
@@ -309,6 +344,22 @@ class TestServiceHijacking(BaseScenarioTest):
             filename="rollback_config.yaml",
         )
         proc = self.run_kraken_background(config_path)
+        
+        # Start background threads to continuously drain stdout/stderr pipes
+        # to prevent deadlock when the child's pipe buffers fill up.
+        import threading
+        def drain_stream(stream):
+            try:
+                for _ in stream:
+                    pass
+            except Exception:
+                pass
+        
+        t_out = threading.Thread(target=drain_stream, args=(proc.stdout,), daemon=True)
+        t_err = threading.Thread(target=drain_stream, args=(proc.stderr,), daemon=True)
+        t_out.start()
+        t_err.start()
+
         try:
             # Wait for the hijack to take effect (selector changes).
             _wait_for_service_selector_change(
@@ -339,9 +390,5 @@ class TestServiceHijacking(BaseScenarioTest):
         )
 
         # Verify hijacker pod was cleaned up by rollback handler.
-        hijacker_pods = list_pods_by_prefix(self.k8s_core, ns, HIJACKER_POD_PREFIX)
-        assert len(hijacker_pods) == 0, (
-            f"Rollback failed: hijacker pod(s) still present after interruption: "
-            f"{[p.metadata.name for p in hijacker_pods]} (namespace={ns})"
-        )
+        wait_for_no_pods_by_prefix(self.k8s_core, ns, HIJACKER_POD_PREFIX, timeout=30)
 
