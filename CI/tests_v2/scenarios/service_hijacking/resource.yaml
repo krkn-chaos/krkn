@@ -1,0 +1,30 @@
+# Nginx Pod + Service targeted by service hijacking scenario tests.
+# Namespace is patched at deploy time by the test framework.
+# Uses ClusterIP (no NodePort needed; v2 tests assert control-plane state, not HTTP traffic).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+  labels:
+    app.kubernetes.io/name: proxy
+spec:
+  containers:
+  - name: nginx
+    image: nginx:stable
+    ports:
+      - containerPort: 80
+        name: http-web-svc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app.kubernetes.io/name: proxy
+  ports:
+  - name: name-of-service-port
+    protocol: TCP
+    port: 80
+    targetPort: http-web-svc

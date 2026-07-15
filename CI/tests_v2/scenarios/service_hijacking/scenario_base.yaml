@@ -1,0 +1,19 @@
+# Base service_hijacking scenario. Tests load this and patch service_namespace.
+# Flat dict consumed directly by ServiceHijackingScenarioPlugin.run().
+service_target_port: 80
+service_name: nginx-service
+service_namespace: default
+image: quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3
+chaos_duration: 15
+privileged: True
+plan:
+  - resource: "/health"
+    steps:
+      GET:
+        - duration: 15
+          status: 500
+          mime_type: "application/json"
+          payload: |
+            {
+              "status": "internal server error"
+            }
