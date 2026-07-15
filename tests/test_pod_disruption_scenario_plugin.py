@@ -83,6 +83,8 @@ class TestPodDisruptionScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertEqual(mock_kubecli.delete_pod.call_count, config.kill)
+        self.plugin.wait_for_pods.assert_called_once()
+        self.assertEqual(self.plugin.wait_for_pods.call_args[0][3], 5)
 
         for call in mock_kubecli.delete_pod.call_args_list:
             deleted_pod_name = call[0][0]

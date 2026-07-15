@@ -228,9 +228,9 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 for pod in _exclude_pods:
                     exclude_pods.add(pod[0])
 
+            expected_pod_count = len(pods)
             pods = [pod for pod in pods if pod[0] not in exclude_pods]
 
-            pods_count = len(pods)
             if len(pods) < config.kill:
                 logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
                         config.kill, len(pods)))
@@ -243,7 +243,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 logging.info(f'Deleting pod {pod[0]}')
                 kubecli.delete_pod(pod[0], pod[1])
             
-            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, expected_pod_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         except Exception as e:
             raise(e)
 
