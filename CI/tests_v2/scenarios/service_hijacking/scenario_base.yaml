@@ -1,19 +1,50 @@
-# Base service_hijacking scenario. Tests load this and patch service_namespace.
-# Flat dict consumed directly by ServiceHijackingScenarioPlugin.run().
-service_target_port: 80
+# Base service_hijacking scenario. Tests load this and patch service_namespace
+# (and optionally service_name, service_target_port, chaos_duration, plan -- these
+# are top-level keys, so overrides via load_and_patch_scenario(**overrides) apply directly).
+service_target_port: http-web-svc
 service_name: nginx-service
 service_namespace: default
 image: quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3
-chaos_duration: 15
+chaos_duration: 12
 privileged: True
 plan:
-  - resource: "/health"
+  - resource: "/list/index.php"
     steps:
       GET:
-        - duration: 15
+        - duration: 6
           status: 500
           mime_type: "application/json"
           payload: |
             {
-              "status": "internal server error"
+              "status":"internal server error"
             }
+        - duration: 6
+          status: 201
+          mime_type: "application/json"
+          payload: |
+            {
+              "status":"resource created"
+            }
+      POST:
+        - duration: 6
+          status: 401
+          mime_type: "application/json"
+          payload: |
+            {
+              "status": "unauthorized"
+            }
+        - duration: 6
+          status: 404
+          mime_type: "text/plain"
+          payload: "not found"
+  - resource: "/patch"
+    steps:
+      PATCH:
+        - duration: 6
+          status: 201
+          mime_type: "text/plain"
+          payload: "resource patched"
+        - duration: 6
+          status: 400
+          mime_type: "text/plain"
+          payload: "bad request"
