@@ -27,6 +27,8 @@ jobs:
           kind load docker-image nginx:alpine
           docker pull quay.io/krkn-chaos/krkn:tools
           kind load docker-image quay.io/krkn-chaos/krkn:tools
+          docker pull quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3
+          kind load docker-image quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3
 
       - name: Install Python
         uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
