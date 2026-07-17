@@ -88,26 +88,21 @@ class TestPodErrorScenarios(BaseScenarioTest):
         )
 
     def test_recovery_timeout_fails(self):
-        """Pods must become Ready within krkn_pod_recovery_time; a window shorter than the
-        workload readinessProbe initialDelaySeconds makes recovery fail reliably.
-
-        recovery_time=1 was flaky on fast CI: the monitor could finish before observing the
-        kill, or nginx could become Ready within 1s. Use a few seconds so the deletion is
-        seen, but still below resource.yaml's readiness initialDelaySeconds (20).
-        """
         ns = self.ns
         before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
         before_names = [p.metadata.name for p in before.items]
 
         result = self.run_scenario(
-            self.tmp_path, ns, overrides={"krkn_pod_recovery_time": 5}
+            self.tmp_path, ns, overrides={"krkn_pod_recovery_time": 1}
         )
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
-
+        
+        # Verify no hang and logs contain namespace and expected timeout/recovery errors
         self.assert_failure_logs_contain(
-            result, ns, expected_reasons=["unrecovered", "recover"]
+            result, ns, expected_reasons=["timeout", "recover"]
         )
-
+        
+        # Verify at least one target pod name is in the logs
         combined_lower = ((result.stdout or "") + "\n" + (result.stderr or "")).lower()
         found_pod = any(name.lower() in combined_lower for name in before_names)
         assert found_pod, f"None of the target pods {before_names} were found in failure logs"
