@@ -66,6 +66,7 @@ from krkn.rollback.command import (
     list_rollback as list_rollback_command,
     execute_rollback as execute_rollback_command,
 )
+from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
 # removes TripleDES warning
 import warnings
@@ -411,6 +412,36 @@ def main(options, command: Optional[str]) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}\n")
+
+        # Evaluate top-level triggers before starting health checks or chaos
+        trigger_config = config.get("triggers")
+        if trigger_config:
+            try:
+                trigger_manager = TriggerManager(trigger_config)
+                logging.info(
+                    "waiting for triggers before starting chaos:\n%s",
+                    trigger_manager.describe(),
+                )
+                triggered = trigger_manager.wait_for_triggers()
+                if not triggered:
+                    on_timeout = trigger_manager.on_timeout
+                    if on_timeout == "skip":
+                        logging.warning(
+                            "trigger timed out, skipping all scenarios"
+                        )
+                        chaos_scenarios = []
+                    elif on_timeout == "fail":
+                        logging.error(
+                            "trigger timed out, exiting with failure"
+                        )
+                        return 1
+                    else:
+                        logging.warning(
+                            "trigger timed out, running scenarios anyway"
+                        )
+            except ValueError as e:
+                logging.error("invalid trigger configuration: %s", e)
+                return 1
 
         # Start all health check plugins discovered via config_key_map.
         # Returns list of (plugin, worker_thread, telemetry_queue);
