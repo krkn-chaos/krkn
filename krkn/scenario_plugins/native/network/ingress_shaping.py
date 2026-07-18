@@ -185,7 +185,7 @@ def get_default_interface(node: str, pod_template, kubecli: KrknKubernetes, imag
     kubecli.create_pod(pod_body, "default", 300)
     pod_name = f"fedtools-{pod_name_regex}"
     try:
-        cmd = ["ip", "r"]
+        cmd = ["ip r"]
         output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
         if not output:
@@ -238,7 +238,7 @@ def verify_interface(
     pod_name = f"fedtools-{pod_name_regex}"
     try:
         if input_interface_list == []:
-            cmd = ["ip", "r"]
+            cmd = ["ip r"]
             output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
             if not output:
@@ -254,7 +254,7 @@ def verify_interface(
             input_interface_list = [default_route.split()[4]]
 
         else:
-            cmd = ["ip", "-br", "addr", "show"]
+            cmd = ["ip -br addr show"]
             output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
             if not output:

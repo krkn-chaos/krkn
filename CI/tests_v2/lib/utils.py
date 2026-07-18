@@ -25,6 +25,7 @@ SCENARIO_EXECUTION_MARKERS = {
     "pod_error_scenarios": r"Deleting pod |waiting up to .* seconds for pod recovery",
     "application_outage": r"Creating the network policy|Deleting the network policy",
     "storage_throttle": r"Setting io\.max|Verified blkio settings|Privileged pod deployed",
+    "node_network_chaos": r"creating workload to inject network chaos in node|removing tc rules",
     "container_scenarios": r"Killing container .+ in pod",
     "namespace_deletion": r"Delete objects in selected namespace|Deleted all objects in namespace",
 }
@@ -242,6 +243,60 @@ def container_runtime() -> Optional[str]:
         if shutil.which(runtime):
             return runtime
     return None
+
+
+def clean_node_tc_rules(node: str) -> None:
+    """Best-effort removal of Krkn-style htb/netem tc rules on a KinD node container.
+
+    With ``force: false``, node network chaos skips injection when complex tc rules already
+    exist on the node. Repeated test runs can leave rules behind, so functional tests reset
+    the node tc state before each chaos run.
+    """
+    runtime = container_runtime()
+    if not runtime:
+        logger.warning("No container runtime on PATH; skipping tc cleanup on %s", node)
+        return
+    for cmd in (
+        ["tc", "qdisc", "del", "dev", "eth0", "ingress"],
+        ["tc", "qdisc", "del", "dev", "eth0", "root"],
+        ["tc", "qdisc", "del", "dev", "ifb0", "root"],
+        ["ip", "link", "del", "ifb0"],
+    ):
+        try:
+            subprocess.run(
+                [runtime, "exec", node] + cmd,
+                capture_output=True, text=True, timeout=30,
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("tc cleanup %r on %s failed: %s", cmd, node, e)
+
+
+def seed_node_complex_tc_rules(node: str) -> bool:
+    """Install non-simple htb+netem rules on a KinD node; return False if runtime unavailable."""
+    runtime = container_runtime()
+    if not runtime:
+        return False
+    clean_node_tc_rules(node)
+    for cmd in (
+        ["tc", "qdisc", "add", "dev", "eth0", "root", "handle", "100:", "htb", "default", "1"],
+        ["tc", "class", "add", "dev", "eth0", "parent", "100:", "classid", "100:1", "htb", "rate", "1gbit"],
+        ["tc", "qdisc", "add", "dev", "eth0", "parent", "100:1", "handle", "101:", "netem", "loss", "10%"],
+    ):
+        try:
+            proc = subprocess.run(
+                [runtime, "exec", node] + cmd,
+                capture_output=True, text=True, timeout=30,
+            )
+            if proc.returncode != 0:
+                logger.warning(
+                    "tc seed %r on %s exited %s: %s",
+                    cmd, node, proc.returncode, (proc.stderr or "").strip(),
+                )
+                return False
+        except Exception as e:  # noqa: BLE001
+            logger.warning("tc seed %r on %s failed: %s", cmd, node, e)
+            return False
+    return True
 
 
 def container_started_at(node: str) -> Optional[str]:
