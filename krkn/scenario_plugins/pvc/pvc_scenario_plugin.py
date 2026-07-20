@@ -175,10 +175,10 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         % (str(container_name), str(candidate_pod_name))
                     )
                 if shell is None:
+                    target_identifier = f"PVC '{pvc_name}'" if pvc_name else f"pod '{pod_name}'"
                     logging.error(
-                        "PvcScenarioPlugin reached the end of target options and found no "
-                        "usable shell (/bin/bash or /bin/sh) across any of the pods associated "
-                        "with PVC '%s'; cannot execute scenario." % str(pvc_name)
+                        "PvcScenarioPlugin reached the end of target options and failed to execute the scenario; "
+                        "none of the pods associated with %s are ready or usable." % target_identifier
                     )
                     return 1
                 logging.info("Using pod '%s' to execute the PVC scenario " % (pod_name))

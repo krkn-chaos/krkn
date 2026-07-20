@@ -906,6 +906,54 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             self.assertEqual(result, 0)
             mock_kubecli.get_pod_info.assert_any_call(name="no-pvc-pod", namespace="test-ns")
             mock_kubecli.get_pod_info.assert_any_call(name="good-pod", namespace="test-ns")
+            
+    def test_run_pod_name_only_fails_when_unusable(self):
+        """Test that passing only a pod_name fails cleanly if that specific pod is unusable"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "standalone-target-pod",
+                    "fill_percentage": 80,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            # Mock structural shapes for the targeted pod
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "standalone-pvc"
+            mock_volume.name = "test-volume"
+            mock_pod.volumes = [mock_volume]
+            
+            mock_container = MagicMock()
+            mock_container.name = "test-container"
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_pod.containers = [mock_container]
+
+            mock_kubecli.get_pod_info.return_value = mock_pod
+            # Force the single targeted pod to fail the shell check
+            mock_kubecli.get_pod_shell.return_value = None
+
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario=scenario_path,
+                lib_telemetry=mock_telemetry,
+                scenario_telemetry=MagicMock(),
+            )
+
+            # Verifies that it exits with a 1 since the only pod provided was unusable
+            self.assertEqual(result, 1)
+            mock_kubecli.get_pod_shell.assert_called_once_with(
+                "standalone-target-pod", "test-ns", "test-container"
+            )
 
     def test_run_shell_check_before_exec(self):
         """Test that get_pod_shell is called before any exec_cmd_in_pod when shell exists"""
