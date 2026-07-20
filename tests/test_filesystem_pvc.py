@@ -8,11 +8,48 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from krkn.utils.filesystem_pvc import fill_filesystem_pvc
+from krkn.utils.filesystem_pvc import (fill_filesystem_pvc, remove_filesystem_fill)
 from krkn.utils.pod_volumes import PodVolumeTarget
 
 
 class TestFillFilesystemPvc(unittest.TestCase):
+    def test_remove_filesystem_fill_success(self):
+        kubecli = MagicMock()
+        kubecli.exec_cmd_in_pod.side_effect = [
+            "",
+            "total 0\ndrwxr-xr-x 2 root root 40 Jan 1 00:00 .",
+        ]
+
+        remove_filesystem_fill(
+            kubecli=kubecli,
+            pod_name="test-pod",
+            namespace="test-ns",
+            container_name="test-container",
+            mount_path="/mnt/data",
+            file_name="kraken.tmp",
+        )
+
+        self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 2)
+
+    def test_remove_filesystem_fill_failure(self):
+        kubecli = MagicMock()
+        kubecli.exec_cmd_in_pod.side_effect = [
+            "",
+            "total 1024\n-rw-r--r-- 1 root root 1M Jan 1 00:00 kraken.tmp",
+        ]
+
+        with self.assertRaises(RuntimeError):
+            remove_filesystem_fill(
+                kubecli=kubecli,
+                pod_name="test-pod",
+                namespace="test-ns",
+                container_name="test-container",
+                mount_path="/mnt/data",
+                file_name="kraken.tmp",
+            )
+
+        self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 2)
+        
     def test_logs_usage_file_size_and_cleanup(self):
         kubecli = MagicMock()
         kubecli.get_pod_shell.return_value = "shell"

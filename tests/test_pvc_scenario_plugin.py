@@ -14,7 +14,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -24,6 +24,7 @@ from krkn.scenario_plugins.pvc.pvc_scenario_plugin import (
     _parse_fill_percentage,
 )
 from krkn.rollback.config import RollbackContent
+from krkn.utils.filesystem_pvc import encode_rollback_data
 
 
 class TestPvcScenarioPlugin(unittest.TestCase):
@@ -56,139 +57,6 @@ class TestPvcScenarioPlugin(unittest.TestCase):
     def test_parse_fill_percentage_accepts_quoted_numeric_value(self):
         self.assertEqual(_parse_fill_percentage("50"), 50.0)
 
-
-class TestToKbytes(unittest.TestCase):
-    """Tests for the to_kbytes method"""
-
-    def setUp(self):
-        """Set up test fixtures"""
-        self.plugin = PvcScenarioPlugin()
-
-    def tearDown(self):
-        """Clean up after each test to prevent state leakage"""
-        self.plugin = None
-
-    def test_to_kbytes_1ki(self):
-        """Test to_kbytes with 1Ki"""
-        self.assertEqual(self.plugin.to_kbytes("1Ki"), 1)
-
-    def test_to_kbytes_2ki(self):
-        """Test to_kbytes with 2Ki"""
-        self.assertEqual(self.plugin.to_kbytes("2Ki"), 2)
-
-    def test_to_kbytes_1mi(self):
-        """Test to_kbytes with 1Mi"""
-        self.assertEqual(self.plugin.to_kbytes("1Mi"), 1024)
-
-    def test_to_kbytes_2mi(self):
-        """Test to_kbytes with 2Mi"""
-        self.assertEqual(self.plugin.to_kbytes("2Mi"), 2 * 1024)
-
-    def test_to_kbytes_1gi(self):
-        """Test to_kbytes with 1Gi"""
-        self.assertEqual(self.plugin.to_kbytes("1Gi"), 1024 * 1024)
-
-    def test_to_kbytes_5gi(self):
-        """Test to_kbytes with 5Gi"""
-        self.assertEqual(self.plugin.to_kbytes("5Gi"), 5 * 1024 * 1024)
-
-    def test_to_kbytes_1ti(self):
-        """Test to_kbytes with 1Ti"""
-        self.assertEqual(self.plugin.to_kbytes("1Ti"), 1024 * 1024 * 1024)
-
-    def test_to_kbytes_invalid_missing_i(self):
-        """Test to_kbytes raises RuntimeError for 1K (missing i)"""
-        with self.assertRaises(RuntimeError):
-            self.plugin.to_kbytes("1K")
-
-    def test_to_kbytes_invalid_format_mb(self):
-        """Test to_kbytes raises RuntimeError for 1MB"""
-        with self.assertRaises(RuntimeError):
-            self.plugin.to_kbytes("1MB")
-
-    def test_to_kbytes_invalid_extra_char(self):
-        """Test to_kbytes raises RuntimeError for 1Gib"""
-        with self.assertRaises(RuntimeError):
-            self.plugin.to_kbytes("1Gib")
-
-    def test_to_kbytes_invalid_non_numeric(self):
-        """Test to_kbytes raises RuntimeError for abc"""
-        with self.assertRaises(RuntimeError):
-            self.plugin.to_kbytes("abc")
-
-    def test_to_kbytes_invalid_missing_unit(self):
-        """Test to_kbytes raises RuntimeError for 1024"""
-        with self.assertRaises(RuntimeError):
-            self.plugin.to_kbytes("1024")
-
-    def test_to_kbytes_invalid_empty(self):
-        """Test to_kbytes raises RuntimeError for empty string"""
-        with self.assertRaises(RuntimeError):
-            self.plugin.to_kbytes("")
-
-    def test_to_kbytes_invalid_unsupported_unit(self):
-        """Test to_kbytes raises RuntimeError for 1Pi (unsupported)"""
-        with self.assertRaises(RuntimeError):
-            self.plugin.to_kbytes("1Pi")
-
-
-class TestRemoveTempFile(unittest.TestCase):
-    """Tests for the remove_temp_file method"""
-
-    def setUp(self):
-        """Set up test fixtures"""
-        self.plugin = PvcScenarioPlugin()
-
-    def tearDown(self):
-        """Clean up after each test to prevent state leakage"""
-        self.plugin = None
-
-    def test_remove_temp_file_success(self):
-        """Test successful removal of temp file"""
-        mock_kubecli = MagicMock(spec=KrknKubernetes)
-        # Simulate file not present in ls output after removal
-        mock_kubecli.exec_cmd_in_pod.side_effect = [
-            "",  # rm -f command output
-            "total 0\ndrwxr-xr-x 2 root root 40 Jan 1 00:00 .",  # ls -lh output without kraken.tmp
-        ]
-
-        # Should not raise any exception
-        self.plugin.remove_temp_file(
-            file_name="kraken.tmp",
-            full_path="/mnt/data/kraken.tmp",
-            pod_name="test-pod",
-            namespace="test-ns",
-            container_name="test-container",
-            mount_path="/mnt/data",
-            file_size_kb=1024,
-            kubecli=mock_kubecli,
-        )
-
-        # Verify exec_cmd_in_pod was called twice (rm and ls)
-        self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)  
-
-    def test_remove_temp_file_failure(self):
-        """Test removal failure when file still exists"""
-        mock_kubecli = MagicMock(spec=KrknKubernetes)
-        # Simulate file still present in ls output after removal attempt
-        mock_kubecli.exec_cmd_in_pod.side_effect = [
-            "",  # rm -f command output
-            "total 1024\n-rw-r--r-- 1 root root 1M Jan 1 00:00 kraken.tmp",  # ls -lh output with kraken.tmp
-        ]
-
-        with self.assertRaises(RuntimeError):
-            self.plugin.remove_temp_file(
-                file_name="kraken.tmp",
-                full_path="/mnt/data/kraken.tmp",
-                pod_name="test-pod",
-                namespace="test-ns",
-                container_name="test-container",
-                mount_path="/mnt/data",
-                file_size_kb=1024,
-                kubecli=mock_kubecli,
-            )
-
-
 class TestRollbackTempFile(unittest.TestCase):
     """Tests for the rollback_temp_file static method"""
 
@@ -208,14 +76,13 @@ class TestRollbackTempFile(unittest.TestCase):
         # Create rollback data
         rollback_data = {
             "pod_name": "test-pod",
+            "namespace": "test-ns",
             "container_name": "test-container",
             "full_path": "/mnt/data/kraken.tmp",
             "file_name": "kraken.tmp",
             "mount_path": "/mnt/data",
         }
-        encoded_data = base64.b64encode(
-            json.dumps(rollback_data).encode("utf-8")
-        ).decode("utf-8")
+        encoded_data = encode_rollback_data(rollback_data)
 
         rollback_content = RollbackContent(
             namespace="test-ns",
@@ -228,7 +95,7 @@ class TestRollbackTempFile(unittest.TestCase):
         # Verify exec_cmd_in_pod was called
         self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)  
 
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.logging")
+    @patch("krkn.utils.filesystem_pvc.logging")
     def test_rollback_temp_file_invalid_data(self, mock_logging):
         """Test rollback handles invalid encoded data gracefully and logs error"""
         mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
@@ -244,7 +111,7 @@ class TestRollbackTempFile(unittest.TestCase):
         # Verify error was logged to inform users of rollback failure
         mock_logging.error.assert_called_once()
         error_message = mock_logging.error.call_args[0][0]
-        self.assertIn("Failed to rollback PVC scenario temp file", error_message)
+        self.assertIn("Failed to rollback filesystem PVC fill", error_message)
 
 
 class TestPvcScenarioPluginRun(unittest.TestCase):
@@ -868,13 +735,102 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             # Should return 1 because random.choice on empty list raises IndexError
             self.assertEqual(result, 1)
 
-    def test_run_no_shell_in_container(self):
-        """Test run returns 1 when container has no usable shell (/bin/bash or /bin/sh)"""
+    @patch("krkn.utils.filesystem_pvc.time.sleep")
+    def test_run_retries_pods_and_succeeds(self, mock_sleep):
+        """Test that the engine loops through multiple pods if the first one lacks a shell"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
                 "pvc_scenario": {
                     "namespace": "test-ns",
-                    "pod_name": "prometheus-k8s-0",
+                    "pvc_name": "test-pvc",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            # Mock a PVC cluster layout providing 2 pods
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = ["broken-pod", "working-pod"]
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            # Pod Mock Definitions
+            def get_pod_info_side_effect(name, namespace):
+                pod = MagicMock()
+                mock_volume = MagicMock()
+                mock_volume.pvcName = "test-pvc"
+                mock_volume.name = "test-volume"
+                pod.volumes = [mock_volume]
+
+                mock_container = MagicMock()
+                mock_container.name = "test-container"
+                mock_vol_mount = MagicMock()
+                mock_vol_mount.name = "test-volume"
+                mock_vol_mount.mountPath = "/mnt/data"
+                mock_container.volumeMounts = [mock_vol_mount]
+                pod.containers = [mock_container]
+                return pod
+
+            mock_kubecli.get_pod_info.side_effect = get_pod_info_side_effect
+
+            # Simulate "broken-pod" has no shell, but "working-pod" successfully returns "bash"
+            def get_pod_shell_side_effect(pod_name, ns, container):
+                if pod_name == "broken-pod":
+                    return None
+                return "bash"
+
+            mock_kubecli.get_pod_shell.side_effect = get_pod_shell_side_effect
+
+            # Exec configurations for the successful execution track
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10%",  # Initial df
+                "/usr/bin/fallocate",                # fallocate check
+                "/usr/bin/dd",                       # dd check
+                "",                                  # File creation
+                "-rw-r--r-- 1 root root 70M kraken.tmp",  # ls
+                "71680000",                          # wc -c
+                "/dev/sda1 100000 80000 20000 80%",  # df after fill
+                "",                                  # rm -f
+                "total 0",                           # ls after cleanup
+                "/dev/sda1 100000 10000 90000 10%",  # df after cleanup
+            ]
+
+            # Patch random.shuffle to keep order predictable for testing execution paths
+            with (patch("random.shuffle", lambda x: None),
+                  patch.object(
+                    self.plugin.rollback_handler,
+                    "set_rollback_callable",
+                    return_value=True,
+                ),
+            ):
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=MagicMock(),
+                )
+
+            # Assure the engine bypasses the error state and completes successfully (0)
+            self.assertEqual(result, 0)
+            # Verify it evaluated the active shell profile on the working candidate explicitly
+            mock_kubecli.get_pod_info.assert_any_call(name="broken-pod", namespace="test-ns")
+            mock_kubecli.get_pod_info.assert_any_call(name="working-pod", namespace="test-ns")
+
+            self.assertEqual(mock_kubecli.get_pod_shell.call_count, 3)
+            mock_kubecli.get_pod_shell.assert_any_call("broken-pod", "test-ns", "test-container")
+            mock_kubecli.get_pod_shell.assert_any_call("working-pod", "test-ns", "test-container")
+
+    def test_run_fails_when_all_pods_lack_shell(self):
+        """Test that the plugin fails safely out if all cluster pods lack a shell"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pvc_name": "test-pvc",
                     "fill_percentage": 80,
                 }
             }
@@ -884,39 +840,123 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
 
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = ["pod-a", "pod-b"]
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            # Provide common valid structural shapes for pods
             mock_pod = MagicMock()
             mock_volume = MagicMock()
-            mock_volume.pvcName = "prometheus-k8s-db-prometheus-k8s-0"
-            mock_volume.name = "prometheus-db"
+            mock_volume.pvcName = "test-pvc"
+            mock_volume.name = "test-volume"
             mock_pod.volumes = [mock_volume]
-
             mock_container = MagicMock()
-            mock_container.name = "prometheus"
+            mock_container.name = "test-container"
             mock_vol_mount = MagicMock()
-            mock_vol_mount.name = "prometheus-db"
-            mock_vol_mount.mountPath = "/prometheus"
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
             mock_container.volumeMounts = [mock_vol_mount]
             mock_pod.containers = [mock_container]
 
             mock_kubecli.get_pod_info.return_value = mock_pod
-            mock_kubecli.get_pvc_info.return_value = MagicMock()
-            mock_kubecli.get_pod_shell.return_value = None  # no shell available
+            # Both pods return None for active shell capabilities
+            mock_kubecli.get_pod_shell.return_value = None
 
-            mock_scenario_telemetry = MagicMock()
-
-            result = self.plugin.run(
-                run_uuid="test-uuid",
-                scenario=scenario_path,
-                lib_telemetry=mock_telemetry,
-                scenario_telemetry=mock_scenario_telemetry,
-            )
-
+            with patch.object(self.plugin.rollback_handler,"set_rollback_callable") as mock_rollback:
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=MagicMock(),
+                )
             self.assertEqual(result, 1)
-            mock_kubecli.get_pod_shell.assert_called_once_with(
-                "prometheus-k8s-0", "test-ns", "prometheus"
-            )
-            # No exec_cmd_in_pod calls should happen after shell check fails
-            mock_kubecli.exec_cmd_in_pod.assert_not_called()
+            self.assertEqual(mock_kubecli.get_pod_shell.call_count, 2)
+            self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 0)
+            mock_rollback.assert_not_called()
+
+    def test_run_skips_pod_without_pvc_and_continues(self):
+        """Test that the loop ignores intermediate candidate pods missing a valid PVC mapping"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pvc_name": "test-pvc",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = ["no-pvc-pod", "good-pod"]
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            def get_pod_info_side_effect(name, namespace):
+                pod = MagicMock()
+                mock_volume = MagicMock()
+                mock_container = MagicMock()
+                mock_container.name = "test-container"
+                mock_vol_mount = MagicMock()
+                mock_vol_mount.name = "test-volume"
+                mock_vol_mount.mountPath = "/mnt/data"
+                mock_container.volumeMounts = [mock_vol_mount]
+                pod.containers = [mock_container]
+
+                if name == "no-pvc-pod":
+                    mock_volume.pvcName = None  # Broken volume mapping configuration
+                else:
+                    mock_volume.pvcName = "test-pvc"
+
+                mock_volume.name = "test-volume"
+                pod.volumes = [mock_volume]
+                return pod
+
+            mock_kubecli.get_pod_info.side_effect = get_pod_info_side_effect
+            mock_kubecli.get_pod_shell.return_value = "bash"
+
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # Initial df
+                "/usr/bin/fallocate",                          # fallocate check
+                "/usr/bin/dd",                                 # dd check
+                "",                                            # File creation
+                "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",  # ls
+                "71680000",                                    # wc -c
+                "/dev/sda1 100000 80000 20000 80% /mnt/data",  # df after fill
+                "",                                            # rm -f
+                "total 0",                                     # ls after cleanup
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df after cleanup
+            ]
+
+            with (patch("random.shuffle", lambda x: None), 
+                patch("krkn.utils.filesystem_pvc.time.sleep"),
+                patch("krkn.utils.pod_volumes.read_raw_pod", return_value=None),
+                patch.object(
+                    self.plugin.rollback_handler,
+                    "set_rollback_callable",
+                    return_value=True,
+                ),
+            ):
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=MagicMock(),
+                )
+
+            self.assertEqual(result, 0)
+            mock_kubecli.get_pod_info.assert_any_call(name="no-pvc-pod", namespace="test-ns")
+            mock_kubecli.get_pod_info.assert_any_call(name="good-pod", namespace="test-ns")
+
+            # The first pod is skipped before shell access.
+            self.assertEqual(mock_kubecli.get_pod_shell.call_count, 2)
+            mock_kubecli.get_pod_shell.assert_has_calls([
+                call("good-pod", "test-ns", "test-container"),
+                call("good-pod", "test-ns", "test-container")
+            ])
 
     def test_run_shell_check_before_exec(self):
         """Test that get_pod_shell is called before any exec_cmd_in_pod when shell exists"""
@@ -1006,8 +1046,8 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 )
 
             self.assertEqual(result, 0)
-            self.assertEqual(call_order[0], "get_pod_shell")
-            self.assertTrue(all(c == "exec_cmd_in_pod" for c in call_order[1:]))
+            self.assertEqual(call_order[:2], ["get_pod_shell", "get_pod_shell"])
+            self.assertTrue(all(c == "exec_cmd_in_pod" for c in call_order[2:]))
 
     def test_run_file_creation_failed(self):
         """Test run returns 1 when file creation fails and verifies cleanup is attempted"""
@@ -1082,7 +1122,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 class TestRollbackTempFileEdgeCases(unittest.TestCase):
     """Additional tests for rollback_temp_file edge cases"""
 
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.logging")
+    @patch("krkn.utils.filesystem_pvc.logging")
     def test_rollback_temp_file_still_exists(self, mock_logging):
         """Test rollback when file still exists after removal attempt and logs warning"""
         mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
@@ -1098,14 +1138,13 @@ class TestRollbackTempFileEdgeCases(unittest.TestCase):
         # Create rollback data
         rollback_data = {
             "pod_name": "test-pod",
+            "namespace": "test-ns",
             "container_name": "test-container",
             "full_path": "/mnt/data/kraken.tmp",
             "file_name": "kraken.tmp",
             "mount_path": "/mnt/data",
         }
-        encoded_data = base64.b64encode(
-            json.dumps(rollback_data).encode("utf-8")
-        ).decode("utf-8")
+        encoded_data = encode_rollback_data(rollback_data)
 
         rollback_content = RollbackContent(
             namespace="test-ns",
@@ -1118,11 +1157,10 @@ class TestRollbackTempFileEdgeCases(unittest.TestCase):
         # Verify exec_cmd_in_pod was called twice
         assert mock_kubecli.exec_cmd_in_pod.call_count == 2
         
-        # Verify warning was logged to inform operators of incomplete rollback
-        mock_logging.warning.assert_called_once()
-        warning_message = mock_logging.warning.call_args[0][0]
-        self.assertIn("may still exist after rollback attempt", warning_message)
-        self.assertIn("kraken.tmp", warning_message)
+        # Verify error was logged to inform operators of incomplete rollback
+        mock_logging.error.assert_called_once()
+        error_message = mock_logging.error.call_args[0][0]
+        self.assertIn("Failed to rollback filesystem PVC fill", error_message)
 
 
 if __name__ == "__main__":
