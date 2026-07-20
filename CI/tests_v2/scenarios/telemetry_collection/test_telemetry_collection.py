@@ -21,7 +21,8 @@ from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from lib.base import BaseScenarioTest
 from lib.utils import assert_kraken_success
 
-TELEMETRY_API_URL = "https://yvnn4rfoi7.execute-api.us-west-2.amazonaws.com/test"
+# Live telemetry endpoint is NOT hardcoded — set TELEMETRY_API_URL explicitly
+# (CI / maintainers). Skipping when unset avoids accidental POSTs to a shared Lambda.
 # Krkn has no `bucket:` config key; upload goes through the telemetry API + presigned URLs.
 # Unreachable host stands in for "nonexistent bucket" / unreachable storage backend.
 UNREACHABLE_TELEMETRY_API_URL = "https://nonexistent-bucket-xyz.invalid"
@@ -32,16 +33,11 @@ AWS_REQUIRED = (
     "AWS_DEFAULT_REGION",
     "AWS_BUCKET",
 )
-TELEMETRY_REQUIRED = ("TELEMETRY_USERNAME", "TELEMETRY_PASSWORD")
+TELEMETRY_REQUIRED = ("TELEMETRY_USERNAME", "TELEMETRY_PASSWORD", "TELEMETRY_API_URL")
 
-_S3_FOLDER_RE = re.compile(
-    r"telemetry data will be stored on s3 bucket folder:\s*https://\S+/files/(\S+)"
-)
-_UUID_RE = re.compile(
-    r"(?:Generated a uuid for the run|Using the uuid defined by the user for the run):\s*"
-    r"([0-9a-fA-F-]{36})"
-)
-_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+def telemetry_api_url() -> str:
+    return (os.environ.get("TELEMETRY_API_URL") or "").rstrip("/")
 
 
 def _missing(names: tuple[str, ...]) -> list[str]:
@@ -56,9 +52,20 @@ def require_aws_env() -> None:
 
 
 def require_telemetry_creds() -> None:
+    """Skip unless username, password, and TELEMETRY_API_URL are all set."""
     missing = _missing(TELEMETRY_REQUIRED)
     if missing:
-        pytest.skip(f"Telemetry credentials not set: {', '.join(missing)}")
+        pytest.skip(f"Telemetry credentials/endpoint not set: {', '.join(missing)}")
+
+
+_S3_FOLDER_RE = re.compile(
+    r"telemetry data will be stored on s3 bucket folder:\s*https://\S+/files/(\S+)"
+)
+_UUID_RE = re.compile(
+    r"(?:Generated a uuid for the run|Using the uuid defined by the user for the run):\s*"
+    r"([0-9a-fA-F-]{36})"
+)
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def _strip_ansi(text: str) -> str:
@@ -110,13 +117,18 @@ def _patch_config(config_path: str, mutator) -> None:
     path.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False))
 
 
-def enable_telemetry(cfg: dict, *, enabled: bool = True, api_url: str = TELEMETRY_API_URL) -> None:
-    """Flip telemetry on (and restore prometheus settings the fixture disables)."""
+def enable_telemetry(cfg: dict, *, enabled: bool = True, api_url: Optional[str] = None) -> None:
+    """Enable telemetry upload settings on a config produced by build_config."""
     tel = cfg.setdefault("telemetry", {})
     tel["enabled"] = enabled
     if not enabled:
         return
-    tel["api_url"] = api_url
+    url = (api_url if api_url is not None else telemetry_api_url()).rstrip("/")
+    if not url:
+        raise AssertionError(
+            "TELEMETRY_API_URL is unset; refusing to enable telemetry without an explicit endpoint"
+        )
+    tel["api_url"] = url
     tel["username"] = os.environ.get("TELEMETRY_USERNAME", "")
     tel["password"] = os.environ.get("TELEMETRY_PASSWORD", "")
     tel["full_prometheus_backup"] = True
@@ -125,8 +137,10 @@ def enable_telemetry(cfg: dict, *, enabled: bool = True, api_url: str = TELEMETR
     # ponytail: max_retries=3 (config 0 = retry forever). Raise if uploads flake under load.
     tel["max_retries"] = 3
     perf = cfg.setdefault("performance_monitoring", {})
-    # Keep check_critical_alerts False so happy path can assert exit 0 (rc=2 = alerts fired).
-    perf["check_critical_alerts"] = False
+    # build_config forces check_critical_alerts=False; override so prometheus_plugin.critical_alerts
+    # can fill ChaosRunAlertSummary and put_critical_alerts can upload critical-alerts-*.log
+    # (queries ALERTS{severity="critical"} — not enable_alerts / alert_profile).
+    perf["check_critical_alerts"] = True
     perf["prometheus_url"] = os.environ.get("PROMETHEUS_URL", "http://localhost:9090")
 
 
@@ -144,6 +158,13 @@ class TestTelemetryCollection(BaseScenarioTest):
     NAMESPACE_IS_REGEX = True
 
     _upload: Optional[dict] = None
+
+    @pytest.fixture(scope="class", autouse=True)
+    def _reset_upload_cache(self):
+        """Keep the shared happy-path cache scoped to one class execution (reruns / re-runs)."""
+        type(self)._upload = None
+        yield
+        type(self)._upload = None
 
     def _write_telemetry_config(self, *, suffix: str, mutator) -> str:
         scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
@@ -173,9 +194,11 @@ class TestTelemetryCollection(BaseScenarioTest):
             pytest.skip("KRKN_TEST_DRY_RUN=1: skipping live telemetry upload")
 
         result = self.run_kraken(config_path)
+        # 0 = success; 2 = critical alerts still firing (legacy bash mapped 2→0).
+        # check_critical_alerts must stay on so critical-alerts-*.log is uploaded.
         assert_kraken_success(
             result,
-            allowed_codes=(0,),
+            allowed_codes=(0, 2),
             context=f"namespace={self.ns}",
             tmp_path=self.tmp_path,
         )
@@ -193,14 +216,16 @@ class TestTelemetryCollection(BaseScenarioTest):
         return TestTelemetryCollection._upload
 
     # --- Happy path (shared upload) -------------------------------------------------
+    # Only order(1) deploys a workload; 2–6 read the class-scoped _upload cache (no_workload).
 
     @pytest.mark.order(1)
     def test_kraken_exits_cleanly_with_telemetry(self):
-        """Krkn runs with telemetry enabled, collects data, exits 0."""
+        """Krkn runs with telemetry enabled, collects data, exits 0 (or 2 if alerts fire)."""
         upload = self._run_telemetry_upload()
-        assert upload["result"].returncode == 0
+        assert upload["result"].returncode in (0, 2)
 
     @pytest.mark.order(2)
+    @pytest.mark.no_workload
     def test_run_uuid_generated_and_embedded(self):
         """Run UUID and run_tag are generated and embedded in the telemetry folder path."""
         upload = self._run_telemetry_upload()
@@ -213,16 +238,18 @@ class TestTelemetryCollection(BaseScenarioTest):
         )
 
     @pytest.mark.order(3)
+    @pytest.mark.no_workload
     def test_critical_alerts_log_uploaded(self):
-        """critical-alerts-00.log is present under the run folder in S3."""
+        """critical-alerts-00.log is present under the run folder in S3 (legacy hard-fail)."""
         upload = self._run_telemetry_upload()
-        if "no alerts collected during the run, skipping" in upload["combined"]:
-            pytest.skip("No critical alerts collected; krkn-lib skips critical-alerts upload")
         assert any(f.startswith("critical-alerts-") and f.endswith(".log") for f in upload["files"]), (
-            f"critical-alerts-*.log not in s3://$AWS_BUCKET/{upload['folder']}/: {sorted(upload['files'])}"
+            f"critical-alerts-*.log not in s3://$AWS_BUCKET/{upload['folder']}/: {sorted(upload['files'])}. "
+            "Ensure Prometheus is reachable and check_critical_alerts collected a non-empty summary "
+            "(krkn-lib skips the upload when chaos_alerts and post_chaos_alerts are both empty)."
         )
 
     @pytest.mark.order(4)
+    @pytest.mark.no_workload
     def test_prometheus_archive_uploaded(self):
         """prometheus-00.tar archive is present under the run folder in S3."""
         upload = self._run_telemetry_upload()
@@ -231,6 +258,7 @@ class TestTelemetryCollection(BaseScenarioTest):
         )
 
     @pytest.mark.order(5)
+    @pytest.mark.no_workload
     def test_telemetry_json_uploaded(self):
         """telemetry.json metadata is present under the run folder in S3."""
         upload = self._run_telemetry_upload()
@@ -239,6 +267,7 @@ class TestTelemetryCollection(BaseScenarioTest):
         )
 
     @pytest.mark.order(6)
+    @pytest.mark.no_workload
     def test_artifacts_under_expected_s3_folder(self):
         """Uploaded objects live under telemetry_group / request_id folder structure."""
         upload = self._run_telemetry_upload()
@@ -329,11 +358,12 @@ class TestTelemetryCollection(BaseScenarioTest):
 
     @pytest.mark.no_workload
     def test_skip_when_aws_env_not_set(self, monkeypatch):
-        """Happy-path AWS gate skips cleanly when AWS env vars are absent (not a hard fail)."""
+        """Happy-path upload path skips cleanly when AWS env vars are absent (not a hard fail)."""
+        type(self)._upload = None  # don't return a prior happy-path cache
         for name in AWS_REQUIRED:
             monkeypatch.delenv(name, raising=False)
         with pytest.raises(pytest.skip.Exception, match="AWS env vars not set"):
-            require_aws_env()
+            self._run_telemetry_upload()
 
     def test_missing_prometheus_endpoint_handled(self):
         """Missing / bad Prometheus endpoint is handled without crashing Krkn."""
