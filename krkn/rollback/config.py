@@ -249,6 +249,15 @@ class RollbackConfig(metaclass=SingletonMeta):
                     logger.warning(
                         f"File {file} does not match expected pattern of <{scenario_type or '*'}>_<timestamp>_<hash_suffix>.py"
                     )
+        def get_rollback_timestamp(filepath: str) -> int:
+            filename = os.path.basename(filepath)
+            parts = filename.rsplit("_", 2)
+            try:
+                return int(parts[-2])
+            except (IndexError, ValueError):
+                return 0
+        # Execute rollback version files in reverse chronological order (LIFO).
+        version_files.sort(key=get_rollback_timestamp, reverse=True)
         return version_files
 
 @dataclass(frozen=True)
