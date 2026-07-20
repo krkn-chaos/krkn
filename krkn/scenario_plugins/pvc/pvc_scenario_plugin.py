@@ -74,7 +74,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         "PvcScenarioPlugin You must specify the namespace where the PVC is"
                     )
                     return 1
-                if pvc_name is None and pod_name is None:
+                if not pvc_name and not pod_name:
                     logging.error(
                         "PvcScenarioPlugin You must specify the pvc_name or the pod_name"
                     )
@@ -95,68 +95,105 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
                         pvc_name, namespace
                     )
-                    try:
-                        # random generator not used for
-                        # security/cryptographic purposes.
-                        pod_name = random.choice(pvc.podNames)  # nosec
-                        logging.info("Pod name: %s" % pod_name)
-                    except Exception:
+                    if pvc is None or not pvc.podNames:
                         logging.error(
-                            "PvcScenarioPlugin Pod associated with %s PVC, on namespace %s, "
-                            "not found" % (str(pvc_name), str(namespace))
+                            "PvcScenarioPlugin: PVC '%s' in namespace '%s' was not found "
+                            "or is not mounted by any pod" % (str(pvc_name), str(namespace))
                         )
                         return 1
 
-                # Get volume name
-                pod = lib_telemetry.get_lib_kubernetes().get_pod_info(
-                    name=pod_name, namespace=namespace
-                )
+                    # Create a shuffled copy to maintain the random attempt distribution
+                    pods_to_try = list(pvc.podNames)
+                    random.shuffle(pods_to_try)
+                else:
+                    if not pod_name:
+                        logging.error("Either 'pvc_name' or 'pod_name' must be specified in the configuration")
+                        return 1
+                    # Fallback if only pod_name was provided in the configuration
+                    pods_to_try = [pod_name]
 
-                if pod is None:
-                    logging.error(
-                        "PvcScenarioPlugin Exiting as pod '%s' doesn't exist "
-                        "in namespace '%s'" % (str(pod_name), str(namespace))
+                shell = None
+                configured_pvc_name = (pvc_name or "").strip()
+                for candidate_pod_name in pods_to_try:
+                    logging.info("Attempting to use pod '%s'",candidate_pod_name)
+                    # Get volume name
+                    pod = lib_telemetry.get_lib_kubernetes().get_pod_info(
+                        name=candidate_pod_name, namespace=namespace
                     )
-                    return 1
 
-                for volume in pod.volumes:
-                    if volume.pvcName is not None:
-                        volume_name = volume.name
-                        pvc_name = volume.pvcName
-                        pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
-                            pvc_name, namespace
+                    if pod is None:
+                        logging.warning(
+                            "Pod '%s' not found, trying next pod" % candidate_pod_name
                         )
-                        break
-                if "pvc" not in locals():
-                    logging.error(
-                        "PvcScenarioPlugin Pod '%s' in namespace '%s' does not use a pvc"
-                        % (str(pod_name), str(namespace))
+                        continue
+
+                    volume = next(
+                        (vol for vol in pod.volumes
+                         if vol.pvcName
+                         and (not configured_pvc_name or vol.pvcName == configured_pvc_name)
+                        ), None,
                     )
-                    return 1
-                logging.info("Volume name: %s" % volume_name)
-                logging.info("PVC name: %s" % pvc_name)
+                    if volume is None:
+                        logging.warning(
+                            "Pod '%s' in namespace '%s' has no volume matching the configured PVC '%s', trying next pod",
+                            candidate_pod_name, namespace, configured_pvc_name
+                        )
+                        continue
 
-                # Get container name and mount path
-                for container in pod.containers:
-                    for vol in container.volumeMounts:
-                        if vol.name == volume_name:
-                            mount_path = vol.mountPath
-                            container_name = container.name
-                            break
-                logging.info("Container path: %s" % container_name)
-                logging.info("Mount path: %s" % mount_path)
+                    volume_name = volume.name
+                    selected_pvc_name = volume.pvcName
 
-                # Validate that the container has a usable shell before proceeding
-                shell = lib_telemetry.get_lib_kubernetes().get_pod_shell(
-                    pod_name, namespace, container_name
-                )
-                if shell is None:
-                    logging.error(
+                    if not configured_pvc_name:
+                        pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(selected_pvc_name, namespace)
+                    if pvc is None:
+                        logging.warning("PVC '%s' not found in namespace '%s'",selected_pvc_name, namespace)
+                        continue
+
+                    # Get container name and mount path
+                    match = next(
+                        (
+                            (container, vol)
+                            for container in pod.containers
+                            for vol in container.volumeMounts
+                            if vol.name == volume_name
+                        ),
+                        None,
+                    )
+                    if match is None:
+                        logging.warning("Volume '%s' is not mounted in any container of pod '%s'"% (volume_name, candidate_pod_name))
+                        continue
+                    container, volume_mount = match
+                    container_name = container.name
+                    mount_path = volume_mount.mountPath
+
+                    logging.info("Volume name: %s", volume_name)
+                    logging.info("PVC name: %s", selected_pvc_name)
+                    logging.info("Container name: %s", container_name)
+                    logging.info("Mount path: %s", mount_path)
+
+                    # Validate that the container has a usable shell before proceeding
+                    shell = lib_telemetry.get_lib_kubernetes().get_pod_shell(
+                        candidate_pod_name, namespace, container_name
+                    )
+                    if shell is not None:
+                        pod_name = candidate_pod_name   # Found a working pod!
+                        pvc_name = selected_pvc_name
+                        break
+                    else:
+                        logging.warning(
                         "PvcScenarioPlugin container '%s' in pod '%s' has no "
                         "usable shell (/bin/bash or /bin/sh); cannot execute "
-                        "commands inside the container" % (str(container_name), str(pod_name))
+                        "commands inside the container"
+                        % (str(container_name), str(candidate_pod_name))
+                    )
+                if shell is None:
+                    logging.error(
+                        "PvcScenarioPlugin reached the end of target options and found no "
+                        "usable shell (/bin/bash or /bin/sh) across any of the pods associated "
+                        "with PVC '%s'; cannot execute scenario." % str(pvc_name)
                     )
                     return 1
+                logging.info("Using pod '%s' to execute the PVC scenario " % (pod_name))
 
                 # Get PVC capacity and used bytes
                 command = "df %s -B 1024 | sed 1d" % (str(mount_path))
@@ -368,20 +405,23 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
-            import base64 # noqa
-            import json # noqa
-            decoded_data = base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8')
+            import base64  # noqa
+            import json  # noqa
+
+            decoded_data = base64.b64decode(
+                rollback_content.resource_identifier.encode("utf-8")
+            ).decode("utf-8")
             rollback_data = json.loads(decoded_data)
             pod_name = rollback_data["pod_name"]
             container_name = rollback_data["container_name"]
             full_path = rollback_data["full_path"]
             file_name = rollback_data["file_name"]
             mount_path = rollback_data["mount_path"]
-            
+
             logging.info(
                 f"Rolling back PVC scenario: removing temp file {full_path} from pod {pod_name} in namespace {namespace}"
             )
-            
+
             # Remove the temp file
             command = "rm -f %s" % (str(full_path))
             logging.info("Remove temp file from the PVC command:\n %s" % command)
@@ -396,14 +436,14 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 [command], pod_name, namespace, container_name
             )
             logging.info("\n" + str(response))
-            
+
             if not (str(file_name).lower() in str(response).lower()):
                 logging.info("Temp file successfully removed during rollback")
             else:
                 logging.warning(
                     f"Temp file {file_name} may still exist after rollback attempt"
                 )
-            
+
             logging.info("PVC scenario rollback completed successfully.")
         except Exception as e:
             logging.error(f"Failed to rollback PVC scenario temp file: {e}")
