@@ -716,14 +716,90 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
             # Should return 1 because random.choice on empty list raises IndexError
             self.assertEqual(result, 1)
-
-    def test_run_no_shell_in_container(self):
-        """Test run returns 1 when container has no usable shell (/bin/bash or /bin/sh)"""
+            
+    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
+    def test_run_retries_pods_and_succeeds(self, mock_sleep):
+        """Test that the engine loops through multiple pods if the first one lacks a shell"""
         with tempfile.TemporaryDirectory() as temp_dir:
             scenario_config = {
                 "pvc_scenario": {
                     "namespace": "test-ns",
-                    "pod_name": "prometheus-k8s-0",
+                    "pvc_name": "test-pvc",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            # Mock a PVC cluster layout providing 2 pods
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = ["broken-pod", "working-pod"]
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            # Pod Mock Definitions
+            def get_pod_info_side_effect(name, namespace):
+                pod = MagicMock()
+                mock_volume = MagicMock()
+                mock_volume.pvcName = "test-pvc"
+                mock_volume.name = "test-volume"
+                pod.volumes = [mock_volume]
+
+                mock_container = MagicMock()
+                mock_container.name = "test-container"
+                mock_vol_mount = MagicMock()
+                mock_vol_mount.name = "test-volume"
+                mock_vol_mount.mountPath = "/mnt/data"
+                mock_container.volumeMounts = [mock_vol_mount]
+                pod.containers = [mock_container]
+                return pod
+
+            mock_kubecli.get_pod_info.side_effect = get_pod_info_side_effect
+
+            # Simulate "broken-pod" has no shell, but "working-pod" successfully returns "bash"
+            def get_pod_shell_side_effect(pod_name, ns, container):
+                if pod_name == "broken-pod":
+                    return None
+                return "bash"
+
+            mock_kubecli.get_pod_shell.side_effect = get_pod_shell_side_effect
+
+            # Exec configurations for the successful execution track
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df check
+                "/usr/bin/fallocate",                          # command -v check
+                "/usr/bin/dd",
+                "",                                            # execution
+                "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",
+                "",
+                "total 0",
+            ]
+
+            # Patch random.shuffle to keep order predictable for testing execution paths
+            with patch("random.shuffle", lambda x: None):
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=MagicMock(),
+                )
+
+            # Assure the engine bypasses the error state and completes successfully (0)
+            self.assertEqual(result, 0)
+            # Verify it evaluated the active shell profile on the working candidate explicitly
+            mock_kubecli.get_pod_info.assert_any_call(name="broken-pod", namespace="test-ns")
+            mock_kubecli.get_pod_info.assert_any_call(name="working-pod", namespace="test-ns")
+
+    def test_run_fails_when_all_pods_lack_shell(self):
+        """Test that the plugin fails safely out if all cluster pods lack a shell"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pvc_name": "test-pvc",
                     "fill_percentage": 80,
                 }
             }
@@ -733,39 +809,103 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_kubecli = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
 
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = ["pod-a", "pod-b"]
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            # Provide common valid structural shapes for pods
             mock_pod = MagicMock()
             mock_volume = MagicMock()
-            mock_volume.pvcName = "prometheus-k8s-db-prometheus-k8s-0"
-            mock_volume.name = "prometheus-db"
+            mock_volume.pvcName = "test-pvc"
+            mock_volume.name = "test-volume"
             mock_pod.volumes = [mock_volume]
-
             mock_container = MagicMock()
-            mock_container.name = "prometheus"
+            mock_container.name = "test-container"
             mock_vol_mount = MagicMock()
-            mock_vol_mount.name = "prometheus-db"
-            mock_vol_mount.mountPath = "/prometheus"
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
             mock_container.volumeMounts = [mock_vol_mount]
             mock_pod.containers = [mock_container]
 
             mock_kubecli.get_pod_info.return_value = mock_pod
-            mock_kubecli.get_pvc_info.return_value = MagicMock()
-            mock_kubecli.get_pod_shell.return_value = None  # no shell available
-
-            mock_scenario_telemetry = MagicMock()
+            # Both pods return None for active shell capabilities
+            mock_kubecli.get_pod_shell.return_value = None
 
             result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
                 lib_telemetry=mock_telemetry,
-                scenario_telemetry=mock_scenario_telemetry,
+                scenario_telemetry=MagicMock(),
             )
 
             self.assertEqual(result, 1)
-            mock_kubecli.get_pod_shell.assert_called_once_with(
-                "prometheus-k8s-0", "test-ns", "prometheus"
-            )
-            # No exec_cmd_in_pod calls should happen after shell check fails
-            mock_kubecli.exec_cmd_in_pod.assert_not_called()
+            self.assertEqual(mock_kubecli.get_pod_shell.call_count, 2)
+
+    def test_run_skips_pod_without_pvc_and_continues(self):
+        """Test that the loop ignores intermediate candidate pods missing a valid PVC mapping"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pvc_name": "test-pvc",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            mock_pvc = MagicMock()
+            mock_pvc.podNames = ["no-pvc-pod", "good-pod"]
+            mock_kubecli.get_pvc_info.return_value = mock_pvc
+
+            def get_pod_info_side_effect(name, namespace):
+                pod = MagicMock()
+                mock_volume = MagicMock()
+                mock_container = MagicMock()
+                mock_container.name = "test-container"
+                mock_vol_mount = MagicMock()
+                mock_vol_mount.name = "test-volume"
+                mock_vol_mount.mountPath = "/mnt/data"
+                mock_container.volumeMounts = [mock_vol_mount]
+                pod.containers = [mock_container]
+
+                if name == "no-pvc-pod":
+                    mock_volume.pvcName = None  # Broken volume mapping configuration
+                else:
+                    mock_volume.pvcName = "test-pvc"
+                
+                mock_volume.name = "test-volume"
+                pod.volumes = [mock_volume]
+                return pod
+
+            mock_kubecli.get_pod_info.side_effect = get_pod_info_side_effect
+            mock_kubecli.get_pod_shell.return_value = "bash"
+
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",
+                "/usr/bin/fallocate",
+                "/usr/bin/dd",
+                "",
+                "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",
+                "",
+                "total 0",
+            ]
+
+            with patch("random.shuffle", lambda x: None), patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=MagicMock(),
+                )
+
+            self.assertEqual(result, 0)
+            mock_kubecli.get_pod_info.assert_any_call(name="no-pvc-pod", namespace="test-ns")
+            mock_kubecli.get_pod_info.assert_any_call(name="good-pod", namespace="test-ns")
 
     def test_run_shell_check_before_exec(self):
         """Test that get_pod_shell is called before any exec_cmd_in_pod when shell exists"""
