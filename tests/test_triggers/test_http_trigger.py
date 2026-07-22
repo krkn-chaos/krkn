@@ -15,10 +15,7 @@ from unittest.mock import MagicMock, patch
 import requests
 
 from krkn.scenario_plugins.triggers.http_trigger import (
-    HTTP_REQUEST_TIMEOUT_SECONDS,
-    VALID_METHODS,
-    HttpTrigger,
-)
+    HTTP_REQUEST_TIMEOUT_SECONDS, VALID_METHODS, HttpTrigger)
 
 
 class TestHttpTrigger(unittest.TestCase):
@@ -46,7 +43,9 @@ class TestHttpTrigger(unittest.TestCase):
         mock_session_cls.return_value.__enter__.return_value.request.return_value = (
             self._mock_response(200)
         )
-        trigger = self._make_trigger(url="http://example.com/health", expected_status=200)
+        trigger = self._make_trigger(
+            url="http://example.com/health", expected_status=200
+        )
 
         self.assertTrue(trigger.evaluate())
         mock_session_cls.return_value.__enter__.return_value.request.assert_called_once_with(
@@ -146,7 +145,9 @@ class TestHttpTrigger(unittest.TestCase):
         trigger = self._make_trigger(bearer_token="my-secret-token")
 
         trigger.evaluate()
-        call_kwargs = mock_session_cls.return_value.__enter__.return_value.request.call_args[1]
+        call_kwargs = (
+            mock_session_cls.return_value.__enter__.return_value.request.call_args[1]
+        )
         self.assertEqual(
             call_kwargs["headers"]["Authorization"], "Bearer my-secret-token"
         )
@@ -160,7 +161,9 @@ class TestHttpTrigger(unittest.TestCase):
         trigger = self._make_trigger(headers={"X-Custom": "value"})
 
         trigger.evaluate()
-        call_kwargs = mock_session_cls.return_value.__enter__.return_value.request.call_args[1]
+        call_kwargs = (
+            mock_session_cls.return_value.__enter__.return_value.request.call_args[1]
+        )
         self.assertEqual(call_kwargs["headers"]["X-Custom"], "value")
 
     @patch("krkn.scenario_plugins.triggers.http_trigger.requests.Session")
@@ -175,10 +178,10 @@ class TestHttpTrigger(unittest.TestCase):
         )
 
         trigger.evaluate()
-        call_kwargs = mock_session_cls.return_value.__enter__.return_value.request.call_args[1]
-        self.assertEqual(
-            call_kwargs["headers"]["Authorization"], "Bearer new-token"
+        call_kwargs = (
+            mock_session_cls.return_value.__enter__.return_value.request.call_args[1]
         )
+        self.assertEqual(call_kwargs["headers"]["Authorization"], "Bearer new-token")
 
     @patch("krkn.scenario_plugins.triggers.http_trigger.requests.Session")
     def test_method_override_post(self, mock_session_cls):
@@ -225,9 +228,10 @@ class TestHttpTrigger(unittest.TestCase):
         mock_session_cls.return_value.__enter__.return_value.request.return_value = (
             self._mock_response(503)
         )
-        # No INFO-level trigger log expected — if assertLogs raises, wrap it
         initial_last = trigger._last_result
-        trigger.evaluate()
+        with patch("logging.info") as mock_info:
+            trigger.evaluate()
+            mock_info.assert_not_called()
         self.assertEqual(trigger._last_result, initial_last)  # state unchanged
 
         # Third call: True -> logs "satisfied"

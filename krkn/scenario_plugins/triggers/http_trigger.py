@@ -56,7 +56,12 @@ class HttpTrigger(AbstractTrigger):
         if bearer_token:
             self._headers["Authorization"] = f"Bearer {bearer_token}"
 
-        self._body_contains: str | None = config.get("body_contains")
+        body_contains = config.get("body_contains")
+        if body_contains is not None and not isinstance(body_contains, str):
+            raise ValueError(
+                f"body_contains must be a string, got {type(body_contains).__name__}"
+            )
+        self._body_contains: str | None = body_contains
         self._last_result: bool | None = None
 
     def evaluate(self) -> bool:
@@ -87,31 +92,21 @@ class HttpTrigger(AbstractTrigger):
             )
             met = False
         except requests.exceptions.ConnectionError:
-            logging.warning(
-                f"http trigger connection error: {self._url}"
-            )
+            logging.warning(f"http trigger connection error: {self._url}")
             met = False
         except requests.exceptions.RequestException as e:
-            logging.error(
-                f"http trigger request error: {e}: {self._url}"
-            )
+            logging.error(f"http trigger request error: {e}: {self._url}")
             met = False
         except Exception as e:
-            logging.error(
-                f"http trigger unexpected error: {e}: {self._url}"
-            )
+            logging.error(f"http trigger unexpected error: {e}: {self._url}")
             met = False
 
         # Log only on state change
         if met != self._last_result:
             if met:
-                logging.info(
-                    f"trigger condition satisfied: {self.describe()}"
-                )
+                logging.info(f"trigger condition satisfied: {self.describe()}")
             else:
-                logging.info(
-                    f"trigger condition not satisfied: {self.describe()}"
-                )
+                logging.info(f"trigger condition not satisfied: {self.describe()}")
         self._last_result = met
         return met
 
