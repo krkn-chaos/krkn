@@ -13,6 +13,8 @@ jobs:
         issues: write
         contents: read
         pull-requests: write
+      secrets:
+        ISSUE_PR_CLASSIC: ${{ secrets.ISSUE_PR_CLASSIC }}
       uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@main
     handle-pr: 
       if: github.event_name == 'pull_request_target'
@@ -20,5 +22,7 @@ jobs:
         issues: write
         contents: read
         pull-requests: write
+      secrets:
+        ISSUE_PR_CLASSIC: ${{ secrets.ISSUE_PR_CLASSIC }}
       uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@main
         
