@@ -98,6 +98,10 @@ class TriggerManager:
         if trigger_type == "command":
             return CommandTrigger(condition_config)
 
+        if trigger_type == "http":
+            from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
+            return HttpTrigger(condition_config)
+
         raise ValueError(f"unknown trigger type: '{trigger_type}'")
 
     def wait_for_triggers(self) -> bool:

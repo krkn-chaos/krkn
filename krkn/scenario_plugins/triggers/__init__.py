@@ -13,6 +13,7 @@
 # limitations under the License.
 from krkn.scenario_plugins.triggers.abstract_trigger import AbstractTrigger
 from krkn.scenario_plugins.triggers.command_trigger import CommandTrigger
+from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
 from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
-__all__ = ["AbstractTrigger", "CommandTrigger", "TriggerManager"]
+__all__ = ["AbstractTrigger", "CommandTrigger", "HttpTrigger", "TriggerManager"]
