@@ -706,5 +706,56 @@
     "default": "skip",
     "required": "false",
     "group": "triggers"
+  },
+  {
+    "name": "trigger-http-url",
+    "short_description": "Trigger HTTP URL",
+    "description": "URL to poll for the HTTP trigger",
+    "variable": "TRIGGER_HTTP_URL",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-method",
+    "short_description": "Trigger HTTP Method",
+    "description": "HTTP method to use (GET, POST, etc.)",
+    "variable": "TRIGGER_HTTP_METHOD",
+    "type": "string",
+    "default": "GET",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-expected-status",
+    "short_description": "Trigger HTTP Expected Status",
+    "description": "Expected HTTP status code",
+    "variable": "TRIGGER_HTTP_EXPECTED_STATUS",
+    "type": "number",
+    "default": "200",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-bearer-token",
+    "short_description": "Trigger HTTP Bearer Token",
+    "description": "Bearer token for HTTP authentication",
+    "variable": "TRIGGER_HTTP_BEARER_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "secret": "true",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-body-contains",
+    "short_description": "Trigger HTTP Body Contains",
+    "description": "Substring expected in the HTTP response body",
+    "variable": "TRIGGER_HTTP_BODY_CONTAINS",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
   }
 ]
