@@ -110,6 +110,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     pods_to_try = [pod_name]
 
                 shell = None
+                configured_pvc_name = (pvc_name or "").strip()
                 for candidate_pod_name in pods_to_try:
                     logging.info("Attempting to use pod '%s'",candidate_pod_name)
                     # Get volume name
@@ -125,14 +126,20 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
 
                     found_valid_pvc = False
                     for volume in pod.volumes:
-                        if volume.pvcName is not None:
-                            volume_name = volume.name
-                            pvc_name = volume.pvcName
-                            pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
-                                pvc_name, namespace
-                            )
-                            found_valid_pvc = True
-                            break
+                        
+                        if volume.pvcName is None:
+                            continue
+                        # If a PVC was configured, only match that PVC
+                        if configured_pvc_name and volume.pvcName != configured_pvc_name:
+                            continue
+                        
+                        volume_name = volume.name
+                        pvc_name = volume.pvcName
+                        pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
+                            pvc_name, namespace
+                        )
+                        found_valid_pvc = True
+                        break
                     if not found_valid_pvc:
                         logging.warning(
                             "PvcScenarioPlugin Pod '%s' in namespace '%s' does not use a pvc"
