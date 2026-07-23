@@ -642,5 +642,69 @@
     "required": "false",
     "mount_path": "/home/krkn/resiliency-file.yaml",
     "group": "resiliency"
+  },
+  {
+    "name": "trigger-command",
+    "short_description": "Trigger command",
+    "description": "Shell command to evaluate before chaos starts. Chaos begins only after this command exits with the expected code. Leave empty to disable triggers.",
+    "variable": "TRIGGER_COMMAND",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-expected-rc",
+    "short_description": "Trigger expected exit code",
+    "description": "Expected shell command exit code for the trigger to be considered satisfied",
+    "variable": "TRIGGER_EXPECTED_RC",
+    "type": "number",
+    "default": "0",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-mode",
+    "short_description": "Triggers mode",
+    "description": "How multiple trigger conditions are combined",
+    "variable": "TRIGGERS_MODE",
+    "type": "enum",
+    "allowed_values": "all_of,any_of",
+    "separator": ",",
+    "default": "all_of",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-timeout",
+    "short_description": "Triggers timeout",
+    "description": "Maximum time in seconds to wait for trigger conditions before applying on-timeout behavior",
+    "variable": "TRIGGERS_TIMEOUT",
+    "type": "number",
+    "default": "300",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-interval",
+    "short_description": "Triggers polling interval",
+    "description": "Polling interval in seconds while waiting for trigger conditions",
+    "variable": "TRIGGERS_INTERVAL",
+    "type": "number",
+    "default": "5",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-on-timeout",
+    "short_description": "Triggers on timeout",
+    "description": "Behavior when trigger conditions are not met before timeout",
+    "variable": "TRIGGERS_ON_TIMEOUT",
+    "type": "enum",
+    "allowed_values": "skip,fail,run_anyway",
+    "separator": ",",
+    "default": "skip",
+    "required": "false",
+    "group": "triggers"
   }
 ]
