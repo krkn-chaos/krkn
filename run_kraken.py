@@ -363,6 +363,7 @@ def main(options, command: Optional[str]) -> int:
         # Capture the start time
         start_time = int(time.time())
         post_critical_alerts = 0
+        profile_critical_alerts = 0
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
@@ -594,6 +595,26 @@ def main(options, command: Optional[str]) -> int:
                 logging.error("Failed to finalize resiliency scoring: %s", e)
 
 
+        # Check for the alerts specified before telemetry so job_status is included in output
+        if enable_alerts:
+            logging.info("Alerts checking is enabled")
+            if alert_profile:
+                profile_critical_alerts = prometheus_plugin.alerts(
+                    prometheus,
+                    elastic_search,
+                    run_uuid,
+                    start_time,
+                    end_time,
+                    alert_profile,
+                    elastic_alerts_index
+                )
+            else:
+                logging.error("Alert profile is not defined")
+                return -1
+
+        if post_critical_alerts > 0 or profile_critical_alerts > 0:
+            chaos_telemetry.job_status = False
+
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
         if resiliency_obj and hasattr(resiliency_obj, "summary") and resiliency_obj.summary is not None:
@@ -680,24 +701,6 @@ def main(options, command: Optional[str]) -> int:
         else:
             logging.info("api_url not set, skipping telemetry upload.")
 
-        # Check for the alerts specified
-        if enable_alerts:
-            logging.info("Alerts checking is enabled")
-            if alert_profile:
-                prometheus_plugin.alerts(
-                    prometheus,
-                    elastic_search,
-                    run_uuid,
-                    start_time,
-                    end_time,
-                    alert_profile,
-                    elastic_alerts_index
-                )
-
-            else:
-                logging.error("Alert profile is not defined")
-                return -1
-                # sys.exit(1)
         if enable_metrics:
             logging.info(f'Capturing metrics using file {metrics_profile}')
             prometheus_plugin.metrics(
@@ -710,6 +713,11 @@ def main(options, command: Optional[str]) -> int:
                 elastic_metrics_index,
                 telemetry_json
             )
+
+        logging.info(
+            "Kraken UUID for the run: "
+            "%s. Report generated at %s." % (run_uuid, report_file)
+        )
 
         # Exit code priority (lowest wins, checked first):
         #   1 = post-scenario failure
@@ -733,10 +741,18 @@ def main(options, command: Optional[str]) -> int:
             logging.error("Critical alerts are firing, please check; exiting")
             return 2
 
+        if profile_critical_alerts > 0:
+            logging.error("Critical or Error alerts from alert profile are firing, please check; exiting")
+            return 2
+
+        if not chaos_telemetry.job_status:
+            logging.error("job_status is false, please check; exiting")
+            return 1
+
         logging.info(
-            "Successfully finished running Kraken. UUID for the run: "
-            "%s. Report generated at %s. Exiting" % (run_uuid, report_file)
+            "Successfully finished running Kraken, exiting"
         )
+
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         # sys.exit(1)
