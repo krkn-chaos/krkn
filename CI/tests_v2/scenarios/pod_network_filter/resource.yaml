@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: krkn-filter-test
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-network-filter-test
+  namespace: krkn-filter-test
+  labels:
+    app: network-filter-test
+spec:
+  containers:
+    - name: alpine
+      image: alpine:3.19
+      command: ["sleep", "3600"]
