@@ -21,8 +21,6 @@ from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 from lib.base import BaseScenarioTest
 from lib.utils import assert_kraken_success
 
-# Live telemetry endpoint is NOT hardcoded — set TELEMETRY_API_URL explicitly
-# (CI / maintainers). Skipping when unset avoids accidental POSTs to a shared Lambda.
 # Krkn has no `bucket:` config key; upload goes through the telemetry API + presigned URLs.
 # Unreachable host stands in for "nonexistent bucket" / unreachable storage backend.
 UNREACHABLE_TELEMETRY_API_URL = "https://nonexistent-bucket-xyz.invalid"
