@@ -1,6 +1,8 @@
 name: Tests v2 (pytest functional)
 on:
   pull_request:
+    paths-ignore:
+      - '**.md'
   push:
     branches:
       - main
