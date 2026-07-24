@@ -1,0 +1,14 @@
+name: Stale PRs and Issues Management
+on:
+  # Runs daily at midnight UTC
+  schedule:
+    - cron: '0 0 * * *'
+  # Allows manual triggering from the Actions tab for testing
+  workflow_dispatch:
+jobs:
+  stale-check:
+    permissions:
+      issues: write
+      pull-requests: write
+    uses: krkn-chaos/actions/.github/workflows/stale-PRs-and-issues.yml@main
+    secrets: inherit
