@@ -189,6 +189,39 @@ class TestRollbackConfig:
     def test_is_rollback_version_file_format(self, file_name, expected):
         assert RollbackConfig.is_rollback_version_file_format(file_name) == expected
 
+    def test_search_rollback_version_files_order(self, tmpdir):
+        from unittest.mock import patch
+        
+        run_uuid = "abcdefgh"
+        versions_dir = str(tmpdir.mkdir("versions_test_order"))
+        
+        with patch.object(RollbackConfig, 'versions_directory', versions_dir):
+            context_dir_name = f"123456789-{run_uuid}"
+            context_dir = os.path.join(versions_dir, context_dir_name)
+            os.makedirs(context_dir)
+
+            # Files with different timestamps
+            files = [
+                "scenario_1000_12345678.py",
+                "scenario_3000_12345678.py",
+                "scenario_2000_12345678.py",
+                "scenario_500_12345678.py",
+            ]
+            for file in files:
+                with open(os.path.join(context_dir, file), "w") as f:
+                    f.write("# dummy content")
+
+            result = RollbackConfig.search_rollback_version_files(run_uuid, "scenario")
+            result_filenames = [os.path.basename(f) for f in result]
+            
+            expected_order = [
+                "scenario_3000_12345678.py",
+                "scenario_2000_12345678.py",
+                "scenario_1000_12345678.py",
+                "scenario_500_12345678.py",
+            ]
+            assert result_filenames == expected_order
+
 class TestRollbackCommand:
 
     @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
