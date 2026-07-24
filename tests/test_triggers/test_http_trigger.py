@@ -274,6 +274,12 @@ class TestHttpTrigger(unittest.TestCase):
     # Validation tests
     # ------------------------------------------------------------------
 
+    def test_invalid_body_contains_raises(self):
+        """body_contains passed as non-string -> raises ValueError."""
+        with self.assertRaises(ValueError) as ctx:
+            self._make_trigger(body_contains={"key": "value"})
+        self.assertIn("body_contains", str(ctx.exception))
+
     def test_missing_url_raises(self):
         """No 'url' field -> raises ValueError containing 'url'."""
         with self.assertRaises(ValueError) as ctx:
