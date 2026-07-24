@@ -16,6 +16,7 @@ import time
 
 from krkn.scenario_plugins.triggers.abstract_trigger import AbstractTrigger
 from krkn.scenario_plugins.triggers.command_trigger import CommandTrigger
+from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
 
 VALID_MODES = {"all_of", "any_of"}
 VALID_ON_TIMEOUT = {"skip", "fail", "run_anyway"}
@@ -69,13 +70,9 @@ class TriggerManager:
             )
 
         if self._timeout <= 0:
-            raise ValueError(
-                f"timeout must be positive, got {self._timeout}"
-            )
+            raise ValueError(f"timeout must be positive, got {self._timeout}")
         if self._interval <= 0:
-            raise ValueError(
-                f"interval must be positive, got {self._interval}"
-            )
+            raise ValueError(f"interval must be positive, got {self._interval}")
 
         self._triggers: list[AbstractTrigger] = []
         for condition in trigger_config["conditions"]:
@@ -99,7 +96,6 @@ class TriggerManager:
             return CommandTrigger(condition_config)
 
         if trigger_type == "http":
-            from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
             return HttpTrigger(condition_config)
 
         raise ValueError(f"unknown trigger type: '{trigger_type}'")
@@ -123,9 +119,7 @@ class TriggerManager:
                 self._trigger_states[i] = result
                 results.append(result)
 
-            logging.debug(
-                f"trigger poll: {[r for r in results]}"
-            )
+            logging.debug(f"trigger poll: {[r for r in results]}")
 
             if self._mode == "all_of" and all(results):
                 logging.info("all trigger conditions satisfied")
