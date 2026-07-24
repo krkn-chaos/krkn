@@ -227,6 +227,10 @@ class RollbackConfig(metaclass=SingletonMeta):
             else:
                 logger.warning(f"Directory {dir} does not match expected pattern of <timestamp>-<run_uuid>")
 
+        rollback_context_directories.sort(
+            key=lambda d: int(d.split("-", 1)[0]), reverse=True
+        )
+
         if not rollback_context_directories:
             logger.warning(f"No rollback context directories found for run UUID {run_uuid}")
             return []
@@ -249,6 +253,10 @@ class RollbackConfig(metaclass=SingletonMeta):
                     logger.warning(
                         f"File {file} does not match expected pattern of <{scenario_type or '*'}>_<timestamp>_<hash_suffix>.py"
                     )
+        version_files.sort(
+            key=lambda f: int(os.path.basename(f).split("_")[-2]),
+            reverse=True,
+        )
         return version_files
 
 @dataclass(frozen=True)

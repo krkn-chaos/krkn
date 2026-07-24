@@ -189,6 +189,65 @@ class TestRollbackConfig:
     def test_is_rollback_version_file_format(self, file_name, expected):
         assert RollbackConfig.is_rollback_version_file_format(file_name) == expected
 
+class TestRollbackVersionFileOrdering:
+
+    def test_search_returns_files_in_descending_timestamp_order(self, tmp_path):
+        """Rollback files must execute newest-first (LIFO).
+        search_rollback_version_files() should return them sorted by
+        the embedded nanosecond timestamp in descending order."""
+        run_uuid = "test-uuid"
+        context_dir_name = f"1000000000-{run_uuid}"
+        context_dir = tmp_path / context_dir_name
+        context_dir.mkdir()
+
+        timestamps = [200000000, 100000000, 300000000]
+        for ts in timestamps:
+            (context_dir / f"scenario_{ts}_aBcDeFgH.py").write_text("")
+
+        RollbackConfig._instances.clear()
+        RollbackConfig.register(
+            auto=True,
+            versions_directory=str(tmp_path),
+        )
+        try:
+            result = RollbackConfig.search_rollback_version_files(run_uuid)
+            result_basenames = [os.path.basename(f) for f in result]
+            assert result_basenames == [
+                "scenario_300000000_aBcDeFgH.py",
+                "scenario_200000000_aBcDeFgH.py",
+                "scenario_100000000_aBcDeFgH.py",
+            ]
+        finally:
+            RollbackConfig._instances.clear()
+
+    def test_search_returns_files_across_contexts_in_descending_order(self, tmp_path):
+        """When multiple context directories exist, files from newer
+        contexts should appear before files from older contexts."""
+        run_uuid = "multi-uuid"
+        older_ctx = tmp_path / f"1000000000-{run_uuid}"
+        newer_ctx = tmp_path / f"2000000000-{run_uuid}"
+        older_ctx.mkdir()
+        newer_ctx.mkdir()
+
+        (older_ctx / "scenario_100000000_aBcDeFgH.py").write_text("")
+        (newer_ctx / "scenario_300000000_aBcDeFgH.py").write_text("")
+
+        RollbackConfig._instances.clear()
+        RollbackConfig.register(
+            auto=True,
+            versions_directory=str(tmp_path),
+        )
+        try:
+            result = RollbackConfig.search_rollback_version_files(run_uuid)
+            result_basenames = [os.path.basename(f) for f in result]
+            assert result_basenames == [
+                "scenario_300000000_aBcDeFgH.py",
+                "scenario_100000000_aBcDeFgH.py",
+            ]
+        finally:
+            RollbackConfig._instances.clear()
+
+
 class TestRollbackCommand:
 
     @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
