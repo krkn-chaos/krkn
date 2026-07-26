@@ -17,6 +17,7 @@ import time
 from krkn.scenario_plugins.triggers.abstract_trigger import AbstractTrigger
 from krkn.scenario_plugins.triggers.command_trigger import CommandTrigger
 from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
+from krkn.scenario_plugins.triggers.k8s_trigger import K8sTrigger
 
 VALID_MODES = {"all_of", "any_of"}
 VALID_ON_TIMEOUT = {"skip", "fail", "run_anyway"}
@@ -97,6 +98,9 @@ class TriggerManager:
 
         if trigger_type == "http":
             return HttpTrigger(condition_config)
+
+        if trigger_type == "k8s":
+            return K8sTrigger(condition_config)
 
         raise ValueError(f"unknown trigger type: '{trigger_type}'")
 
