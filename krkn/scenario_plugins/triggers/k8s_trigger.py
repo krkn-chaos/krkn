@@ -65,14 +65,23 @@ def _coerce(value: str):
 
 def _compare(actual, operator: str, expected):
     """Compare actual value against expected using the given operator."""
-    if operator == "==":
-        return str(actual) == str(expected)
-    if operator == "!=":
-        return str(actual) != str(expected)
     try:
         actual_num = float(actual)
         expected_num = float(expected)
+        is_numeric = True
     except (TypeError, ValueError):
+        is_numeric = False
+
+    if operator == "==":
+        if is_numeric:
+            return actual_num == expected_num
+        return str(actual) == str(expected)
+    if operator == "!=":
+        if is_numeric:
+            return actual_num != expected_num
+        return str(actual) != str(expected)
+
+    if not is_numeric:
         raise ValueError(
             f"cannot compare non-numeric values with '{operator}': "
             f"actual={actual!r}, expected={expected!r}"
@@ -154,6 +163,12 @@ class K8sTrigger(AbstractTrigger):
             resource_api = dyn.resources.get(
                 api_version=self._api_version, kind=self._kind
             )
+
+            if resource_api.namespaced and not self._namespace:
+                raise ValueError(
+                    f"{self._api_version}/{self._kind} is namespaced "
+                    f"but no namespace was specified"
+                )
 
             if self._namespace:
                 resource = resource_api.get(

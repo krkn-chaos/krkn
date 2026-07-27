@@ -101,6 +101,15 @@ class TestCompare(unittest.TestCase):
         self.assertTrue(_compare(3, "==", 3))
         self.assertTrue(_compare("3", "==", "3"))
 
+    def test_eq_numeric_float_int(self):
+        """1.0 == 1 should be True via numeric comparison."""
+        self.assertTrue(_compare(1.0, "==", 1))
+        self.assertTrue(_compare("1.0", "==", "1"))
+
+    def test_ne_numeric_float_int(self):
+        """1.0 != 1 should be False via numeric comparison."""
+        self.assertFalse(_compare(1.0, "!=", 1))
+
     def test_gte(self):
         self.assertTrue(_compare(3, ">=", 3))
         self.assertTrue(_compare(4, ">=", 3))
@@ -364,11 +373,31 @@ class TestK8sTriggerEvaluate(unittest.TestCase):
         self.assertFalse(trigger.evaluate())
 
     @patch.object(K8sTrigger, "_get_client")
+    def test_namespaced_resource_without_namespace(self, mock_get_client):
+        """Namespaced resource with no namespace configured -> returns False."""
+        mock_dyn = MagicMock()
+        mock_get_client.return_value = mock_dyn
+        mock_api = MagicMock()
+        mock_api.namespaced = True
+        mock_dyn.resources.get.return_value = mock_api
+
+        trigger = K8sTrigger({
+            "type": "k8s",
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "nginx",
+            "condition": "status.readyReplicas >= 1",
+        })
+        self.assertFalse(trigger.evaluate())
+        mock_api.get.assert_not_called()
+
+    @patch.object(K8sTrigger, "_get_client")
     def test_cluster_scoped_resource(self, mock_get_client):
         """No namespace -> calls get() without namespace kwarg."""
         mock_dyn = MagicMock()
         mock_get_client.return_value = mock_dyn
         mock_api = MagicMock()
+        mock_api.namespaced = False
         mock_dyn.resources.get.return_value = mock_api
         mock_api.get.return_value = self._mock_resource(
             {"status": {"phase": "Ready"}}
