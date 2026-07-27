@@ -208,6 +208,16 @@ class TestTriggerManager(unittest.TestCase):
     # Validation tests
     # ------------------------------------------------------------------
 
+    def test_factory_wiring_returns_http_trigger(self):
+        """TriggerManager with type: http returns an HttpTrigger."""
+        config = _make_config(
+            conditions=[{"type": "http", "url": "http://test.com"}],
+        )
+        manager = TriggerManager(config)
+        from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
+
+        self.assertIsInstance(manager._triggers[0], HttpTrigger)
+
     def test_invalid_mode_raises(self):
         """mode='invalid' -> raises ValueError."""
         config = _make_config(mode="invalid")
