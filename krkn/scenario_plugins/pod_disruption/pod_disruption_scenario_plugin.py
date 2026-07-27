@@ -227,6 +227,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 _exclude_pods = self.get_pods("",config.exclude_label,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
                 for pod in _exclude_pods:
                     exclude_pods.add(pod[0])
+                    logging.info(f"Excluding pod {pod[0]} from chaos")
 
             expected_pod_count = len(pods)
             pods = [pod for pod in pods if pod[0] not in exclude_pods]
