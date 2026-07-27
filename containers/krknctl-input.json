@@ -835,6 +835,16 @@
     "group": "triggers"
   },
   {
+    "name": "trigger-k8s-context",
+    "short_description": "K8s trigger context",
+    "description": "Kubeconfig context to use for the k8s trigger. Leave empty to use the default context. Useful for cross-cluster triggers.",
+    "variable": "TRIGGER_K8S_CONTEXT",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
     "name": "trigger-k8s-kind",
     "short_description": "K8s trigger resource kind",
     "description": "Kubernetes resource kind to watch (e.g. Deployment, Pod, VirtualMachineInstanceMigration)",

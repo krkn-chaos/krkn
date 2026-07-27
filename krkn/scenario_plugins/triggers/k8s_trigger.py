@@ -140,6 +140,7 @@ class K8sTrigger(AbstractTrigger):
             raise ValueError("k8s trigger requires 'condition'")
 
         self._namespace = trigger_config.get("namespace")
+        self._context = trigger_config.get("context")
         self._path, self._operator, self._expected = _parse_condition(
             raw_condition
         )
@@ -153,7 +154,7 @@ class K8sTrigger(AbstractTrigger):
             try:
                 config.load_incluster_config()
             except config.ConfigException:
-                config.load_kube_config()
+                config.load_kube_config(context=self._context)
             self._client = DynamicClient(client.ApiClient())
         return self._client
 
@@ -237,8 +238,9 @@ class K8sTrigger(AbstractTrigger):
 
     def describe(self) -> str:
         ns_part = f" namespace={self._namespace}" if self._namespace else ""
+        ctx_part = f" context={self._context}" if self._context else ""
         return (
             f"k8s trigger: {self._api_version}/{self._kind} "
-            f"'{self._name}'{ns_part} "
+            f"'{self._name}'{ns_part}{ctx_part} "
             f"(condition: {self._raw_condition})"
         )

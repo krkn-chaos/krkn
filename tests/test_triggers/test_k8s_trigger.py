@@ -250,6 +250,29 @@ class TestK8sTriggerInit(unittest.TestCase):
         })
         self.assertIsNone(trigger._namespace)
 
+    def test_context_optional(self):
+        trigger = K8sTrigger({
+            "type": "k8s",
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "nginx",
+            "namespace": "default",
+            "condition": "status.readyReplicas >= 1",
+        })
+        self.assertIsNone(trigger._context)
+
+    def test_context_stored(self):
+        trigger = K8sTrigger({
+            "type": "k8s",
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "nginx",
+            "namespace": "default",
+            "context": "staging-context",
+            "condition": "status.readyReplicas >= 1",
+        })
+        self.assertEqual(trigger._context, "staging-context")
+
 
 class TestK8sTriggerEvaluate(unittest.TestCase):
     """Tests for K8sTrigger.evaluate() with mocked Kubernetes client."""
@@ -473,6 +496,19 @@ class TestK8sTriggerDescribe(unittest.TestCase):
         self.assertIn("worker-1", desc)
         self.assertNotIn("namespace", desc)
 
+    def test_describe_with_context(self):
+        trigger = K8sTrigger({
+            "type": "k8s",
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "name": "nginx",
+            "namespace": "default",
+            "context": "staging-context",
+            "condition": "status.readyReplicas >= 1",
+        })
+        desc = trigger.describe()
+        self.assertIn("staging-context", desc)
+
 
 class TestK8sTriggerClientInit(unittest.TestCase):
     """Tests for K8sTrigger._get_client() initialization."""
@@ -499,7 +535,31 @@ class TestK8sTriggerClientInit(unittest.TestCase):
         trigger._get_client()
 
         mock_incluster.assert_called_once()
-        mock_kubeconfig.assert_called_once()
+        mock_kubeconfig.assert_called_once_with(context=None)
+
+    @patch("krkn.scenario_plugins.triggers.k8s_trigger.DynamicClient")
+    @patch("krkn.scenario_plugins.triggers.k8s_trigger.client.ApiClient")
+    @patch("krkn.scenario_plugins.triggers.k8s_trigger.config.load_kube_config")
+    @patch(
+        "krkn.scenario_plugins.triggers.k8s_trigger.config.load_incluster_config",
+        side_effect=k8s_config.ConfigException("not in cluster"),
+    )
+    def test_loads_kubeconfig_with_context(
+        self, mock_incluster, mock_kubeconfig, mock_api_client, mock_dyn
+    ):
+        """Passes context to load_kube_config when specified."""
+        trigger = K8sTrigger({
+            "type": "k8s",
+            "apiVersion": "v1",
+            "kind": "Pod",
+            "name": "test",
+            "namespace": "default",
+            "context": "staging-context",
+            "condition": "status.phase == Running",
+        })
+        trigger._get_client()
+
+        mock_kubeconfig.assert_called_once_with(context="staging-context")
 
     @patch("krkn.scenario_plugins.triggers.k8s_trigger.DynamicClient")
     @patch("krkn.scenario_plugins.triggers.k8s_trigger.client.ApiClient")
