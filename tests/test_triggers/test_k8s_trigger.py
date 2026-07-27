@@ -10,7 +10,7 @@ Assisted By: Claude Code
 """
 
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from krkn.scenario_plugins.triggers.k8s_trigger import (
     K8sTrigger,
@@ -19,7 +19,6 @@ from krkn.scenario_plugins.triggers.k8s_trigger import (
     _parse_condition,
     _resolve_path,
 )
-from kubernetes import config as k8s_config
 from kubernetes.dynamic.exceptions import (
     NotFoundError,
     ResourceNotFoundError,
@@ -275,9 +274,17 @@ class TestK8sTriggerInit(unittest.TestCase):
 
 
 class TestK8sTriggerEvaluate(unittest.TestCase):
-    """Tests for K8sTrigger.evaluate() with mocked Kubernetes client."""
+    """Tests for K8sTrigger.evaluate() with mocked kubecli."""
 
-    def _make_trigger(self, **overrides):
+    def _make_kubecli(self):
+        """Create a mock kubecli with a mock dyn_client."""
+        kubecli = MagicMock()
+        kubecli.dyn_client = MagicMock()
+        return kubecli
+
+    def _make_trigger(self, kubecli=None, **overrides):
+        if kubecli is None:
+            kubecli = self._make_kubecli()
         config = {
             "type": "k8s",
             "apiVersion": "apps/v1",
@@ -287,122 +294,89 @@ class TestK8sTriggerEvaluate(unittest.TestCase):
             "condition": "status.readyReplicas >= 1",
         }
         config.update(overrides)
-        return K8sTrigger(config)
+        return K8sTrigger(config, kubecli=kubecli), kubecli
 
-    def _mock_resource(self, data: dict):
-        """Create a mock resource that supports dict-style path resolution."""
-        return data
-
-    @patch.object(K8sTrigger, "_get_client")
-    def test_condition_met(self, mock_get_client):
+    def test_condition_met(self):
         """Resource matches condition -> returns True."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
+        trigger, kubecli = self._make_trigger()
         mock_api = MagicMock()
-        mock_dyn.resources.get.return_value = mock_api
-        mock_api.get.return_value = self._mock_resource(
-            {"status": {"readyReplicas": 3}}
-        )
+        kubecli.dyn_client.resources.get.return_value = mock_api
+        mock_api.get.return_value = {"status": {"readyReplicas": 3}}
 
-        trigger = self._make_trigger()
         self.assertTrue(trigger.evaluate())
 
-        mock_dyn.resources.get.assert_called_once_with(
+        kubecli.dyn_client.resources.get.assert_called_once_with(
             api_version="apps/v1", kind="Deployment"
         )
         mock_api.get.assert_called_once_with(
             name="nginx", namespace="default"
         )
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_condition_not_met(self, mock_get_client):
+    def test_condition_not_met(self):
         """Resource does not match condition -> returns False."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
+        trigger, kubecli = self._make_trigger()
         mock_api = MagicMock()
-        mock_dyn.resources.get.return_value = mock_api
-        mock_api.get.return_value = self._mock_resource(
-            {"status": {"readyReplicas": 0}}
-        )
+        kubecli.dyn_client.resources.get.return_value = mock_api
+        mock_api.get.return_value = {"status": {"readyReplicas": 0}}
 
-        trigger = self._make_trigger()
         self.assertFalse(trigger.evaluate())
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_string_equality(self, mock_get_client):
+    def test_string_equality(self):
         """String equality condition works."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
-        mock_api = MagicMock()
-        mock_dyn.resources.get.return_value = mock_api
-        mock_api.get.return_value = self._mock_resource(
-            {"status": {"phase": "Running"}}
-        )
-
-        trigger = self._make_trigger(
+        trigger, kubecli = self._make_trigger(
             condition="status.phase == Running",
             kind="VirtualMachineInstanceMigration",
             apiVersion="kubevirt.io/v1",
         )
+        mock_api = MagicMock()
+        kubecli.dyn_client.resources.get.return_value = mock_api
+        mock_api.get.return_value = {"status": {"phase": "Running"}}
+
         self.assertTrue(trigger.evaluate())
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_resource_not_found(self, mock_get_client):
+    def test_resource_not_found(self):
         """Resource does not exist yet -> returns False."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
+        trigger, kubecli = self._make_trigger()
         mock_api = MagicMock()
-        mock_dyn.resources.get.return_value = mock_api
+        kubecli.dyn_client.resources.get.return_value = mock_api
         mock_api.get.side_effect = NotFoundError(MagicMock(status=404))
 
-        trigger = self._make_trigger()
         self.assertFalse(trigger.evaluate())
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_api_resource_not_registered(self, mock_get_client):
+    def test_api_resource_not_registered(self):
         """CRD not installed on cluster -> returns False."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
-        mock_dyn.resources.get.side_effect = ResourceNotFoundError(
-            "Resource not found"
-        )
-
-        trigger = self._make_trigger(
+        trigger, kubecli = self._make_trigger(
             apiVersion="kubevirt.io/v1",
             kind="VirtualMachineInstanceMigration",
         )
+        kubecli.dyn_client.resources.get.side_effect = ResourceNotFoundError(
+            "Resource not found"
+        )
+
         self.assertFalse(trigger.evaluate())
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_field_path_missing(self, mock_get_client):
+    def test_field_path_missing(self):
         """Field path doesn't exist on resource -> returns False."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
+        trigger, kubecli = self._make_trigger()
         mock_api = MagicMock()
-        mock_dyn.resources.get.return_value = mock_api
-        mock_api.get.return_value = self._mock_resource({"status": {}})
+        kubecli.dyn_client.resources.get.return_value = mock_api
+        mock_api.get.return_value = {"status": {}}
 
-        trigger = self._make_trigger()
         self.assertFalse(trigger.evaluate())
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_unexpected_error(self, mock_get_client):
+    def test_unexpected_error(self):
         """Unexpected API error -> returns False, no crash."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
-        mock_dyn.resources.get.side_effect = ConnectionError("refused")
+        trigger, kubecli = self._make_trigger()
+        kubecli.dyn_client.resources.get.side_effect = ConnectionError("refused")
 
-        trigger = self._make_trigger()
         self.assertFalse(trigger.evaluate())
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_namespaced_resource_without_namespace(self, mock_get_client):
+    def test_namespaced_resource_without_namespace(self):
         """Namespaced resource with no namespace configured -> returns False."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
+        kubecli = self._make_kubecli()
         mock_api = MagicMock()
         mock_api.namespaced = True
-        mock_dyn.resources.get.return_value = mock_api
+        kubecli.dyn_client.resources.get.return_value = mock_api
 
         trigger = K8sTrigger({
             "type": "k8s",
@@ -410,21 +384,17 @@ class TestK8sTriggerEvaluate(unittest.TestCase):
             "kind": "Deployment",
             "name": "nginx",
             "condition": "status.readyReplicas >= 1",
-        })
+        }, kubecli=kubecli)
         self.assertFalse(trigger.evaluate())
         mock_api.get.assert_not_called()
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_cluster_scoped_resource(self, mock_get_client):
+    def test_cluster_scoped_resource(self):
         """No namespace -> calls get() without namespace kwarg."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
+        kubecli = self._make_kubecli()
         mock_api = MagicMock()
         mock_api.namespaced = False
-        mock_dyn.resources.get.return_value = mock_api
-        mock_api.get.return_value = self._mock_resource(
-            {"status": {"phase": "Ready"}}
-        )
+        kubecli.dyn_client.resources.get.return_value = mock_api
+        mock_api.get.return_value = {"status": {"phase": "Ready"}}
 
         trigger = K8sTrigger({
             "type": "k8s",
@@ -432,21 +402,17 @@ class TestK8sTriggerEvaluate(unittest.TestCase):
             "kind": "Node",
             "name": "worker-1",
             "condition": "status.phase == Ready",
-        })
+        }, kubecli=kubecli)
         trigger.evaluate()
 
         mock_api.get.assert_called_once_with(name="worker-1")
 
-    @patch.object(K8sTrigger, "_get_client")
-    def test_crd_same_code_path(self, mock_get_client):
+    def test_crd_same_code_path(self):
         """CRD uses the exact same code path as built-in resources."""
-        mock_dyn = MagicMock()
-        mock_get_client.return_value = mock_dyn
+        kubecli = self._make_kubecli()
         mock_api = MagicMock()
-        mock_dyn.resources.get.return_value = mock_api
-        mock_api.get.return_value = self._mock_resource(
-            {"status": {"phase": "Running"}}
-        )
+        kubecli.dyn_client.resources.get.return_value = mock_api
+        mock_api.get.return_value = {"status": {"phase": "Running"}}
 
         trigger = K8sTrigger({
             "type": "k8s",
@@ -455,13 +421,24 @@ class TestK8sTriggerEvaluate(unittest.TestCase):
             "name": "test-migration",
             "namespace": "vm-ns",
             "condition": "status.phase == Running",
-        })
+        }, kubecli=kubecli)
         self.assertTrue(trigger.evaluate())
 
-        mock_dyn.resources.get.assert_called_once_with(
+        kubecli.dyn_client.resources.get.assert_called_once_with(
             api_version="kubevirt.io/v1",
             kind="VirtualMachineInstanceMigration",
         )
+
+    def test_value_error_from_compare(self):
+        """ValueError from _compare (non-numeric > operator) -> returns False."""
+        trigger, kubecli = self._make_trigger(
+            condition="status.phase > 1",
+        )
+        mock_api = MagicMock()
+        kubecli.dyn_client.resources.get.return_value = mock_api
+        mock_api.get.return_value = {"status": {"phase": "Running"}}
+
+        self.assertFalse(trigger.evaluate())
 
 
 class TestK8sTriggerDescribe(unittest.TestCase):
@@ -511,19 +488,14 @@ class TestK8sTriggerDescribe(unittest.TestCase):
 
 
 class TestK8sTriggerClientInit(unittest.TestCase):
-    """Tests for K8sTrigger._get_client() initialization."""
+    """Tests for K8sTrigger._get_client() delegation to kubecli."""
 
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.DynamicClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.client.ApiClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.config.load_kube_config")
-    @patch(
-        "krkn.scenario_plugins.triggers.k8s_trigger.config.load_incluster_config",
-        side_effect=k8s_config.ConfigException("not in cluster"),
-    )
-    def test_loads_kubeconfig_outside_cluster(
-        self, mock_incluster, mock_kubeconfig, mock_api_client, mock_dyn
-    ):
-        """Falls back to kubeconfig when not running in-cluster."""
+    def test_get_client_returns_kubecli_dyn_client(self):
+        """_get_client() returns kubecli.dyn_client."""
+        kubecli = MagicMock()
+        mock_dyn = MagicMock()
+        kubecli.dyn_client = mock_dyn
+
         trigger = K8sTrigger({
             "type": "k8s",
             "apiVersion": "v1",
@@ -531,79 +503,10 @@ class TestK8sTriggerClientInit(unittest.TestCase):
             "name": "test",
             "namespace": "default",
             "condition": "status.phase == Running",
-        })
-        trigger._get_client()
+        }, kubecli=kubecli)
 
-        mock_incluster.assert_called_once()
-        mock_kubeconfig.assert_called_once_with(context=None)
-
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.DynamicClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.client.ApiClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.config.load_kube_config")
-    @patch(
-        "krkn.scenario_plugins.triggers.k8s_trigger.config.load_incluster_config",
-        side_effect=k8s_config.ConfigException("not in cluster"),
-    )
-    def test_loads_kubeconfig_with_context(
-        self, mock_incluster, mock_kubeconfig, mock_api_client, mock_dyn
-    ):
-        """Passes context to load_kube_config when specified."""
-        trigger = K8sTrigger({
-            "type": "k8s",
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "name": "test",
-            "namespace": "default",
-            "context": "staging-context",
-            "condition": "status.phase == Running",
-        })
-        trigger._get_client()
-
-        mock_kubeconfig.assert_called_once_with(context="staging-context")
-
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.DynamicClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.client.ApiClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.config.load_incluster_config")
-    def test_loads_incluster_config(
-        self, mock_incluster, mock_api_client, mock_dyn
-    ):
-        """Uses in-cluster config when available."""
-        trigger = K8sTrigger({
-            "type": "k8s",
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "name": "test",
-            "namespace": "default",
-            "condition": "status.phase == Running",
-        })
-        trigger._get_client()
-
-        mock_incluster.assert_called_once()
-
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.DynamicClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.client.ApiClient")
-    @patch("krkn.scenario_plugins.triggers.k8s_trigger.config.load_kube_config")
-    @patch(
-        "krkn.scenario_plugins.triggers.k8s_trigger.config.load_incluster_config",
-        side_effect=k8s_config.ConfigException("not in cluster"),
-    )
-    def test_client_cached(
-        self, mock_incluster, mock_kubeconfig, mock_api_client, mock_dyn
-    ):
-        """Client is created once and reused on subsequent calls."""
-        trigger = K8sTrigger({
-            "type": "k8s",
-            "apiVersion": "v1",
-            "kind": "Pod",
-            "name": "test",
-            "namespace": "default",
-            "condition": "status.phase == Running",
-        })
-        c1 = trigger._get_client()
-        c2 = trigger._get_client()
-
-        self.assertIs(c1, c2)
-        self.assertEqual(mock_kubeconfig.call_count, 1)
+        result = trigger._get_client()
+        self.assertIs(result, mock_dyn)
 
 
 if __name__ == "__main__":

@@ -14,7 +14,6 @@
 import logging
 import re
 
-from kubernetes import client, config
 from kubernetes.dynamic import DynamicClient
 from kubernetes.dynamic.exceptions import (
     NotFoundError,
@@ -122,7 +121,7 @@ class K8sTrigger(AbstractTrigger):
     same code path using the Kubernetes dynamic client.
     """
 
-    def __init__(self, trigger_config: dict):
+    def __init__(self, trigger_config: dict, kubecli=None):
         self._api_version = trigger_config.get("apiVersion")
         if not self._api_version:
             raise ValueError("k8s trigger requires 'apiVersion'")
@@ -146,17 +145,11 @@ class K8sTrigger(AbstractTrigger):
         )
         self._raw_condition = raw_condition
 
-        self._client = None
+        self._kubecli = kubecli
         self._last_result: bool | None = None
 
     def _get_client(self) -> DynamicClient:
-        if self._client is None:
-            try:
-                config.load_incluster_config()
-            except config.ConfigException:
-                config.load_kube_config(context=self._context)
-            self._client = DynamicClient(client.ApiClient())
-        return self._client
+        return self._kubecli.dyn_client
 
     def evaluate(self) -> bool:
         try:
@@ -205,7 +198,7 @@ class K8sTrigger(AbstractTrigger):
                 self._kind,
             )
             met = False
-        except (KeyError, IndexError, AttributeError) as e:
+        except (KeyError, IndexError, AttributeError, ValueError) as e:
             logging.debug(
                 "k8s trigger: field path '%s' not present on %s/%s: %s",
                 self._path,
