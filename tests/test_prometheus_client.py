@@ -290,6 +290,27 @@ class TestAlertsFailureCount(unittest.TestCase):
         finally:
             os.unlink(profile_path)
 
+    def test_case_insensitive_severity_matching(self):
+        """Returns correct count when severity uses mixed case (e.g. CRITICAL, Error)."""
+        profile_path = self._write_alert_profile(
+            '- expr: "up == 0"\n'
+            '  description: "uppercase critical"\n'
+            '  severity: "CRITICAL"\n'
+            '- expr: "node == 0"\n'
+            '  description: "capitalized error"\n'
+            '  severity: "Error"\n'
+        )
+        try:
+            self.prom_cli.process_alert.side_effect = [
+                (self.start_time, "uppercase critical"),
+                (self.start_time, "capitalized error"),
+            ]
+            self.elastic.push_alert.return_value = 0
+            result = self._call_alerts(profile_path)
+            self.assertEqual(result, 2)
+        finally:
+            os.unlink(profile_path)
+
 
 class TestJobStatusComputation(unittest.TestCase):
     """
