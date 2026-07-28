@@ -1,0 +1,21 @@
+# Decoy workload: same container name as the target but a different label selector.
+# Used by test_container_label_selector_targeting to prove Krkn respects label_selector.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: container-decoy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      scenario: decoy
+  template:
+    metadata:
+      labels:
+        scenario: decoy
+    spec:
+      containers:
+      - name: fedtools
+        image: nginx:alpine
+        ports:
+        - containerPort: 80

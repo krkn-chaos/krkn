@@ -44,12 +44,12 @@ python -m coverage run -a -m unittest discover -s tests -v
 ### Python Environment
 - **Python 3.11+** required
 - **NEVER install packages globally** - always use virtual environment
-- **CRITICAL**: `docker` must be <7.0 and `requests` must be <2.32 (Unix socket compatibility)
+- **CRITICAL**: `docker` must be >=7.0.0 and `requests` must be >=2.32.4 — match the pins in `requirements.txt` (docker 7+ handles Unix sockets natively; requests bumped for security fixes)
 
 ### Key Dependencies
-- **krkn-lib** (5.1.13): Core library for Kubernetes/OpenShift operations
-- **kubernetes** (34.1.0): Kubernetes Python client
-- **docker** (<7.0), **requests** (<2.32): DO NOT upgrade without verifying compatibility
+- **krkn-lib** (6.1.2): Core library for Kubernetes/OpenShift operations
+- **kubernetes** (>=35.0.0,<36.0.0): Kubernetes Python client
+- **docker** (>=7.0.0), **requests** (>=2.32.4): match `requirements.txt`; do not change without verifying Unix-socket compatibility
 - Cloud SDKs: boto3 (AWS), azure-mgmt-* (Azure), google-cloud-compute (GCP), ibm_vpc (IBM), pyVmomi (VMware)
 
 ## Plugin Architecture (CRITICAL)
