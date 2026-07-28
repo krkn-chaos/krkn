@@ -436,5 +436,102 @@ class TestZoneOutageRun(unittest.TestCase):
         self.assertEqual(result, 1)
 
 
+class TestAzureZoneOutage(unittest.TestCase):
+    """Tests for Azure zone outage functionality and rollback"""
+
+    def setUp(self):
+        self.plugin = ZoneOutageScenarioPlugin()
+        self.scenario_config = {
+            "resource_group": "rg-test",
+            "vnet_name": "vnet-test",
+            "subnet_name": "subnet-test",
+            "duration": 1,
+            "location": "centralindia",
+        }
+
+    @patch("krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin.Azure")
+    def test_run_dispatches_azure_branch(self, mock_azure_class):
+        """Test run() dispatches to network_based_zone_azure for cloud_type azure/az"""
+        mock_azure_instance = MagicMock()
+        mock_azure_class.return_value = mock_azure_instance
+
+        temp_dir = tempfile.TemporaryDirectory()
+        tmp_path = Path(temp_dir.name)
+        scenario_file = tmp_path / "azure_scenario.yaml"
+
+        with open(scenario_file, "w") as f:
+            yaml.dump({"zone_outage": {"cloud_type": "azure", **self.scenario_config}}, f)
+
+        mock_lib_telemetry = MagicMock()
+        mock_scenario_telemetry = MagicMock()
+
+        with patch.object(self.plugin, "network_based_zone_azure", return_value=0) as mock_method:
+            result = self.plugin.run("test-uuid", str(scenario_file), mock_lib_telemetry, mock_scenario_telemetry)
+            self.assertEqual(result, 0)
+            mock_method.assert_called_once()
+
+        temp_dir.cleanup()
+
+    @patch("time.sleep")
+    @patch("krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin.Azure")
+    def test_network_based_zone_azure_success(self, mock_azure_class, mock_sleep):
+        """Test successful Azure network-based zone outage execution"""
+        mock_azure_instance = MagicMock()
+        mock_azure_class.return_value = mock_azure_instance
+        self.plugin.cloud_object = mock_azure_instance
+
+        mock_azure_instance.get_subnet_nsg.return_value = "nsg-original-id"
+        mock_azure_instance.create_subnet_deny_security_group.return_value = "nsg-deny-id"
+
+        result = self.plugin.network_based_zone_azure(self.scenario_config)
+
+        self.assertEqual(result, 0)
+        mock_azure_instance.get_subnet_nsg.assert_called_with("rg-test", "vnet-test", "subnet-test")
+        mock_azure_instance.create_subnet_deny_security_group.assert_called_with(
+            "rg-test", "chaos-zone-deny-subnet-test", "centralindia"
+        )
+        self.assertEqual(mock_azure_instance.update_subnet_nsg.call_count, 2)
+        mock_azure_instance.update_subnet_nsg.assert_any_call("rg-test", "vnet-test", "subnet-test", "nsg-deny-id")
+        mock_azure_instance.update_subnet_nsg.assert_any_call("rg-test", "vnet-test", "subnet-test", "nsg-original-id")
+        mock_azure_instance.delete_security_group.assert_called_with("rg-test", "chaos-zone-deny-subnet-test")
+
+    @patch("krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin.Azure")
+    def test_network_based_zone_azure_failure(self, mock_azure_class):
+        """Test Azure zone outage failure handling"""
+        mock_azure_instance = MagicMock()
+        mock_azure_class.return_value = mock_azure_instance
+        self.plugin.cloud_object = mock_azure_instance
+
+        mock_azure_instance.get_subnet_nsg.return_value = "nsg-original-id"
+        mock_azure_instance.create_subnet_deny_security_group.side_effect = Exception("Azure API error")
+
+        result = self.plugin.network_based_zone_azure(self.scenario_config)
+
+        self.assertEqual(result, 1)
+
+    @patch("krkn.scenario_plugins.node_actions.az_node_scenarios.Azure")
+    def test_rollback_azure_zone_outage_success(self, mock_azure_class):
+        """Test successful rollback of Azure zone outage"""
+        rollback_data = {
+            "resource_group": "rg-test",
+            "vnet_name": "vnet-test",
+            "subnet_name": "subnet-test",
+            "original_nsg_id": "nsg-original-id",
+            "nsg_name": "chaos-zone-deny-subnet-test",
+        }
+        encoded = base64.b64encode(json.dumps(rollback_data).encode("utf-8")).decode("utf-8")
+        rollback_content = RollbackContent(resource_identifier=encoded)
+
+        mock_azure_instance = MagicMock()
+        mock_azure_class.return_value = mock_azure_instance
+
+        ZoneOutageScenarioPlugin.rollback_azure_zone_outage(rollback_content)
+
+        mock_azure_instance.update_subnet_nsg.assert_called_once_with(
+            "rg-test", "vnet-test", "subnet-test", "nsg-original-id"
+        )
+        mock_azure_instance.delete_security_group.assert_called_once_with("rg-test", "chaos-zone-deny-subnet-test")
+
+
 if __name__ == "__main__":
     unittest.main()
