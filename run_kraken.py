@@ -23,19 +23,20 @@ warnings.filterwarnings(
 import atexit
 import datetime
 import json
+import logging
+import optparse
 import os
+import queue
 import shutil
 import sys
 import tempfile
-import yaml
-import logging
-import optparse
-from colorlog import ColoredFormatter
-import pyfiglet
-import uuid
 import time
-import queue
-from typing import Optional, Dict
+import uuid
+from typing import Optional
+
+import pyfiglet
+import yaml
+from colorlog import ColoredFormatter
 
 from krkn import cerberus
 from krkn_lib.elastic.krkn_elastic import KrknElastic
@@ -58,9 +59,9 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.models.k8s import ResiliencyReport
 from krkn_lib.utils import SafeLogger
-from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
+from krkn_lib.utils.functions import get_yaml_item_value
 
-from krkn.utils import TeeLogHandler, ErrorCollectionHandler
+from krkn.utils import TeeLogHandler, ErrorCollectionHandler, validate_junit_options, write_junit_file
 from krkn.health_checks import HealthCheckFactory
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
@@ -944,51 +945,13 @@ if __name__ == "__main__":
     )
     option_error = False
 
-    # used to check if there is any missing or wrong parameter that prevents
-    # the creation of the junit file
-    junit_error = False
-    junit_normalized_path = None
-    retval = 0
     junit_start_time = time.time()
-    # checks if both mandatory options for junit are set
-    if options.junit_testcase_path and not options.junit_testcase:
-        logging.error(
-            "please set junit test case description with --junit-testcase [description] option"
-        )
+    retval = 0
+    junit_error, junit_normalized_path = validate_junit_options(
+        options.junit_testcase, options.junit_testcase_path
+    )
+    if junit_error:
         option_error = True
-        junit_error = True
-
-    if options.junit_testcase and not options.junit_testcase_path:
-        logging.error(
-            "please set junit test case path with --junit-testcase-path [path] option"
-        )
-        option_error = True
-        junit_error = True
-
-    # normalized path
-    if options.junit_testcase:
-        junit_normalized_path = os.path.normpath(options.junit_testcase_path)
-
-        if not os.path.exists(junit_normalized_path):
-            logging.error(
-                f"{junit_normalized_path} do not exists, please select a valid path"
-            )
-            option_error = True
-            junit_error = True
-
-        if not os.path.isdir(junit_normalized_path):
-            logging.error(
-                f"{junit_normalized_path} is a file, please select a valid folder path"
-            )
-            option_error = True
-            junit_error = True
-
-        if not os.access(junit_normalized_path, os.W_OK):
-            logging.error(
-                f"{junit_normalized_path} is not writable, please select a valid path"
-            )
-            option_error = True
-            junit_error = True
 
     if options.cfg is None:
         logging.error("Please check if you have passed the config")
@@ -1003,21 +966,14 @@ if __name__ == "__main__":
 
     junit_endtime = time.time()
 
-    # checks the minimum required parameters to write the junit file
     if junit_normalized_path and not junit_error:
-        junit_testcase_xml = get_junit_test_case(
-            success=True if retval == 0 else False,
-            time=int(junit_endtime - junit_start_time),
-            test_suite_name="chaos-krkn",
+        write_junit_file(
+            junit_normalized_path=junit_normalized_path,
+            success=retval == 0,
+            elapsed_seconds=junit_endtime - junit_start_time,
             test_case_description=options.junit_testcase,
             test_stdout=tee_handler.get_output(),
             test_version=options.junit_testcase_version,
         )
-        junit_testcase_file_path = (
-            f"{junit_normalized_path}/junit_krkn_{int(time.time())}.xml"
-        )
-        logging.info(f"writing junit XML testcase in {junit_testcase_file_path}")
-        with open(junit_testcase_file_path, "w") as stream:
-            stream.write(junit_testcase_xml)
 
     sys.exit(retval)
