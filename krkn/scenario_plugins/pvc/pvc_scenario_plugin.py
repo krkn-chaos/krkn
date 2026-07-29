@@ -74,7 +74,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         "PvcScenarioPlugin You must specify the namespace where the PVC is"
                     )
                     return 1
-                if pvc_name is None and pod_name is None:
+                if not pvc_name and not pod_name:
                     logging.error(
                         "PvcScenarioPlugin You must specify the pvc_name or the pod_name"
                     )
@@ -95,7 +95,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
                         pvc_name, namespace
                     )
-                    if not pvc.podNames:
+                    if pvc is None or not pvc.podNames:
                         logging.error(
                             "PvcScenarioPlugin Pod associated with %s PVC, on namespace %s, "
                             "not found" % (str(pvc_name), str(namespace))
@@ -152,18 +152,24 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     container_name = None
                     mount_path = None
                     # Get container name and mount path
-                    for container in pod.containers:
-                        for vol in container.volumeMounts:
-                            if vol.name == volume_name:
-                                mount_path = vol.mountPath
-                                container_name = container.name
-                                break
-                    if container_name is None:
-                        logging.warning(
-                            "Could not find volume mount path in pod '%s', trying next pod"
-                            % candidate_pod_name
-                        )
+                    match = next(
+                        (
+                            (container, vol)
+                            for container in pod.containers
+                            for vol in container.volumeMounts
+                            if vol.name == volume_name
+                        ),
+                        None,
+                    )
+                    if match is None:
+                        logging.error("Volume '%s' is not mounted in any container of pod '%s'"
+                                      % (volume_name, candidate_pod_name)
+                                     )
                         continue
+                                        
+                    container, volume_mount = match
+                    container_name = container.name
+                    mount_path = volume_mount.mountPath
                     logging.info("Container path: %s" % container_name)
                     logging.info("Mount path: %s" % mount_path)
 
