@@ -34,7 +34,7 @@ requests>=2.32.4  # Fixes GHSA-9hjg-9r4m-mvj7, GHSA-9wx4-h78v-vm56, GHSA-gc5v-m9
 urllib3>=2.7.0  # Fixes GHSA-qccp-gfcp-xxvc, GHSA-38jv-5279-wg99, GHSA-gm62-xv2j-4w53, GHSA-2xpw-w6gg-jr37
 service_identity==24.1.0
 PyYAML==6.0.1
-setuptools==83.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored jaraco-context
+setuptools<82.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored jaraco-context
 wheel>=0.46.2  # Fixes GHSA-8rrh-rw8j-w5fx
 colorlog==6.10.1
 
