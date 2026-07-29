@@ -72,6 +72,7 @@ from krkn.rollback.command import (
     list_rollback as list_rollback_command,
     execute_rollback as execute_rollback_command,
 )
+from krkn.summarized_reports.transform import build_chaos_report, build_chaos_report_pdf
 from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
 # removes TripleDES warning
@@ -104,6 +105,7 @@ def main(options, command: Optional[str]) -> int:
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
+        generate_pdf_report = get_yaml_item_value(config["kraken"], "generate_pdf_report", True)
         rollback_versions_dir = get_yaml_item_value(
             config["kraken"],
             "rollback_versions_directory",
@@ -670,6 +672,26 @@ def main(options, command: Optional[str]) -> int:
             )
         chaos_output.telemetry = decoded_chaos_run_telemetry
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
+
+        chaos_output_dict = json.loads(chaos_output.to_json())
+        if resiliency_obj and hasattr(resiliency_obj, 'scenario_reports') and resiliency_obj.scenario_reports:
+            chaos_output_dict["scenario_slo_details"] = resiliency_obj.get_scenario_slo_details()
+        try:
+            text_summary = build_chaos_report(chaos_output_dict)
+            logging.info(f"\n{text_summary}")
+        except Exception as e:
+            logging.error(f"Failed to build text summary: {e}")
+
+        if generate_pdf_report:
+            pdf_path = report_file + ".pdf"
+            try:
+                abs_pdf_path = os.path.abspath(pdf_path)
+                build_chaos_report_pdf(chaos_output_dict, abs_pdf_path)
+                logging.info("PDF report generated: %s", abs_pdf_path)
+                print(f"\nfile://{abs_pdf_path}\n")
+            except Exception as e:
+                logging.error(f"Failed to generate PDF report: {e}")
+
         if enable_elastic:
             result = elastic_search.push_telemetry(
                 decoded_chaos_run_telemetry, elastic_telemetry_index
