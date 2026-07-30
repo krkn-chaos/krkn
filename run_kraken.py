@@ -83,7 +83,7 @@ report_file = ""
 
 
 # Main function
-def main(options, command: Optional[str]) -> int:
+def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
     # Start kraken
     print(pyfiglet.figlet_format("krkn"))
     logging.info("Starting krkn")
@@ -679,6 +679,8 @@ def main(options, command: Optional[str]) -> int:
         try:
             text_summary = build_chaos_report(chaos_output_dict)
             logging.info(f"\n{text_summary}")
+            if out is not None:
+                out["text_summary"] = text_summary
         except Exception as e:
             logging.error(f"Failed to build text summary: {e}")
 
@@ -984,7 +986,8 @@ if __name__ == "__main__":
     else:
         # Check if command is provided as positional argument
         command = args[0] if args else None
-        retval = main(options, command)
+        out = {}
+        retval = main(options, command, out)
 
     junit_endtime = time.time()
 
@@ -994,7 +997,7 @@ if __name__ == "__main__":
             success=retval == 0,
             elapsed_seconds=junit_endtime - junit_start_time,
             test_case_description=options.junit_testcase,
-            test_stdout=tee_handler.get_output(),
+            test_stdout=out.get("text_summary") or tee_handler.get_output(),
             test_version=options.junit_testcase_version,
         )
 
