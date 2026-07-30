@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=../../plugin.schema.json
+# CPU Stress Chaos Scenario Template
+# Applies CPU stress to test application performance under high CPU load
+- id: cpu-stress
+  config:
+    duration: 60
+    workers: ''  # Auto-detect CPU cores
+    hog-type: cpu
+    image: quay.io/krkn-chaos/krkn-hog
+    namespace: default
+    cpu-load-percentage: 80
+    cpu-method: all
+    node-selector: "node-role.kubernetes.io/worker="
+    number-of-nodes: 1
+    taints: []
+    # Optional: Target specific node
+    # node-name: "worker-0"
+    # Optional: Specific CPU cores
+    # cpu-cores: "0,1,2,3"
