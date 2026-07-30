@@ -1,0 +1,21 @@
+# Target workload for container_scenarios scenario tests.
+# Namespace is patched at deploy time by the test framework.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: container-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      scenario: container
+  template:
+    metadata:
+      labels:
+        scenario: container
+    spec:
+      containers:
+      - name: fedtools
+        image: nginx:alpine
+        ports:
+        - containerPort: 80

@@ -17,29 +17,13 @@ How to run:
     cd /path/to/kraken
     python3 tests/test_virt_health_check_plugin.py
 
-    # Run with pytest
-    pytest tests/test_virt_health_check_plugin.py -v
-
     # Run with unittest
     python3 -m unittest tests/test_virt_health_check_plugin.py -v
 
     # Run specific test
     python3 -m unittest tests.test_virt_health_check_plugin.TestVirtHealthCheckPlugin.test_plugin_creation -v
 
-    # Run with coverage
-    coverage run -m pytest tests/test_virt_health_check_plugin.py -v
-    coverage report
-
-Requirements:
-    - krkn_lib library (pip install krkn-lib)
-    - All scenario plugin dependencies
-    - All dependencies in requirements.txt
-
-Note:
-    - Tests will be skipped if virt_health_check plugin fails to load
-    - Plugin may fail to load if 'krkn_lib' module is not installed
-    - Use a virtual environment with all dependencies installed
-    - Some tests mock KubeVirt components for unit testing
+ 
 
 Migrated from test_virt_checker.py to use the plugin architecture.
 """
@@ -684,10 +668,60 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
 
         self.assertIn("10.0.0.5", check_calls)
 
+    @patch("krkn.health_checks.virt_health_check_plugin.time.sleep")
+    def test_run_virt_check_batch_vmi_ready_to_not_ready_transition(self, mock_sleep):
+        """Test batch state machine records two segments with correct check_type on vmi_ready→not-ready flip"""
+        call_count = [0]
+        def stop_after_two(*_):
+            call_count[0] += 1
+            if call_count[0] >= 2:
+                self.plugin.current_iterations = self.plugin.iterations
+
+        mock_sleep.side_effect = stop_after_two
+
+        mock_vm = MagicMock()
+        mock_vm.vm_name = "vm1"
+        mock_vm.namespace = "default"
+        mock_vm.ip_address = "10.0.0.1"
+        mock_vm.node_name = "worker-1"
+        mock_vm.new_ip_address = ""
+        self.plugin.disconnected = False
+        self.plugin.only_failures = False
+
+        # vmi_ready: True on first check, False on second; ssh stays True throughout
+        vmi_seq = [True, False]
+        vmi_idx = [0]
+        def next_vmi_status(*_):
+            val = vmi_seq[vmi_idx[0] % len(vmi_seq)]
+            vmi_idx[0] += 1
+            return val
+
+        with patch.object(self.plugin, "get_vm_access", return_value=True), \
+             patch.object(self.plugin, "check_vmi_ready", side_effect=next_vmi_status):
+            telemetry_queue = queue.SimpleQueue()
+            self.plugin._run_virt_check_batch([mock_vm], telemetry_queue)
+
+        result = telemetry_queue.get_nowait()
+        # Transition closes the first segment and opens a second, so two VirtCheck entries
+        self.assertGreaterEqual(len(result), 2)
+
+        healthy = [r for r in result if r.vmi_ready]
+        not_ready = [r for r in result if not r.vmi_ready]
+
+        self.assertGreater(len(healthy), 0)
+        self.assertTrue(healthy[0].ssh_status)
+        self.assertTrue(healthy[0].vmi_ready)
+        self.assertEqual(healthy[0].check_type, "healthy")
+
+        self.assertGreater(len(not_ready), 0)
+        self.assertTrue(not_ready[0].ssh_status)
+        self.assertFalse(not_ready[0].vmi_ready)
+        self.assertEqual(not_ready[0].check_type, "vmi_ready")
+
     # --- _run_post_virt_check ---
 
     def test_run_post_virt_check_failed_vm_added_to_telemetry(self):
-        """Test _run_post_virt_check adds failing VMs to telemetry"""
+        """Test _run_post_virt_check adds failing VMs to telemetry with correct discriminator fields"""
         mock_vm = MagicMock()
         mock_vm.vm_name = "vm-fail"
         mock_vm.namespace = "default"
@@ -696,16 +730,20 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         mock_vm.new_ip_address = ""
         self.plugin.disconnected = False
 
-        with patch.object(self.plugin, "get_vm_access", return_value=False):
+        with patch.object(self.plugin, "get_vm_access", return_value=False), \
+             patch.object(self.plugin, "check_vmi_ready", return_value=False):
             result_queue = queue.SimpleQueue()
             self.plugin._run_post_virt_check([mock_vm], [], result_queue)
 
         result = result_queue.get_nowait()
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].vm_name, "vm-fail")
+        self.assertFalse(result[0].ssh_status)
+        self.assertFalse(result[0].vmi_ready)
+        self.assertEqual(result[0].check_type, "both")
 
     def test_run_post_virt_check_healthy_vm_not_in_telemetry(self):
-        """Test _run_post_virt_check skips healthy VMs"""
+        """Test _run_post_virt_check skips healthy VMs (ssh up and VMI ready)"""
         mock_vm = MagicMock()
         mock_vm.vm_name = "vm-ok"
         mock_vm.namespace = "default"
@@ -714,12 +752,15 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         mock_vm.new_ip_address = ""
         self.plugin.disconnected = False
 
-        with patch.object(self.plugin, "get_vm_access", return_value=True):
+        with patch.object(self.plugin, "get_vm_access", return_value=True), \
+             patch.object(self.plugin, "check_vmi_ready", return_value=True) as mock_vmi_ready:
             result_queue = queue.SimpleQueue()
             self.plugin._run_post_virt_check([mock_vm], [], result_queue)
 
         result = result_queue.get_nowait()
         self.assertEqual(len(result), 0)
+        # Both checks were invoked; their True results combined to skip this VM from telemetry
+        mock_vmi_ready.assert_called_once_with("vm-ok", "default")
 
     def test_run_post_virt_check_disconnected_mode(self):
         """Test _run_post_virt_check in disconnected mode"""
@@ -739,6 +780,69 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
 
         self.assertEqual(mock_vm.new_ip_address, "10.0.0.2")
         self.assertEqual(mock_vm.node_name, "worker-2")
+
+    def test_run_post_virt_check_check_type_both_when_ssh_and_vmi_fail(self):
+        """Test VirtCheck.check_type is 'both' when ssh_status and vmi_ready are both False"""
+        mock_vm = MagicMock()
+        mock_vm.vm_name = "vm-both-fail"
+        mock_vm.namespace = "default"
+        mock_vm.ip_address = "10.0.0.1"
+        mock_vm.node_name = "worker-1"
+        mock_vm.new_ip_address = ""
+        self.plugin.disconnected = False
+
+        with patch.object(self.plugin, "get_vm_access", return_value=False), \
+             patch.object(self.plugin, "check_vmi_ready", return_value=False):
+            result_queue = queue.SimpleQueue()
+            self.plugin._run_post_virt_check([mock_vm], [], result_queue)
+
+        result = result_queue.get_nowait()
+        self.assertEqual(len(result), 1)
+        self.assertFalse(result[0].ssh_status)
+        self.assertFalse(result[0].vmi_ready)
+        self.assertEqual(result[0].check_type, "both")
+
+    def test_run_post_virt_check_check_type_ssh_access_when_only_ssh_fails(self):
+        """Test VirtCheck.check_type is 'ssh_access' when ssh_status is False but vmi_ready is True"""
+        mock_vm = MagicMock()
+        mock_vm.vm_name = "vm-ssh-fail"
+        mock_vm.namespace = "default"
+        mock_vm.ip_address = "10.0.0.1"
+        mock_vm.node_name = "worker-1"
+        mock_vm.new_ip_address = ""
+        self.plugin.disconnected = False
+
+        with patch.object(self.plugin, "get_vm_access", return_value=False), \
+             patch.object(self.plugin, "check_vmi_ready", return_value=True):
+            result_queue = queue.SimpleQueue()
+            self.plugin._run_post_virt_check([mock_vm], [], result_queue)
+
+        result = result_queue.get_nowait()
+        self.assertEqual(len(result), 1)
+        self.assertFalse(result[0].ssh_status)
+        self.assertTrue(result[0].vmi_ready)
+        self.assertEqual(result[0].check_type, "ssh_access")
+
+    def test_run_post_virt_check_check_type_vmi_ready_when_only_vmi_not_ready(self):
+        """Test VirtCheck.check_type is 'vmi_ready' when ssh_status is True but vmi_ready is False"""
+        mock_vm = MagicMock()
+        mock_vm.vm_name = "vm-vmi-fail"
+        mock_vm.namespace = "default"
+        mock_vm.ip_address = "10.0.0.1"
+        mock_vm.node_name = "worker-1"
+        mock_vm.new_ip_address = ""
+        self.plugin.disconnected = False
+
+        with patch.object(self.plugin, "get_vm_access", return_value=True), \
+             patch.object(self.plugin, "check_vmi_ready", return_value=False):
+            result_queue = queue.SimpleQueue()
+            self.plugin._run_post_virt_check([mock_vm], [], result_queue)
+
+        result = result_queue.get_nowait()
+        self.assertEqual(len(result), 1)
+        self.assertTrue(result[0].ssh_status)
+        self.assertFalse(result[0].vmi_ready)
+        self.assertEqual(result[0].check_type, "vmi_ready")
 
     # --- gather_post_virt_checks ---
 

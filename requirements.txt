@@ -9,7 +9,7 @@ azure-mgmt-network==27.0.0
 coverage==7.6.12
 datetime==5.4
 docker>=7.0.0  # Upgraded to support requests>=2.32; Unix socket support now native
-gitpython==3.1.50
+gitpython==3.1.52
 google-auth==2.37.0
 google-cloud-compute==1.22.0
 ibm-cloud-sdk-core>=3.24.4  # Requires requests>=2.32.4
@@ -19,7 +19,7 @@ jaraco-context>=6.1.0  # Fixes GHSA-58pv-8j8x-9vj2
 cbor2<5.7.0  # Pinned by arcaflow-plugin-sdk
 lxml==6.1.0
 kubernetes>=35.0.0,<36.0.0
-krkn-lib==6.1.0
+krkn-lib==6.1.2
 numpy==1.26.4
 pandas==2.2.0
 openshift-client==1.0.21
@@ -34,7 +34,7 @@ requests>=2.32.4  # Fixes GHSA-9hjg-9r4m-mvj7, GHSA-9wx4-h78v-vm56, GHSA-gc5v-m9
 urllib3>=2.7.0  # Fixes GHSA-qccp-gfcp-xxvc, GHSA-38jv-5279-wg99, GHSA-gm62-xv2j-4w53, GHSA-2xpw-w6gg-jr37
 service_identity==24.1.0
 PyYAML==6.0.1
-setuptools==81.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored jaraco-context
+setuptools<82.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored jaraco-context
 wheel>=0.46.2  # Fixes GHSA-8rrh-rw8j-w5fx
 colorlog==6.10.1
 

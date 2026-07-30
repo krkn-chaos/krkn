@@ -1,0 +1,31 @@
+name: Linked Issue to PR Management
+
+on:
+  pull_request_target:
+    types: [opened, reopened]
+  issues:
+    types: [opened, labeled]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.issue.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+    handle-issue:
+      if: github.event_name == 'issues'
+      uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@main
+      permissions:
+        issues: write
+        contents: read
+        pull-requests: write
+      secrets:
+        ISSUE_PR_CLASSIC: ${{ secrets.ISSUE_PR_CLASSIC }}
+    handle-pr:
+      if: github.event_name == 'pull_request_target'
+      uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@main
+      permissions:
+        issues: write
+        contents: read
+        pull-requests: write
+      secrets:
+        ISSUE_PR_CLASSIC: ${{ secrets.ISSUE_PR_CLASSIC }}
