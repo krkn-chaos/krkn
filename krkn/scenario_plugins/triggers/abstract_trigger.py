@@ -11,13 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from abc import ABC, abstractmethod
 
-"""krkn.resiliency package public interface."""
 
-from .resiliency import Resiliency  # noqa: F401
-from .score import calculate_resiliency_score  # noqa: F401
-from .history import (  # noqa: F401
-    HistoryWindow,
-    parse_history_window,
-    apply_historical_resiliency,
-)
+class AbstractTrigger(ABC):
+    """Base class for all trigger types."""
+
+    @abstractmethod
+    def evaluate(self) -> bool:
+        """Returns True if the trigger condition is met."""
+        pass
+
+    @abstractmethod
+    def describe(self) -> str:
+        """Human-readable description for logging."""
+        pass

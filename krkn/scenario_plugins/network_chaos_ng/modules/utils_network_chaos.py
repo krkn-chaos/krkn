@@ -67,15 +67,20 @@ def tc_node(args: list[str]) -> subprocess.CompletedProcess:
     return run(["tc"] + args)
 
 
-def get_build_tc_tree_commands(devs: list[str]) -> list[str]:
+def get_build_tc_tree_commands(
+    devs: list[str],
+    rate: Optional[str] = None,
+    delay: Optional[str] = None,
+    loss: Optional[str] = None,
+) -> list[str]:
     tree = []
     for dev in devs:
         tree.append(f"tc qdisc add dev {dev} root handle {ROOT_HANDLE} htb default 1")
         tree.append(
-            f"tc class add dev {dev} parent {ROOT_HANDLE} classid {CLASS_ID} htb rate 1gbit",
+            f"tc class add dev {dev} parent {ROOT_HANDLE} classid {CLASS_ID} htb rate {_normalize_rate(rate)}",
         )
         tree.append(
-            f"tc qdisc add dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay 0ms loss 0%",
+            f"tc qdisc add dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay {_normalize_delay(delay)} loss {_normalize_loss(loss)}%",
         )
 
     return tree
@@ -85,27 +90,6 @@ def namespaced_tc_commands(pids: list[str], commands: list[str]) -> list[str]:
     return [
         f"nsenter --target {pid} --net -- {rule}" for pid in pids for rule in commands
     ]
-
-
-def get_egress_shaping_comand(
-    devices: list[str],
-    rate_mbit: Optional[str],
-    delay_ms: Optional[str],
-    loss_pct: Optional[str],
-) -> list[str]:
-
-    rate_commands = []
-    rate = _normalize_rate(rate_mbit)
-    d = _normalize_delay(delay_ms)
-    l = _normalize_loss(loss_pct)
-    for dev in devices:
-        rate_commands.append(
-            f"tc class change dev {dev} parent {ROOT_HANDLE} classid {CLASS_ID} htb rate {rate}"
-        )
-        rate_commands.append(
-            f"tc qdisc change dev {dev} parent {CLASS_ID} handle {NETEM_HANDLE} netem delay {d} loss {l}%"
-        )
-    return rate_commands
 
 
 def get_clear_egress_shaping_commands(devices: list[str]) -> list[str]:
@@ -200,19 +184,11 @@ def common_set_limit_rules(
     pids: Optional[list[str]] = None,
 ):
     if egress:
-        build_tree_commands = get_build_tc_tree_commands(interfaces)
-        if pids:
-            build_tree_commands = namespaced_tc_commands(pids, build_tree_commands)
-        egress_shaping_commands = get_egress_shaping_comand(
-            interfaces,
-            bandwidth,
-            latency,
-            loss,
+        build_tree_commands = get_build_tc_tree_commands(
+            interfaces, rate=bandwidth, delay=latency, loss=loss,
         )
         if pids:
-            egress_shaping_commands = namespaced_tc_commands(
-                pids, egress_shaping_commands
-            )
+            build_tree_commands = namespaced_tc_commands(pids, build_tree_commands)
         error_counter = 0
         for rule in build_tree_commands:
             result = kubecli.exec_cmd_in_pod([rule], network_chaos_pod_name, namespace)
@@ -220,15 +196,12 @@ def common_set_limit_rules(
                 log_info(f"created tc tree in pod: {rule}", parallel, target)
             else:
                 error_counter += 1
+                log_warning(f"tc command returned output (may be a warning): {rule} — {result}", parallel, target)
         if len(build_tree_commands) == error_counter:
             log_error(
                 "failed to apply egress shaping rules on cluster", parallel, target
             )
 
-        for rule in egress_shaping_commands:
-            result = kubecli.exec_cmd_in_pod([rule], network_chaos_pod_name, namespace)
-            if not result:
-                log_info(f"applied egress shaping rules: {rule}", parallel, target)
     if ingress:
         ingress_shaping_commands = get_ingress_shaping_commands(
             interfaces,

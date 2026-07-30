@@ -12,22 +12,31 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    message="pkg_resources is deprecated as an API",
+    category=UserWarning,
+    module=r"com\.vmware.*",
+)
+
 import atexit
 import datetime
 import json
+import logging
+import optparse
 import os
+import queue
 import shutil
 import sys
 import tempfile
-import yaml
-import logging
-import optparse
-from colorlog import ColoredFormatter
-import pyfiglet
-import uuid
 import time
-import queue
-from typing import Optional, Dict
+import uuid
+from typing import Optional
+
+import pyfiglet
+import yaml
+from colorlog import ColoredFormatter
 
 from krkn import cerberus
 from krkn_lib.elastic.krkn_elastic import KrknElastic
@@ -38,6 +47,11 @@ import server as server
 from krkn.resiliency.resiliency import (
     Resiliency
 )
+from krkn.resiliency.history import (
+    HistoryWindow,
+    parse_history_window,
+    apply_historical_resiliency,
+)
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.k8s import KrknTelemetryKubernetes
@@ -45,9 +59,9 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ChaosRunTelemetry
 from krkn_lib.models.k8s import ResiliencyReport
 from krkn_lib.utils import SafeLogger
-from krkn_lib.utils.functions import get_yaml_item_value, get_junit_test_case
+from krkn_lib.utils.functions import get_yaml_item_value
 
-from krkn.utils import TeeLogHandler, ErrorCollectionHandler
+from krkn.utils import TeeLogHandler, ErrorCollectionHandler, validate_junit_options, write_junit_file
 from krkn.health_checks import HealthCheckFactory
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
@@ -58,12 +72,14 @@ from krkn.rollback.command import (
     list_rollback as list_rollback_command,
     execute_rollback as execute_rollback_command,
 )
+from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
 # removes TripleDES warning
 import warnings
 warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 
 report_file = ""
+
 
 # Main function
 def main(options, command: Optional[str]) -> int:
@@ -122,6 +138,24 @@ def main(options, command: Optional[str]) -> int:
         if run_mode not in valid_run_modes:
             logging.warning("Unknown resiliency_run_mode '%s'. Defaulting to 'standalone'", run_mode)
             run_mode = "standalone"
+
+        try:
+            hist_window = parse_history_window(
+                getattr(options, "past_resiliency_score", None),
+                getattr(options, "hist_start_time", None),
+                getattr(options, "hist_end_time", None),
+                resiliency_score_flag=getattr(options, "resiliency_score", False) or command == "resiliency-score",
+            )
+        except ValueError as exc:
+            logging.error("%s", exc)
+            return -1
+
+        if hist_window is not None:
+            logging.info(
+                "Historical resiliency window '%s' provided. Chaos scenarios will not be executed.",
+                hist_window.label,
+            )
+            chaos_scenarios = []
         wait_duration = get_yaml_item_value(config["tunings"], "wait_duration", 60)
         iterations = get_yaml_item_value(config["tunings"], "iterations", 1)
         daemon_mode = get_yaml_item_value(config["tunings"], "daemon_mode", False)
@@ -332,6 +366,15 @@ def main(options, command: Optional[str]) -> int:
                     telemetry_ocp, options.run_uuid, options.scenario_type
                 )
             )
+        elif command == "resiliency-score":
+            if hist_window is None:
+                logging.error(
+                    "resiliency-score command requires a time window: "
+                    "use --past-resiliency-score <duration> (e.g. 24h) "
+                    "or --start-time/--end-time for an explicit range"
+                )
+                sys.exit(-1)
+            chaos_scenarios = []
 
         # Initialize the start iteration to 0
         iteration = 0
@@ -354,6 +397,7 @@ def main(options, command: Optional[str]) -> int:
         # Capture the start time
         start_time = int(time.time())
         post_critical_alerts = 0
+        profile_critical_alerts = 0
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
@@ -403,6 +447,36 @@ def main(options, command: Optional[str]) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}\n")
+
+        # Evaluate top-level triggers before starting health checks or chaos
+        trigger_config = config.get("triggers")
+        if trigger_config:
+            try:
+                trigger_manager = TriggerManager(trigger_config)
+                logging.info(
+                    "waiting for triggers before starting chaos:\n%s",
+                    trigger_manager.describe(),
+                )
+                triggered = trigger_manager.wait_for_triggers()
+                if not triggered:
+                    on_timeout = trigger_manager.on_timeout
+                    if on_timeout == "skip":
+                        logging.warning(
+                            "trigger timed out, skipping all scenarios"
+                        )
+                        chaos_scenarios = []
+                    elif on_timeout == "fail":
+                        logging.error(
+                            "trigger timed out, exiting with failure"
+                        )
+                        return 1
+                    else:
+                        logging.warning(
+                            "trigger timed out, running scenarios anyway"
+                        )
+            except ValueError as e:
+                logging.error("invalid trigger configuration: %s", e)
+                return 1
 
         # Start all health check plugins discovered via config_key_map.
         # Returns list of (plugin, worker_thread, telemetry_queue);
@@ -536,13 +610,13 @@ def main(options, command: Optional[str]) -> int:
         else:
             logging.info("No error logs collected during chaos run")
             chaos_telemetry.error_logs = []
-        if resiliency_obj:
+        if resiliency_obj and hist_window is None:
             try:
                 resiliency_obj.attach_compact_to_telemetry(chaos_telemetry)
             except Exception as exc:
                 logging.error("Failed to embed per-scenario resiliency in telemetry: %s", exc)
 
-        if resiliency_obj:
+        if resiliency_obj and hist_window is None:
             try:
                 resiliency_obj.finalize_and_save(
                     prom_cli=prometheus,
@@ -555,9 +629,38 @@ def main(options, command: Optional[str]) -> int:
                 logging.error("Failed to finalize resiliency scoring: %s", e)
 
 
+        # Check for the alerts specified before telemetry so job_status is included in output
+        if enable_alerts:
+            logging.info("Alerts checking is enabled")
+            if alert_profile:
+                profile_critical_alerts = prometheus_plugin.alerts(
+                    prometheus,
+                    elastic_search,
+                    run_uuid,
+                    start_time,
+                    end_time,
+                    alert_profile,
+                    elastic_alerts_index
+                )
+            else:
+                logging.error("Alert profile is not defined")
+                return -1
+
+        if post_critical_alerts > 0 or profile_critical_alerts > 0:
+            chaos_telemetry.job_status = False
+
         telemetry_json = chaos_telemetry.to_json()
         decoded_chaos_run_telemetry = ChaosRunTelemetry(json.loads(telemetry_json))
-        if resiliency_obj and hasattr(resiliency_obj, "summary") and resiliency_obj.summary is not None:
+        if hist_window is not None:
+            try:
+                apply_historical_resiliency(hist_window, resiliency_obj, prometheus, decoded_chaos_run_telemetry)
+            except RuntimeError as exc:
+                logging.error("%s", exc)
+                return -1
+            except Exception as exc:
+                logging.error("Failed to compute historical resiliency score: %s", exc)
+                return -1
+        elif resiliency_obj and hasattr(resiliency_obj, "summary") and resiliency_obj.summary is not None:
             summary_dict = resiliency_obj.get_summary()
             decoded_chaos_run_telemetry.overall_resiliency_report = ResiliencyReport(
                 json_object=summary_dict,
@@ -641,24 +744,6 @@ def main(options, command: Optional[str]) -> int:
         else:
             logging.info("api_url not set, skipping telemetry upload.")
 
-        # Check for the alerts specified
-        if enable_alerts:
-            logging.info("Alerts checking is enabled")
-            if alert_profile:
-                prometheus_plugin.alerts(
-                    prometheus,
-                    elastic_search,
-                    run_uuid,
-                    start_time,
-                    end_time,
-                    alert_profile,
-                    elastic_alerts_index
-                )
-
-            else:
-                logging.error("Alert profile is not defined")
-                return -1
-                # sys.exit(1)
         if enable_metrics:
             logging.info(f'Capturing metrics using file {metrics_profile}')
             prometheus_plugin.metrics(
@@ -671,6 +756,11 @@ def main(options, command: Optional[str]) -> int:
                 elastic_metrics_index,
                 telemetry_json
             )
+
+        logging.info(
+            "Kraken UUID for the run: "
+            "%s. Report generated at %s." % (run_uuid, report_file)
+        )
 
         # Exit code priority (lowest wins, checked first):
         #   1 = post-scenario failure
@@ -694,10 +784,18 @@ def main(options, command: Optional[str]) -> int:
             logging.error("Critical alerts are firing, please check; exiting")
             return 2
 
+        if profile_critical_alerts > 0:
+            logging.error("Critical or Error alerts from alert profile are firing, please check; exiting")
+            return 2
+
+        if not chaos_telemetry.job_status:
+            logging.error("job_status is false, please check; exiting")
+            return 1
+
         logging.info(
-            "Successfully finished running Kraken. UUID for the run: "
-            "%s. Report generated at %s. Exiting" % (run_uuid, report_file)
+            "Successfully finished running Kraken, exiting"
         )
+
     else:
         logging.error("Cannot find a config at %s, please check" % (cfg))
         # sys.exit(1)
@@ -712,7 +810,9 @@ if __name__ == "__main__":
         usage="%prog [options] [command]\n\n"
               "Commands:\n"
               "  list-rollback     List rollback version files in a tree-like format\n"
-              "  execute-rollback  Execute rollback version files and cleanup if successful\n\n"
+              "  execute-rollback  Execute rollback version files and cleanup if successful\n"
+              "  resiliency-score  Query historical resiliency score without running chaos scenarios.\n"
+              "                    Requires --start-time/--end-time or --past-resiliency-score.\n\n"
               "If no command is specified, kraken will run chaos scenarios.",
     )
     parser.add_option(
@@ -776,6 +876,42 @@ if __name__ == "__main__":
         default=False,
     )
 
+    parser.add_option(
+        "--past-resiliency-score",
+        dest="past_resiliency_score",
+        help="Query historical resiliency score over a trailing window (e.g. 1h, 24h, 7d) "
+             "without running chaos scenarios. Mutually exclusive with --start-time/--end-time.",
+        default=None,
+    )
+
+    parser.add_option(
+        "--resiliency-score",
+        dest="resiliency_score",
+        action="store_true",
+        help="Indicate that --start-time/--end-time define a historical resiliency score query. "
+             "Required when using --start-time/--end-time. "
+             "Implied automatically by the resiliency-score command.",
+        default=False,
+    )
+
+    parser.add_option(
+        "--start-time",
+        dest="hist_start_time",
+        help="Start of explicit historical resiliency window (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD, UTC). "
+             "Must be used together with --end-time and --resiliency-score. "
+             "Mutually exclusive with --past-resiliency-score.",
+        default=None,
+    )
+
+    parser.add_option(
+        "--end-time",
+        dest="hist_end_time",
+        help="End of explicit historical resiliency window (YYYY-MM-DDTHH:MM:SS or YYYY-MM-DD, UTC). "
+             "Must be used together with --start-time and --resiliency-score. "
+             "Mutually exclusive with --past-resiliency-score.",
+        default=None,
+    )
+
     (options, args) = parser.parse_args()
     
     # If no command or regular execution, continue with existing logic
@@ -809,51 +945,13 @@ if __name__ == "__main__":
     )
     option_error = False
 
-    # used to check if there is any missing or wrong parameter that prevents
-    # the creation of the junit file
-    junit_error = False
-    junit_normalized_path = None
-    retval = 0
     junit_start_time = time.time()
-    # checks if both mandatory options for junit are set
-    if options.junit_testcase_path and not options.junit_testcase:
-        logging.error(
-            "please set junit test case description with --junit-testcase [description] option"
-        )
+    retval = 0
+    junit_error, junit_normalized_path = validate_junit_options(
+        options.junit_testcase, options.junit_testcase_path
+    )
+    if junit_error:
         option_error = True
-        junit_error = True
-
-    if options.junit_testcase and not options.junit_testcase_path:
-        logging.error(
-            "please set junit test case path with --junit-testcase-path [path] option"
-        )
-        option_error = True
-        junit_error = True
-
-    # normalized path
-    if options.junit_testcase:
-        junit_normalized_path = os.path.normpath(options.junit_testcase_path)
-
-        if not os.path.exists(junit_normalized_path):
-            logging.error(
-                f"{junit_normalized_path} do not exists, please select a valid path"
-            )
-            option_error = True
-            junit_error = True
-
-        if not os.path.isdir(junit_normalized_path):
-            logging.error(
-                f"{junit_normalized_path} is a file, please select a valid folder path"
-            )
-            option_error = True
-            junit_error = True
-
-        if not os.access(junit_normalized_path, os.W_OK):
-            logging.error(
-                f"{junit_normalized_path} is not writable, please select a valid path"
-            )
-            option_error = True
-            junit_error = True
 
     if options.cfg is None:
         logging.error("Please check if you have passed the config")
@@ -868,21 +966,14 @@ if __name__ == "__main__":
 
     junit_endtime = time.time()
 
-    # checks the minimum required parameters to write the junit file
     if junit_normalized_path and not junit_error:
-        junit_testcase_xml = get_junit_test_case(
-            success=True if retval == 0 else False,
-            time=int(junit_endtime - junit_start_time),
-            test_suite_name="chaos-krkn",
+        write_junit_file(
+            junit_normalized_path=junit_normalized_path,
+            success=retval == 0,
+            elapsed_seconds=junit_endtime - junit_start_time,
             test_case_description=options.junit_testcase,
             test_stdout=tee_handler.get_output(),
             test_version=options.junit_testcase_version,
         )
-        junit_testcase_file_path = (
-            f"{junit_normalized_path}/junit_krkn_{int(time.time())}.xml"
-        )
-        logging.info(f"writing junit XML testcase in {junit_testcase_file_path}")
-        with open(junit_testcase_file_path, "w") as stream:
-            stream.write(junit_testcase_xml)
 
     sys.exit(retval)
