@@ -206,13 +206,18 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 }
                 json_str = json.dumps(rollback_data)
                 encoded_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
-                self.rollback_handler.set_rollback_callable(
+                success = self.rollback_handler.set_rollback_callable(
                     self.rollback_temp_file,
                     RollbackContent(
                         namespace=namespace,
                         resource_identifier=encoded_data,
                     ),
                 )
+                if not success:
+                    logging.error(
+                        "PvcScenarioPlugin Failed to register rollback context. Aborting scenario."
+                    )
+                    return 1
                 
                 # Create temp file in the PVC
                 logging.info(
