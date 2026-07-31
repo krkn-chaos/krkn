@@ -2,8 +2,15 @@ import logging
 import os
 from datetime import datetime
 from pathlib import Path
+from xml.sax.saxutils import escape as _xml_escape
 
-from jinja2 import Environment, FileSystemLoader
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus.flowables import HRFlowable
 
 SCENARIO_TYPE_DOCS = {
     "pod_disruption_scenarios": "https://krkn-chaos.dev/docs/scenarios/pod-disruption/",
@@ -26,6 +33,142 @@ SCENARIO_TYPE_DOCS = {
     "managedcluster_scenarios": "https://krkn-chaos.dev/docs/scenarios/managed-cluster/",
     "storage_throttle_scenarios": "https://krkn-chaos.dev/docs/scenarios/storage-throttle/",
 }
+
+# --- ReportLab PDF constants ---
+_RED_HEADER = colors.HexColor("#cc0000")
+_PASS_GREEN = colors.HexColor("#1a7f37")
+_FAIL_RED = colors.HexColor("#cf222e")
+_WARN_YELLOW = colors.HexColor("#9a6700")
+_HEADER_BG = colors.HexColor("#e8e8e8")
+_BORDER_COLOR = colors.HexColor("#cccccc")
+_TEXT_COLOR = colors.HexColor("#1a1a1a")
+
+_STYLES = getSampleStyleSheet()
+_STYLE_TITLE = ParagraphStyle(
+    "ReportTitle", parent=_STYLES["Title"],
+    fontSize=18, alignment=TA_CENTER, textColor=_TEXT_COLOR, spaceAfter=4,
+)
+_STYLE_SUBTITLE = ParagraphStyle(
+    "ReportSubtitle", parent=_STYLES["Normal"],
+    fontSize=9, alignment=TA_CENTER, textColor=colors.HexColor("#666666"),
+    spaceAfter=16,
+)
+_STYLE_H2 = ParagraphStyle(
+    "SectionHeader", parent=_STYLES["Heading2"],
+    fontSize=12, textColor=colors.HexColor("#222222"),
+    spaceBefore=18, spaceAfter=4,
+)
+_STYLE_H3 = ParagraphStyle(
+    "SubSectionHeader", parent=_STYLES["Heading3"],
+    fontSize=10, textColor=colors.HexColor("#333333"),
+    spaceBefore=12, spaceAfter=4,
+)
+_STYLE_CELL = ParagraphStyle(
+    "CellText", parent=_STYLES["Normal"],
+    fontSize=9, leading=11, textColor=_TEXT_COLOR,
+)
+_STYLE_CELL_BOLD = ParagraphStyle(
+    "CellTextBold", parent=_STYLE_CELL, fontName="Helvetica-Bold",
+)
+_STYLE_CELL_SMALL = ParagraphStyle(
+    "CellTextSmall", parent=_STYLES["Normal"],
+    fontSize=7, leading=9, textColor=_TEXT_COLOR,
+)
+_STYLE_OVERALL = ParagraphStyle(
+    "OverallScore", parent=_STYLES["Normal"],
+    fontSize=16, alignment=TA_CENTER, fontName="Helvetica-Bold",
+    borderWidth=2, borderColor=_BORDER_COLOR, borderPadding=10,
+    spaceBefore=8,
+)
+
+
+def _p(text, style=None):
+    return Paragraph(_xml_escape(str(text)), style or _STYLE_CELL)
+
+
+def _section_header(title):
+    return [
+        Spacer(1, 10),
+        Paragraph(_xml_escape(title), _STYLE_H2),
+        HRFlowable(width="100%", thickness=2, color=_RED_HEADER, spaceAfter=8),
+    ]
+
+
+def _subsection_header(title):
+    return [Paragraph(_xml_escape(title), _STYLE_H3)]
+
+
+def _badge(text, passed):
+    c = _PASS_GREEN if passed else _FAIL_RED
+    return Paragraph(f'<font color="{c}"><b>{_xml_escape(text)}</b></font>', _STYLE_CELL)
+
+
+def _score_color(score):
+    if isinstance(score, (int, float)):
+        if score >= 90:
+            return _PASS_GREEN
+        if score >= 70:
+            return _WARN_YELLOW
+        return _FAIL_RED
+    return _TEXT_COLOR
+
+
+def _make_kv_table(rows):
+    if not rows:
+        return []
+    avail = A4[0] - 3 * cm
+    data = []
+    for k, v in rows:
+        k_cell = _p(k, _STYLE_CELL_BOLD) if not isinstance(k, Paragraph) else k
+        v_cell = _p(v) if not isinstance(v, Paragraph) else v
+        data.append([k_cell, v_cell])
+    t = Table(data, colWidths=[avail * 0.35, avail * 0.65])
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), _HEADER_BG),
+        ("GRID", (0, 0), (-1, -1), 0.5, _BORDER_COLOR),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+    ]))
+    return [t, Spacer(1, 12)]
+
+
+def _make_data_table(headers, rows, col_widths=None, small=False, span_header=None):
+    cell_style = _STYLE_CELL_SMALL if small else _STYLE_CELL
+
+    def _cell(val):
+        if isinstance(val, Paragraph):
+            return val
+        return _p(str(val), cell_style)
+
+    data = []
+    if span_header:
+        data.append([_p(span_header, _STYLE_CELL_BOLD)])
+    data.append([_p(h, _STYLE_CELL_BOLD if not small else cell_style) for h in headers])
+    for row in rows:
+        data.append([_cell(v) for v in row])
+
+    repeat = 2 if span_header else 1
+    t = Table(data, colWidths=col_widths, repeatRows=repeat)
+
+    cmds = [
+        ("GRID", (0, 0), (-1, -1), 0.5, _BORDER_COLOR),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING", (0, 0), (-1, -1), 5 if not small else 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5 if not small else 3),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8 if not small else 4),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8 if not small else 4),
+    ]
+    header_row = 0
+    if span_header:
+        cmds.append(("SPAN", (0, 0), (-1, 0)))
+        cmds.append(("BACKGROUND", (0, 0), (-1, 0), _HEADER_BG))
+        header_row = 1
+    cmds.append(("BACKGROUND", (0, header_row), (-1, header_row), _HEADER_BG))
+    t.setStyle(TableStyle(cmds))
+    return [t, Spacer(1, 12)]
 
 
 def format_ts(unix_ts):
@@ -493,9 +636,6 @@ def build_chaos_report(chaos_output: dict) -> str:
 
 
 def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
-    from weasyprint import HTML
-    logging.getLogger("weasyprint").setLevel(logging.WARNING)
-
     telemetry = chaos_output.get("telemetry", {})
     scenarios_raw = telemetry.get("scenarios", [])
 
@@ -617,10 +757,6 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
 
     error_logs = telemetry.get("error_logs") or []
 
-    template_dir = Path(__file__).parent / "templates"
-    env = Environment(loader=FileSystemLoader(str(template_dir)), autoescape=True)
-    template = env.get_template("report.html")
-
     scenario_slo_details = chaos_output.get("scenario_slo_details", [])
 
     security_flags = []
@@ -635,55 +771,379 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
     health_checks = telemetry.get("health_checks")
     virt_checks = telemetry.get("virt_checks")
     post_virt_checks = telemetry.get("post_virt_checks")
+    failed_slos = total_slos - passed_slos
+    per_scenario_scores = resiliency.get("scenarios", {})
+    overall_score = resiliency.get("resiliency_score", "N/A")
 
-    SCENARIO_TYPE_DOCS = {
-        "hog_scenarios": "https://krkn-chaos.dev/docs/scenarios/hog-scenarios/", 
-        "application_outages_scenarios": "https://krkn-chaos.dev/docs/scenarios/application-outages/", 
-        "container_scenarios": "https://krkn-chaos.dev/docs/scenarios/container-scenarios/", 
-        "pod_network_scenarios": "https://krkn-chaos.dev/docs/scenarios/pod-network-scenario/", 
-        "pod_disruption_scenarios": "https://krkn-chaos.dev/docs/scenarios/service-disruption-scenarios/", 
-        "node_scenarios": "https://krkn-chaos.dev/docs/scenarios/node-scenarios/", 
-        "time_scenarios": "https://krkn-chaos.dev/docs/scenarios/time-scenarios/", 
-        "cluster_shut_down_scenarios": "https://krkn-chaos.dev/docs/scenarios/power-outage-scenarios/", 
-        "service_disruption_scenarios": "https://krkn-chaos.dev/docs/scenarios/service-disruption-scenarios/", 
-        "zone_outages_scenarios": "https://krkn-chaos.dev/docs/scenarios/zone-outage-scenarios/", 
-        "pvc_scenarios": "https://krkn-chaos.dev/docs/scenarios/pvc-scenario/", 
-        "storage_throttle_scenarios": "https://krkn-chaos.dev/docs/scenarios/storage-throttle-scenario/", 
-        "network_chaos_scenarios": "https://krkn-chaos.dev/docs/scenarios/network-chaos-scenario/", 
-        "service_hijacking_scenarios": "https://krkn-chaos.dev/docs/scenarios/service-hijacking-scenario/", 
-        "syn_flood_scenarios": "https://krkn-chaos.dev/docs/scenarios/syn-flood-scenario/", 
-        "network_chaos_ng_scenarios": "https://krkn-chaos.dev/docs/scenarios/network-chaos-ng-scenarios/", 
-        "kubevirt_vm_outage": "https://krkn-chaos.dev/docs/scenarios/kubevirt-vm-outage-scenario/",
-        "http_load_scenarios": "https://krkn-chaos.dev/docs/scenarios/http-load-scenario/"
-    }
-
-    html_content = template.render(
-        generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        run_uuid=telemetry.get("run_uuid", "N/A"),
-        cluster_version=telemetry.get("cluster_version", "N/A"),
-        cloud_infrastructure=telemetry.get("cloud_infrastructure", "N/A"),
-        cloud_type=telemetry.get("cloud_type", "N/A"),
-        time_window=time_window,
-        total_node_count=telemetry.get("total_node_count", "N/A"),
-        network_plugins=telemetry.get("network_plugins") or [],
-        security_flags=security_flags,
-        node_summary_infos=node_infos,
-        health_checks=health_checks,
-        virt_checks=virt_checks,
-        post_virt_checks=post_virt_checks,
-        scenarios=scenarios,
-        total_slos=total_slos,
-        passed_slos=passed_slos,
-        failed_slos=total_slos - passed_slos,
-        scenario_slo_details=scenario_slo_details,
-        critical_alert_count=total_alert_count,
-        chaos_alerts=chaos_alerts,
-        post_chaos_alerts=post_chaos_alerts,
-        error_logs=error_logs,
-        per_scenario_scores=resiliency.get("scenarios", {}),
-        overall_score=resiliency.get("resiliency_score", "N/A"),
-        scenario_type_docs=SCENARIO_TYPE_DOCS
+    avail = A4[0] - 3 * cm
+    doc = SimpleDocTemplate(
+        output_path, pagesize=A4,
+        leftMargin=1.5 * cm, rightMargin=1.5 * cm,
+        topMargin=1.5 * cm, bottomMargin=1.5 * cm,
     )
+    f = []
 
-    HTML(string=html_content).write_pdf(output_path)
+    # 1. Title
+    f.append(Paragraph("KRKN Run Summary", _STYLE_TITLE))
+    f.append(Paragraph(
+        f"Generated {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        _STYLE_SUBTITLE,
+    ))
+
+    # 2. Run Metadata
+    f.extend(_section_header("Run Metadata"))
+    meta_rows = [
+        ("Run UUID", telemetry.get("run_uuid", "N/A")),
+        ("Cluster Version", telemetry.get("cluster_version", "N/A")),
+        ("Infrastructure", telemetry.get("cloud_infrastructure", "N/A")),
+        ("Cloud Type", telemetry.get("cloud_type", "N/A")),
+        ("Time Window", time_window),
+        ("Total Nodes", str(telemetry.get("total_node_count", "N/A"))),
+    ]
+    network_plugins = telemetry.get("network_plugins") or []
+    if network_plugins:
+        meta_rows.append(("Network Plugins", ", ".join(network_plugins)))
+    if security_flags:
+        meta_rows.append(("Security", ", ".join(security_flags)))
+    f.extend(_make_kv_table(meta_rows))
+
+    # 3. Cluster Overview
+    if node_infos:
+        f.extend(_section_header("Cluster Overview"))
+        rows = []
+        for ni in node_infos:
+            rows.append([
+                ni.get("nodes_type", "N/A"),
+                str(ni.get("count", "N/A")),
+                ni.get("instance_type", "N/A"),
+                ni.get("architecture", "N/A"),
+                ni.get("kubelet_version", "N/A"),
+                ni.get("os_version", "N/A"),
+            ])
+        f.extend(_make_data_table(
+            ["Type", "Count", "Instance", "Architecture", "Kubelet", "OS"], rows,
+        ))
+
+    # 4. Targets
+    f.extend(_section_header("Targets"))
+    for s in scenarios:
+        passed = s["exit_status"] == "0"
+        scenario_label = _xml_escape(s["scenario"])
+        type_label = _xml_escape(s["scenario_type"])
+        doc_url = SCENARIO_TYPE_DOCS.get(s["scenario_type"], "")
+        if doc_url:
+            type_link = f'<a href="{_xml_escape(doc_url)}" color="blue"><u>{type_label}</u></a>'
+        else:
+            type_link = type_label
+
+        target_rows = [
+            (Paragraph(f"{scenario_label} ({type_link})", _STYLE_CELL),
+             _badge("PASS" if passed else "FAIL", passed)),
+        ]
+        if s["selectors"]:
+            target_rows.append(("Label Selector", ", ".join(s["selectors"])))
+        if s["namespaces"]:
+            target_rows.append(("Namespace", ", ".join(s["namespaces"])))
+        if s["exclude_labels"]:
+            target_rows.append(("Exclude Label", ", ".join(s["exclude_labels"])))
+        if s["cloud_types"]:
+            target_rows.append(("Cloud Type", ", ".join(s["cloud_types"])))
+
+        if s["all_pods"]:
+            pod_text = "<br/>".join(_xml_escape(p) for p in s["all_pods"])
+            if s["pods_error"]:
+                pod_text += f'<br/><i><font color="{_FAIL_RED}">Monitoring error: {_xml_escape(s["pods_error"])}</font></i>'
+            target_rows.append(("Disrupted Pods", Paragraph(pod_text, _STYLE_CELL)))
+        elif s.get("pods_error"):
+            target_rows.append(("Pod Monitoring",
+                Paragraph(f'<font color="{_FAIL_RED}">Error: {_xml_escape(s["pods_error"])}</font>', _STYLE_CELL)))
+
+        if s["all_vmis"]:
+            vmi_text = "<br/>".join(_xml_escape(v) for v in s["all_vmis"])
+            if s.get("vmis_error"):
+                vmi_text += f'<br/><i><font color="{_FAIL_RED}">Monitoring error: {_xml_escape(s["vmis_error"])}</font></i>'
+            target_rows.append(("Disrupted VMIs", Paragraph(vmi_text, _STYLE_CELL)))
+        elif s.get("vmis_error"):
+            target_rows.append(("VMI Monitoring",
+                Paragraph(f'<font color="{_FAIL_RED}">Error: {_xml_escape(s["vmis_error"])}</font>', _STYLE_CELL)))
+
+        if s["affected_nodes"]:
+            node_lines = []
+            for n in s["affected_nodes"]:
+                label = n["node_name"]
+                if n.get("node_id"):
+                    label += f" ({n['node_id']})"
+                node_lines.append(_xml_escape(label))
+            target_rows.append(("Affected Nodes", Paragraph("<br/>".join(node_lines), _STYLE_CELL)))
+
+        f.extend(_make_kv_table(target_rows))
+
+    # 5. Key Metrics (pod recovery)
+    has_pods = any(s["recovered_count"] or s["unrecovered_count"] for s in scenarios)
+    if has_pods:
+        f.extend(_section_header("Key Metrics"))
+        rows = []
+        for s in scenarios:
+            if not (s["recovered_count"] or s["unrecovered_count"]):
+                continue
+            recovery_cell = ""
+            if s["total_recovery_time"] is not None:
+                rt = f'{s["total_recovery_time"]:.2f}s'
+                rt += f'<br/><font size="7" color="#555555">Rescheduling: {(s["rescheduling_time"] or 0):.2f}s<br/>Readiness: {(s["readiness_time"] or 0):.2f}s</font>'
+                recovery_cell = Paragraph(rt, _STYLE_CELL)
+            rows.append([
+                s["scenario"],
+                str(s["recovered_count"]),
+                str(s["unrecovered_count"]),
+                recovery_cell or "",
+            ])
+        f.extend(_make_data_table(
+            ["Scenario", "Pods Recovered", "Pods Unrecovered", "Total Recovery Time"],
+            rows,
+        ))
+
+    # 6. VMI Recovery
+    has_vmis = any(s["all_vmis"] for s in scenarios)
+    if has_vmis:
+        f.extend(_subsection_header("VMI Recovery"))
+        rows = []
+        for s in scenarios:
+            if not s["all_vmis"]:
+                continue
+            recovery_cell = ""
+            if s["vmi_total_recovery_time"] is not None:
+                rt = f'{s["vmi_total_recovery_time"]:.2f}s'
+                rt += f'<br/><font size="7" color="#555555">Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br/>Readiness: {(s["vmi_readiness_time"] or 0):.2f}s</font>'
+                recovery_cell = Paragraph(rt, _STYLE_CELL)
+            rows.append([
+                s["scenario"],
+                str(s["vmi_recovered_count"]),
+                str(s["vmi_unrecovered_count"]),
+                recovery_cell or "",
+            ])
+        f.extend(_make_data_table(
+            ["Scenario", "VMIs Recovered", "VMIs Unrecovered", "Total Recovery Time"],
+            rows,
+        ))
+
+    # 7. Node Recovery
+    has_nodes = any(s["affected_nodes"] for s in scenarios)
+    if has_nodes:
+        f.extend(_subsection_header("Node Recovery"))
+        for s in scenarios:
+            if not s["affected_nodes"]:
+                continue
+            has_id = any(n.get("node_id") for n in s["affected_nodes"])
+            if has_id:
+                headers = ["Node", "Instance", "Stopped", "Running", "Terminated", "Not Ready", "Ready"]
+                cw = [avail * 0.26, avail * 0.15, avail * 0.10, avail * 0.10, avail * 0.13, avail * 0.13, avail * 0.13]
+            else:
+                headers = ["Node", "Stopped", "Running", "Terminated", "Not Ready", "Ready"]
+                cw = [avail * 0.40, avail * 0.12, avail * 0.12, avail * 0.12, avail * 0.12, avail * 0.12]
+            rows = []
+            for n in s["affected_nodes"]:
+                row = [n["node_name"]]
+                if has_id:
+                    row.append(n.get("node_id", ""))
+                for key in ["stopped_time", "running_time", "terminating_time", "not_ready_time", "ready_time"]:
+                    val = n.get(key)
+                    row.append(f"{val:.2f}s" if val else "")
+                rows.append(row)
+            f.extend(_make_data_table(headers, rows, col_widths=cw, small=True, span_header=s["scenario"]))
+
+    # 8. Load Test Metrics
+    has_additional = any(s.get("additional_telemetry") for s in scenarios)
+    if has_additional:
+        f.extend(_subsection_header("Load Test Metrics"))
+        for s in scenarios:
+            if not s.get("additional_telemetry"):
+                continue
+            rows = [(k, str(v)) for k, v in s["additional_telemetry"].items()]
+            f.extend(_subsection_header(s["scenario"]))
+            f.extend(_make_kv_table(rows))
+
+    # 9. Cluster Events
+    has_events = any(s["cluster_events"] for s in scenarios)
+    if has_events:
+        f.extend(_subsection_header("Cluster Events"))
+        for s in scenarios:
+            if not s["cluster_events"]:
+                continue
+            events = s["cluster_events"][:10]
+            rows = []
+            for e in events:
+                obj_ref = ""
+                if e.get("involved_object_kind"):
+                    obj_ref = f'{e["involved_object_kind"]}/{e.get("involved_object_name", "")}'
+                type_cell = e.get("type", "")
+                if type_cell == "Warning":
+                    type_cell = Paragraph(f'<font color="{_WARN_YELLOW}"><b>Warning</b></font>', _STYLE_CELL)
+                rows.append([
+                    type_cell,
+                    e.get("reason", ""),
+                    obj_ref,
+                    e.get("message", ""),
+                    e.get("namespace", ""),
+                ])
+            f.extend(_make_data_table(
+                ["Type", "Reason", "Object", "Message", "Namespace"],
+                rows,
+                span_header=f'{s["scenario"]} ({len(s["cluster_events"])} events)',
+            ))
+            if len(s["cluster_events"]) > 10:
+                f.append(_p(f"... and {len(s['cluster_events']) - 10} more"))
+
+    # 10. Health Checks
+    if health_checks:
+        f.extend(_section_header("Health Checks"))
+        rows = []
+        for check in health_checks:
+            if isinstance(check, dict):
+                url = check.get("url") or check.get("name") or check.get("check_name", "")
+                status_code = str(check.get("status_code", ""))
+                duration = ""
+                if check.get("duration") is not None and check.get("duration") != "":
+                    duration = f"{float(check['duration']):.2f}s"
+                passed = check.get("status") or check.get("passed")
+                rows.append([url, status_code, duration, _badge("PASS" if passed else "FAIL", bool(passed))])
+            else:
+                rows.append([str(check), "", "", ""])
+        f.extend(_make_data_table(
+            ["URL / Endpoint", "Status Code", "Duration", "Result"], rows,
+        ))
+
+    # 11. KubeVirt Health Checks (Pre-Chaos)
+    if virt_checks:
+        f.extend(_section_header("KubeVirt Health Checks (Pre-Chaos)"))
+        rows = []
+        for check in virt_checks:
+            if isinstance(check, dict):
+                passed = not (check.get("status") is not None and not check.get("status"))
+                rows.append([
+                    check.get("vm_name") or check.get("vmi_name") or check.get("name", ""),
+                    check.get("namespace", ""),
+                    check.get("node_name", ""),
+                    check.get("ip_address", ""),
+                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
+                    _badge("PASS" if passed else "FAIL", passed),
+                ])
+            else:
+                rows.append([str(check), "", "", "", "", ""])
+        f.extend(_make_data_table(
+            ["VM Name", "Namespace", "Node", "IP Address", "Duration", "Result"], rows,
+        ))
+
+    # 12. KubeVirt Health Checks (Post-Chaos)
+    if post_virt_checks:
+        f.extend(_section_header("KubeVirt Health Checks (Post-Chaos)"))
+        rows = []
+        for check in post_virt_checks:
+            if isinstance(check, dict):
+                passed = not (check.get("status") is not None and not check.get("status"))
+                new_ip = ""
+                if check.get("new_ip_address") and check.get("new_ip_address") != check.get("ip_address"):
+                    new_ip = check["new_ip_address"]
+                rows.append([
+                    check.get("vm_name") or check.get("vmi_name") or check.get("name", ""),
+                    check.get("namespace", ""),
+                    check.get("node_name", ""),
+                    check.get("ip_address", ""),
+                    new_ip,
+                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
+                    _badge("PASS" if passed else "FAIL", passed),
+                ])
+            else:
+                rows.append([str(check), "", "", "", "", "", ""])
+        f.extend(_make_data_table(
+            ["VM Name", "Namespace", "Node", "IP Address", "New IP", "Duration", "Result"], rows,
+        ))
+
+    # 13. Alerts & SLOs
+    f.extend(_section_header("Alerts & SLOs"))
+    failed_slo_val = _p(str(failed_slos)) if failed_slos == 0 else Paragraph(
+        f'<font color="{_FAIL_RED}"><b>{failed_slos}</b></font>', _STYLE_CELL)
+    alert_val = _p("None") if total_alert_count == 0 else Paragraph(
+        f'<font color="{_FAIL_RED}"><b>{total_alert_count}</b></font>', _STYLE_CELL)
+    f.extend(_make_kv_table([
+        ("SLOs Evaluated", str(total_slos)),
+        ("SLOs Passed", f"{passed_slos} / {total_slos}"),
+        ("SLOs Failed", failed_slo_val),
+        ("Critical Alerts", alert_val),
+    ]))
+
+    def _build_alert_table(title, alerts):
+        if not alerts:
+            return
+        f.extend(_subsection_header(title))
+        rows = []
+        for alert in alerts:
+            if isinstance(alert, dict):
+                rows.append([
+                    alert.get("alertname", "N/A"),
+                    alert.get("severity", "N/A"),
+                    alert.get("namespace", "N/A"),
+                    alert.get("alertstate", "N/A"),
+                ])
+            else:
+                rows.append([str(alert), "", "", ""])
+        f.extend(_make_data_table(["Alert Name", "Severity", "Namespace", "State"], rows))
+
+    _build_alert_table("Critical Alerts (During Chaos)", chaos_alerts)
+    _build_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts)
+
+    # 14. Error Logs
+    if error_logs:
+        f.extend(_subsection_header(f"Error Logs ({len(error_logs)})"))
+        rows = []
+        for log_entry in error_logs[:20]:
+            if isinstance(log_entry, dict):
+                rows.append([
+                    log_entry.get("timestamp", "-"),
+                    (log_entry.get("message") or str(log_entry))[:300],
+                ])
+            else:
+                rows.append(["-", str(log_entry)[:300]])
+        f.extend(_make_data_table(
+            ["Timestamp", "Message"], rows,
+            col_widths=[avail * 0.25, avail * 0.75],
+        ))
+        if len(error_logs) > 20:
+            f.append(_p(f"... and {len(error_logs) - 20} more"))
+
+    # 15. Failed SLOs
+    if scenario_slo_details:
+        failed_entries = []
+        for entry in scenario_slo_details:
+            failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
+            if failed:
+                failed_entries.append({"scenario": entry["scenario"], "slo_details": failed})
+        if failed_entries:
+            f.extend(_section_header("Failed SLOs"))
+            for entry in failed_entries:
+                f.extend(_subsection_header(entry["scenario"]))
+                rows = []
+                for slo in entry["slo_details"]:
+                    rows.append([slo["name"], slo.get("severity", "unknown"), _badge("FAIL", False)])
+                f.extend(_make_data_table(["SLO", "Severity", "Status"], rows))
+
+    # 16. Resiliency Score
+    f.extend(_section_header("Resiliency Score"))
+    if per_scenario_scores:
+        rows = []
+        for name, score in per_scenario_scores.items():
+            c = _score_color(score)
+            rows.append([
+                name,
+                Paragraph(f'<font color="{c}"><b>{score} / 100</b></font>', _STYLE_CELL),
+            ])
+        f.extend(_make_data_table(["Scenario", "Score"], rows))
+
+    c = _score_color(overall_score)
+    overall_style = ParagraphStyle(
+        "OverallScoreBox", parent=_STYLE_OVERALL,
+        textColor=c,
+    )
+    f.append(Paragraph(f"Overall: {_xml_escape(str(overall_score))} / 100", overall_style))
+
+    doc.build(f)
     return output_path
