@@ -682,7 +682,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             if out is not None:
                 out["text_summary"] = text_summary
         except Exception as e:
-            logging.error(f"Failed to build text summary: {e}")
+            logging.exception("Failed to build text summary: %s", e)
 
         if generate_pdf_report:
             pdf_path = report_file + ".pdf"
@@ -692,7 +692,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 logging.info("PDF report generated: %s", abs_pdf_path)
                 print(f"\nfile://{abs_pdf_path}\n")
             except Exception as e:
-                logging.error(f"Failed to generate PDF report: {e}")
+                logging.exception("Failed to generate PDF report: %s", e)
 
         if enable_elastic:
             result = elastic_search.push_telemetry(
