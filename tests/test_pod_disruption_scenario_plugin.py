@@ -70,6 +70,14 @@ class TestKillingPodsMode(unittest.TestCase):
         params = InputParams({"kill": 2, "kill_mode": "parallel"})
         self.assertEqual(params.kill_mode, "parallel")
 
+    def test_kill_mode_invalid_defaults_to_sequential(self):
+        """kill_mode defaults to 'sequential' and logs warning on unknown values."""
+        with self.assertLogs(level='WARNING') as cm:
+            params = InputParams({"kill": 2, "kill_mode": "invalid_mode"})
+        
+        self.assertEqual(params.kill_mode, "sequential")
+        self.assertTrue(any("Unknown kill_mode 'invalid_mode'" in log for log in cm.output))
+
     # --- killing_pods() behaviour ---
 
     def test_not_enough_pods_returns_error(self):
@@ -95,9 +103,20 @@ class TestKillingPodsMode(unittest.TestCase):
         self.kubecli.delete_pod.assert_any_call("pod2", "ns1")
 
     def test_parallel_mode_calls_delete_concurrently(self):
-        """Parallel mode deletes all selected pods and calls delete_pod for each."""
+        """Parallel mode deletes all selected pods and calls delete_pod for each concurrently."""
         config = InputParams({"kill": 2, "kill_mode": "parallel"})
-        self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
+        pods = [("pod1", "ns1"), ("pod2", "ns1")]
+        self.plugin.get_pods.return_value = pods
+
+        # Use a barrier to prove threads run concurrently. If they run serially, 
+        # the first thread will block forever waiting for the second.
+        import threading
+        barrier = threading.Barrier(2, timeout=5)
+        
+        def side_effect(name, namespace):
+            barrier.wait()
+
+        self.kubecli.delete_pod.side_effect = side_effect
 
         result = self.plugin.killing_pods(config, self.kubecli)
 

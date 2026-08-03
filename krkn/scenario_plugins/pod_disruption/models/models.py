@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import logging
 from dataclasses import dataclass
 
 @dataclass
@@ -21,6 +22,9 @@ class InputParams:
             self.timeout = config["timeout"] if "timeout" in config else 120
             self.duration = config["duration"] if "duration" in config else 10
             self.kill_mode = config["kill_mode"] if "kill_mode" in config else "sequential"
+            if self.kill_mode not in ["sequential", "parallel"]:
+                logging.warning(f"Unknown kill_mode '{self.kill_mode}' in config. Defaulting to 'sequential'.")
+                self.kill_mode = "sequential"
             self.krkn_pod_recovery_time = config["krkn_pod_recovery_time"] if "krkn_pod_recovery_time" in config else 120
             self.label_selector = config["label_selector"] if "label_selector" in config else ""
             self.namespace_pattern = config["namespace_pattern"] if "namespace_pattern" in config else ""
