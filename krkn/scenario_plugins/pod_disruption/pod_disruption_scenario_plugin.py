@@ -14,6 +14,8 @@
 import logging
 import random
 import time
+import queue
+import threading
 from asyncio import Future
 import traceback
 import yaml
@@ -236,12 +238,20 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 return 1
             
             random.shuffle(pods)
+            
+            pods_to_kill = []
             for i in range(config.kill):
                 pod = pods[i]
                 logging.info(pod)
                 if pod[0] in exclude_pods:
                     logging.info(f"Excluding {pod[0]} from chaos")
                 else:
+                    pods_to_kill.append(pod)
+                    
+            if config.kill_mode == "parallel":
+                self._delete_pods_parallel(pods_to_kill, kubecli)
+            else:
+                for pod in pods_to_kill:
                     logging.info(f'Deleting pod {pod[0]}')
                     kubecli.delete_pod(pod[0], pod[1])
             
@@ -272,3 +282,37 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 return 1
 
         return 0
+
+    def _delete_pods_parallel(self, pods: list, kubecli: KrknKubernetes):
+        """Delete pods concurrently using threading, mirroring the network_chaos_ng pattern."""
+        error_queue = queue.Queue()
+        threads = []
+
+        def _delete(pod):
+            try:
+                logging.info(f'[parallel] Deleting pod {pod[0]}')
+                kubecli.delete_pod(pod[0], pod[1])
+            except Exception as exc:
+                error_queue.put(exc)
+
+        for pod in pods:
+            t = threading.Thread(target=_delete, args=(pod,))
+            t.daemon = True
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+
+        errors = []
+        while True:
+            try:
+                errors.append(error_queue.get_nowait())
+            except queue.Empty:
+                break
+
+        if errors:
+            raise Exception(
+                f"parallel pod deletion failed with {len(errors)} error(s): "
+                + "; ".join(str(e) for e in errors)
+            )
