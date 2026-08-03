@@ -58,6 +58,8 @@ def alerts(
             )
             sys.exit(1)
 
+        # Will fail run if error or critical alerts are firing
+        failure_alert_count = 0
         for alert in profile_yaml:
             if sorted(alert.keys()) != sorted(["expr", "description", "severity"]):
                 logging.error(f"wrong alert {alert}, skipping")
@@ -68,21 +70,22 @@ def alerts(
                 datetime.datetime.fromtimestamp(start_time),
                 datetime.datetime.fromtimestamp(end_time),
             )
-            if (
-                processed_alert[0]
-                and processed_alert[1]
-                and elastic
-            ):
-                elastic_alert = ElasticAlert(
-                    run_uuid=run_uuid,
-                    severity=alert["severity"],
-                    alert=processed_alert[1],
-                    created_at=datetime.datetime.fromtimestamp(processed_alert[0]),
-                )
-                result = elastic.push_alert(elastic_alert, elastic_alerts_index)
-                if result == -1:
-                    logging.error("failed to save alert on ElasticSearch")
-                pass
+            if processed_alert[0] and processed_alert[1]:
+                if alert["severity"] == "critical":
+                    failure_alert_count += 1
+                if alert["severity"] == "error":
+                    failure_alert_count += 1
+                if elastic:
+                    elastic_alert = ElasticAlert(
+                        run_uuid=run_uuid,
+                        severity=alert["severity"],
+                        alert=processed_alert[1],
+                        created_at=datetime.datetime.fromtimestamp(processed_alert[0]),
+                    )
+                    result = elastic.push_alert(elastic_alert, elastic_alerts_index)
+                    if result == -1:
+                        logging.error("failed to save alert on ElasticSearch")
+        return failure_alert_count
 
 
 def critical_alerts(

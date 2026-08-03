@@ -200,6 +200,21 @@ class Resiliency:
             raise RuntimeError("finalize_report() must be called first")
         return self.detailed_report
 
+    def get_scenario_slo_details(self) -> List[Dict[str, Any]]:
+        """Return per-scenario SLO details with name, severity, and pass/fail."""
+        severity_map = {slo["name"]: slo["severity"] for slo in self._slos}
+        result = []
+        for report in self.scenario_reports:
+            slo_details = [
+                {"name": name, "severity": severity_map.get(name, "unknown"), "passed": passed}
+                for name, passed in report["slo_results"].items()
+            ]
+            result.append({
+                "scenario": report["name"],
+                "slo_details": slo_details,
+            })
+        return result
+
     @staticmethod
     def compact_breakdown(report: Dict[str, Any]) -> Dict[str, int]:
         """Return a compact summary dict for a single scenario report."""

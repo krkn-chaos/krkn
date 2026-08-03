@@ -141,29 +141,6 @@ def find_virt_launcher_netns_pid(
 
 
 def get_vmi_tap_interface(
-    chaos_pod_name: str,
-    namespace: str,
-    netns_pid: str,
-    kubecli: KrknKubernetes,
-) -> Optional[str]:
-    """Return the name of the tap device inside the virt-launcher netns."""
-    result = kubecli.exec_cmd_in_pod(
-        [f"nsenter --target {netns_pid} --net -- ip -o link show type tun"],
-        chaos_pod_name,
-        namespace,
-    )
-    if not result:
-        return None
-    for line in result.splitlines():
-        parts = line.split(":")
-        if len(parts) >= 2:
-            iface = parts[1].strip().split("@")[0].strip()
-            if iface.startswith("tap"):
-                return iface
-    return None
-
-
-def get_vmi_tap_interface(
     chaos_pod_name: str, namespace: str, pid: str, kubecli: KrknKubernetes
 ) -> str:
     """Find the VMI's primary tap interface inside the virt-launcher network namespace.
