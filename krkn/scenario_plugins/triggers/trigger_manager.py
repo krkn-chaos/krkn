@@ -17,6 +17,7 @@ import time
 from krkn.scenario_plugins.triggers.abstract_trigger import AbstractTrigger
 from krkn.scenario_plugins.triggers.command_trigger import CommandTrigger
 from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
+from krkn.scenario_plugins.triggers.prometheus_trigger import PrometheusTrigger
 
 VALID_MODES = {"all_of", "any_of"}
 VALID_ON_TIMEOUT = {"skip", "fail", "run_anyway"}
@@ -85,8 +86,7 @@ class TriggerManager:
     def on_timeout(self) -> str:
         return self._on_timeout
 
-    @staticmethod
-    def _build_trigger(condition_config: dict) -> AbstractTrigger:
+    def _build_trigger(self, condition_config: dict) -> AbstractTrigger:
         """Factory method that creates a trigger from a condition config."""
         trigger_type = condition_config.get("type")
         if not trigger_type:
@@ -97,6 +97,9 @@ class TriggerManager:
 
         if trigger_type == "http":
             return HttpTrigger(condition_config)
+
+        if trigger_type == "prometheus":
+            return PrometheusTrigger(condition_config)
 
         raise ValueError(f"unknown trigger type: '{trigger_type}'")
 
