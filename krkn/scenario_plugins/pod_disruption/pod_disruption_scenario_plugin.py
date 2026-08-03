@@ -16,20 +16,21 @@ import random
 import time
 import queue
 import threading
-from asyncio import Future
 import traceback
+import concurrent.futures
+from asyncio import Future
+from datetime import datetime
+from dataclasses import dataclass
+
 import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and_label, \
     select_and_monitor_by_name_pattern_and_namespace_pattern
-
-from krkn.scenario_plugins.pod_disruption.models.models import InputParams
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.pod_monitor.models import PodsSnapshot
-from datetime import datetime
-from dataclasses import dataclass
 
+from krkn.scenario_plugins.pod_disruption.models.models import InputParams
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 @dataclass
@@ -284,9 +285,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         return 0
 
     def _delete_pods_parallel(self, pods: list, kubecli: KrknKubernetes):
-        """Delete pods concurrently using threading, mirroring the network_chaos_ng pattern."""
+        """Delete pods concurrently using a thread pool to avoid unbounded threads."""
         error_queue = queue.Queue()
-        threads = []
 
         def _delete(pod):
             try:
@@ -295,14 +295,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             except Exception as exc:
                 error_queue.put(exc)
 
-        for pod in pods:
-            t = threading.Thread(target=_delete, args=(pod,))
-            t.daemon = True
-            t.start()
-            threads.append(t)
-
-        for t in threads:
-            t.join()
+        # Cap the number of workers to prevent overloading the apiserver
+        max_workers = min(10, len(pods)) if pods else 1
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_delete, pod) for pod in pods]
+            concurrent.futures.wait(futures)
 
         errors = []
         while True:
