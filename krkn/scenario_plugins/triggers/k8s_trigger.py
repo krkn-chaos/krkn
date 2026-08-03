@@ -121,7 +121,10 @@ class K8sTrigger(AbstractTrigger):
     same code path using the Kubernetes dynamic client.
     """
 
-    def __init__(self, trigger_config: dict, kubecli=None):
+    def __init__(self, trigger_config: dict, kubecli):
+        if kubecli is None:
+            raise ValueError("k8s trigger requires a kubecli instance")
+
         self._api_version = trigger_config.get("apiVersion")
         if not self._api_version:
             raise ValueError("k8s trigger requires 'apiVersion'")
@@ -139,7 +142,6 @@ class K8sTrigger(AbstractTrigger):
             raise ValueError("k8s trigger requires 'condition'")
 
         self._namespace = trigger_config.get("namespace")
-        self._context = trigger_config.get("context")
         self._path, self._operator, self._expected = _parse_condition(
             raw_condition
         )
@@ -231,9 +233,8 @@ class K8sTrigger(AbstractTrigger):
 
     def describe(self) -> str:
         ns_part = f" namespace={self._namespace}" if self._namespace else ""
-        ctx_part = f" context={self._context}" if self._context else ""
         return (
             f"k8s trigger: {self._api_version}/{self._kind} "
-            f"'{self._name}'{ns_part}{ctx_part} "
+            f"'{self._name}'{ns_part} "
             f"(condition: {self._raw_condition})"
         )

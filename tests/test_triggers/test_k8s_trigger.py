@@ -182,6 +182,22 @@ class TestParseCondition(unittest.TestCase):
 class TestK8sTriggerInit(unittest.TestCase):
     """Tests for K8sTrigger constructor validation."""
 
+    def _mock_kubecli(self):
+        kubecli = MagicMock()
+        kubecli.dyn_client = MagicMock()
+        return kubecli
+
+    def test_missing_kubecli_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            K8sTrigger({
+                "type": "k8s",
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "name": "nginx",
+                "condition": "status.phase == Running",
+            }, kubecli=None)
+        self.assertIn("kubecli", str(ctx.exception))
+
     def test_missing_api_version_raises(self):
         with self.assertRaises(ValueError) as ctx:
             K8sTrigger({
@@ -189,7 +205,7 @@ class TestK8sTriggerInit(unittest.TestCase):
                 "kind": "Deployment",
                 "name": "nginx",
                 "condition": "status.phase == Running",
-            })
+            }, kubecli=self._mock_kubecli())
         self.assertIn("apiVersion", str(ctx.exception))
 
     def test_missing_kind_raises(self):
@@ -199,7 +215,7 @@ class TestK8sTriggerInit(unittest.TestCase):
                 "apiVersion": "apps/v1",
                 "name": "nginx",
                 "condition": "status.phase == Running",
-            })
+            }, kubecli=self._mock_kubecli())
         self.assertIn("kind", str(ctx.exception))
 
     def test_missing_name_raises(self):
@@ -209,7 +225,7 @@ class TestK8sTriggerInit(unittest.TestCase):
                 "apiVersion": "apps/v1",
                 "kind": "Deployment",
                 "condition": "status.phase == Running",
-            })
+            }, kubecli=self._mock_kubecli())
         self.assertIn("name", str(ctx.exception))
 
     def test_missing_condition_raises(self):
@@ -219,7 +235,7 @@ class TestK8sTriggerInit(unittest.TestCase):
                 "apiVersion": "apps/v1",
                 "kind": "Deployment",
                 "name": "nginx",
-            })
+            }, kubecli=self._mock_kubecli())
         self.assertIn("condition", str(ctx.exception))
 
     def test_valid_config(self):
@@ -230,7 +246,7 @@ class TestK8sTriggerInit(unittest.TestCase):
             "name": "nginx",
             "namespace": "default",
             "condition": "status.readyReplicas >= 1",
-        })
+        }, kubecli=self._mock_kubecli())
         self.assertEqual(trigger._api_version, "apps/v1")
         self.assertEqual(trigger._kind, "Deployment")
         self.assertEqual(trigger._name, "nginx")
@@ -246,31 +262,8 @@ class TestK8sTriggerInit(unittest.TestCase):
             "kind": "Node",
             "name": "worker-1",
             "condition": "status.phase == Ready",
-        })
+        }, kubecli=self._mock_kubecli())
         self.assertIsNone(trigger._namespace)
-
-    def test_context_optional(self):
-        trigger = K8sTrigger({
-            "type": "k8s",
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "nginx",
-            "namespace": "default",
-            "condition": "status.readyReplicas >= 1",
-        })
-        self.assertIsNone(trigger._context)
-
-    def test_context_stored(self):
-        trigger = K8sTrigger({
-            "type": "k8s",
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "nginx",
-            "namespace": "default",
-            "context": "staging-context",
-            "condition": "status.readyReplicas >= 1",
-        })
-        self.assertEqual(trigger._context, "staging-context")
 
 
 class TestK8sTriggerEvaluate(unittest.TestCase):
@@ -444,6 +437,11 @@ class TestK8sTriggerEvaluate(unittest.TestCase):
 class TestK8sTriggerDescribe(unittest.TestCase):
     """Tests for K8sTrigger.describe()."""
 
+    def _mock_kubecli(self):
+        kubecli = MagicMock()
+        kubecli.dyn_client = MagicMock()
+        return kubecli
+
     def test_describe_with_namespace(self):
         trigger = K8sTrigger({
             "type": "k8s",
@@ -452,7 +450,7 @@ class TestK8sTriggerDescribe(unittest.TestCase):
             "name": "nginx",
             "namespace": "default",
             "condition": "status.readyReplicas >= 1",
-        })
+        }, kubecli=self._mock_kubecli())
         desc = trigger.describe()
         self.assertIn("apps/v1", desc)
         self.assertIn("Deployment", desc)
@@ -467,24 +465,11 @@ class TestK8sTriggerDescribe(unittest.TestCase):
             "kind": "Node",
             "name": "worker-1",
             "condition": "status.phase == Ready",
-        })
+        }, kubecli=self._mock_kubecli())
         desc = trigger.describe()
         self.assertIn("Node", desc)
         self.assertIn("worker-1", desc)
         self.assertNotIn("namespace", desc)
-
-    def test_describe_with_context(self):
-        trigger = K8sTrigger({
-            "type": "k8s",
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "name": "nginx",
-            "namespace": "default",
-            "context": "staging-context",
-            "condition": "status.readyReplicas >= 1",
-        })
-        desc = trigger.describe()
-        self.assertIn("staging-context", desc)
 
 
 class TestK8sTriggerClientInit(unittest.TestCase):
