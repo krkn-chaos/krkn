@@ -21,10 +21,9 @@ class InputParams:
             self.kill = config["kill"] if "kill" in config else 1
             self.timeout = config["timeout"] if "timeout" in config else 120
             self.duration = config["duration"] if "duration" in config else 10
-            self.kill_mode = config["kill_mode"] if "kill_mode" in config else "sequential"
-            if self.kill_mode not in ["sequential", "parallel"]:
-                logging.warning(f"Unknown kill_mode '{self.kill_mode}' in config. Defaulting to 'sequential'.")
-                self.kill_mode = "sequential"
+            self.execution = config["execution"] if "execution" in config else "serial"
+            if self.execution not in ["serial", "parallel"]:
+                raise ValueError(f"Unknown execution '{self.execution}' in config. Supported values are: serial, parallel.")
             self.krkn_pod_recovery_time = config["krkn_pod_recovery_time"] if "krkn_pod_recovery_time" in config else 120
             self.label_selector = config["label_selector"] if "label_selector" in config else ""
             self.namespace_pattern = config["namespace_pattern"] if "namespace_pattern" in config else ""
@@ -38,7 +37,7 @@ class InputParams:
     timeout: int
     duration: int
     kill: int
-    kill_mode: str
+    execution: str
     label_selector: str
     name_pattern: str
     node_label_selector: str

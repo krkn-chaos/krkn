@@ -249,7 +249,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 else:
                     pods_to_kill.append(pod)
                     
-            if config.kill_mode == "parallel":
+            if config.execution == "parallel":
                 self._delete_pods_parallel(pods_to_kill, kubecli)
             else:
                 for pod in pods_to_kill:

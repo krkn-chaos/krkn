@@ -53,36 +53,35 @@ class TestKillingPodsMode(unittest.TestCase):
         self.plugin = None
         self.kubecli = None
 
-    # --- InputParams.kill_mode parsing ---
+    # --- InputParams.execution parsing ---
 
-    def test_kill_mode_defaults_to_sequential(self):
-        """kill_mode defaults to 'sequential' when not specified in config."""
+    def test_execution_defaults_to_serial(self):
+        """execution defaults to 'serial' when not specified in config."""
         params = InputParams({"kill": 2})
-        self.assertEqual(params.kill_mode, "sequential")
+        self.assertEqual(params.execution, "serial")
 
-    def test_kill_mode_sequential_explicit(self):
-        """kill_mode is correctly parsed when explicitly set to 'sequential'."""
-        params = InputParams({"kill": 2, "kill_mode": "sequential"})
-        self.assertEqual(params.kill_mode, "sequential")
+    def test_execution_serial_explicit(self):
+        """execution is correctly parsed when explicitly set to 'serial'."""
+        params = InputParams({"kill": 2, "execution": "serial"})
+        self.assertEqual(params.execution, "serial")
 
-    def test_kill_mode_parallel_explicit(self):
-        """kill_mode is correctly parsed when explicitly set to 'parallel'."""
-        params = InputParams({"kill": 2, "kill_mode": "parallel"})
-        self.assertEqual(params.kill_mode, "parallel")
+    def test_execution_parallel_explicit(self):
+        """execution is correctly parsed when explicitly set to 'parallel'."""
+        params = InputParams({"kill": 2, "execution": "parallel"})
+        self.assertEqual(params.execution, "parallel")
 
-    def test_kill_mode_invalid_defaults_to_sequential(self):
-        """kill_mode defaults to 'sequential' and logs warning on unknown values."""
-        with self.assertLogs(level='WARNING') as cm:
-            params = InputParams({"kill": 2, "kill_mode": "invalid_mode"})
+    def test_execution_invalid_raises_value_error(self):
+        """execution raises ValueError on unknown values."""
+        with self.assertRaises(ValueError) as context:
+            InputParams({"kill": 2, "execution": "invalid_mode"})
         
-        self.assertEqual(params.kill_mode, "sequential")
-        self.assertTrue(any("Unknown kill_mode 'invalid_mode'" in log for log in cm.output))
+        self.assertIn("Unknown execution 'invalid_mode'", str(context.exception))
 
     # --- killing_pods() behaviour ---
 
     def test_not_enough_pods_returns_error(self):
         """Returns 1 and never calls delete_pod when fewer pods exist than kill count."""
-        config = InputParams({"kill": 3, "kill_mode": "sequential"})
+        config = InputParams({"kill": 3, "execution": "serial"})
         self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
 
         result = self.plugin.killing_pods(config, self.kubecli)
@@ -90,9 +89,9 @@ class TestKillingPodsMode(unittest.TestCase):
         self.assertEqual(result, 1)
         self.kubecli.delete_pod.assert_not_called()
 
-    def test_sequential_mode_calls_delete_in_order(self):
-        """Sequential mode deletes all selected pods one at a time."""
-        config = InputParams({"kill": 2, "kill_mode": "sequential"})
+    def test_serial_mode_calls_delete_in_order(self):
+        """Serial mode deletes all selected pods one at a time."""
+        config = InputParams({"kill": 2, "execution": "serial"})
         self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
 
         result = self.plugin.killing_pods(config, self.kubecli)
@@ -104,7 +103,7 @@ class TestKillingPodsMode(unittest.TestCase):
 
     def test_parallel_mode_calls_delete_concurrently(self):
         """Parallel mode deletes all selected pods and calls delete_pod for each concurrently."""
-        config = InputParams({"kill": 2, "kill_mode": "parallel"})
+        config = InputParams({"kill": 2, "execution": "parallel"})
         pods = [("pod1", "ns1"), ("pod2", "ns1")]
         self.plugin.get_pods.return_value = pods
 
@@ -127,7 +126,7 @@ class TestKillingPodsMode(unittest.TestCase):
 
     def test_parallel_mode_propagates_delete_exception(self):
         """Exceptions raised during parallel deletion bubble up correctly."""
-        config = InputParams({"kill": 2, "kill_mode": "parallel"})
+        config = InputParams({"kill": 2, "execution": "parallel"})
         self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
 
         def side_effect(name, namespace):
@@ -142,9 +141,9 @@ class TestKillingPodsMode(unittest.TestCase):
         self.assertIn("parallel pod deletion failed", str(context.exception))
         self.assertIn("failed to delete", str(context.exception))
 
-    def test_excluded_pods_are_not_deleted_in_sequential_mode(self):
-        """Pods matched by exclude_label are skipped and never passed to delete_pod (sequential)."""
-        config = InputParams({"kill": 2, "kill_mode": "sequential", "exclude_label": "protected=true"})
+    def test_excluded_pods_are_not_deleted_in_serial_mode(self):
+        """Pods matched by exclude_label are skipped and never passed to delete_pod (serial)."""
+        config = InputParams({"kill": 2, "execution": "serial", "exclude_label": "protected=true"})
         # get_pods is called twice: first for target pods, then for excluded pods
         self.plugin.get_pods.side_effect = [
             [("pod1", "ns1"), ("pod2", "ns1")],  # target pods
@@ -159,7 +158,7 @@ class TestKillingPodsMode(unittest.TestCase):
 
     def test_excluded_pods_are_not_deleted_in_parallel_mode(self):
         """Pods matched by exclude_label are skipped and never passed to delete_pod (parallel)."""
-        config = InputParams({"kill": 2, "kill_mode": "parallel", "exclude_label": "protected=true"})
+        config = InputParams({"kill": 2, "execution": "parallel", "exclude_label": "protected=true"})
         self.plugin.get_pods.side_effect = [
             [("pod1", "ns1"), ("pod2", "ns1")],  # target pods
             [("pod1", "ns1")],                    # excluded pods
