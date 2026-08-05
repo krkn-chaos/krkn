@@ -823,5 +823,55 @@
     "default": "",
     "required": "false",
     "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-api-version",
+    "short_description": "K8s trigger API version",
+    "description": "Kubernetes API version for the resource to watch (e.g. apps/v1, kubevirt.io/v1). Required when using a k8s trigger condition.",
+    "variable": "TRIGGER_K8S_API_VERSION",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-kind",
+    "short_description": "K8s trigger resource kind",
+    "description": "Kubernetes resource kind to watch (e.g. Deployment, Pod, VirtualMachineInstanceMigration)",
+    "variable": "TRIGGER_K8S_KIND",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-namespace",
+    "short_description": "K8s trigger namespace",
+    "description": "Namespace of the resource to watch. Leave empty for cluster-scoped resources like Nodes.",
+    "variable": "TRIGGER_K8S_NAMESPACE",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-name",
+    "short_description": "K8s trigger resource name",
+    "description": "Name of the specific Kubernetes resource to watch",
+    "variable": "TRIGGER_K8S_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-condition",
+    "short_description": "K8s trigger condition",
+    "description": "Condition expression to evaluate against the resource (e.g. status.phase == Running, status.readyReplicas >= 1)",
+    "variable": "TRIGGER_K8S_CONDITION",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
   }
 ]

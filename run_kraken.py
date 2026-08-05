@@ -455,7 +455,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         trigger_config = config.get("triggers")
         if trigger_config:
             try:
-                trigger_manager = TriggerManager(trigger_config)
+                trigger_manager = TriggerManager(trigger_config, kubecli=kubecli)
                 logging.info(
                     "waiting for triggers before starting chaos:\n%s",
                     trigger_manager.describe(),
