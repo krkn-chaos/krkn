@@ -14,20 +14,23 @@
 import logging
 import random
 import time
-from asyncio import Future
+import queue
+import threading
 import traceback
+import concurrent.futures
+from asyncio import Future
+from datetime import datetime
+from dataclasses import dataclass
+
 import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.k8s.pod_monitor import select_and_monitor_by_namespace_pattern_and_label, \
     select_and_monitor_by_name_pattern_and_namespace_pattern
-
-from krkn.scenario_plugins.pod_disruption.models.models import InputParams
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.pod_monitor.models import PodsSnapshot
-from datetime import datetime
-from dataclasses import dataclass
 
+from krkn.scenario_plugins.pod_disruption.models.models import InputParams
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 @dataclass
@@ -236,12 +239,20 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 return 1
             
             random.shuffle(pods)
+            
+            pods_to_kill = []
             for i in range(config.kill):
                 pod = pods[i]
                 logging.info(pod)
                 if pod[0] in exclude_pods:
                     logging.info(f"Excluding {pod[0]} from chaos")
                 else:
+                    pods_to_kill.append(pod)
+                    
+            if config.execution == "parallel":
+                self._delete_pods_parallel(pods_to_kill, kubecli)
+            else:
+                for pod in pods_to_kill:
                     logging.info(f'Deleting pod {pod[0]}')
                     kubecli.delete_pod(pod[0], pod[1])
             
@@ -272,3 +283,33 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 return 1
 
         return 0
+
+    def _delete_pods_parallel(self, pods: list, kubecli: KrknKubernetes):
+        """Delete pods concurrently using a thread pool to avoid unbounded threads."""
+        error_queue = queue.Queue()
+
+        def _delete(pod):
+            try:
+                logging.info(f'[parallel] Deleting pod {pod[0]}')
+                kubecli.delete_pod(pod[0], pod[1])
+            except Exception as exc:
+                error_queue.put(exc)
+
+        # Cap the number of workers to prevent overloading the apiserver
+        max_workers = min(10, len(pods)) if pods else 1
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_delete, pod) for pod in pods]
+            concurrent.futures.wait(futures)
+
+        errors = []
+        while True:
+            try:
+                errors.append(error_queue.get_nowait())
+            except queue.Empty:
+                break
+
+        if errors:
+            raise Exception(
+                f"parallel pod deletion failed with {len(errors)} error(s): "
+                + "; ".join(str(e) for e in errors)
+            )
