@@ -316,12 +316,12 @@ def build_chaos_report(chaos_output: dict) -> str:
         lines.append(f"  {'Type':<8} {'Count':<6} {'Instance':<14} {'Arch':<7} {'Kubelet':<10} OS")
         for ni in node_infos:
             lines.append(
-                f"  {ni.get('nodes_type', 'N/A'):<8} "
-                f"{ni.get('count', 'N/A'):<6} "
-                f"{ni.get('instance_type', 'N/A'):<14} "
-                f"{ni.get('architecture', 'N/A'):<7} "
-                f"{ni.get('kubelet_version', 'N/A'):<10} "
-                f"{ni.get('os_version', 'N/A')}"
+                f"  {ni.get('nodes_type') or 'N/A':<8} "
+                f"{'N/A' if ni.get('count') is None else ni.get('count'):<6} "
+                f"{ni.get('instance_type') or 'N/A':<14} "
+                f"{ni.get('architecture') or 'N/A':<7} "
+                f"{ni.get('kubelet_version') or 'N/A':<10} "
+                f"{ni.get('os_version') or 'N/A'}"
             )
 
     # --- Targets ---
