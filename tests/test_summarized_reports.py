@@ -596,6 +596,24 @@ class TestBuildChaosReportClusterOverview(unittest.TestCase):
         self.assertIn("worker", report)
         self.assertIn("m6i.xlarge", report)
 
+    def test_node_summary_with_none_values(self):
+        """Test that None node metadata fields render as N/A without crashing."""
+        output = _minimal_chaos_output()
+        output["telemetry"]["node_summary_infos"] = [{
+            "nodes_type": None,
+            "count": 3,
+            "instance_type": None,
+            "architecture": "amd64",
+            "kubelet_version": "v1.28.0",
+            "os_version": "Linux",
+        }]
+        report = build_chaos_report(output)
+        self.assertIn("CLUSTER OVERVIEW", report)
+        overview_start = report.index("CLUSTER OVERVIEW")
+        overview_section = report[overview_start:overview_start + 200]
+        self.assertIn("N/A", overview_section)
+        self.assertNotIn("None", overview_section)
+
     def test_no_overview_when_empty(self):
         output = _minimal_chaos_output()
         output["telemetry"]["node_summary_infos"] = []
