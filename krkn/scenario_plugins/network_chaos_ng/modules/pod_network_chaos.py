@@ -43,10 +43,38 @@ class PodNetworkChaosModule(AbstractNetworkChaosModule):
         super().__init__(config, kubecli)
         self.config = config
 
+    def _rollback(
+        self,
+        network_chaos_pod_name: str,
+        interfaces: list,
+        pids: list = None,
+        rules_applied: bool = False,
+        parallel: bool = False,
+    ):
+        if rules_applied:
+            common_delete_limit_rules(
+                self.config.egress,
+                self.config.ingress,
+                interfaces,
+                network_chaos_pod_name,
+                self.config.namespace,
+                self.kubecli.get_lib_kubernetes(),
+                pids,
+                parallel,
+                network_chaos_pod_name,
+            )
+        self.kubecli.get_lib_kubernetes().delete_pod(
+            network_chaos_pod_name, self.config.namespace
+        )
+
     def run(self, target: str, error_queue: queue.Queue = None):
         parallel = False
         if error_queue:
             parallel = True
+        network_chaos_pod_name = None
+        interfaces = []
+        pids = None
+        rules_applied = False
         try:
             network_chaos_pod_name = f"pod-network-chaos-{get_random_string(5)}"
             container_name = f"fedora-container-{get_random_string(5)}"
@@ -85,6 +113,13 @@ class PodNetworkChaosModule(AbstractNetworkChaosModule):
                         "no network interface found in pod, impossible to execute the network chaos scenario",
                         parallel,
                         network_chaos_pod_name,
+                    )
+                    self._rollback(
+                        network_chaos_pod_name,
+                        interfaces,
+                        pids,
+                        rules_applied,
+                        parallel,
                     )
                     return
                 log_info(
@@ -138,28 +173,21 @@ class PodNetworkChaosModule(AbstractNetworkChaosModule):
                 self.config.namespace,
                 pids,
             )
+            rules_applied = True
 
             time.sleep(self.config.test_duration)
 
             log_info("removing tc rules", parallel, network_chaos_pod_name)
 
-            common_delete_limit_rules(
-                self.config.egress,
-                self.config.ingress,
-                interfaces,
-                network_chaos_pod_name,
-                self.config.namespace,
-                self.kubecli.get_lib_kubernetes(),
-                pids,
-                parallel,
-                network_chaos_pod_name,
-            )
-
-            self.kubecli.get_lib_kubernetes().delete_pod(
-                network_chaos_pod_name, self.config.namespace
+            self._rollback(
+                network_chaos_pod_name, interfaces, pids, rules_applied, parallel
             )
 
         except Exception as e:
+            if network_chaos_pod_name:
+                self._rollback(
+                    network_chaos_pod_name, interfaces, pids, rules_applied, parallel
+                )
             if error_queue is None:
                 raise e
             else:
