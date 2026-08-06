@@ -9,8 +9,12 @@ Usage:
 Assisted By: Claude Code
 """
 
+import sys
 import unittest
+from types import ModuleType
 from unittest.mock import MagicMock, Mock, patch, mock_open, call
+import base64
+import json
 import yaml
 import tempfile
 import os
@@ -34,6 +38,8 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         plugin_module.node_general = False
 
         self.plugin = NodeActionsScenarioPlugin()
+        # Mock the rollback_handler to avoid serialization issues in tests
+        self.plugin.rollback_handler = Mock()
         self.mock_kubecli = Mock(spec=KrknKubernetes)
         self.mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
         self.mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
@@ -240,29 +246,35 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         """
         Test get_node_scenario_object returns alibaba_node_scenarios for Alibaba cloud type
         """
-        with patch('krkn.scenario_plugins.node_actions.alibaba_node_scenarios.alibaba_node_scenarios') as mock_alibaba:
-            node_scenario = {"cloud_type": "alibaba"}
-            mock_alibaba_instance = Mock()
-            mock_alibaba.return_value = mock_alibaba_instance
+        node_scenario = {"cloud_type": "alibaba"}
+        mock_alibaba_instance = Mock()
 
+        fake_module = ModuleType('krkn.scenario_plugins.node_actions.alibaba_node_scenarios')
+        mock_alibaba = Mock(return_value=mock_alibaba_instance)
+        fake_module.alibaba_node_scenarios = mock_alibaba
+
+        with patch.dict(sys.modules, {'krkn.scenario_plugins.node_actions.alibaba_node_scenarios': fake_module}):
             result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
-            self.assertEqual(result, mock_alibaba_instance)
-            mock_alibaba.assert_called_once()
+        self.assertEqual(result, mock_alibaba_instance)
+        mock_alibaba.assert_called_once()
 
     def test_get_node_scenario_object_alicloud(self):
         """
         Test get_node_scenario_object returns alibaba_node_scenarios for alicloud alias
         """
-        with patch('krkn.scenario_plugins.node_actions.alibaba_node_scenarios.alibaba_node_scenarios') as mock_alibaba:
-            node_scenario = {"cloud_type": "alicloud"}
-            mock_alibaba_instance = Mock()
-            mock_alibaba.return_value = mock_alibaba_instance
+        node_scenario = {"cloud_type": "alicloud"}
+        mock_alibaba_instance = Mock()
 
+        fake_module = ModuleType('krkn.scenario_plugins.node_actions.alibaba_node_scenarios')
+        mock_alibaba = Mock(return_value=mock_alibaba_instance)
+        fake_module.alibaba_node_scenarios = mock_alibaba
+
+        with patch.dict(sys.modules, {'krkn.scenario_plugins.node_actions.alibaba_node_scenarios': fake_module}):
             result = self.plugin.get_node_scenario_object(node_scenario, self.mock_kubecli)
 
-            self.assertEqual(result, mock_alibaba_instance)
-            mock_alibaba.assert_called_once()
+        self.assertEqual(result, mock_alibaba_instance)
+        mock_alibaba.assert_called_once()
 
     def test_get_node_scenario_object_bm(self):
         """
@@ -525,6 +537,26 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         self.plugin.run_node("test-node", mock_scenario_object, action, node_scenario)
 
         mock_scenario_object.stop_kubelet_scenario.assert_called_once_with(1, "test-node", 120)
+
+    def test_run_node_stop_kubelet_scenario_sets_rollback_callable(self):
+        """
+        Test run_node registers rollback for stop_kubelet_scenario using node_reboot_scenario.
+        """
+        node_scenario = {"runs": 1, "timeout": 120, "poll_interval": 15}
+        action = "stop_kubelet_scenario"
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+
+        self.plugin.run_node("test-node", mock_scenario_object, action, node_scenario)
+
+        self.plugin.rollback_handler.set_rollback_callable.assert_called_once()
+        rollback_callable, rollback_content = self.plugin.rollback_handler.set_rollback_callable.call_args[0]
+        self.assertEqual(rollback_callable, self.plugin.rollback_node_action)
+
+        decoded_data = json.loads(base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8'))
+        self.assertEqual(decoded_data["action"], "node_reboot_scenario")
+        self.assertEqual(decoded_data["node"], "test-node")
 
     def test_run_node_node_crash_scenario(self):
         """
