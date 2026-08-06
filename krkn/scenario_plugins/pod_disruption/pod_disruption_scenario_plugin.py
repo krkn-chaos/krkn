@@ -227,9 +227,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 _exclude_pods = self.get_pods("",config.exclude_label,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
                 for pod in _exclude_pods:
                     exclude_pods.add(pod[0])
+                    logging.info(f"Excluding pod {pod[0]} from chaos")
 
+            expected_pod_count = len(pods)
+            pods = [pod for pod in pods if pod[0] not in exclude_pods]
 
-            pods_count = len(pods)
             if len(pods) < config.kill:
                 logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
                         config.kill, len(pods)))
@@ -239,13 +241,10 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             for i in range(config.kill):
                 pod = pods[i]
                 logging.info(pod)
-                if pod[0] in exclude_pods:
-                    logging.info(f"Excluding {pod[0]} from chaos")
-                else:
-                    logging.info(f'Deleting pod {pod[0]}')
-                    kubecli.delete_pod(pod[0], pod[1])
+                logging.info(f'Deleting pod {pod[0]}')
+                kubecli.delete_pod(pod[0], pod[1])
             
-            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, expected_pod_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         except Exception as e:
             raise(e)
 
