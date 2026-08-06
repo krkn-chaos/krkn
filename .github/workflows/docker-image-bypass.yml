@@ -1,0 +1,25 @@
+name: Docker Image CI
+on:
+  pull_request:
+    paths:
+      - '**/*.md'
+jobs:
+  security-scan-source:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  security-badge:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"

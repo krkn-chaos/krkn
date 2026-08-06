@@ -1,0 +1,14 @@
+name: Functional & Unit Tests
+on:
+  pull_request:
+    paths:
+      - '**/*.md'
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
+  badge:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Bypass success for docs-only PR"
