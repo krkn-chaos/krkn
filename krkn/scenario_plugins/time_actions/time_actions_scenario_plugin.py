@@ -60,21 +60,28 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
     def pod_exec(
         self, pod_name, command, namespace, container_name, kubecli: KrknKubernetes
     ):
+        response = None
         for i in range(5):
-            response = kubecli.exec_cmd_in_pod(
-                command, pod_name, namespace, container_name
-            )
-            if not response:
+            try:
+                response = kubecli.exec_cmd_in_pod(
+                    command, pod_name, namespace, container_name
+                )
+                if not response:
+                    time.sleep(2)
+                    continue
+                elif (
+                    "unauthorized" in response.lower()
+                    or "authorization" in response.lower()
+                    or "impossible to determine the shell" in response.lower()
+                ):
+                    time.sleep(2)
+                    continue
+                else:
+                    break
+            except Exception as e:
+                logging.warning(f"Transient error in pod_exec for {pod_name}: {e}")
                 time.sleep(2)
                 continue
-            elif (
-                "unauthorized" in response.lower()
-                or "authorization" in response.lower()
-            ):
-                time.sleep(2)
-                continue
-            else:
-                break
         return response
 
     def exec_with_shell_fallback(self, command, pod_name, namespace, container_name, kubecli: KrknKubernetes, max_retries=3):
@@ -198,9 +205,9 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             return "node", node_names
 
         elif "pod" in scenario["object_type"]:
-            skew_command = "date --date "
+            skew_command = "date -s "
             if scenario["action"] == "skew_date":
-                skewed_date = "00-01-01"
+                skewed_date = "2000-01-01"
                 skew_command += skewed_date
             elif scenario["action"] == "skew_time":
                 skewed_time = "01:01:01"
@@ -341,63 +348,93 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             for node_name in names:
                 first_date_time = datetime.datetime.utcnow()
                 check_pod_name = f"time-skew-pod-{get_random_string(5)}"
-                node_datetime_string = kubecli.exec_command_on_node(
-                    node_name, [skew_command], check_pod_name
-                )
-                node_datetime = self.string_to_date(node_datetime_string)
                 counter = 0
-                while not (
-                    first_date_time < node_datetime < datetime.datetime.utcnow()
-                ):
+                success = False
+
+                while counter <= max_retries:
+                    node_datetime = datetime.datetime(datetime.MINYEAR, 1, 1)
+                    node_datetime_string = ""
+                    try:
+                        if counter == 0:
+                            node_datetime_string = kubecli.exec_command_on_node(
+                                node_name, [skew_command], check_pod_name
+                            )
+                        else:
+                            node_datetime_string = kubecli.exec_cmd_in_pod(
+                                [skew_command], check_pod_name, "default"
+                            )
+                        
+                        if node_datetime_string:
+                            if "impossible to determine the shell" in node_datetime_string.lower() or "unauthorized" in node_datetime_string.lower():
+                                logging.warning(f"Exec error on node {node_name}: {node_datetime_string}")
+                            else:
+                                node_datetime = self.string_to_date(node_datetime_string)
+                    except Exception as e:
+                        logging.warning(f"Transient error checking date on node {node_name}: {e}")
+
+                    if first_date_time < node_datetime < datetime.datetime.utcnow():
+                        success = True
+                        logging.info("Date in node " + str(node_name) + " reset properly")
+                        break
+
                     time.sleep(10)
                     logging.info(
                         "Date/time on node %s still not reset, "
                         "waiting 10 seconds and retrying" % node_name
                     )
-
-                    node_datetime_string = kubecli.exec_cmd_in_pod(
-                        [skew_command], check_pod_name, "default"
-                    )
-                    node_datetime = self.string_to_date(node_datetime_string)
                     counter += 1
-                    if counter > max_retries:
-                        logging.error(
-                            "Date and time in node %s didn't reset properly" % node_name
-                        )
-                        not_reset.append(node_name)
-                        break
-                if counter < max_retries:
-                    logging.info("Date in node " + str(node_name) + " reset properly")
-                kubecli.delete_pod(check_pod_name)
+
+                if not success:
+                    logging.error(
+                        "Date and time in node %s didn't reset properly after %d retries" 
+                        % (node_name, max_retries)
+                    )
+                    not_reset.append(node_name)
+
+                try:
+                    kubecli.delete_pod(check_pod_name)
+                except Exception:
+                    pass
 
         elif object_type == "pod":
             for pod_name in names:
                 first_date_time = datetime.datetime.utcnow()
                 counter = 0
-                pod_datetime_string = self.pod_exec(
-                    pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
-                )
-                pod_datetime = self.string_to_date(pod_datetime_string)
-                while not (first_date_time < pod_datetime < datetime.datetime.utcnow()):
+                success = False
+
+                while counter <= max_retries:
+                    pod_datetime = datetime.datetime(datetime.MINYEAR, 1, 1)
+                    try:
+                        pod_datetime_string = self.pod_exec(
+                            pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
+                        )
+                        if pod_datetime_string:
+                            if "impossible to determine the shell" in pod_datetime_string.lower() or "unauthorized" in pod_datetime_string.lower():
+                                logging.warning(f"Exec error on pod {pod_name[0]}: {pod_datetime_string}")
+                            else:
+                                pod_datetime = self.string_to_date(pod_datetime_string)
+                    except Exception as e:
+                        logging.warning(f"Transient error checking date on pod {pod_name[0]}: {e}")
+
+                    if first_date_time < pod_datetime < datetime.datetime.utcnow():
+                        success = True
+                        logging.info("Date in pod " + str(pod_name[0]) + " reset properly")
+                        break
+
                     time.sleep(10)
                     logging.info(
                         "Date/time on pod %s still not reset, "
                         "waiting 10 seconds and retrying" % pod_name[0]
                     )
-                    pod_datetime = self.pod_exec(
-                        pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
-                    )
-                    pod_datetime = self.string_to_date(pod_datetime)
                     counter += 1
-                    if counter > max_retries:
-                        logging.error(
-                            "Date and time in pod %s didn't reset properly"
-                            % pod_name[0]
-                        )
-                        not_reset.append(pod_name[0])
-                        break
-                if counter < max_retries:
-                    logging.info("Date in pod " + str(pod_name[0]) + " reset properly")
+
+                if not success:
+                    logging.error(
+                        "Date and time in pod %s didn't reset properly after %d retries"
+                        % (pod_name[0], max_retries)
+                    )
+                    not_reset.append(pod_name[0])
+
         return not_reset
 
     def get_scenario_types(self) -> list[str]:
