@@ -42,10 +42,33 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
     config: NetworkFilterConfig
     kubecli: KrknTelemetryOpenshift
 
+    def _rollback(
+        self,
+        pod_name: str,
+        input_rules: list = None,
+        output_rules: list = None,
+        rules_applied: bool = False,
+    ):
+        if rules_applied:
+            clean_network_rules(
+                self.kubecli.get_lib_kubernetes(),
+                input_rules,
+                output_rules,
+                pod_name,
+                self.config.namespace,
+            )
+        self.kubecli.get_lib_kubernetes().delete_pod(
+            pod_name, self.config.namespace
+        )
+
     def run(self, target: str, error_queue: queue.Queue = None):
         parallel = False
         if error_queue:
             parallel = True
+        pod_name = None
+        input_rules = None
+        output_rules = None
+        rules_applied = False
         try:
             log_info(
                 f"creating workload to filter node {target} network"
@@ -91,6 +114,7 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
                 parallel,
                 target,
             )
+            rules_applied = True
 
             log_info(
                 f"waiting {self.config.test_duration} seconds before removing the iptables rules",
@@ -102,6 +126,12 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
 
             log_info("removing iptables rules", parallel, target)
 
+            # iptables cleanup is destructive and not idempotent: disarm the
+            # rollback guard *before* cleaning so that if cleanup or pod deletion
+            # fails, the exception handler cannot run a second, destructive
+            # cleanup pass. Cleanup stays inside `try`, so its failures flow
+            # through the existing error_queue / raise handling.
+            rules_applied = False
             clean_network_rules(
                 self.kubecli.get_lib_kubernetes(),
                 input_rules,
@@ -115,6 +145,15 @@ class NodeNetworkFilterModule(AbstractNetworkChaosModule):
             )
 
         except Exception as e:
+            if pod_name:
+                try:
+                    self._rollback(
+                        pod_name, input_rules, output_rules, rules_applied
+                    )
+                except Exception:
+                    # best-effort cleanup: never mask or drop the original
+                    # scenario error (preserves the error_queue / raise contract)
+                    pass
             if error_queue is None:
                 raise e
             else:
