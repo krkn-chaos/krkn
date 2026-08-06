@@ -1,0 +1,9 @@
+network_chaos_ng_scenarios:
+  - id: "pod_network_filter"
+    label_selector: "app=network-filter-test"
+    namespace: "krkn-filter-test"
+    protocols: ["tcp"]
+    ports: [443]
+    egress: true
+    ingress: false
+    test_duration: 30
