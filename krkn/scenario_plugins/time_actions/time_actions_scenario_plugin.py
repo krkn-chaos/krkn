@@ -13,8 +13,10 @@
 # limitations under the License.
 import datetime
 import logging
+import os
 import random
 import re
+import shlex
 import time
 
 import yaml
@@ -25,6 +27,7 @@ from krkn_lib.utils import get_random_string, get_yaml_item_value, log_exception
 from kubernetes.client import ApiException
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.scenario_plugins.node_actions.ssh_node_scenarios import SSHExecutor
 
 
 class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
@@ -39,6 +42,16 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             with open(scenario, "r") as f:
                 scenario_config = yaml.safe_load(f)
                 for time_scenario in scenario_config["time_scenarios"]:
+                    targets = time_scenario.get("targets", [])
+                    if targets:
+                        return self._run_standalone(time_scenario, targets)
+
+                    if lib_telemetry.get_lib_kubernetes() is None:
+                        logging.error(
+                            "time_scenarios requires 'targets' field in standalone mode"
+                        )
+                        return 1
+
                     object_type, object_names = self.skew_time(
                         time_scenario, lib_telemetry.get_lib_kubernetes()
                     )
@@ -56,6 +69,51 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             return 1
         else:
             return 0
+
+    def _run_standalone(self, time_scenario: dict, targets: list[str]) -> int:
+        """Run time skew on standalone targets via SSH."""
+        action = time_scenario.get("action", "skew_time")
+        duration = time_scenario.get("duration", 300)
+        disable_ntp = time_scenario.get("disable_ntp", True)
+
+        ssh_executor = SSHExecutor(
+            ssh_user=time_scenario.get("ssh_user", "root"),
+            ssh_private_key=os.path.expanduser(
+                time_scenario.get("ssh_private_key", "~/.ssh/id_rsa")
+            ),
+            ssh_port=time_scenario.get("ssh_port", 22),
+        )
+
+        skew_param = "01:01:01" if action == "skew_time" else "2001-01-01"
+
+        for target in targets:
+            if disable_ntp:
+                logging.info("[%s] Disabling NTP" % target)
+                ssh_executor.execute(target, "sudo timedatectl set-ntp false", timeout=30)
+
+            logging.info("[%s] Skewing %s to %s" % (target, action, skew_param))
+            exit_code, _, stderr = ssh_executor.execute(
+                target, "sudo timedatectl set-time %s" % shlex.quote(skew_param), timeout=30
+            )
+            if exit_code != 0:
+                logging.error("[%s] Failed to skew time: %s" % (target, stderr))
+                return 1
+
+        logging.info("Time skew active for %ds on %d target(s)" % (duration, len(targets)))
+        time.sleep(duration)
+
+        for target in targets:
+            logging.info("[%s] Reverting time skew" % target)
+            ssh_executor.execute(target, "sudo timedatectl set-ntp true", timeout=30)
+            ssh_executor.execute(target, "sudo hwclock --hctosys", timeout=30)
+
+            exit_code, stdout, _ = ssh_executor.execute(target, "timedatectl", timeout=10)
+            if exit_code == 0 and "NTP" in stdout.upper():
+                logging.info("[%s] Time reverted (NTP re-enabled)" % target)
+            else:
+                logging.warning("[%s] Could not verify time reset" % target)
+
+        return 0
 
     def pod_exec(
         self, pod_name, command, namespace, container_name, kubecli: KrknKubernetes
@@ -76,44 +134,6 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             else:
                 break
         return response
-
-    def exec_with_shell_fallback(self, command, pod_name, namespace, container_name, kubecli: KrknKubernetes, max_retries=3):
-        """
-        Execute command in pod with shell fallback on failure.
-        
-        Args:
-            command: Command to execute (string or list)
-            pod_name: Name of the pod
-            namespace: Namespace of the pod
-            container_name: Name of the container
-            kubecli: Kubernetes client
-            max_retries: Maximum number of retries
-            
-        Returns:
-            Command output or False on persistent failure
-        """
-        # Try direct execution first
-        for attempt in range(max_retries):
-            try:
-                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
-                if response and not ("unauthorized" in response.lower() or "authorization" in response.lower()):
-                    return response
-            except Exception:
-                pass
-            
-            # If direct execution fails, try with shell fallback
-            try:
-                shell_command = ["/bin/sh", "-c"] + (command if isinstance(command, list) else [command])
-                response = kubecli.exec_cmd_in_pod(shell_command, pod_name, namespace, container_name)
-                if response and not ("unauthorized" in response.lower() or "authorization" in response.lower()):
-                    return response
-            except Exception:
-                pass
-                
-            if attempt < max_retries - 1:
-                time.sleep(1)
-        
-        return False
 
     # krkn_lib
     def get_container_name(
@@ -399,6 +419,9 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 if counter < max_retries:
                     logging.info("Date in pod " + str(pod_name[0]) + " reset properly")
         return not_reset
+
+    def supports_standalone(self) -> bool:
+        return True
 
     def get_scenario_types(self) -> list[str]:
         return ["time_scenarios"]

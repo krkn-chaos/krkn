@@ -1,0 +1,23 @@
+# Scenario 8 (P0): NFS/storage failover with running VMs
+# Bug: CNV-83991 — Hundreds of virtual machines restarted during NFS failover
+#
+# Purpose: Stop NFS server on storage node to simulate storage failover,
+# then restart it and verify VMs recover within acceptable SLA.
+#
+# Expected behavior:
+#   - VMs may become unresponsive during storage outage
+#   - After NFS restart, VMs should recover WITHOUT full restart
+#   - If hundreds of VMs restart, it reproduces CNV-83991
+#
+# Adjust storage_targets to match your storage infrastructure.
+
+vm_storage_chaos:
+  action: kill_storage_service
+  storage_targets:
+    - host: <NFS_SERVER_IP>
+      service: nfs-server
+  ssh_user: root
+  ssh_private_key: ~/.ssh/id_rsa
+  duration: 120
+  verify_vm_recovery: true
+  recovery_timeout: 600

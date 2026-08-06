@@ -924,7 +924,7 @@ class TestRunScenario(unittest.TestCase):
             mock_pod.nodeName = "worker-1"
 
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
-            mock_k8s = MagicMock(spec=KrknKubernetes)
+            mock_k8s = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_k8s
             mock_k8s.get_pod_info.return_value = mock_pod
 
@@ -980,7 +980,7 @@ class TestRunScenario(unittest.TestCase):
             mock_pod.nodeName = "worker-1"
 
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
-            mock_k8s = MagicMock(spec=KrknKubernetes)
+            mock_k8s = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_k8s
             mock_k8s.get_pod_info.return_value = mock_pod
 
@@ -1048,7 +1048,7 @@ class TestRunScenario(unittest.TestCase):
             mock_pod.nodeName = "worker-1"
 
             mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
-            mock_k8s = MagicMock(spec=KrknKubernetes)
+            mock_k8s = MagicMock()
             mock_telemetry.get_lib_kubernetes.return_value = mock_k8s
             mock_k8s.get_pod_info.return_value = mock_pod
 

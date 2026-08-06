@@ -1,0 +1,31 @@
+# Scenario 4 (P2): Windows VM reboot after upgrade
+# Bug: CNV-83327 — Windows virtual machine disks go offline after rebooting
+#      the VM following the upgrade to 4.20
+# Bug: CNV-90674 — Windows disks offline after hotplug and reboot
+#
+# Purpose: Reboot nodes running Windows VMs after an OpenShift/CNV upgrade
+# to verify that Windows VM disks come back online correctly.
+#
+# Uses: node_scenarios to reboot the worker node hosting Windows VMs
+#
+# Expected behavior:
+#   - Node reboots and comes back
+#   - Windows VMs restart automatically (eviction strategy: LiveMigrate or restart)
+#   - All Windows VM disks should be online after restart
+#   - No manual disk intervention needed
+#
+# If Windows disks are offline after reboot, it reproduces CNV-83327/CNV-90674.
+# Verify with: virtctl console <windows-vm> → diskpart → list disk
+
+node_scenarios:
+  - actions:
+      - node_reboot_scenario
+    cloud_type: ssh
+    targets:
+      - <WORKER_NODE_WITH_WINDOWS_VMS>
+    ssh_user: core
+    ssh_private_key: ~/.ssh/id_rsa
+    runs: 1
+    timeout: 600
+    kube_check: false
+    soft_reboot: true

@@ -13,9 +13,11 @@
 # limitations under the License.
 import copy
 import logging
+import os
 import queue
 import random
 import re
+import shlex
 import threading
 import time
 
@@ -29,6 +31,7 @@ from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.utils import get_random_string
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.scenario_plugins.node_actions.ssh_node_scenarios import SSHExecutor
 from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
 
@@ -41,11 +44,22 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         try:
             with open(scenario, "r") as f:
                 scenario = yaml.safe_load(f)
+
+            targets = scenario.get("targets", [])
+            if targets:
+                return self._run_standalone(scenario, targets)
+
+            if lib_telemetry.get_lib_kubernetes() is None:
+                logging.error(
+                    "hog_scenarios requires 'targets' field in standalone mode"
+                )
+                return 1
+
             scenario_config = HogConfig.from_yaml_dict(scenario)
-            
+
             # Get node-name if provided
             node_name = scenario.get('node-name')
-            
+
             has_selector = True
             if not scenario_config.node_selector or not re.match("^.+=.*$", scenario_config.node_selector):
                 if scenario_config.node_selector:
@@ -77,6 +91,107 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         except Exception as e:
             logging.error(f"scenario exception: {e}")
             return 1
+
+    def _run_standalone(self, scenario: dict, targets: list[str]) -> int:
+        """Run hog scenario on standalone targets via SSH + stress-ng."""
+        if not targets:
+            raise ValueError("targets list cannot be empty for standalone hog scenario")
+        scenario_config = HogConfig.from_yaml_dict(scenario)
+        ssh_executor = SSHExecutor(
+            ssh_user=scenario.get("ssh_user", "root"),
+            ssh_private_key=os.path.expanduser(
+                scenario.get("ssh_private_key", "~/.ssh/id_rsa")
+            ),
+            ssh_port=scenario.get("ssh_port", 22),
+            connect_timeout=scenario.get("ssh_connect_timeout", 30),
+        )
+
+        exit_code, stdout, _ = ssh_executor.execute(
+            targets[0], "which stress-ng", timeout=10
+        )
+        if exit_code != 0:
+            raise Exception(
+                "stress-ng not found on %s. Install: "
+                "apt-get install stress-ng / yum install stress-ng" % targets[0]
+            )
+        logging.info("stress-ng found on %s: %s" % (targets[0], stdout.strip()))
+
+        if scenario_config.number_of_nodes and len(targets) > scenario_config.number_of_nodes:
+            targets = random.sample(targets, scenario_config.number_of_nodes)
+
+        exception_queue = queue.Queue()
+        workers = []
+        logging.info(f"running {scenario_config.type.value} hog scenario (standalone SSH)")
+        logging.info(f"targeting hosts: [{','.join(targets)}]")
+        for target in targets:
+            config_copy = copy.deepcopy(scenario_config)
+            worker = threading.Thread(
+                target=self._run_standalone_worker,
+                args=(config_copy, ssh_executor, target, exception_queue),
+            )
+            worker.daemon = True
+            worker.start()
+            workers.append(worker)
+
+        for worker in workers:
+            worker.join()
+
+        errors = []
+        while not exception_queue.empty():
+            errors.append(exception_queue.get_nowait())
+        if errors:
+            for err in errors:
+                logging.error("standalone hog failure: %s" % err)
+            raise errors[0]
+
+        return 0
+
+    def _run_standalone_worker(
+        self, config: HogConfig, ssh: SSHExecutor, host: str,
+        exception_queue: queue.Queue,
+    ) -> None:
+        """Execute stress-ng on a remote host via SSH."""
+        try:
+            if not config.workers:
+                exit_code, stdout, _ = ssh.execute(host, "nproc", timeout=10)
+                try:
+                    config.workers = int(stdout.strip()) if exit_code == 0 and stdout.strip() else 1
+                except ValueError:
+                    config.workers = 1
+                logging.info(f"[{host}] detected {config.workers} cpus")
+
+            cmd = self._build_stress_command(config)
+            logging.info(f"[{host}] executing: {cmd}")
+            exit_code, stdout, stderr = ssh.execute(
+                host, cmd, timeout=config.duration + 120
+            )
+            if exit_code != 0:
+                raise Exception(f"[{host}] stress-ng failed (exit {exit_code}): {stderr}")
+            logging.info(f"[{host}] stress-ng completed successfully")
+        except Exception as e:
+            exception_queue.put(e)
+
+    @staticmethod
+    def _build_stress_command(config: HogConfig) -> str:
+        """Build stress-ng command from HogConfig."""
+        if config.type == HogType.cpu:
+            return (
+                "stress-ng --cpu %d --cpu-load %d --timeout %ds --metrics-brief"
+                % (config.workers, config.cpu_load_percentage, config.duration)
+            )
+        elif config.type == HogType.memory:
+            return (
+                "stress-ng --vm %d --vm-bytes %s --vm-keep --timeout %ds --metrics-brief"
+                % (config.workers, shlex.quote(str(config.memory_vm_bytes)), config.duration)
+            )
+        elif config.type == HogType.io:
+            return (
+                "stress-ng --iomix %d --iomix-bytes %s --timeout %ds --metrics-brief"
+                % (config.workers, shlex.quote(str(config.io_write_bytes)), config.duration)
+            )
+
+    def supports_standalone(self) -> bool:
+        return True
 
     def get_scenario_types(self) -> list[str]:
         return ["hog_scenarios"]

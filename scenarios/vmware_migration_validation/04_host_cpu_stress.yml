@@ -1,0 +1,12 @@
+# Step 4: CPU stress on VM host nodes
+# Validates host resilience — catches CNV-89810 (virt-handler liveness probe timeout)
+
+hog-type: cpu
+targets:
+  - <WORKER_NODE_1>
+ssh_user: core
+ssh_private_key: ~/.ssh/id_rsa
+node-selector: ""
+duration: 300
+workers: 0
+cpu-load-percentage: 90

@@ -1,0 +1,24 @@
+# Scenario 1 (P0): CPU stress on node with 200+ VMs
+# Bug: CNV-89810 — virt-handler killed by liveness probe timeout under CPU load
+#
+# Purpose: Inject CPU stress on an OpenShift worker node running VMs to verify
+# that virt-handler survives and VMs are NOT killed during high host CPU load.
+#
+# Uses: hog_scenarios with standalone SSH targets (no K8s pod deployment needed)
+#
+# Expected behavior:
+#   - virt-handler pod should survive CPU stress
+#   - VMs should continue running
+#   - virt-handler liveness probe should NOT timeout
+#
+# If this scenario causes VM restarts, it reproduces CNV-89810.
+
+hog-type: cpu
+targets:
+  - <WORKER_NODE_IP>
+ssh_user: core
+ssh_private_key: ~/.ssh/id_rsa
+node-selector: ""
+duration: 300
+workers: 0
+cpu-load-percentage: 95

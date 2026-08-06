@@ -1,0 +1,9 @@
+time_scenarios:
+  - action: skew_time
+    targets:
+      - localhost
+    ssh_user: core
+    ssh_private_key: /Users/sahil/.local/share/containers/podman/machine/machine
+    ssh_port: 53332
+    duration: 10
+    disable_ntp: true

@@ -1,0 +1,16 @@
+# Step 5: Live migration under network stress
+# Validates migration resilience — catches CNV-89391 (dual virt-launcher corruption)
+
+vm_migration_chaos:
+  vm_name: <MIGRATED_VM_NAME>
+  vm_namespace: <NAMESPACE>
+  migration_action: trigger_and_disrupt
+  fault_type: network_latency
+  fault_params:
+    latency: 200ms
+    interface: br-ex
+    duration: 30
+  ssh_user: core
+  ssh_private_key: ~/.ssh/id_rsa
+  verify_no_dual_pods: true
+  timeout: 600

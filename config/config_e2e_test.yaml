@@ -1,0 +1,57 @@
+kraken:
+    execution_mode: standalone
+    kubeconfig_path:
+    exit_on_failure: False
+    auto_rollback: True
+    rollback_versions_directory:
+    publish_kraken_status: False
+    signal_state: RUN
+    signal_address: 0.0.0.0
+    port: 8081
+    chaos_scenarios:
+        - standalone_disk_fill_scenarios:
+            - scenarios/standalone/e2e_disk_fill.yml
+tunings:
+    wait_duration: 2
+    iterations: 1
+    daemon_mode: False
+performance_monitoring:
+    prometheus_url:
+    prometheus_bearer_token:
+    uuid:
+    enable_alerts: False
+    enable_metrics: False
+    alert_profile:
+    metrics_profile:
+    check_critical_alerts: False
+cerberus:
+    cerberus_enabled: False
+    cerberus_url:
+elastic:
+    enable_elastic: False
+    elastic_url:
+    elastic_port: 32766
+    verify_certs: False
+    username:
+    password:
+    metrics_index: krkn-metrics
+    alerts_index: krkn-alerts
+    telemetry_index: krkn-telemetry
+telemetry:
+    enabled: False
+    api_url:
+    username:
+    password:
+    prometheus_backup: False
+    full_prometheus_backup: False
+    events_backup: False
+    logs_backup: False
+    backup_threads: 5
+    archive_path:
+    max_retries: 0
+    run_tag:
+    telemetry_group:
+resiliency:
+    resiliency_run_mode: disabled
+health_checks:
+kubevirt_checks:
