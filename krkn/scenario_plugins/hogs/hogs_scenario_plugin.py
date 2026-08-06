@@ -134,9 +134,13 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                 avg_node_resources.memory += resource.memory
                 avg_node_resources.disk_space += resource.disk_space
 
-            avg_node_resources.cpu = avg_node_resources.cpu/len(samples)
-            avg_node_resources.memory = avg_node_resources.memory / len(samples)
-            avg_node_resources.disk_space = avg_node_resources.disk_space / len(samples)
+            if len(samples) == 0:
+                logging.warning(f"[{node}] no samples collected, duration too short to measure resource usage")
+                return
+            else:
+                avg_node_resources.cpu = avg_node_resources.cpu / len(samples)
+                avg_node_resources.memory = avg_node_resources.memory / len(samples)
+                avg_node_resources.disk_space = avg_node_resources.disk_space / len(samples)
 
             if config.type == HogType.cpu:
                 logging.info(f"[{node}] detected cpu consumption: "
