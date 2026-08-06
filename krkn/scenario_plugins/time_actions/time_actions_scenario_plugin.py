@@ -198,7 +198,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
             return "node", node_names
 
         elif "pod" in scenario["object_type"]:
-            skew_command = "date --date "
+            skew_command = "date -s "
             if scenario["action"] == "skew_date":
                 skewed_date = "00-01-01"
                 skew_command += skewed_date
