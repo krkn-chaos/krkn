@@ -15,10 +15,13 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+
+import yaml
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 from krkn import utils, cerberus
+from krkn.utils.wait_until import wait_until_condition
 from krkn.rollback.handler import (
     RollbackHandler,
     execute_rollback_version_files,
@@ -146,6 +149,22 @@ class AbstractScenarioPlugin(ABC):
                 execute_rollback_version_files(
                     telemetry, run_uuid, scenario_telemetry.scenario_type
                 )
+            wait_config = _parse_wait_until(scenario_config)
+            if wait_config is not None:
+                try:
+                    kubeconfig = krkn_config.get("kraken", {}).get(
+                        "kubeconfig_path", ""
+                    )
+                    condition_met = wait_until_condition(
+                        wait_config, kubeconfig, scenario_config
+                    )
+                    scenario_telemetry.wait_until_met = condition_met
+                except Exception as e:
+                    logging.warning(
+                        f"wait_until: unexpected error, continuing: {e}"
+                    )
+                    scenario_telemetry.wait_until_met = False
+
             scenario_telemetry.exit_status = return_value
             scenario_telemetry.end_timestamp = time.time()
             start_time = int(scenario_telemetry.start_timestamp)
@@ -176,4 +195,22 @@ class AbstractScenarioPlugin(ABC):
             
         return failed_scenarios, scenario_telemetries
 
-    
+
+def _parse_wait_until(scenario_config_path: str) -> dict | None:
+    """
+    Parse a scenario YAML file and extract the wait_until block if present.
+    Returns the wait_until dict or None.
+    """
+    try:
+        with open(scenario_config_path, "r") as f:
+            data = yaml.safe_load(f)
+        if isinstance(data, list):
+            for item in data:
+                if isinstance(item, dict) and "wait_until" in item:
+                    return item["wait_until"]
+        elif isinstance(data, dict) and "wait_until" in data:
+            return data["wait_until"]
+    except Exception as e:
+        logging.warning(f"wait_until: failed to parse '{scenario_config_path}': {e}")
+    return None
+
