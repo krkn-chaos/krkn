@@ -163,6 +163,72 @@ class NetworkScenariosTest(unittest.TestCase):
 
         self.assertIn("Interface eth99 not found", str(context.exception))
 
+    def test_verify_interface_falls_back_when_br_unsupported(self):
+        """Test fallback to `ip addr show` when `ip -br addr show` prints help text"""
+        mock_kubecli = Mock()
+        mock_pod_template = Mock()
+        mock_pod_template.render.return_value = "pod_yaml_content"
+
+        mock_kubecli.create_pod.return_value = None
+        ip_help_text = (
+            "Usage: ip [ OPTIONS ] OBJECT { COMMAND | help }\n"
+            "       ip [ -force ] -batch filename\n"
+            "where  OBJECT := { link | address | addrlabel | route }\n"
+        )
+        ip_addr_show = (
+            "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN\n"
+            "    inet 127.0.0.1/8 scope host lo\n"
+            "2: ens5: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9001 qdisc mq state UP\n"
+            "    inet 10.0.1.136/24 brd 10.0.1.255 scope global ens5\n"
+        )
+        mock_kubecli.exec_cmd_in_pod.side_effect = [ip_help_text, ip_addr_show]
+        mock_kubecli.delete_pod.return_value = None
+
+        result = ingress_shaping.verify_interface(
+            input_interface_list=["ens5"],
+            node="test-node",
+            pod_template=mock_pod_template,
+            kubecli=mock_kubecli,
+            image="quay.io/krkn-chaos/krkn:tools"
+        )
+
+        self.assertEqual(result, ["ens5"])
+        self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)
+
+    def test_verify_interface_exits_when_both_commands_fail(self):
+        """Test clean exit when both `ip -br addr show` and `ip addr show` print help text"""
+        mock_kubecli = Mock()
+        mock_pod_template = Mock()
+        mock_pod_template.render.return_value = "pod_yaml_content"
+
+        mock_kubecli.create_pod.return_value = None
+        ip_help_text = "Usage: ip [ OPTIONS ] OBJECT { COMMAND | help }\n"
+        mock_kubecli.exec_cmd_in_pod.side_effect = [ip_help_text, ip_help_text]
+        mock_kubecli.delete_pod.return_value = None
+
+        with self.assertRaises(SystemExit):
+            ingress_shaping.verify_interface(
+                input_interface_list=["ens5"],
+                node="test-node",
+                pod_template=mock_pod_template,
+                kubecli=mock_kubecli,
+                image="quay.io/krkn-chaos/krkn:tools"
+            )
+
+        mock_kubecli.delete_pod.assert_called_once()
+
+    def test_get_node_interface_list_parses_brief_output(self):
+        """Test parsing of `ip -br addr show` brief output"""
+        mock_kubecli = Mock()
+        mock_kubecli.exec_cmd_in_pod.return_value = (
+            "lo               UNKNOWN        127.0.0.1/8\n"
+            "ens5             UP             10.0.1.136/24\n"
+        )
+
+        result = ingress_shaping.get_node_interface_list("test-pod", mock_kubecli)
+
+        self.assertEqual(result, ["lo", "ens5"])
+
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.get_default_interface')
     def test_get_node_interfaces_with_label_selector(self, mock_get_default_interface):
         """Test getting node interfaces using label selector"""
