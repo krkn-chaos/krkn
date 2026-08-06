@@ -101,6 +101,7 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 "service_namespace": service_namespace,
                 "original_selectors": original_service["spec"]["selector"],
                 "webservice_pod_name": webservice.pod_name,
+                "webservice_config_map_name": webservice.config_map_name,
             }
             json_str = json.dumps(rollback_data)
             encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
@@ -161,6 +162,7 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             service_namespace = rollback_data["service_namespace"]
             original_selectors = rollback_data["original_selectors"]
             webservice_pod_name = rollback_data["webservice_pod_name"]
+            webservice_config_map_name = rollback_data.get("webservice_config_map_name")
             
             logging.info(
                 f"Rolling back service hijacking: restoring service {service_name} in namespace {service_namespace}"
@@ -193,7 +195,22 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 logging.info(f"Successfully deleted hijacker pod: {webservice_pod_name}")
             except Exception as e:
                 logging.warning(f"Failed to delete hijacker pod {webservice_pod_name}: {e}")
-            
+
+            # Delete the hijacker ConfigMap (created alongside the pod by deploy_service_hijacking)
+            if webservice_config_map_name:
+                logging.info(f"Deleting hijacker ConfigMap: {webservice_config_map_name}")
+                try:
+                    lib_telemetry.get_lib_kubernetes().cli.delete_namespaced_config_map(
+                        webservice_config_map_name, service_namespace
+                    )
+                    logging.info(
+                        f"Successfully deleted hijacker ConfigMap: {webservice_config_map_name}"
+                    )
+                except Exception as e:
+                    logging.warning(
+                        f"Failed to delete hijacker ConfigMap {webservice_config_map_name}: {e}"
+                    )
+
             logging.info("Service hijacking rollback completed successfully.")
         except Exception as e:
             logging.error(f"Failed to rollback service hijacking: {e}")
