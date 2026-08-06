@@ -41,4 +41,5 @@ def run(command):
     try:
         subprocess.run(command, shell=True, universal_newlines=True, timeout=45)
     except Exception:
-        pass
+        logging.exception("Failed to run command: %s" % command)
+        raise
