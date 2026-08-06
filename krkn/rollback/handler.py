@@ -278,3 +278,10 @@ class RollbackHandler:
             logger.info(f"Rollback callable serialized to {version_file}")
         except Exception as e:
             logger.error(f"Failed to serialize rollback callable: {e}")
+            logger.error(
+            "Aborting scenario '%s' because rollback registration failed for rollback context '%s'. "
+            "Rollback state could not be persisted and scenario execution cannot continue safely.",
+            self.scenario_type,
+            self.rollback_context,
+            )
+            raise
