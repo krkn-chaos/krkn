@@ -33,6 +33,7 @@ from krkn.rollback.handler import set_rollback_context_decorator
 
 from krkn.scenario_plugins.node_actions.aws_node_scenarios import AWS
 from krkn.scenario_plugins.node_actions.gcp_node_scenarios import gcp_node_scenarios
+from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
 
 
 class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
@@ -56,6 +57,11 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
                     result = self.network_based_zone(scenario_config)
                     if result != 0:
                         return 1
+                elif cloud_type.lower() in ["azure", "az"]:
+                    self.cloud_object = Azure()
+                    result = self.network_based_zone_azure(scenario_config)
+                    if result != 0:
+                        return result
                 else:
                     kubecli = lib_telemetry.get_lib_kubernetes()
                     if cloud_type.lower() == "gcp":
@@ -183,6 +189,147 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             logging.info("GCP zone outage rollback completed.")
         except Exception as e:
             logging.error("Failed to rollback GCP zone outage: %s" % e)
+            raise
+
+    def network_based_zone_azure(self, scenario_config: dict[str, any]) -> int:
+        chaos_nsg_id = None
+        resource_group = None
+        vnet_name = None
+        subnet_name = None
+        nsg_name = None
+        original_nsg_id = None
+        try:
+            resource_group = scenario_config["resource_group"]
+            vnet_name = scenario_config["vnet_name"]
+            subnet_name = scenario_config["subnet_name"]
+            duration = get_yaml_item_value(scenario_config, "duration", 60)
+            location = scenario_config.get("location")
+            nsg_prefix = scenario_config.get("nsg_name_prefix", "chaos-zone-deny")
+
+            if not location:
+                location = self.cloud_object.get_subnet_location(resource_group, vnet_name, subnet_name)
+
+            nsg_name = f"{nsg_prefix}-{subnet_name}"
+            logging.info(
+                f"Starting Azure network-based zone outage on subnet {subnet_name} "
+                f"in VNet {vnet_name} (resource group: {resource_group})"
+            )
+
+            # Get current NSG association
+            original_nsg_id = self.cloud_object.get_subnet_nsg(resource_group, vnet_name, subnet_name)
+
+            # Set rollback callable before creating deny NSG
+            rollback_data = {
+                "resource_group": resource_group,
+                "vnet_name": vnet_name,
+                "subnet_name": subnet_name,
+                "original_nsg_id": original_nsg_id,
+                "nsg_name": nsg_name,
+            }
+            encoded = base64.b64encode(
+                json.dumps(rollback_data).encode("utf-8")
+            ).decode("utf-8")
+            self.rollback_handler.set_rollback_callable(
+                self.rollback_azure_zone_outage,
+                RollbackContent(resource_identifier=encoded),
+            )
+
+            # Create deny-all security group
+            chaos_nsg_id = self.cloud_object.create_subnet_deny_security_group(
+                resource_group, nsg_name, location
+            )
+
+            # Associate deny NSG with target subnet
+            self.cloud_object.update_subnet_nsg(
+                resource_group, vnet_name, subnet_name, chaos_nsg_id
+            )
+            logging.info(
+                f"Subnet {subnet_name} isolated with deny-all NSG {nsg_name}. "
+                f"Waiting for duration of {duration} seconds."
+            )
+            time.sleep(duration)
+
+            # Restore original NSG association
+            self.cloud_object.update_subnet_nsg(
+                resource_group, vnet_name, subnet_name, original_nsg_id
+            )
+            logging.info(f"Subnet {subnet_name} restored to original NSG association.")
+
+            # Delete temporary deny NSG
+            self.cloud_object.delete_security_group(resource_group, nsg_name)
+            logging.info(f"Temporary chaos NSG {nsg_name} deleted successfully.")
+        except Exception as e:
+            logging.error(
+                f"Azure network-based zone outage scenario failed with exception: {e}"
+            )
+            if chaos_nsg_id and resource_group and vnet_name and subnet_name:
+                try:
+                    self.cloud_object.update_subnet_nsg(
+                        resource_group, vnet_name, subnet_name, original_nsg_id
+                    )
+                except Exception as restore_err:
+                    logging.error(
+                        f"Failed to restore original NSG during error recovery: {restore_err}"
+                    )
+                if nsg_name:
+                    try:
+                        self.cloud_object.delete_security_group(resource_group, nsg_name)
+                    except Exception as del_err:
+                        logging.warning(
+                            f"Failed to delete chaos NSG during error recovery: {del_err}"
+                        )
+            return 1
+        else:
+            return 0
+
+    @staticmethod
+    def rollback_azure_zone_outage(
+        rollback_content: RollbackContent,
+        lib_telemetry: KrknTelemetryOpenshift = None,
+    ):
+        """Rollback function to restore subnet NSG association after an Azure zone outage failure.
+
+        :param rollback_content: Rollback content containing encoded target IDs.
+        :param lib_telemetry: Instance of KrknTelemetryOpenshift (unused).
+        """
+        try:
+            decoded = base64.b64decode(
+                rollback_content.resource_identifier.encode("utf-8")
+            ).decode("utf-8")
+            rollback_data = json.loads(decoded)
+            resource_group = rollback_data["resource_group"]
+            vnet_name = rollback_data["vnet_name"]
+            subnet_name = rollback_data["subnet_name"]
+            original_nsg_id = rollback_data.get("original_nsg_id")
+            nsg_name = rollback_data.get("nsg_name")
+
+            from krkn.scenario_plugins.node_actions.az_node_scenarios import Azure
+            cloud_object = Azure()
+            logging.info(
+                f"Rolling back Azure zone outage: restoring subnet {subnet_name} in VNet {vnet_name}"
+            )
+            try:
+                cloud_object.update_subnet_nsg(
+                    resource_group, vnet_name, subnet_name, original_nsg_id
+                )
+                logging.info(f"Subnet {subnet_name} restored to original NSG: {original_nsg_id}")
+            except Exception as re_err:
+                logging.error(
+                    f"Failed to restore original NSG on subnet {subnet_name} during rollback: {re_err}"
+                )
+
+            if nsg_name:
+                try:
+                    cloud_object.delete_security_group(resource_group, nsg_name)
+                    logging.info(f"Deleted temporary chaos NSG {nsg_name} during rollback")
+                except Exception as del_err:
+                    logging.warning(
+                        f"Could not delete temporary chaos NSG {nsg_name} during rollback: {del_err}"
+                    )
+
+            logging.info("Azure zone outage rollback completed.")
+        except Exception as e:
+            logging.error(f"Failed to rollback Azure zone outage: {e}")
             raise
 
     def network_based_zone(self, scenario_config: dict[str, any]):

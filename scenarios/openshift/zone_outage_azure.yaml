@@ -1,0 +1,8 @@
+zone_outage:                                         # Scenario to create an outage of a zone by tweaking Azure subnet NSG
+  cloud_type: azure                                   # cloud type on which Kubernetes/OpenShift runs (azure or az)
+  resource_group: my-cluster-rg                       # Azure resource group containing the target VNet and subnet
+  vnet_name: my-cluster-vnet                          # Virtual Network name
+  subnet_name: my-cluster-worker-subnet               # Subnet to isolate with temporary deny-all NSG
+  duration: 600                                      # duration in seconds after which the subnet will be restored
+  location: centralindia                             # (Optional) Azure region. Auto-detected from VNet if omitted.
+  nsg_name_prefix: chaos-zone-deny                    # (Optional) Prefix for temporary deny NSG

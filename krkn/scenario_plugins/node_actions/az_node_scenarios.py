@@ -34,8 +34,16 @@ class Azure:
         logger = logging.getLogger("azure")
         logger.setLevel(logging.WARNING)
         subscription_id = os.getenv("AZURE_SUBSCRIPTION_ID")
-        self.compute_client = ComputeManagementClient(credentials, subscription_id,logging=logger)
-        self.network_client = NetworkManagementClient(credentials, subscription_id,logging=logger)
+        if not subscription_id:
+            try:
+                import subprocess
+                out = subprocess.check_output(["az", "account", "show", "--query", "id", "-o", "tsv"], text=True)
+                subscription_id = out.strip()
+                logging.info(f"Auto-detected Azure subscription_id: {subscription_id}")
+            except Exception as sub_err:
+                logging.warning(f"Could not auto-detect Azure subscription_id from CLI: {sub_err}")
+        self.compute_client = ComputeManagementClient(credentials, subscription_id, logging=logger)
+        self.network_client = NetworkManagementClient(credentials, subscription_id, logging=logger)
 
     # Get the instance ID of the node
     def get_instance_id(self, node_name):
@@ -45,6 +53,14 @@ class Azure:
             if node_name == vm.name:
                 resource_group = array[4]
                 return vm.name, resource_group
+        
+        vmss_list = self.compute_client.virtual_machine_scale_sets.list_all()
+        for vmss in vmss_list:
+            rg = vmss.id.split("/")[4]
+            for vm in self.compute_client.virtual_machine_scale_set_vms.list(rg, vmss.name):
+                if vm.os_profile and vm.os_profile.computer_name == node_name:
+                    return f"vmss:{vmss.name}:{vm.instance_id}", rg
+        
         logging.error("Couldn't find vm with name " + str(node_name))
 
     # Get the instance ID of the node
@@ -67,7 +83,11 @@ class Azure:
     # Start the node instance
     def start_instances(self, group_name, vm_name):
         try:
-            self.compute_client.virtual_machines.begin_start(group_name, vm_name)
+            if vm_name.startswith("vmss:"):
+                _, vmss_name, instance_id = vm_name.split(":")
+                self.compute_client.virtual_machine_scale_set_vms.begin_start(group_name, vmss_name, instance_id)
+            else:
+                self.compute_client.virtual_machines.begin_start(group_name, vm_name)
             logging.info("vm name " + str(vm_name) + " started")
         except Exception as e:
             logging.error(
@@ -79,7 +99,11 @@ class Azure:
     # Stop the node instance
     def stop_instances(self, group_name, vm_name):
         try:
-            self.compute_client.virtual_machines.begin_power_off(group_name, vm_name)
+            if vm_name.startswith("vmss:"):
+                _, vmss_name, instance_id = vm_name.split(":")
+                self.compute_client.virtual_machine_scale_set_vms.begin_power_off(group_name, vmss_name, instance_id)
+            else:
+                self.compute_client.virtual_machines.begin_power_off(group_name, vm_name)
             logging.info("vm name " + str(vm_name) + " stopped")
         except Exception as e:
             logging.error(
@@ -91,7 +115,11 @@ class Azure:
     # Terminate the node instance
     def terminate_instances(self, group_name, vm_name):
         try:
-            self.compute_client.virtual_machines.begin_delete(group_name, vm_name)
+            if vm_name.startswith("vmss:"):
+                _, vmss_name, instance_id = vm_name.split(":")
+                self.compute_client.virtual_machine_scale_set_vms.begin_delete(group_name, vmss_name, instance_id)
+            else:
+                self.compute_client.virtual_machines.begin_delete(group_name, vm_name)
             logging.info("vm name " + str(vm_name) + " terminated")
         except Exception as e:
             logging.error(
@@ -104,7 +132,11 @@ class Azure:
     # Reboot the node instance
     def reboot_instances(self, group_name, vm_name):
         try:
-            self.compute_client.virtual_machines.begin_restart(group_name, vm_name)
+            if vm_name.startswith("vmss:"):
+                _, vmss_name, instance_id = vm_name.split(":")
+                self.compute_client.virtual_machine_scale_set_vms.begin_restart(group_name, vmss_name, instance_id)
+            else:
+                self.compute_client.virtual_machines.begin_restart(group_name, vm_name)
             logging.info("vm name " + str(vm_name) + " rebooted")
         except Exception as e:
             logging.error(
@@ -115,9 +147,15 @@ class Azure:
             raise RuntimeError()
 
     def get_vm_status(self, resource_group, vm_name):
-        statuses = self.compute_client.virtual_machines.instance_view(
-            resource_group, vm_name
-        ).statuses
+        if vm_name.startswith("vmss:"):
+            _, vmss_name, instance_id = vm_name.split(":")
+            statuses = self.compute_client.virtual_machine_scale_set_vms.get_instance_view(
+                resource_group, vmss_name, instance_id
+            ).statuses
+        else:
+            statuses = self.compute_client.virtual_machines.instance_view(
+                resource_group, vm_name
+            ).statuses
         status = len(statuses) >= 2 and statuses[1]
         return status
 
@@ -183,6 +221,84 @@ class Azure:
                     affected_node.set_affected_node_status("terminated", end_time - start_time)
                 return True
 
+
+    def create_subnet_deny_security_group(self, resource_group, name, region):
+        inbound_rule = SecurityRule(
+            name="denyInbound",
+            source_address_prefix="*",
+            source_port_range="*",
+            destination_address_prefix="*",
+            destination_port_range="*",
+            priority=100,
+            protocol="*",
+            access="Deny",
+            direction="Inbound",
+        )
+        outbound_rule = SecurityRule(
+            name="denyOutbound",
+            source_address_prefix="*",
+            source_port_range="*",
+            destination_address_prefix="*",
+            destination_port_range="*",
+            priority=100,
+            protocol="*",
+            access="Deny",
+            direction="Outbound",
+        )
+        nsg = self.network_client.network_security_groups.begin_create_or_update(
+            resource_group,
+            name,
+            parameters={"location": region, "security_rules": [inbound_rule, outbound_rule]},
+        )
+        return nsg.result().id
+
+    def update_subnet_nsg(self, resource_group, vnet_name, subnet_name, nsg_id):
+        subnet = self.network_client.subnets.get(
+            resource_group_name=resource_group,
+            virtual_network_name=vnet_name,
+            subnet_name=subnet_name,
+        )
+        old_nsg_id = (
+            subnet.network_security_group.id
+            if (subnet and subnet.network_security_group)
+            else None
+        )
+        if nsg_id:
+            from azure.mgmt.network.models import NetworkSecurityGroup
+            if not subnet.network_security_group:
+                subnet.network_security_group = NetworkSecurityGroup(id=nsg_id)
+            else:
+                subnet.network_security_group.id = nsg_id
+        else:
+            subnet.network_security_group = None
+
+        poller = self.network_client.subnets.begin_create_or_update(
+            resource_group_name=resource_group,
+            virtual_network_name=vnet_name,
+            subnet_name=subnet_name,
+            subnet_parameters=subnet,
+        )
+        poller.result()
+        return old_nsg_id
+
+    def get_subnet_nsg(self, resource_group, vnet_name, subnet_name):
+        subnet = self.network_client.subnets.get(
+            resource_group_name=resource_group,
+            virtual_network_name=vnet_name,
+            subnet_name=subnet_name,
+        )
+        return (
+            subnet.network_security_group.id
+            if (subnet and subnet.network_security_group)
+            else None
+        )
+
+    def get_subnet_location(self, resource_group, vnet_name, subnet_name=None):
+        vnet = self.network_client.virtual_networks.get(
+            resource_group_name=resource_group,
+            virtual_network_name=vnet_name,
+        )
+        return vnet.location
 
     def create_security_group(self, resource_group, name, region, ip_address): 
 
