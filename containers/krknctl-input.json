@@ -29,6 +29,70 @@
     "group": "cerberus"
   },
   {
+    "name": "kraken",
+    "short_description": "Kraken group",
+    "description": "Group containing core krkn run configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "krkn-kubeconfig",
+    "short_description": "Krkn kubeconfig path",
+    "description": "Sets the path where krkn will search for kubeconfig (in container)",
+    "variable": "KRKN_KUBE_CONFIG",
+    "type": "string",
+    "default": "/home/krkn/.kube/config",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
+    "name": "generate-pdf-report",
+    "short_description": "Generate PDF report",
+    "description": "Generate a PDF summary report after the chaos run",
+    "variable": "GENERATE_PDF_REPORT",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "True",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
+    "name": "tunings",
+    "short_description": "Tunings group",
+    "description": "Group containing chaos scenario timing and repetition configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "wait-duration",
+    "short_description": "Post chaos wait duration",
+    "description": "waits for a certain amount of time after the scenario",
+    "variable": "WAIT_DURATION",
+    "type": "number",
+    "default": "1",
+    "group": "tunings"
+  },
+  {
+    "name": "iterations",
+    "short_description": "Chaos scenario iterations",
+    "description": "number of times the same chaos scenario will be executed",
+    "variable": "ITERATIONS",
+    "type": "number",
+    "default": "1",
+    "group": "tunings"
+  },
+  {
+    "name": "daemon-mode",
+    "short_description": "Sets krkn daemon mode",
+    "description": "if set the scenario will execute forever",
+    "variable": "DAEMON_MODE",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "tunings"
+  },
+  {
     "name": "general",
     "short_description": "General group",
     "description": "Group containing general krkn configuration options",
@@ -51,68 +115,6 @@
     "variable": "KRKN_SSH_PRIVATE",
     "type": "string",
     "default": "",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "krkn-kubeconfig",
-    "short_description": "Krkn kubeconfig path",
-    "description": "Sets the path where krkn will search for kubeconfig (in container)",
-    "variable": "KRKN_KUBE_CONFIG",
-    "type": "string",
-    "default": "/home/krkn/.kube/config",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "wait-duration",
-    "short_description": "Post chaos wait duration",
-    "description": "waits for a certain amount of time after the scenario",
-    "variable": "WAIT_DURATION",
-    "type": "number",
-    "default": "1",
-    "group": "general"
-  },
-  {
-    "name": "iterations",
-    "short_description": "Chaos scenario iterations",
-    "description": "number of times the same chaos scenario will be executed",
-    "variable": "ITERATIONS",
-    "type": "number",
-    "default": "1",
-    "group": "general"
-  },
-  {
-    "name": "daemon-mode",
-    "short_description": "Sets krkn daemon mode",
-    "description": "if set the scenario will execute forever",
-    "variable": "DAEMON_MODE",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "uuid",
-    "short_description": "Sets krkn run uuid",
-    "description": "sets krkn run uuid instead of generating it",
-    "variable": "UUID",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "generate-pdf-report",
-    "short_description": "Generate PDF report",
-    "description": "Generate a PDF summary report after the chaos run",
-    "variable": "GENERATE_PDF_REPORT",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "True",
     "required": "false",
     "group": "general"
   },
@@ -149,6 +151,16 @@
     "short_description": "Prometheus bearer token",
     "description": "Prometheus bearer token for prometheus url authentication",
     "variable": "PROMETHEUS_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "uuid",
+    "short_description": "Sets krkn run uuid",
+    "description": "sets krkn run uuid instead of generating it",
+    "variable": "UUID",
     "type": "string",
     "default": "",
     "required": "false",
