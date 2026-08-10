@@ -17,4 +17,4 @@ permissions:
 jobs:
   stale:
     uses: krkn-chaos/actions/.github/workflows/stale-PRs-and-issues.yml@main # main
-    secrets: inherit 
+    secrets: inherit
