@@ -57,6 +57,18 @@
     "group": "kraken"
   },
   {
+    "name": "krkn-debug",
+    "short_description": "Krkn debug mode",
+    "description": "Enables debug mode for Krkn",
+    "variable": "KRKN_DEBUG",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
     "name": "tunings",
     "short_description": "Tunings group",
     "description": "Group containing chaos scenario timing and repetition configuration options",
@@ -91,44 +103,6 @@
     "default": "False",
     "required": "false",
     "group": "tunings"
-  },
-  {
-    "name": "general",
-    "short_description": "General group",
-    "description": "Group containing general krkn configuration options",
-    "type": "Group"
-  },
-  {
-    "name": "ssh-public-key",
-    "short_description": "Krkn ssh public key path",
-    "description": "Sets the path where krkn will search for ssh public key (in container)",
-    "variable": "KRKN_SSH_PUBLIC",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "ssh-private-key",
-    "short_description": "Krkn ssh private key path",
-    "description": "Sets the path where krkn will search for ssh private key (in container)",
-    "variable": "KRKN_SSH_PRIVATE",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "krkn-debug",
-    "short_description": "Krkn debug mode",
-    "description": "Enables debug mode for Krkn",
-    "variable": "KRKN_DEBUG",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false",
-    "group": "general"
   },
   {
     "name": "prometheus",
