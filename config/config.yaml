@@ -7,6 +7,7 @@ kraken:
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address
     port: 8081                                             # Signal port
+    generate_pdf_report: True                              # Generate a PDF summary report after the run
     chaos_scenarios:
        # List of policies/chaos scenarios to load
        - hog_scenarios:
@@ -61,6 +62,7 @@ kraken:
               - scenarios/kubevirt/kubevirt-vm-outage.yaml
        - http_load_scenarios:
               - scenarios/kube/http_load_scenario.yml
+
 
 resiliency:
   resiliency_run_mode: standalone  # Options: standalone, detailed, disabled

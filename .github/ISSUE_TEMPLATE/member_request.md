@@ -14,25 +14,18 @@ Please fill out the sections below and check off each requirement you have met b
 
 ## Requirements Checklist
 
-- [ ] I have been actively contributing to Krkn for **at least 3 months**
-- [ ] I have had **at least 3 non-trivial PRs** merged
-- [ ] I have reviewed **at least 5 PRs** from other contributors
-- [ ] I am familiar with the project's coding style, testing practices, and documentation standards
+- [ ] I have been an active **Dedicated Contributor for at least 3 months**
+- [ ] I have had **at least 5 non-trivial PRs** merged
+- [ ] I have reviewed **at least 10 PRs** from other contributors
+- [ ] I have helped onboard or mentor at least one newer contributor
+- [ ] I have demonstrated deep familiarity with at least one subsystem or area of the codebase
 - [ ] I have read and agree to the [Code of Conduct](../../CODE_OF_CONDUCT.md)
 
 ---
 
 ## Merged PRs
 
-List at least 3 non-trivial PRs you authored that have been merged:
-
-1. 
-2. 
-3. 
-
-## PR Reviews
-
-List at least 5 PR reviews you participated in:
+List at least 5 non-trivial PRs you authored that have been merged:
 
 1. 
 2. 
@@ -40,7 +33,30 @@ List at least 5 PR reviews you participated in:
 4. 
 5. 
 
+## PR Reviews
+
+List at least 10 PR reviews you participated in:
+
+1. 
+2. 
+3. 
+4. 
+5. 
+6. 
+7. 
+8. 
+9. 
+10. 
+
+## Mentoring and Onboarding
+
+Describe how you have helped onboard or mentor newer contributors (e.g., guided a PR, answered questions in Slack, co-reviewed work):
+
+## Subsystem Expertise
+
+Describe which area(s) of the codebase you are most familiar with and how your contributions reflect that depth:
+
 ## About Your Involvement
 
-Briefly describe how you have been contributing to the project and why you would like to become a Member:
+Briefly describe your overall involvement in the project and why you would like to become a Member:
 
