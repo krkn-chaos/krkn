@@ -110,6 +110,26 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         return "kubevirt_checks"
 
+    def can_run(self, config: dict[str, Any]) -> bool:
+        """
+        Reports whether a namespace is configured to watch.
+
+        Mirrors the two early returns in ``_initialize_from_config``, which stay in
+        place: that method is also reachable on its own, and it validates further
+        than this (cluster connectivity, VMI discovery) in ways that should not run
+        before the plugin starts.
+
+        :param config: the plugin's section of config.yaml
+        :return: True if a namespace is set; False otherwise
+        """
+        if not config:
+            logging.info("Virt health check config not provided, skipping")
+            return False
+        if get_yaml_item_value(config, "namespace", "") == "":
+            logging.info("kubevirt checks config namespace is not defined, skipping them")
+            return False
+        return True
+
     def manages_own_threads(self) -> bool:
         """
         Virt plugin spawns its own worker threads internally via run_health_check().
