@@ -4,11 +4,17 @@ on:
   push:
     branches:
       - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     # Common steps
     name: Functional & Unit Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Check out code
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
@@ -41,7 +47,7 @@ jobs:
           pip install -r requirements.txt
           pip install coverage
           # Force setuptools==81.0.0 after all deps (some may try to upgrade it to 82+, which removes pkg_resources)
-          pip install --force-reinstall --no-deps setuptools==81.0.0
+          #pip install --force-reinstall --no-deps setuptools==81.0.0
 
       - name: Deploy test workloads
         run: |
@@ -171,6 +177,7 @@ jobs:
       contents: write
     name: Generate Coverage Badge
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     needs:
       - tests
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'

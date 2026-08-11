@@ -407,6 +407,82 @@ class TestResiliencyScenarioReports(unittest.TestCase):
             self.res.get_detailed_report()
 
 
+class TestGetScenarioSloDetails(unittest.TestCase):
+    """Test cases for get_scenario_slo_details method."""
+
+    def setUp(self):
+        """Set up test fixtures with two SLOs."""
+        alerts_data = [
+            {"expr": "up == 0", "severity": "critical", "description": "slo1"},
+            {"expr": "cpu > 80", "severity": "warning", "description": "slo2"},
+        ]
+
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            import yaml
+            yaml.dump(alerts_data, f)
+            self.temp_file = f.name
+
+        self.res = Resiliency(alerts_yaml_path=self.temp_file)
+
+    def tearDown(self):
+        """Clean up temp files."""
+        if os.path.exists(self.temp_file):
+            os.unlink(self.temp_file)
+
+    def test_severity_lookup_from_slos(self):
+        """Test that severity is correctly looked up from the SLO definitions."""
+        self.res.scenario_reports = [
+            {
+                "name": "pod_scenario",
+                "slo_results": {"slo1": True, "slo2": False},
+            }
+        ]
+
+        result = self.res.get_scenario_slo_details()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["scenario"], "pod_scenario")
+        details = {d["name"]: d for d in result[0]["slo_details"]}
+        self.assertEqual(details["slo1"]["severity"], "critical")
+        self.assertTrue(details["slo1"]["passed"])
+        self.assertEqual(details["slo2"]["severity"], "warning")
+        self.assertFalse(details["slo2"]["passed"])
+
+    def test_unknown_severity_for_missing_slo(self):
+        """Test that SLOs not in the alerts file get severity 'unknown'."""
+        self.res.scenario_reports = [
+            {
+                "name": "scenario_x",
+                "slo_results": {"nonexistent_slo": True},
+            }
+        ]
+
+        result = self.res.get_scenario_slo_details()
+
+        self.assertEqual(result[0]["slo_details"][0]["severity"], "unknown")
+
+    def test_multiple_scenarios(self):
+        """Test that details are returned for each scenario in order."""
+        self.res.scenario_reports = [
+            {"name": "first", "slo_results": {"slo1": True}},
+            {"name": "second", "slo_results": {"slo2": False}},
+        ]
+
+        result = self.res.get_scenario_slo_details()
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]["scenario"], "first")
+        self.assertEqual(result[1]["scenario"], "second")
+
+    def test_empty_scenario_reports(self):
+        """Test that empty scenario_reports returns an empty list."""
+        self.res.scenario_reports = []
+
+        result = self.res.get_scenario_slo_details()
+
+        self.assertEqual(result, [])
+
+
 class TestResiliencyCompactBreakdown(unittest.TestCase):
     """Test cases for compact_breakdown static method."""
 
