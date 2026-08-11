@@ -13,7 +13,13 @@
 # limitations under the License.
 import logging
 
+import requests
+
 from krkn.scenario_plugins.triggers.abstract_trigger import AbstractTrigger
+
+# Cap each PromQL request so a hung Prometheus cannot block evaluate()
+# past TriggerManager's deadline between polls (same idea as HttpTrigger).
+PROM_REQUEST_TIMEOUT_SECONDS = 30
 
 
 class PrometheusTrigger(AbstractTrigger):
@@ -49,6 +55,8 @@ class PrometheusTrigger(AbstractTrigger):
                 self._prometheus_url,
                 self._prometheus_bearer_token,
             )
+            # KrknPrometheus does not expose a timeout; PrometheusConnect does.
+            self._prom_client.prom_cli._timeout = PROM_REQUEST_TIMEOUT_SECONDS
         return self._prom_client
 
     def evaluate(self) -> bool:
@@ -61,6 +69,12 @@ class PrometheusTrigger(AbstractTrigger):
                 self._query,
                 len(result) if result is not None else 0,
             )
+        except requests.exceptions.Timeout:
+            logging.warning(
+                f"prometheus trigger timed out after "
+                f"{PROM_REQUEST_TIMEOUT_SECONDS}s: query={self._query!r}"
+            )
+            met = False
         except Exception as e:
             logging.warning(f"prometheus trigger query failed: {e}")
             met = False

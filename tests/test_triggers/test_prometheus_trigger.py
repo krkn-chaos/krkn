@@ -12,7 +12,10 @@ import unittest
 from types import ModuleType
 from unittest.mock import MagicMock, patch
 
-from krkn.scenario_plugins.triggers.prometheus_trigger import PrometheusTrigger
+from krkn.scenario_plugins.triggers.prometheus_trigger import (
+    PROM_REQUEST_TIMEOUT_SECONDS,
+    PrometheusTrigger,
+)
 from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
 
@@ -84,6 +87,26 @@ class TestPrometheusTrigger(unittest.TestCase):
             any("prometheus trigger query failed" in msg for msg in cm.output)
         )
 
+    def test_evaluate_request_timeout(self):
+        """requests.Timeout -> warning with timeout, returns False."""
+        import requests
+
+        trigger = self._make_trigger(
+            client=self._mock_client(
+                side_effect=requests.exceptions.Timeout("hung")
+            )
+        )
+
+        with self.assertLogs(level="WARNING") as cm:
+            self.assertFalse(trigger.evaluate())
+
+        self.assertTrue(
+            any(
+                f"timed out after {PROM_REQUEST_TIMEOUT_SECONDS}s" in msg
+                for msg in cm.output
+            )
+        )
+
     def test_evaluate_generic_exception(self):
         """Unexpected exception -> False, no crash."""
         trigger = self._make_trigger(
@@ -107,6 +130,10 @@ class TestPrometheusTrigger(unittest.TestCase):
 
         mock_cls.assert_called_once_with("http://prometheus:9090", "tok")
         self.assertEqual(mock_cls.return_value.process_query.call_count, 2)
+        self.assertEqual(
+            trigger._prom_client.prom_cli._timeout,
+            PROM_REQUEST_TIMEOUT_SECONDS,
+        )
 
     def test_state_change_logging(self):
         """INFO logs only on state transitions, not every poll."""
