@@ -16,6 +16,8 @@ import time
 
 from krkn.scenario_plugins.triggers.abstract_trigger import AbstractTrigger
 from krkn.scenario_plugins.triggers.command_trigger import CommandTrigger
+from krkn.scenario_plugins.triggers.http_trigger import HttpTrigger
+from krkn.scenario_plugins.triggers.k8s_trigger import K8sTrigger
 
 VALID_MODES = {"all_of", "any_of"}
 VALID_ON_TIMEOUT = {"skip", "fail", "run_anyway"}
@@ -29,7 +31,7 @@ DEFAULT_ON_TIMEOUT = "skip"
 class TriggerManager:
     """Orchestrates polling across multiple triggers."""
 
-    def __init__(self, trigger_config: dict):
+    def __init__(self, trigger_config: dict, kubecli=None):
         conditions = trigger_config.get("conditions")
         if not conditions:
             raise ValueError(
@@ -69,17 +71,17 @@ class TriggerManager:
             )
 
         if self._timeout <= 0:
-            raise ValueError(
-                f"timeout must be positive, got {self._timeout}"
-            )
+            raise ValueError(f"timeout must be positive, got {self._timeout}")
         if self._interval <= 0:
-            raise ValueError(
-                f"interval must be positive, got {self._interval}"
-            )
+            raise ValueError(f"interval must be positive, got {self._interval}")
+
+        self._kubecli = kubecli
 
         self._triggers: list[AbstractTrigger] = []
         for condition in trigger_config["conditions"]:
-            self._triggers.append(self._build_trigger(condition))
+            self._triggers.append(
+                self._build_trigger(condition, kubecli=kubecli)
+            )
 
         # Track per-trigger satisfaction state for get_status
         self._trigger_states: list[bool | None] = [None] * len(self._triggers)
@@ -89,7 +91,9 @@ class TriggerManager:
         return self._on_timeout
 
     @staticmethod
-    def _build_trigger(condition_config: dict) -> AbstractTrigger:
+    def _build_trigger(
+        condition_config: dict, kubecli=None
+    ) -> AbstractTrigger:
         """Factory method that creates a trigger from a condition config."""
         trigger_type = condition_config.get("type")
         if not trigger_type:
@@ -97,6 +101,12 @@ class TriggerManager:
 
         if trigger_type == "command":
             return CommandTrigger(condition_config)
+
+        if trigger_type == "http":
+            return HttpTrigger(condition_config)
+
+        if trigger_type == "k8s":
+            return K8sTrigger(condition_config, kubecli=kubecli)
 
         raise ValueError(f"unknown trigger type: '{trigger_type}'")
 
@@ -119,9 +129,7 @@ class TriggerManager:
                 self._trigger_states[i] = result
                 results.append(result)
 
-            logging.debug(
-                f"trigger poll: {[r for r in results]}"
-            )
+            logging.debug(f"trigger poll: {[r for r in results]}")
 
             if self._mode == "all_of" and all(results):
                 logging.info("all trigger conditions satisfied")

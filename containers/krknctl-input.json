@@ -1,5 +1,11 @@
 [
   {
+    "name": "cerberus",
+    "short_description": "Cerberus group",
+    "description": "Group containing cerberus-related configuration options",
+    "type": "Group"
+  },
+  {
     "name": "cerberus-enabled",
     "short_description": "Enable Cerberus",
     "description": "Enables Cerberus Support",
@@ -21,6 +27,12 @@
     "validator": "^(http|https):\/\/.*",
     "required": "false",
     "group": "cerberus"
+  },
+  {
+    "name": "general",
+    "short_description": "General group",
+    "description": "Group containing general krkn configuration options",
+    "type": "Group"
   },
   {
     "name": "ssh-public-key",
@@ -83,6 +95,46 @@
     "group": "general"
   },
   {
+    "name": "uuid",
+    "short_description": "Sets krkn run uuid",
+    "description": "sets krkn run uuid instead of generating it",
+    "variable": "UUID",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "general"
+  },
+  {
+    "name": "generate-pdf-report",
+    "short_description": "Generate PDF report",
+    "description": "Generate a PDF summary report after the chaos run",
+    "variable": "GENERATE_PDF_REPORT",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "True",
+    "required": "false",
+    "group": "general"
+  },
+  {
+    "name": "krkn-debug",
+    "short_description": "Krkn debug mode",
+    "description": "Enables debug mode for Krkn",
+    "variable": "KRKN_DEBUG",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "general"
+  },
+  {
+    "name": "prometheus",
+    "short_description": "Prometheus group",
+    "description": "Group containing prometheus monitoring and alerting configuration options",
+    "type": "Group"
+  },
+  {
     "name": "prometheus-url",
     "short_description": "Prometheus url",
     "description": "Prometheus url for when running on kuberenetes",
@@ -101,16 +153,6 @@
     "default": "",
     "required": "false",
     "group": "prometheus"
-  },
-  {
-    "name": "uuid",
-    "short_description": "Sets krkn run uuid",
-    "description": "sets krkn run uuid instead of generating it",
-    "variable": "UUID",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "group": "general"
   },
   {
     "name": "capture-metrics",
@@ -155,6 +197,24 @@
     "default": "config/metrics-aggregated.yaml",
     "required": "false",
     "group": "prometheus"
+  },
+  {
+    "name": "check-critical-alerts",
+    "short_description": "Check critical alerts",
+    "description": "Enables checking for critical alerts",
+    "variable": "CHECK_CRITICAL_ALERTS",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "elasticsearch",
+    "short_description": "Elasticsearch group",
+    "description": "Group containing elasticsearch data collection and indexing configuration options",
+    "type": "Group"
   },
   {
     "name": "enable-es",
@@ -261,16 +321,10 @@
     "group": "elasticsearch"
   },
   {
-    "name": "check-critical-alerts",
-    "short_description": "Check critical alerts",
-    "description": "Enables checking for critical alerts",
-    "variable": "CHECK_CRITICAL_ALERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false",
-    "group": "prometheus"
+    "name": "telemetry",
+    "short_description": "Telemetry group",
+    "description": "Group containing telemetry data collection and backup configuration options",
+    "type": "Group"
   },
   {
     "name": "telemetry-enabled",
@@ -444,6 +498,12 @@
     "group": "telemetry"
   },
   {
+    "name": "health_check",
+    "short_description": "Health check group",
+    "description": "Group containing health check URL monitoring configuration options",
+    "type": "Group"
+  },
+  {
     "name": "health-check-interval",
     "short_description": "Heath check interval",
     "description": "How often to check the health check urls",
@@ -506,6 +566,12 @@
     "default": "False",
     "required": "false",
     "group": "health_check"
+  },
+  {
+    "name": "kubevirt",
+    "short_description": "KubeVirt group",
+    "description": "Group containing KubeVirt VM monitoring and check configuration options",
+    "type": "Group"
   },
   {
     "name": "kubevirt-check-interval",
@@ -604,16 +670,10 @@
     "group": "kubevirt"
   },
   {
-    "name": "krkn-debug",
-    "short_description": "Krkn debug mode",
-    "description": "Enables debug mode for Krkn",
-    "variable": "KRKN_DEBUG",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false",
-    "group": "general"
+    "name": "resiliency",
+    "short_description": "Resiliency group",
+    "description": "Group containing resiliency score calculation configuration options",
+    "type": "Group"
   },
   {
     "name": "resiliency-score",
@@ -642,5 +702,176 @@
     "required": "false",
     "mount_path": "/home/krkn/resiliency-file.yaml",
     "group": "resiliency"
+  },
+  {
+    "name": "triggers",
+    "short_description": "Triggers group",
+    "description": "Group containing chaos trigger conditions and timing configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "trigger-command",
+    "short_description": "Trigger command",
+    "description": "Shell command to evaluate before chaos starts. Chaos begins only after this command exits with the expected code. Leave empty to disable triggers.",
+    "variable": "TRIGGER_COMMAND",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-expected-rc",
+    "short_description": "Trigger expected exit code",
+    "description": "Expected shell command exit code for the trigger to be considered satisfied",
+    "variable": "TRIGGER_EXPECTED_RC",
+    "type": "number",
+    "default": "0",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-mode",
+    "short_description": "Triggers mode",
+    "description": "How multiple trigger conditions are combined",
+    "variable": "TRIGGERS_MODE",
+    "type": "enum",
+    "allowed_values": "all_of,any_of",
+    "separator": ",",
+    "default": "all_of",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-timeout",
+    "short_description": "Triggers timeout",
+    "description": "Maximum time in seconds to wait for trigger conditions before applying on-timeout behavior",
+    "variable": "TRIGGERS_TIMEOUT",
+    "type": "number",
+    "default": "300",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-interval",
+    "short_description": "Triggers polling interval",
+    "description": "Polling interval in seconds while waiting for trigger conditions",
+    "variable": "TRIGGERS_INTERVAL",
+    "type": "number",
+    "default": "5",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-on-timeout",
+    "short_description": "Triggers on timeout",
+    "description": "Behavior when trigger conditions are not met before timeout",
+    "variable": "TRIGGERS_ON_TIMEOUT",
+    "type": "enum",
+    "allowed_values": "skip,fail,run_anyway",
+    "separator": ",",
+    "default": "skip",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-url",
+    "short_description": "Trigger HTTP URL",
+    "description": "URL to poll for the HTTP trigger",
+    "variable": "TRIGGER_HTTP_URL",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-method",
+    "short_description": "Trigger HTTP Method",
+    "description": "HTTP method to use (GET, POST, etc.)",
+    "variable": "TRIGGER_HTTP_METHOD",
+    "type": "string",
+    "default": "GET",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-expected-status",
+    "short_description": "Trigger HTTP Expected Status",
+    "description": "Expected HTTP status code",
+    "variable": "TRIGGER_HTTP_EXPECTED_STATUS",
+    "type": "number",
+    "default": "200",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-bearer-token",
+    "short_description": "Trigger HTTP Bearer Token",
+    "description": "Bearer token for HTTP authentication",
+    "variable": "TRIGGER_HTTP_BEARER_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "secret": "true",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-body-contains",
+    "short_description": "Trigger HTTP Body Contains",
+    "description": "Substring expected in the HTTP response body",
+    "variable": "TRIGGER_HTTP_BODY_CONTAINS",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-api-version",
+    "short_description": "K8s trigger API version",
+    "description": "Kubernetes API version for the resource to watch (e.g. apps/v1, kubevirt.io/v1). Required when using a k8s trigger condition.",
+    "variable": "TRIGGER_K8S_API_VERSION",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-kind",
+    "short_description": "K8s trigger resource kind",
+    "description": "Kubernetes resource kind to watch (e.g. Deployment, Pod, VirtualMachineInstanceMigration)",
+    "variable": "TRIGGER_K8S_KIND",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-namespace",
+    "short_description": "K8s trigger namespace",
+    "description": "Namespace of the resource to watch. Leave empty for cluster-scoped resources like Nodes.",
+    "variable": "TRIGGER_K8S_NAMESPACE",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-name",
+    "short_description": "K8s trigger resource name",
+    "description": "Name of the specific Kubernetes resource to watch",
+    "variable": "TRIGGER_K8S_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-condition",
+    "short_description": "K8s trigger condition",
+    "description": "Condition expression to evaluate against the resource (e.g. status.phase == Running, status.readyReplicas >= 1)",
+    "variable": "TRIGGER_K8S_CONDITION",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
   }
 ]
