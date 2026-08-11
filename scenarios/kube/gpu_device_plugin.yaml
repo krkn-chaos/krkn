@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=../plugin.schema.json
+- id: gpu-device-plugin-disruption
+  config:
+    namespace: nvidia-gpu-operator
+    pod_label_selector: "app=nvidia-device-plugin-daemonset"
+    number_of_nodes: 1
+    recovery_timeout: 120
+    expected_recovery: true
+    verify_allocatable: true
+    validate_gpu_health: true
