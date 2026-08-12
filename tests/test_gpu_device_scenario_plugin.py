@@ -257,6 +257,54 @@ class TestGpuUtils(unittest.TestCase):
 
         self.assertFalse(result)
 
+    def test_validate_gpu_health_on_node_error_output(self):
+        """nvidia-smi error message should fail health check even though it contains 'NVIDIA'"""
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.select_pods_by_namespace_pattern_and_label.return_value = [
+            ("nvidia-driver-daemonset-abc", "nvidia-gpu-operator")
+        ]
+        kubecli.exec_cmd_in_pod.return_value = (
+            "NVIDIA-SMI has failed because it couldn't communicate "
+            "with the NVIDIA driver."
+        )
+
+        result = validate_gpu_health_on_node(kubecli, "gpu-node")
+
+        self.assertFalse(result)
+
+    def test_validate_gpu_health_on_node_empty_output(self):
+        """Empty nvidia-smi output should fail health check"""
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.select_pods_by_namespace_pattern_and_label.return_value = [
+            ("nvidia-driver-daemonset-abc", "nvidia-gpu-operator")
+        ]
+        kubecli.exec_cmd_in_pod.return_value = ""
+
+        result = validate_gpu_health_on_node(kubecli, "gpu-node")
+
+        self.assertFalse(result)
+
+    def test_validate_gpu_health_custom_namespace(self):
+        """Health check should use the provided namespace"""
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.select_pods_by_namespace_pattern_and_label.return_value = [
+            ("nvidia-driver-daemonset-abc", "custom-ns")
+        ]
+        kubecli.exec_cmd_in_pod.return_value = (
+            "NVIDIA A30, GPU-abc123, 24576 MiB"
+        )
+
+        result = validate_gpu_health_on_node(
+            kubecli, "gpu-node", namespace="custom-ns"
+        )
+
+        self.assertTrue(result)
+        kubecli.select_pods_by_namespace_pattern_and_label.assert_called_once_with(
+            namespace_pattern="^custom-ns$",
+            label_selector="app.kubernetes.io/component=nvidia-driver",
+            field_selector="spec.nodeName=gpu-node,status.phase=Running",
+        )
+
 
 class TestGpuDeviceDisruption(unittest.TestCase):
 
@@ -442,6 +490,52 @@ class TestGpuDeviceDisruption(unittest.TestCase):
 
         self.assertEqual(result, 1)
         mock_wait_alloc.assert_called_once()
+
+    @patch("krkn.scenario_plugins.gpu_device.gpu_device_scenario_plugin.validate_gpu_operator_present")
+    @patch("krkn.scenario_plugins.gpu_device.gpu_device_scenario_plugin.find_gpu_operator_pods")
+    @patch("krkn.scenario_plugins.gpu_device.gpu_device_scenario_plugin.discover_gpu_nodes")
+    @patch("krkn.scenario_plugins.gpu_device.gpu_device_scenario_plugin.get_node_gpu_allocatable")
+    @patch("krkn.scenario_plugins.gpu_device.gpu_device_scenario_plugin.select_and_monitor_by_namespace_pattern_and_label")
+    def test_expected_recovery_false_returns_success(
+        self,
+        mock_monitor,
+        mock_get_alloc,
+        mock_discover,
+        mock_find_pods,
+        mock_validate_op,
+    ):
+        """When expected_recovery=False and pods don't recover, scenario should pass"""
+        mock_validate_op.return_value = True
+        mock_find_pods.return_value = [
+            ("nvidia-device-plugin-abc", "nvidia-gpu-operator")
+        ]
+        mock_discover.return_value = [{"name": "gpu-node", "gpu_count": 1}]
+        mock_get_alloc.return_value = 1
+
+        self.kubecli.read_pod.return_value = self._make_pod_info("gpu-node")
+
+        unrecovered_pod = MagicMock()
+        unrecovered_pod.name = "nvidia-device-plugin-abc"
+        mock_snapshot = MagicMock()
+        mock_status = MagicMock()
+        mock_status.unrecovered = [unrecovered_pod]
+        mock_snapshot.get_pods_status.return_value = mock_status
+        mock_future = MagicMock()
+        mock_future.result.return_value = mock_snapshot
+        mock_monitor.return_value = mock_future
+
+        self.plugin.rollback_handler = MagicMock()
+
+        config = InputParams({
+            "expected_recovery": False,
+            "validate_gpu_health": False,
+        })
+        telemetry = MagicMock()
+
+        result = self.plugin._run_disruption(config, self.kubecli, telemetry)
+
+        # Should return 0 (success) since we don't expect recovery
+        self.assertEqual(result, 0)
 
 
 if __name__ == "__main__":

@@ -84,17 +84,33 @@ def validate_gpu_health_on_node(
     driver_pod_ns = driver_pods[0][1]
     try:
         output = kubecli.exec_cmd_in_pod(
-            command=["nvidia-smi", "--query-gpu=name,uuid,memory.total",
-                     "--format=csv,noheader"],
+            command=[
+                "nvidia-smi --query-gpu=name,uuid,memory.total "
+                "--format=csv,noheader"
+            ],
             pod_name=driver_pod_name,
             namespace=driver_pod_ns,
             container="nvidia-driver-ctr",
         )
-        logging.info(f"nvidia-smi on {node_name}: {output.strip()}")
-        if "GPU" not in output and "NVIDIA" not in output.upper():
+        stripped = output.strip()
+        logging.info(f"nvidia-smi on {node_name}: {stripped}")
+
+        # Detect nvidia-smi error messages that still contain "NVIDIA"
+        error_indicators = ["has failed", "no devices", "driver not loaded",
+                            "unable to", "error", "not found"]
+        lower_output = stripped.lower()
+        for indicator in error_indicators:
+            if indicator in lower_output:
+                logging.error(
+                    f"nvidia-smi error detected on {node_name}: {stripped}"
+                )
+                return False
+
+        # Validate CSV output contains expected GPU info
+        if not stripped or ("," not in stripped):
             logging.error(
                 f"nvidia-smi output on {node_name} does not indicate "
-                f"healthy GPU: {output}"
+                f"healthy GPU: {stripped}"
             )
             return False
         return True

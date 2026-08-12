@@ -154,7 +154,7 @@ class GpuDeviceScenarioPlugin(AbstractScenarioPlugin):
         if config.validate_gpu_health:
             for node_info in target_nodes:
                 node_name = node_info["name"]
-                if not validate_gpu_health_on_node(kubecli, node_name):
+                if not validate_gpu_health_on_node(kubecli, node_name, namespace=config.namespace):
                     logging.error(
                         f"pre-disruption GPU health check failed on "
                         f"node {node_name}"
@@ -177,15 +177,14 @@ class GpuDeviceScenarioPlugin(AbstractScenarioPlugin):
             f"{config.krkn_pod_recovery_time}s"
         )
 
-        # Register rollback
-        for pod_name, pod_ns in target_pods:
-            self.rollback_handler.set_rollback_callable(
-                self.rollback_verify_device_plugin,
-                RollbackContent(
-                    namespace=pod_ns,
-                    resource_identifier=config.pod_label_selector,
-                ),
-            )
+        # Register rollback (once — args are invariant across pods)
+        self.rollback_handler.set_rollback_callable(
+            self.rollback_verify_device_plugin,
+            RollbackContent(
+                namespace=config.namespace,
+                resource_identifier=config.pod_label_selector,
+            ),
+        )
 
         # Inject: delete device plugin pods
         for pod_name, pod_ns in target_pods:
@@ -204,6 +203,12 @@ class GpuDeviceScenarioPlugin(AbstractScenarioPlugin):
             )
             if config.expected_recovery:
                 return 1
+            else:
+                logging.info(
+                    "expected_recovery=False: skipping remaining "
+                    "verification for intentionally unrecovered pods"
+                )
+                return 0
 
         # Verify GPU allocatable restored
         if config.verify_allocatable:
@@ -220,7 +225,7 @@ class GpuDeviceScenarioPlugin(AbstractScenarioPlugin):
         if config.validate_gpu_health:
             for node_info in target_nodes:
                 node_name = node_info["name"]
-                if not validate_gpu_health_on_node(kubecli, node_name):
+                if not validate_gpu_health_on_node(kubecli, node_name, namespace=config.namespace):
                     logging.error(
                         f"post-disruption GPU health check failed on "
                         f"node {node_name}"
