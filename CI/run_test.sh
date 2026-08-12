@@ -43,3 +43,8 @@ fi
 if [ -f kraken.report.pdf ]; then
   cp kraken.report.pdf "CI/out/${ci_test}.report.pdf"
 fi
+
+# Preserve per-test HTML report
+if [ -f kraken.report.html ]; then
+  cp kraken.report.html "CI/out/${ci_test}.report.html"
+fi
