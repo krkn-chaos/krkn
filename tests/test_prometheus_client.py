@@ -138,6 +138,98 @@ class TestAlertsKeyValidation(unittest.TestCase):
         finally:
             os.unlink(profile_path)
 
+    def test_alerts_returns_critical_and_error_firing_count(self):
+        """alerts() should return the count of firing alerts with severity critical or error."""
+        profile_path = self._write_alert_profile(
+            '- expr: "up == 0"\n'
+            '  description: "critical alert"\n'
+            '  severity: "critical"\n'
+            '- expr: "node == 0"\n'
+            '  description: "error alert"\n'
+            '  severity: "error"\n'
+            '- expr: "mem > 80"\n'
+            '  description: "warning alert"\n'
+            '  severity: "warning"\n'
+        )
+        try:
+            self.prom_cli.process_alert.side_effect = [
+                (self.start_time, "critical alert"),
+                (self.start_time, "error alert"),
+                (self.start_time, "warning alert"),
+            ]
+            self.elastic.push_alert.return_value = 0
+
+            count = client.alerts(
+                self.prom_cli,
+                self.elastic,
+                self.run_uuid,
+                self.start_time,
+                self.end_time,
+                profile_path,
+                self.elastic_alerts_index,
+            )
+
+            self.assertEqual(count, 2)
+        finally:
+            os.unlink(profile_path)
+
+    def test_alerts_returns_zero_when_no_alerts_fire(self):
+        """alerts() should return 0 when no critical/error alerts fire."""
+        profile_path = self._write_alert_profile(
+            '- expr: "up == 0"\n'
+            '  description: "critical alert"\n'
+            '  severity: "critical"\n'
+        )
+        try:
+            self.prom_cli.process_alert.return_value = (None, None)
+
+            count = client.alerts(
+                self.prom_cli,
+                self.elastic,
+                self.run_uuid,
+                self.start_time,
+                self.end_time,
+                profile_path,
+                self.elastic_alerts_index,
+            )
+
+            self.assertEqual(count, 0)
+        finally:
+            os.unlink(profile_path)
+
+    def test_alerts_handles_case_insensitive_severity(self):
+        """alerts() should match severities case-insensitively (e.g. CRITICAL or Error)."""
+        profile_path = self._write_alert_profile(
+            '- expr: "up == 0"\n'
+            '  description: "uppercase critical"\n'
+            '  severity: "CRITICAL"\n'
+            '- expr: "node == 0"\n'
+            '  description: "capitalized error"\n'
+            '  severity: "Error"\n'
+        )
+        try:
+            self.prom_cli.process_alert.side_effect = [
+                (self.start_time, "uppercase critical"),
+                (self.start_time, "capitalized error"),
+            ]
+            self.elastic.push_alert.return_value = 0
+
+            count = client.alerts(
+                self.prom_cli,
+                self.elastic,
+                self.run_uuid,
+                self.start_time,
+                self.end_time,
+                profile_path,
+                self.elastic_alerts_index,
+            )
+
+            self.assertEqual(count, 2)
+        finally:
+            os.unlink(profile_path)
+
+
+
 
 class TestAlertsFailureCount(unittest.TestCase):
     """Tests that alerts() returns the correct failure count for critical/error severity."""

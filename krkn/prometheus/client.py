@@ -42,7 +42,7 @@ def alerts(
     end_time,
     alert_profile,
     elastic_alerts_index
-):
+) -> int:
 
     if alert_profile is None or os.path.exists(alert_profile) is False:
         logging.error(f"{alert_profile} alert profile does not exist")
@@ -70,10 +70,11 @@ def alerts(
                 datetime.datetime.fromtimestamp(start_time),
                 datetime.datetime.fromtimestamp(end_time),
             )
-            if processed_alert[0] and processed_alert[1]:
-                if alert["severity"] == "critical":
-                    failure_alert_count += 1
-                if alert["severity"] == "error":
+            if (
+                processed_alert[0] is not None
+                and processed_alert[1] is not None
+            ):
+                if str(alert.get("severity", "")).lower().strip() in ["critical", "error"]:
                     failure_alert_count += 1
                 if elastic:
                     elastic_alert = ElasticAlert(
@@ -85,6 +86,7 @@ def alerts(
                     result = elastic.push_alert(elastic_alert, elastic_alerts_index)
                     if result == -1:
                         logging.error("failed to save alert on ElasticSearch")
+
         return failure_alert_count
 
 
