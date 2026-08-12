@@ -223,7 +223,7 @@ class TestGpuUtils(unittest.TestCase):
             ("nvidia-driver-daemonset-abc", "nvidia-gpu-operator")
         ]
         kubecli.exec_cmd_in_pod.return_value = (
-            "NVIDIA A30, GPU-abc123, 24576 MiB"
+            "NVIDIA A30, GPU-abc123, 24576 MiB\nKRKN_EXIT:0"
         )
 
         result = validate_gpu_health_on_node(kubecli, "gpu-node")
@@ -265,7 +265,7 @@ class TestGpuUtils(unittest.TestCase):
         ]
         kubecli.exec_cmd_in_pod.return_value = (
             "NVIDIA-SMI has failed because it couldn't communicate "
-            "with the NVIDIA driver."
+            "with the NVIDIA driver.\nKRKN_EXIT:6"
         )
 
         result = validate_gpu_health_on_node(kubecli, "gpu-node")
@@ -278,7 +278,7 @@ class TestGpuUtils(unittest.TestCase):
         kubecli.select_pods_by_namespace_pattern_and_label.return_value = [
             ("nvidia-driver-daemonset-abc", "nvidia-gpu-operator")
         ]
-        kubecli.exec_cmd_in_pod.return_value = ""
+        kubecli.exec_cmd_in_pod.return_value = "\nKRKN_EXIT:0"
 
         result = validate_gpu_health_on_node(kubecli, "gpu-node")
 
@@ -291,7 +291,7 @@ class TestGpuUtils(unittest.TestCase):
             ("nvidia-driver-daemonset-abc", "custom-ns")
         ]
         kubecli.exec_cmd_in_pod.return_value = (
-            "NVIDIA A30, GPU-abc123, 24576 MiB"
+            "NVIDIA A30, GPU-abc123, 24576 MiB\nKRKN_EXIT:0"
         )
 
         result = validate_gpu_health_on_node(
@@ -304,6 +304,20 @@ class TestGpuUtils(unittest.TestCase):
             label_selector="app.kubernetes.io/component=nvidia-driver",
             field_selector="spec.nodeName=gpu-node,status.phase=Running",
         )
+
+    def test_validate_gpu_health_nonzero_exit_code(self):
+        """nvidia-smi non-zero exit code should fail health check"""
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.select_pods_by_namespace_pattern_and_label.return_value = [
+            ("nvidia-driver-daemonset-abc", "nvidia-gpu-operator")
+        ]
+        kubecli.exec_cmd_in_pod.return_value = (
+            "Some unexpected output\nKRKN_EXIT:15"
+        )
+
+        result = validate_gpu_health_on_node(kubecli, "gpu-node")
+
+        self.assertFalse(result)
 
 
 class TestGpuDeviceDisruption(unittest.TestCase):

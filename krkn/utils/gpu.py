@@ -86,31 +86,48 @@ def validate_gpu_health_on_node(
         output = kubecli.exec_cmd_in_pod(
             command=[
                 "nvidia-smi --query-gpu=name,uuid,memory.total "
-                "--format=csv,noheader"
+                "--format=csv,noheader; echo KRKN_EXIT:$?"
             ],
             pod_name=driver_pod_name,
             namespace=driver_pod_ns,
             container="nvidia-driver-ctr",
         )
-        stripped = output.strip()
-        logging.info(f"nvidia-smi on {node_name}: {stripped}")
+
+        # Parse exit code from command output
+        exit_code = None
+        lines = output.strip().splitlines()
+        if lines and lines[-1].startswith("KRKN_EXIT:"):
+            exit_code = int(lines[-1].split(":")[1])
+            gpu_output = "\n".join(lines[:-1]).strip()
+        else:
+            gpu_output = output.strip()
+
+        logging.info(f"nvidia-smi on {node_name}: {gpu_output}")
+
+        # Check exit code first — nvidia-smi returns non-zero on failure
+        if exit_code is not None and exit_code != 0:
+            logging.error(
+                f"nvidia-smi exited with code {exit_code} on "
+                f"node {node_name}: {gpu_output}"
+            )
+            return False
 
         # Detect nvidia-smi error messages that still contain "NVIDIA"
         error_indicators = ["has failed", "no devices", "driver not loaded",
-                            "unable to", "error", "not found"]
-        lower_output = stripped.lower()
+                            "unable to", "not found"]
+        lower_output = gpu_output.lower()
         for indicator in error_indicators:
             if indicator in lower_output:
                 logging.error(
-                    f"nvidia-smi error detected on {node_name}: {stripped}"
+                    f"nvidia-smi error detected on {node_name}: {gpu_output}"
                 )
                 return False
 
         # Validate CSV output contains expected GPU info
-        if not stripped or ("," not in stripped):
+        if not gpu_output or ("," not in gpu_output):
             logging.error(
                 f"nvidia-smi output on {node_name} does not indicate "
-                f"healthy GPU: {stripped}"
+                f"healthy GPU: {gpu_output}"
             )
             return False
         return True
