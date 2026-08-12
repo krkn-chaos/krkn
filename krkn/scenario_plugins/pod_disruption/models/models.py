@@ -31,6 +31,8 @@ class InputParams:
             self.node_names = config["node_names"] if "node_names" in config else []
             self.exclude_label = config["exclude_label"] if "exclude_label" in config else ""
             self.force = config["force"] if "force" in config else False
+            if not isinstance(self.force, bool):
+                raise ValueError(f"Invalid value '{self.force}' for 'force' in config. Must be a boolean (true/false).")
 
     namespace_pattern: str
     krkn_pod_recovery_time: int
