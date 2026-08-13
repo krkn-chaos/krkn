@@ -825,10 +825,6 @@
     "group": "triggers"
   },
   {
-    "name": "trigger-prom-query",
-    "short_description": "Prometheus trigger query",
-    "description": "PromQL expression for the prometheus trigger. Chaos begins only after the query returns a non-empty result. Leave empty to disable.",
-    "variable": "TRIGGER_PROM_QUERY",
     "name": "trigger-k8s-api-version",
     "short_description": "K8s trigger API version",
     "description": "Kubernetes API version for the resource to watch (e.g. apps/v1, kubevirt.io/v1). Required when using a k8s trigger condition.",
@@ -839,10 +835,6 @@
     "group": "triggers"
   },
   {
-    "name": "trigger-prom-url",
-    "short_description": "Prometheus trigger URL",
-    "description": "Prometheus API URL used by the prometheus trigger condition. Required when trigger-prom-query is set.",
-    "variable": "TRIGGER_PROM_URL",
     "name": "trigger-k8s-kind",
     "short_description": "K8s trigger resource kind",
     "description": "Kubernetes resource kind to watch (e.g. Deployment, Pod, VirtualMachineInstanceMigration)",
@@ -853,14 +845,6 @@
     "group": "triggers"
   },
   {
-    "name": "trigger-prom-token",
-    "short_description": "Prometheus trigger bearer token",
-    "description": "Optional bearer token for authenticating the prometheus trigger against prometheus-url",
-    "variable": "TRIGGER_PROM_TOKEN",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "secret": "true",
     "name": "trigger-k8s-namespace",
     "short_description": "K8s trigger namespace",
     "description": "Namespace of the resource to watch. Leave empty for cluster-scoped resources like Nodes.",
@@ -888,6 +872,37 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-query",
+    "short_description": "Prometheus trigger query",
+    "description": "PromQL expression for the prometheus trigger. Chaos begins only after the query returns a non-empty result. Leave empty to disable.",
+    "variable": "TRIGGER_PROM_QUERY",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-url",
+    "short_description": "Prometheus trigger URL",
+    "description": "Prometheus API URL used by the prometheus trigger condition. Required when trigger-prom-query is set.",
+    "variable": "TRIGGER_PROM_URL",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-token",
+    "short_description": "Prometheus trigger bearer token",
+    "description": "Optional bearer token for authenticating the prometheus trigger against prometheus-url",
+    "variable": "TRIGGER_PROM_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "secret": "true",
     "group": "triggers"
   }
 ]

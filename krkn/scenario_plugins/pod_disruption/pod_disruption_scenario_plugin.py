@@ -250,11 +250,15 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     pods_to_kill.append(pod)
                     
             if config.execution == "parallel":
-                self._delete_pods_parallel(pods_to_kill, kubecli)
+                self._delete_pods_parallel(pods_to_kill, kubecli, config.force)
             else:
                 for pod in pods_to_kill:
-                    logging.info(f'Deleting pod {pod[0]}')
-                    kubecli.delete_pod(pod[0], pod[1])
+                    if config.force:
+                        logging.info(f'Force deleting pod {pod[0]} (grace_period_seconds=0)')
+                        kubecli.delete_pod(pod[0], pod[1], grace_period_seconds=0)
+                    else:
+                        logging.info(f'Gracefully deleting pod {pod[0]}')
+                        kubecli.delete_pod(pod[0], pod[1])
             
             return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         except Exception as e:
@@ -284,14 +288,18 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
         return 0
 
-    def _delete_pods_parallel(self, pods: list, kubecli: KrknKubernetes):
+    def _delete_pods_parallel(self, pods: list, kubecli: KrknKubernetes, force: bool = False):
         """Delete pods concurrently using a thread pool to avoid unbounded threads."""
         error_queue = queue.Queue()
 
         def _delete(pod):
             try:
-                logging.info(f'[parallel] Deleting pod {pod[0]}')
-                kubecli.delete_pod(pod[0], pod[1])
+                if force:
+                    logging.info(f'[parallel] Force deleting pod {pod[0]} (grace_period_seconds=0)')
+                    kubecli.delete_pod(pod[0], pod[1], grace_period_seconds=0)
+                else:
+                    logging.info(f'[parallel] Gracefully deleting pod {pod[0]}')
+                    kubecli.delete_pod(pod[0], pod[1])
             except Exception as exc:
                 error_queue.put(exc)
 
