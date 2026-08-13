@@ -400,7 +400,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # Capture the start time
         start_time = int(time.time())
         post_critical_alerts = 0
-        profile_critical_alerts = 0
+        profile_critical_alerts = []
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
@@ -630,8 +630,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
 
             except Exception as e:
                 logging.error("Failed to finalize resiliency scoring: %s", e)
-
-
+        
         # Check for the alerts specified before telemetry so job_status is included in output
         if enable_alerts:
             logging.info("Alerts checking is enabled")
