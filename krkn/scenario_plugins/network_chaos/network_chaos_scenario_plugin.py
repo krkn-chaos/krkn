@@ -14,6 +14,7 @@
 import logging
 import os
 import random
+import re
 import time
 
 import yaml
@@ -24,6 +25,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value, log_exception
 
 from krkn.scenario_plugins.node_actions import common_node_functions
+from krkn.scenario_plugins.node_actions.ssh_node_scenarios import SSHExecutor
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
@@ -37,9 +39,20 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
     ) -> int:
         try:
             with open(scenario, "r") as file:
-                param_lst = ["latency", "loss", "bandwidth"]
                 test_config = yaml.safe_load(file)
                 test_dict = test_config["network_chaos"]
+
+                targets = get_yaml_item_value(test_dict, "targets", [])
+                if targets:
+                    return self._run_standalone(test_dict, targets)
+
+                if lib_telemetry.get_lib_kubernetes() is None:
+                    logging.error(
+                        "network_chaos_scenarios requires 'targets' field in standalone mode"
+                    )
+                    return 1
+
+                param_lst = ["latency", "loss", "bandwidth"]
                 test_duration = int(get_yaml_item_value(test_dict, "duration", 300))
                 test_interface = get_yaml_item_value(test_dict, "interfaces", [])
                 test_node = get_yaml_item_value(test_dict, "node_name", "")
@@ -242,22 +255,101 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
             kubecli.delete_job(name=jobname, namespace="default")
 
     def get_egress_cmd(self, execution, test_interface, mod, vallst, duration=30):
+        import shlex
         tc_set = tc_unset = tc_ls = ""
         param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
         for i in test_interface:
-            tc_set = "{0} tc qdisc add dev {1} root netem".format(tc_set, i)
-            tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, i)
-            tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, i)
+            safe_iface = shlex.quote(i)
+            tc_set = "{0} tc qdisc add dev {1} root netem".format(tc_set, safe_iface)
+            tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, safe_iface)
+            tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, safe_iface)
             if execution == "parallel":
                 for val in vallst.keys():
-                    tc_set += " {0} {1} ".format(param_map[val], vallst[val])
+                    tc_set += " {0} {1} ".format(param_map[val], shlex.quote(str(vallst[val])))
                 tc_set += ";"
             else:
-                tc_set += " {0} {1} ;".format(param_map[mod], vallst[mod])
+                tc_set += " {0} {1} ;".format(param_map[mod], shlex.quote(str(vallst[mod])))
         exec_cmd = "sleep 30;{0} {1} sleep {2};{3} sleep 20;{4}".format(
             tc_set, tc_ls, duration, tc_unset, tc_ls
         )
         return exec_cmd
+
+    @staticmethod
+    def _validate_egress_params(egress: dict) -> None:
+        """Validate egress parameters to prevent injection."""
+        if "latency" in egress:
+            if not re.match(r"^\d+m?s$", str(egress["latency"])):
+                raise ValueError("Invalid latency format: %s" % egress["latency"])
+        if "bandwidth" in egress:
+            if not re.match(r"^\d+[kmg]?bit$", str(egress["bandwidth"]), re.IGNORECASE):
+                raise ValueError("Invalid bandwidth format: %s" % egress["bandwidth"])
+        if "loss" in egress:
+            if not re.match(r"^\d+(\.\d+)?%?$", str(egress["loss"])):
+                raise ValueError("Invalid loss format: %s" % egress["loss"])
+
+    def _run_standalone(self, test_dict: dict, targets: list[str]) -> int:
+        """Run network chaos on standalone targets via SSH + tc/iptables."""
+        test_duration = int(get_yaml_item_value(test_dict, "duration", 300))
+        test_interface = get_yaml_item_value(test_dict, "interfaces", [])
+        test_execution = get_yaml_item_value(test_dict, "execution", "serial")
+        test_egress = get_yaml_item_value(
+            test_dict, "egress", {"bandwidth": "100mbit"}
+        )
+        self._validate_egress_params(test_egress)
+
+        ssh_executor = SSHExecutor(
+            ssh_user=get_yaml_item_value(test_dict, "ssh_user", "root"),
+            ssh_private_key=os.path.expanduser(
+                get_yaml_item_value(test_dict, "ssh_private_key", "~/.ssh/id_rsa")
+            ),
+            ssh_port=get_yaml_item_value(test_dict, "ssh_port", 22),
+        )
+
+        if not test_interface:
+            exit_code, stdout, _ = ssh_executor.execute(
+                targets[0],
+                "ip r | grep default | awk '{print $5}' | head -1",
+                timeout=10,
+            )
+            if exit_code != 0 or not stdout.strip():
+                raise Exception(
+                    "Cannot detect default interface on %s" % targets[0]
+                )
+            detected_iface = stdout.strip()
+            if not re.match(r"^[a-zA-Z0-9._-]+$", detected_iface):
+                raise ValueError(
+                    "Invalid interface name detected on %s: %s"
+                    % (targets[0], detected_iface)
+                )
+            test_interface = [detected_iface]
+            logging.info("Auto-detected interface: %s" % test_interface)
+
+        param_lst = ["latency", "loss", "bandwidth"]
+        egress_lst = [i for i in param_lst if i in test_egress]
+        exec_cmd = self.get_egress_cmd(
+            test_execution, test_interface, egress_lst[0] if egress_lst else "latency",
+            test_egress, duration=test_duration
+        )
+
+        logging.info("Standalone network chaos on %d target(s)" % len(targets))
+
+        for target in targets:
+            logging.info("[%s] Executing: %s" % (target, exec_cmd))
+            exit_code, stdout, stderr = ssh_executor.execute(
+                target, exec_cmd, timeout=test_duration + 120
+            )
+            if exit_code != 0:
+                logging.error("[%s] Network chaos failed: %s" % (target, stderr))
+                return 1
+            logging.info("[%s] Network chaos completed" % target)
+
+            if test_execution == "serial":
+                continue
+
+        return 0
+
+    def supports_standalone(self) -> bool:
+        return True
 
     def get_scenario_types(self) -> list[str]:
         return ["network_chaos_scenarios"]

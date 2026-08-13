@@ -1,4 +1,5 @@
 kraken:
+    execution_mode: kubernetes                            # Execution mode: 'kubernetes' (default) or 'standalone' (no K8s required)
     kubeconfig_path: ~/.kube/config                     # Path to kubeconfig
     exit_on_failure: False                                 # Exit when a post action scenario fails
     auto_rollback: True                                    # Enable auto rollback for scenarios.

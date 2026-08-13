@@ -1,0 +1,13 @@
+# Step 2: Network chaos on migrated VM nodes
+# Validates network resilience — catches CNV-90425 (performance issues after VMware migration)
+
+network_chaos:
+  targets:
+    - <WORKER_NODE_1>
+  ssh_user: core
+  ssh_private_key: ~/.ssh/id_rsa
+  duration: 120
+  interfaces: []
+  execution: serial
+  egress:
+    latency: 100ms

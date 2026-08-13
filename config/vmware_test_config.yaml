@@ -1,0 +1,76 @@
+kraken:
+    kubeconfig_path: ~/.kube/config
+    exit_on_failure: False
+    auto_rollback: True
+    rollback_versions_directory:
+    publish_kraken_status: False
+    signal_state: RUN
+    signal_address: 0.0.0.0
+    port: 8081
+    chaos_scenarios:
+       - node_scenarios:
+           - scenarios/openshift/vmware_node_reboot_test.yml
+
+resiliency:
+  resiliency_run_mode: disabled
+
+cerberus:
+    cerberus_enabled: False
+    cerberus_url:
+    check_application_routes: False
+
+performance_monitoring:
+    prometheus_url: ''
+    prometheus_bearer_token:
+    uuid:
+    enable_alerts: False
+    enable_metrics: False
+    alert_profile: config/alerts.yaml
+    metrics_profile: config/metrics-report.yaml
+    check_critical_alerts: False
+
+elastic:
+    enable_elastic: False
+    verify_certs: False
+    elastic_url: ""
+    elastic_port: 32766
+    username: "elastic"
+    password: "test"
+    metrics_index: "krkn-metrics"
+    alerts_index: "krkn-alerts"
+    telemetry_index: "krkn-telemetry"
+    run_tag: ""
+
+tunings:
+    wait_duration: 1
+    iterations: 1
+    daemon_mode: False
+
+telemetry:
+    enabled: False
+    api_url: https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production
+    username: username
+    password: password
+    prometheus_backup: False
+    full_prometheus_backup: False
+    backup_threads: 5
+    archive_path:
+    max_retries: 0
+    run_tag: ''
+    archive_size: 500000
+    telemetry_group: ''
+    logs_backup: False
+    logs_filter_patterns:
+     - "(\\w{3}\\s\\d{1,2}\\s\\d{2}:\\d{2}:\\d{2}\\.\\d+).+"
+     - "kinit (\\d+/\\d+/\\d+\\s\\d{2}:\\d{2}:\\d{2})\\s+"
+     - "(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d+Z).+"
+    oc_cli_path: /opt/homebrew/bin/oc
+    events_backup: False
+
+health_checks:
+    interval:
+    config:
+        - url:
+          bearer_token:
+          auth:
+          exit_on_failure:

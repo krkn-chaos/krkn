@@ -1,0 +1,9 @@
+hog-type: memory
+targets:
+  - 192.168.1.100
+ssh_user: root
+ssh_private_key: ~/.ssh/id_rsa
+node-selector: ""
+duration: 60
+workers: 1
+memory-vm-bytes: 256M

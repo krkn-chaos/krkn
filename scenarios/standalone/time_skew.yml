@@ -1,0 +1,8 @@
+time_scenarios:
+  - action: skew_time
+    targets:
+      - 192.168.1.100
+    ssh_user: root
+    ssh_private_key: ~/.ssh/id_rsa
+    duration: 300
+    disable_ntp: true

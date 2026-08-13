@@ -100,6 +100,11 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         )
         kraken_config = cfg
 
+        execution_mode = get_yaml_item_value(config["kraken"], "execution_mode", "kubernetes")
+        is_standalone = execution_mode == "standalone"
+        if is_standalone:
+            logging.info("Running in STANDALONE mode -- Kubernetes cluster not required")
+
         chaos_scenarios = get_yaml_item_value(config["kraken"], "chaos_scenarios", [])
         publish_running_status = get_yaml_item_value(
             config["kraken"], "publish_kraken_status", False
@@ -211,14 +216,15 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         telemetry_enabled = config["telemetry"].get("enabled", True)
         
         # Initialize clients
-        if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
-                "/var/run/secrets/kubernetes.io/serviceaccount/token"
-        ):
-            logging.error(
-                "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
-            )
-            return -1
-        logging.info("Initializing client to talk to the Kubernetes cluster")
+        if not is_standalone:
+            if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
+                    "/var/run/secrets/kubernetes.io/serviceaccount/token"
+            ):
+                logging.error(
+                    "Cannot read the kubeconfig file at %s, please check" % kubeconfig_path
+                )
+                return -1
+            logging.info("Initializing client to talk to the Kubernetes cluster")
 
         # Set Cerberus url if enabled
         cerberus.set_url(config)
@@ -254,24 +260,29 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         )
         safe_logger = SafeLogger(filename=telemetry_log_file)
 
-        try:
-            kubeconfig_path
-            os.environ["KUBECONFIG"] = str(kubeconfig_path)
-            # krkn-lib-kubernetes init
-            kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
-            ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
-        except Exception as e:
-            logging.error("Failed to initialize Kubernetes clients: %s" % e)
-            kubecli = KrknKubernetes(kubeconfig_path=None)
-            ocpcli = KrknOpenshift(kubeconfig_path=None)
+        if not is_standalone:
+            try:
+                kubeconfig_path
+                os.environ["KUBECONFIG"] = str(kubeconfig_path)
+                # krkn-lib-kubernetes init
+                kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
+                ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
+            except Exception as e:
+                logging.error("Failed to initialize Kubernetes clients: %s" % e)
+                kubecli = KrknKubernetes(kubeconfig_path=None)
+                ocpcli = KrknOpenshift(kubeconfig_path=None)
 
-        distribution = "kubernetes"
-        if ocpcli.is_openshift():
-            distribution = "openshift"
-        logging.info("Detected distribution %s" % (distribution))
+            distribution = "kubernetes"
+            if ocpcli.is_openshift():
+                distribution = "openshift"
+            logging.info("Detected distribution %s" % (distribution))
 
-        # find node kraken might be running on
-        kubecli.find_kraken_node()
+            # find node kraken might be running on
+            kubecli.find_kraken_node()
+        else:
+            kubecli = None
+            ocpcli = None
+            distribution = "standalone"
 
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
@@ -293,30 +304,34 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             server.start_server(address, run_signal)
 
         # Cluster info
-        logging.info("Fetching cluster info")
         cv = ""
-        if distribution == "openshift":
-            cv = ocpcli.get_clusterversion_string()
-            if not prometheus_url:
-                try:
-                    connection_data = ocpcli.get_prometheus_api_connection_data()
-                    if connection_data:
-                        prometheus_url = connection_data.endpoint
-                        prometheus_bearer_token = connection_data.token
-                    else:
-                        # If can't make a connection, set alerts to false
-                        enable_alerts = False
-                        check_critical_alerts = False
-                except Exception:
-                    logging.error(
-                        "invalid distribution selected, running openshift scenarios against kubernetes cluster."
-                        "Please set 'kubernetes' in config.yaml krkn.platform and try again"
-                    )
-                    return -1
-        if cv != "":
-            logging.info(cv)
+        if not is_standalone:
+            logging.info("Fetching cluster info")
+            if distribution == "openshift":
+                cv = ocpcli.get_clusterversion_string()
+                if not prometheus_url:
+                    try:
+                        connection_data = ocpcli.get_prometheus_api_connection_data()
+                        if connection_data:
+                            prometheus_url = connection_data.endpoint
+                            prometheus_bearer_token = connection_data.token
+                        else:
+                            # If can't make a connection, set alerts to false
+                            enable_alerts = False
+                            check_critical_alerts = False
+                    except Exception:
+                        logging.error(
+                            "invalid distribution selected, running openshift scenarios against kubernetes cluster."
+                            "Please set 'kubernetes' in config.yaml krkn.platform and try again"
+                        )
+                        return -1
+            if cv != "":
+                logging.info(cv)
+            else:
+                logging.info("Cluster version CRD not detected, skipping")
         else:
-            logging.info("Cluster version CRD not detected, skipping")
+            enable_alerts = False
+            check_critical_alerts = False
 
         # Final check: ensure Prometheus URL is available; disable resiliency if not
         if (not prometheus_url or prometheus_url.strip() == "") and run_mode != "disabled":
@@ -324,12 +339,18 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             run_mode = "disabled"
 
         # KrknTelemetry init
-        telemetry_k8s = KrknTelemetryKubernetes(
-            safe_logger, kubecli, config["telemetry"]
-        )
-        telemetry_ocp = KrknTelemetryOpenshift(
-            safe_logger, ocpcli, telemetry_request_id, config["telemetry"]
-        )
+        if not is_standalone:
+            telemetry_k8s = KrknTelemetryKubernetes(
+                safe_logger, kubecli, config["telemetry"]
+            )
+            telemetry_ocp = KrknTelemetryOpenshift(
+                safe_logger, ocpcli, telemetry_request_id, config["telemetry"]
+            )
+        else:
+            telemetry_k8s = None
+            telemetry_ocp = KrknTelemetryOpenshift(
+                safe_logger, None, telemetry_request_id, config["telemetry"]
+            )
         if enable_elastic:
             logging.info(f"Elastic collection enabled at: {elastic_url}:{elastic_port}")
             elastic_search = KrknElastic(
@@ -355,7 +376,8 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 run_mode = "disabled"
         resiliency_alerts = get_yaml_item_value(resiliency_config, "resiliency_file", get_yaml_item_value(config['performance_monitoring'],"alert_profile", "config/alerts.yaml"))
         resiliency_obj = Resiliency(resiliency_alerts) if run_mode != "disabled" else None  # Initialize resiliency orchestrator
-        logging.info("Server URL: %s" % kubecli.get_host())
+        if not is_standalone:
+            logging.info("Server URL: %s" % kubecli.get_host())
 
         if command == "list-rollback":
             sys.exit(
@@ -520,6 +542,15 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                                 f"impossible to find scenario {scenario_type}, plugin not found. Exiting"
                             )
                             sys.exit(-1)
+
+                        if is_standalone and not scenario_plugin.supports_standalone():
+                            logging.error(
+                                "Scenario type '%s' is not supported in standalone mode. "
+                                "Plugin %s does not declare standalone support."
+                                % (scenario_type, scenario_plugin.__class__.__name__)
+                            )
+                            failed_post_scenarios.append(scenario_type)
+                            continue
 
                         
                         batch_window_start_dt = datetime.datetime.utcnow()
@@ -706,7 +737,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                     f"failed to save telemetry on elastic search: {chaos_output.to_json()}"
                 )
 
-        if telemetry_enabled and telemetry_api_url:
+        if telemetry_enabled and telemetry_api_url and not is_standalone:
             logging.info(
                 f"telemetry data will be stored on s3 bucket folder: {telemetry_api_url}/files/"
                 f'{(config["telemetry"]["telemetry_group"] if config["telemetry"]["telemetry_group"] else "default")}/'

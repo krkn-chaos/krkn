@@ -1,0 +1,88 @@
+# VMware Migration Validation Config
+#
+# Run this after migrating VMs from VMware to OpenShift Virtualization.
+# Validates that migrated VMs survive common failure scenarios.
+#
+# Usage:
+#   1. Edit scenario YAMLs in scenarios/vmware_migration_validation/
+#      to match your node IPs and VM names
+#   2. Run: python run_kraken.py --config config/config_vmware_validation.yaml
+#
+# This runs 5 chaos scenarios in sequence:
+#   1. Reboot worker nodes (verify VMs restart)
+#   2. Network latency injection (verify connectivity)
+#   3. Storage IO burst (verify no VMI crash)
+#   4. CPU stress on hosts (verify virt-handler survives)
+#   5. Live migration under fault (verify no corruption)
+
+kraken:
+    execution_mode: standalone
+    kubeconfig_path:
+    exit_on_failure: False
+    auto_rollback: True
+    rollback_versions_directory:
+    publish_kraken_status: False
+    signal_state: RUN
+    signal_address: 0.0.0.0
+    port: 8081
+    chaos_scenarios:
+        - node_scenarios:
+            - scenarios/vmware_migration_validation/01_reboot_all_vms.yml
+        - network_chaos_scenarios:
+            - scenarios/vmware_migration_validation/02_network_chaos.yml
+        - vm_storage_chaos_scenarios:
+            - scenarios/vmware_migration_validation/03_storage_stress.yml
+        - hog_scenarios:
+            - scenarios/vmware_migration_validation/04_host_cpu_stress.yml
+
+tunings:
+    wait_duration: 30
+    iterations: 1
+    daemon_mode: False
+
+performance_monitoring:
+    prometheus_url:
+    prometheus_bearer_token:
+    uuid:
+    enable_alerts: False
+    enable_metrics: False
+    alert_profile:
+    metrics_profile:
+    check_critical_alerts: False
+
+cerberus:
+    cerberus_enabled: False
+    cerberus_url:
+
+elastic:
+    enable_elastic: False
+    elastic_url:
+    elastic_port: 32766
+    verify_certs: False
+    username:
+    password:
+    metrics_index: krkn-metrics
+    alerts_index: krkn-alerts
+    telemetry_index: krkn-telemetry
+
+telemetry:
+    enabled: False
+    api_url:
+    username:
+    password:
+    prometheus_backup: False
+    full_prometheus_backup: False
+    events_backup: False
+    logs_backup: False
+    backup_threads: 5
+    archive_path:
+    max_retries: 0
+    run_tag:
+    telemetry_group:
+
+resiliency:
+    resiliency_run_mode: disabled
+
+health_checks:
+
+kubevirt_checks:

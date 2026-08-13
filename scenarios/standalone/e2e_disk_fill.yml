@@ -1,0 +1,8 @@
+targets:
+  - localhost
+ssh_user: core
+ssh_private_key: /Users/sahil/.local/share/containers/podman/machine/machine
+ssh_port: 53332
+fill_path: /tmp
+fill_size: 200M
+duration: 30

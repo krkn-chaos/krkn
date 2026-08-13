@@ -1,0 +1,22 @@
+# Scenario 2 (P1): virt-handler DaemonSet rolling restart
+# Bug: CNV-89519 — VMI incorrectly marked Failed during virt-handler rolling update
+# Bug: CNV-88967 — Virtual Machine killed during virt-handler startup
+#
+# Purpose: Delete virt-handler pods one by one (simulating a rolling update)
+# to verify VMIs remain Running and are NOT incorrectly marked Failed.
+#
+# Uses: pod_disruption_scenarios targeting virt-handler pods in openshift-cnv namespace
+#
+# Expected behavior:
+#   - VMIs should stay in Running state throughout
+#   - No "Domain does not exist" false negatives
+#   - VMs should NOT be killed or restarted
+#
+# If VMIs are marked Failed or VMs restart, it reproduces CNV-89519/CNV-88967.
+
+- config:
+    namespace_pattern: openshift-cnv
+    label_selector: kubevirt.io=virt-handler
+    kill: 1
+    krkn_pod_recovery_time: 120
+    timeout: 300

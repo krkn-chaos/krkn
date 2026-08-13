@@ -1,0 +1,28 @@
+# Scenario 3 (P1): Kill kubelet with running VMs
+# Bug: KubeVirt #11843 — virt-handler heartbeat misinterprets kubelet restart,
+#      kills VMs unnecessarily (3rd most-commented open KubeVirt bug)
+#
+# Purpose: Stop and restart kubelet on a worker node running VMs to verify
+# that virt-handler does NOT unnecessarily restart VMs.
+#
+# Uses: node_scenarios with cloud_type: ssh, action: stop_start_kubelet_scenario
+#
+# Expected behavior:
+#   - Kubelet stops and restarts cleanly
+#   - VMs should continue running without interruption
+#   - virt-handler should NOT misinterpret kubelet restart as node failure
+#
+# If VMs restart unnecessarily, it reproduces KubeVirt #11843.
+
+node_scenarios:
+  - actions:
+      - stop_start_kubelet_scenario
+    cloud_type: ssh
+    targets:
+      - <WORKER_NODE_IP>
+    ssh_user: core
+    ssh_private_key: ~/.ssh/id_rsa
+    runs: 1
+    timeout: 360
+    duration: 30
+    kube_check: false

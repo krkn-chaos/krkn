@@ -1,0 +1,8 @@
+targets:
+  - 192.168.1.100
+ssh_user: root
+ssh_private_key: ~/.ssh/id_rsa
+action: chmod
+file_path: /etc/nginx/nginx.conf
+permissions: "000"
+duration: 60

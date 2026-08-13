@@ -1,0 +1,14 @@
+node_scenarios:
+  - actions:
+      - node_reboot_scenario
+    cloud_type: ssh
+    targets:
+      - 192.168.1.100
+      - 192.168.1.101
+    ssh_user: root
+    ssh_private_key: ~/.ssh/id_rsa
+    ssh_port: 22
+    runs: 1
+    timeout: 360
+    kube_check: false
+    soft_reboot: true

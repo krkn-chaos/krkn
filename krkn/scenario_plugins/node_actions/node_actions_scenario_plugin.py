@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import logging
+import os
 import time
 from multiprocessing.pool import ThreadPool
 from itertools import repeat
@@ -169,6 +170,22 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         ):
             disable_ssl_verification = get_yaml_item_value(node_scenario, "disable_ssl_verification", True)
             return ibmcloud_power_node_scenarios(kubecli, node_action_kube_check, affected_nodes_status, disable_ssl_verification)
+        elif node_scenario["cloud_type"].lower() == "ssh":
+            from krkn.scenario_plugins.node_actions.ssh_node_scenarios import (
+                ssh_node_scenarios,
+            )
+
+            ssh_config = {
+                "ssh_user": get_yaml_item_value(node_scenario, "ssh_user", "root"),
+                "ssh_private_key": os.path.expanduser(
+                    get_yaml_item_value(node_scenario, "ssh_private_key", "~/.ssh/id_rsa")
+                ),
+                "ssh_port": get_yaml_item_value(node_scenario, "ssh_port", 22),
+                "ssh_connect_timeout": get_yaml_item_value(node_scenario, "ssh_connect_timeout", 30),
+            }
+            return ssh_node_scenarios(
+                kubecli, node_action_kube_check, affected_nodes_status, ssh_config
+            )
         else:
             logging.error(
                 "Cloud type "
@@ -201,9 +218,13 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         label_selector = get_yaml_item_value(node_scenario, "label_selector", "")
         exclude_label = get_yaml_item_value(node_scenario, "exclude_label", "")
         parallel_nodes = get_yaml_item_value(node_scenario, "parallel", False)
+        targets = get_yaml_item_value(node_scenario, "targets", [])
 
         # Get the node to apply the scenario
-        if node_name:
+        if targets:
+            nodes = targets if isinstance(targets, list) else [targets]
+            logging.info("Using static target list: %s" % nodes)
+        elif node_name:
             node_name_list = node_name.split(",")
             nodes = common_node_functions.get_node_by_name(node_name_list, kubecli)
         else:
@@ -338,6 +359,9 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     "There is no node action that matches %s, skipping scenario"
                     % action
                 )
+
+    def supports_standalone(self) -> bool:
+        return True
 
     def get_scenario_types(self) -> list[str]:
         return ["node_scenarios"]

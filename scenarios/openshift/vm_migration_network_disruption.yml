@@ -1,0 +1,28 @@
+# Scenario 5 (P0): Network disruption during live migration
+# Bug: CNV-89391 — Live migration can leave two running virt-launcher pods, causing VM corruption
+# Bug: KubeVirt #15924 — Postcopy migration network disruption kills the VM
+#
+# Purpose: Trigger a VM live migration and inject network latency on the source
+# node DURING the migration to verify VM survives without corruption.
+#
+# Expected behavior:
+#   - Migration may fail or succeed slowly — both are acceptable
+#   - VM should NOT be corrupted
+#   - There should NEVER be two running virt-launcher pods for the same VMI
+#
+# If two virt-launcher pods are detected, it reproduces CNV-89391.
+# If VM is killed during postcopy, it reproduces KubeVirt #15924.
+
+vm_migration_chaos:
+  vm_name: <VM_NAME>
+  vm_namespace: default
+  migration_action: trigger_and_disrupt
+  fault_type: network_latency
+  fault_params:
+    latency: 500ms
+    interface: br-ex
+    duration: 30
+  ssh_user: core
+  ssh_private_key: ~/.ssh/id_rsa
+  verify_no_dual_pods: true
+  timeout: 600
