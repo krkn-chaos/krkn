@@ -196,6 +196,17 @@ class GpuDeviceScenarioPlugin(AbstractScenarioPlugin):
         result = snapshot.get_pods_status()
         scenario_telemetry.affected_pods = result
 
+        for pod in result.recovered:
+            logging.info(
+                "device plugin pod %s on %s recovered in %.2fs "
+                "(rescheduling %.2fs, readiness %.2fs)",
+                pod.pod_name,
+                pod.namespace,
+                pod.total_recovery_time or 0.0,
+                pod.pod_rescheduling_time or 0.0,
+                pod.pod_readiness_time or 0.0,
+            )
+
         if len(result.unrecovered) > 0:
             logging.error(
                 f"device plugin pods did not recover: "

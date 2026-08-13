@@ -11,26 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from dataclasses import dataclass
+from typing import Any
 
 
-@dataclass
 class InputParams:
-    def __init__(self, config: dict[str, any] = None):
-        if config is not None:
-            self.namespace = config.get("namespace", "nvidia-gpu-operator")
-            self.node_selector = config.get("node_selector", "")
-            self.number_of_nodes = config.get("number_of_nodes", 1)
-            self.pod_label_selector = config.get(
-                "pod_label_selector", "app=nvidia-device-plugin-daemonset"
-            )
-            self.recovery_timeout = config.get("recovery_timeout", 120)
-            self.expected_recovery = config.get("expected_recovery", True)
-            self.verify_allocatable = config.get("verify_allocatable", True)
-            self.krkn_pod_recovery_time = config.get(
-                "krkn_pod_recovery_time", 120
-            )
-            self.validate_gpu_health = config.get("validate_gpu_health", True)
+    """Configuration for the GPU device plugin disruption scenario."""
 
     namespace: str
     node_selector: str
@@ -41,3 +26,19 @@ class InputParams:
     verify_allocatable: bool
     krkn_pod_recovery_time: int
     validate_gpu_health: bool
+
+    def __init__(self, config: dict[str, Any] | None = None):
+        config = config or {}
+        self.namespace = config.get("namespace", "nvidia-gpu-operator")
+        self.node_selector = config.get("node_selector", "")
+        self.number_of_nodes = config.get("number_of_nodes", 1)
+        self.pod_label_selector = config.get(
+            "pod_label_selector", "app=nvidia-device-plugin-daemonset"
+        )
+        self.recovery_timeout = config.get("recovery_timeout", 120)
+        self.expected_recovery = config.get("expected_recovery", True)
+        self.verify_allocatable = config.get("verify_allocatable", True)
+        self.krkn_pod_recovery_time = config.get(
+            "krkn_pod_recovery_time", 120
+        )
+        self.validate_gpu_health = config.get("validate_gpu_health", True)
