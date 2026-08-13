@@ -221,14 +221,19 @@ class RollbackConfig(metaclass=SingletonMeta):
             return []
 
         rollback_context_directories = []
+        skipped_count = 0
         for dir in os.listdir(cls().versions_directory):
             if cls.is_rollback_context_directory_format(dir, run_uuid):
                 rollback_context_directories.append(dir)
             else:
-                logger.warning(f"Directory {dir} does not match expected pattern of <timestamp>-<run_uuid>")
+                skipped_count += 1
+                logger.debug(f"Directory {dir} does not match expected pattern of <timestamp>-<run_uuid>")
+
+        if skipped_count > 0:
+            logger.info(f"Skipped {skipped_count} directories from other runs")
 
         if not rollback_context_directories:
-            logger.warning(f"No rollback context directories found for run UUID {run_uuid}")
+            logger.debug(f"No rollback context directories found for run UUID {run_uuid}")
             return []
 
 
