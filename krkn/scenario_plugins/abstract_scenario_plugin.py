@@ -87,7 +87,8 @@ class AbstractScenarioPlugin(ABC):
         failed_scenarios = []
         wait_duration = krkn_config["tunings"]["wait_duration"]
         events_backup = krkn_config["telemetry"]["events_backup"]
-        for scenario_config in scenarios_list:
+        total_scenarios = len(scenarios_list)
+        for i, scenario_config in enumerate(scenarios_list):
             if isinstance(scenario_config, list):
                 logging.error(
                     "post scenarios have been deprecated, please "
@@ -171,8 +172,9 @@ class AbstractScenarioPlugin(ABC):
                 failed_scenarios.append(scenario_config)
             scenario_telemetries.append(scenario_telemetry)
             cerberus.publish_kraken_status(start_time,end_time)
-            logging.info(f"waiting {wait_duration} before running the next scenario")
-            time.sleep(wait_duration)
+            if i < total_scenarios - 1:
+                logging.info(f"waiting {wait_duration} before running the next scenario")
+                time.sleep(wait_duration)
             
         return failed_scenarios, scenario_telemetries
 
