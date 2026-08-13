@@ -80,8 +80,23 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
+
+                    # Check if any recovered pod exceeded the recovery SLA
+                    krkn_pod_recovery_time = kill_scenario_config.krkn_pod_recovery_time
+                    for pod in list(result.recovered):
+                        if (
+                            pod.total_recovery_time is not None
+                            and pod.total_recovery_time > krkn_pod_recovery_time
+                        ):
+                            logging.error(
+                                f"Pod {pod.pod_name} in namespace {pod.namespace} took "
+                                f"{pod.total_recovery_time:.2f}s to recover, "
+                                f"exceeding the timeout of {krkn_pod_recovery_time}s"
+                            )
+                            result.unrecovered.append(pod)
+
                     if len(result.unrecovered) > 0:
-                        logging.info("PodDisruptionScenarioPlugin failed with unrecovered pods")
+                        logging.error("PodDisruptionScenarioPlugin failed with unrecovered pods")
                         return 1
 
                     if ret > 0:
@@ -99,8 +114,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         return ["pod_disruption_scenarios"]
 
     def start_monitoring(self, kill_scenario: InputParams, lib_telemetry: KrknTelemetryOpenshift) -> Future:
-
-        recovery_time = kill_scenario.krkn_pod_recovery_time
+        # Use the overall timeout as the monitoring window so recovery events
+        # are always captured. krkn_pod_recovery_time is checked afterward by
+        # comparing actual recovery times against the SLA.
+        monitor_timeout = kill_scenario.timeout
+        krkn_pod_recovery_time = kill_scenario.krkn_pod_recovery_time
         if (
             kill_scenario.namespace_pattern
             and kill_scenario.label_selector
@@ -110,11 +128,12 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
                 namespace_pattern=namespace_pattern,
                 label_selector=label_selector,
-                max_timeout=recovery_time,
+                max_timeout=monitor_timeout,
                 v1_client=lib_telemetry.get_lib_kubernetes().cli
             )
             logging.info(
-                f"waiting up to {recovery_time} seconds for pod recovery, "
+                f"monitoring pods for up to {monitor_timeout}s "
+                f"(expected recovery time: {krkn_pod_recovery_time}s), "
                 f"pod label pattern: {label_selector} namespace pattern: {namespace_pattern}"
             )
             return future_snapshot
@@ -128,11 +147,12 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             future_snapshot = select_and_monitor_by_name_pattern_and_namespace_pattern(
                 pod_name_pattern=name_pattern,
                 namespace_pattern=namespace_pattern,
-                max_timeout=recovery_time,
+                max_timeout=monitor_timeout,
                 v1_client=lib_telemetry.get_lib_kubernetes().cli
             )
             logging.info(
-                f"waiting up to {recovery_time} seconds for pod recovery, "
+                f"monitoring pods for up to {monitor_timeout}s "
+                f"(expected recovery time: {krkn_pod_recovery_time}s), "
                 f"pod name pattern: {name_pattern} namespace pattern: {namespace_pattern}"
             )
             return future_snapshot
