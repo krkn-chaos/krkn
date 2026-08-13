@@ -64,7 +64,7 @@ class TestAlertsKeyValidation(unittest.TestCase):
             )
 
             self.prom_cli.process_alert.assert_called_once()
-            self.assertEqual(result, 1)
+            self.assertEqual(len(result), 1)
         finally:
             os.unlink(profile_path)
 
@@ -140,7 +140,7 @@ class TestAlertsKeyValidation(unittest.TestCase):
 
 
 class TestAlertsFailureCount(unittest.TestCase):
-    """Tests that alerts() returns the correct failure count for critical/error severity."""
+    """Tests that alerts() returns the correct FailedAlert list for critical/error severity."""
 
     def setUp(self):
         self.prom_cli = MagicMock()
@@ -168,7 +168,7 @@ class TestAlertsFailureCount(unittest.TestCase):
         )
 
     def test_returns_zero_when_no_alerts_fire(self):
-        """Returns 0 when process_alert returns (None, None) for all alerts."""
+        """Returns empty list when process_alert returns (None, None) for all alerts."""
         profile_path = self._write_alert_profile(
             '- expr: "up == 0"\n'
             '  description: "target down"\n'
@@ -177,12 +177,12 @@ class TestAlertsFailureCount(unittest.TestCase):
         try:
             self.prom_cli.process_alert.return_value = (None, None)
             result = self._call_alerts(profile_path)
-            self.assertEqual(result, 0)
+            self.assertEqual(result, [])
         finally:
             os.unlink(profile_path)
 
     def test_returns_one_for_single_critical_alert(self):
-        """Returns 1 when one critical-severity alert fires."""
+        """Returns one FailedAlert when one critical-severity alert fires."""
         profile_path = self._write_alert_profile(
             '- expr: "up == 0"\n'
             '  description: "target down"\n'
@@ -192,12 +192,12 @@ class TestAlertsFailureCount(unittest.TestCase):
             self.prom_cli.process_alert.return_value = (self.start_time, "target down")
             self.elastic.push_alert.return_value = 0
             result = self._call_alerts(profile_path)
-            self.assertEqual(result, 1)
+            self.assertEqual(len(result), 1)
         finally:
             os.unlink(profile_path)
 
     def test_returns_one_for_single_error_alert(self):
-        """Returns 1 when one error-severity alert fires."""
+        """Returns one FailedAlert when one error-severity alert fires."""
         profile_path = self._write_alert_profile(
             '- expr: "up == 0"\n'
             '  description: "target down"\n'
@@ -207,12 +207,12 @@ class TestAlertsFailureCount(unittest.TestCase):
             self.prom_cli.process_alert.return_value = (self.start_time, "target down")
             self.elastic.push_alert.return_value = 0
             result = self._call_alerts(profile_path)
-            self.assertEqual(result, 1)
+            self.assertEqual(len(result), 1)
         finally:
             os.unlink(profile_path)
 
     def test_warning_alert_does_not_increment_count(self):
-        """Returns 0 when only warning/info/debug alerts fire."""
+        """Returns empty list when only warning/info/debug alerts fire."""
         profile_path = self._write_alert_profile(
             '- expr: "up == 0"\n'
             '  description: "slow"\n'
@@ -225,12 +225,12 @@ class TestAlertsFailureCount(unittest.TestCase):
             self.prom_cli.process_alert.return_value = (self.start_time, "alert fired")
             self.elastic.push_alert.return_value = 0
             result = self._call_alerts(profile_path)
-            self.assertEqual(result, 0)
+            self.assertEqual(result, [])
         finally:
             os.unlink(profile_path)
 
     def test_counts_multiple_critical_and_error_alerts(self):
-        """Returns correct total when multiple critical and error alerts fire."""
+        """Returns 3 FailedAlerts when multiple critical and error alerts fire."""
         profile_path = self._write_alert_profile(
             '- expr: "a == 0"\n'
             '  description: "a"\n'
@@ -249,12 +249,12 @@ class TestAlertsFailureCount(unittest.TestCase):
             self.prom_cli.process_alert.return_value = (self.start_time, "fired")
             self.elastic.push_alert.return_value = 0
             result = self._call_alerts(profile_path)
-            self.assertEqual(result, 3)
+            self.assertEqual(len(result), 3)
         finally:
             os.unlink(profile_path)
 
     def test_non_firing_critical_alerts_not_counted(self):
-        """Critical alerts that don't fire (return None) are not counted."""
+        """Critical alerts that don't fire (return None) produce no FailedAlert."""
         profile_path = self._write_alert_profile(
             '- expr: "a == 0"\n'
             '  description: "fired"\n'
@@ -270,7 +270,7 @@ class TestAlertsFailureCount(unittest.TestCase):
             ]
             self.elastic.push_alert.return_value = 0
             result = self._call_alerts(profile_path)
-            self.assertEqual(result, 1)
+            self.assertEqual(len(result), 1)
         finally:
             os.unlink(profile_path)
 
@@ -285,7 +285,7 @@ class TestAlertsFailureCount(unittest.TestCase):
             self.prom_cli.process_alert.return_value = (self.start_time, "slow")
             self.elastic.push_alert.return_value = 0
             result = self._call_alerts(profile_path)
-            self.assertEqual(result, 0)
+            self.assertEqual(result, [])
             self.elastic.push_alert.assert_called_once()
         finally:
             os.unlink(profile_path)

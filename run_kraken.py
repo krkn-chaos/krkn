@@ -645,11 +645,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                     alert_profile,
                     elastic_alerts_index
                 )
+                if profile_critical_alerts:
+                    chaos_telemetry.failed_alerts = profile_critical_alerts
             else:
                 logging.error("Alert profile is not defined")
                 return -1
 
-        if post_critical_alerts > 0 or profile_critical_alerts > 0:
+        if post_critical_alerts > 0 or len(profile_critical_alerts) > 0:
             chaos_telemetry.job_status = False
 
         telemetry_json = chaos_telemetry.to_json()
@@ -809,7 +811,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             logging.error("Critical alerts are firing, please check; exiting")
             return 2
 
-        if profile_critical_alerts > 0:
+        if len(profile_critical_alerts) > 0:
             logging.error("Critical or Error alerts from alert profile are firing, please check; exiting")
             return 2
 
