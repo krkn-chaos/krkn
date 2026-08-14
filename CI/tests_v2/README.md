@@ -89,7 +89,7 @@ pytest CI/tests_v2/ -v --timeout=300 --reruns=2 --reruns-delay=10 --html=CI/test
 ### Run in parallel (faster suite)
 
 ```bash
-pytest CI/tests_v2/ -v -n 4 --timeout=300
+pytest CI/tests_v2/ -v -n 4 --dist loadgroup --timeout=300
 ```
 
 Ephemeral namespaces make tests parallel-safe; use `-n` with the number of workers (e.g. 4).
