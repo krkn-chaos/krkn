@@ -270,9 +270,6 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             distribution = "openshift"
         logging.info("Detected cluster platform: %s" % (distribution))
 
-        # find node kraken might be running on
-        kubecli.find_kraken_node()
-
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
             logging.error("%s isn't a valid port number, please check" % (port))
