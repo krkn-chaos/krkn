@@ -28,6 +28,7 @@ import yaml
 from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.elastic.models import ElasticAlert
 from krkn_lib.models.krkn import ChaosRunAlertSummary, ChaosRunAlert
+from krkn_lib.models.telemetry import FailedAlert
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 
 
@@ -58,8 +59,7 @@ def alerts(
             )
             sys.exit(1)
 
-        # Will fail run if error or critical alerts are firing
-        failure_alert_count = 0
+        fired: list[FailedAlert] = []
         for alert in profile_yaml:
             if sorted(alert.keys()) != sorted(["expr", "description", "severity"]):
                 logging.error(f"wrong alert {alert}, skipping")
@@ -71,21 +71,27 @@ def alerts(
                 datetime.datetime.fromtimestamp(end_time),
             )
             if processed_alert[0] and processed_alert[1]:
-                if alert["severity"] == "critical":
-                    failure_alert_count += 1
-                if alert["severity"] == "error":
-                    failure_alert_count += 1
+                severity = alert["severity"]
+                created_datetime = datetime.datetime.fromtimestamp(processed_alert[0])
+                if severity in ("critical", "error"):
+                    fired.append(FailedAlert({
+                        "name": alert["description"],
+                        "severity": severity,
+                        "message": processed_alert[1],
+                        "namespace": "",
+                        "starts_at": str(created_datetime),
+                    }))
                 if elastic:
                     elastic_alert = ElasticAlert(
                         run_uuid=run_uuid,
-                        severity=alert["severity"],
+                        severity=severity,
                         alert=processed_alert[1],
-                        created_at=datetime.datetime.fromtimestamp(processed_alert[0]),
+                        created_at=created_datetime,
                     )
                     result = elastic.push_alert(elastic_alert, elastic_alerts_index)
                     if result == -1:
                         logging.error("failed to save alert on ElasticSearch")
-        return failure_alert_count
+        return fired
 
 
 def critical_alerts(
@@ -181,8 +187,10 @@ def critical_alerts(
 
     if not firing_alerts:
         logging.info("No critical alerts are firing!!")
-    
-   
+
+
+
+
 def metrics(
     prom_cli: KrknPrometheus,
     elastic: KrknElastic,
