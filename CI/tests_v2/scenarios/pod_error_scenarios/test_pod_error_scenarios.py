@@ -96,11 +96,12 @@ class TestPodErrorScenarios(BaseScenarioTest):
         recovery window.
         """
         ns = self.ns
-        READINESS_DELAY = 120
+        READINESS_DELAY = 30
         RECOVERY_TIMEOUT = 10
 
         # Patch deployment: use Recreate strategy so both pods roll out in
-        # parallel, and add a readiness probe that won't pass for 120s.
+        # parallel, and add a readiness probe that won't pass for 30s.
+        # READINESS_DELAY only needs to be greater than RECOVERY_TIMEOUT.
         patch_body = {
             "spec": {
                 "strategy": {"type": "Recreate", "rollingUpdate": None},
@@ -121,11 +122,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
         self.k8s_apps.patch_namespaced_deployment(
             name="krkn-pod-error-target", namespace=ns, body=patch_body
         )
-        # Wait for the patched pods to roll out and become Ready
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_DELAY + 30)
-
-        before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
-        before_names = [p.metadata.name for p in before.items]
 
         result = self.run_scenario(
             self.tmp_path, ns, overrides={"krkn_pod_recovery_time": RECOVERY_TIMEOUT}
