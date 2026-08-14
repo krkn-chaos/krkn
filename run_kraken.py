@@ -268,10 +268,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         distribution = "kubernetes"
         if ocpcli.is_openshift():
             distribution = "openshift"
-        logging.info("Detected distribution %s" % (distribution))
-
-        # find node kraken might be running on
-        kubecli.find_kraken_node()
+        logging.info("Detected cluster platform: %s" % (distribution))
 
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
@@ -599,7 +596,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # through OCP specific APIs
         if distribution == "openshift":
             logging.info(
-                "collecting OCP cluster metadata, this may take few minutes...."
+                "Collecting OCP cluster metadata (nodes, resources, network plugins)..."
             )
             telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
         else:
@@ -611,7 +608,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             logging.info(f"Collected {len(error_logs)} error logs for telemetry")
             chaos_telemetry.error_logs = error_logs
         else:
-            logging.info("No error logs collected during chaos run")
+            logging.debug("No error logs collected during chaos run")
             chaos_telemetry.error_logs = []
         if resiliency_obj and hist_window is None:
             try:
