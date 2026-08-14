@@ -230,7 +230,7 @@ class RollbackConfig(metaclass=SingletonMeta):
                 logger.debug(f"Directory {dir} does not match expected pattern of <timestamp>-<run_uuid>")
 
         if skipped_count > 0:
-            logger.info(f"Skipped {skipped_count} directories from other runs")
+            logger.info(f"Skipped {skipped_count} non-matching entries in rollback versions directory")
 
         if not rollback_context_directories:
             logger.debug(f"No rollback context directories found for run UUID {run_uuid}")

@@ -268,7 +268,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         distribution = "kubernetes"
         if ocpcli.is_openshift():
             distribution = "openshift"
-        logging.info("Detected cluster platform: %s" % (distribution.capitalize()))
+        logging.info("Detected cluster platform: %s" % (distribution))
 
         # find node kraken might be running on
         kubecli.find_kraken_node()
