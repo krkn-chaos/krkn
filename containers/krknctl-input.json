@@ -618,7 +618,7 @@
   {
     "name": "kubevirt-disconnected",
     "short_description": "KubeVirt checks in disconnected mode",
-    "description": "KubeVirt checks in disconnected mode, bypassing the cluster's API",
+    "description": "KubeVirt checks in disconnected mode, bypassing the cluster API",
     "variable": "KUBE_VIRT_DISCONNECTED",
     "type": "enum",
     "allowed_values": "True,False,true,false",
