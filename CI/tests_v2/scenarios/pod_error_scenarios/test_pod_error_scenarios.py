@@ -103,7 +103,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
         # parallel, and add a readiness probe that won't pass for 120s.
         patch_body = {
             "spec": {
-                "strategy": {"type": "Recreate"},
+                "strategy": {"type": "Recreate", "rollingUpdate": None},
                 "template": {
                     "spec": {
                         "containers": [{
