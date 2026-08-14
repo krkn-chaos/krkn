@@ -12,6 +12,7 @@ import queue
 import sys
 import os
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -148,17 +149,39 @@ class TestStartAllSkipsUnrunnablePlugins(unittest.TestCase):
 
         config = {"health_checks": {"config": [{"url": "http://example.com"}]}}
 
-        with self.assertLogs(level=logging.INFO) as captured:
-            checkers = self.factory.start_all(config, iterations=1)
-        for plugin, worker, _ in checkers:
-            plugin.stop()
-            if worker is not None:
-                worker.join(timeout=5)
+        # The unit under test is the factory's gate, not the plugin's polling loop.
+        # Left real, the worker thread would do live DNS/HTTP against the url above
+        # and only exit on the next interval tick.
+        plugin_class = type(self.factory.create_plugin("http_health_check", iterations=1))
+        with patch.object(plugin_class, "run_health_check", return_value=None):
+            with self.assertLogs(level=logging.INFO) as captured:
+                checkers = self.factory.start_all(config, iterations=1)
+            for _, worker, _ in checkers:
+                if worker is not None:
+                    worker.join(timeout=5)
 
         self.assertTrue(checkers, "a runnable plugin should still be started")
         self.assertTrue(
             any("Started health check plugin" in line for line in captured.output),
             f"expected a start to be logged, got: {captured.output}",
+        )
+
+    def test_start_all_survives_a_plugin_whose_can_run_raises(self):
+        """A malformed config section must skip that plugin, not abort startup."""
+        if "http_health_check" not in self.factory.loaded_plugins:
+            self.skipTest("http_health_check plugin not loaded (missing dependencies)")
+        self.factory.config_key_map = {"health_checks": "http_health_check"}
+
+        # A list of strings, not of dicts: can_run() calls .get() on each entry.
+        config = {"health_checks": {"config": ["http://example.com"]}}
+
+        with self.assertLogs(level=logging.WARNING) as captured:
+            checkers = self.factory.start_all(config, iterations=1)
+
+        self.assertEqual(checkers, [], "a plugin that cannot validate must not start")
+        self.assertTrue(
+            any("failed to validate its configuration" in line for line in captured.output),
+            f"expected the validation failure to be logged, got: {captured.output}",
         )
 
 

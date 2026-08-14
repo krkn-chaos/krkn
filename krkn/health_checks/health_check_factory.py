@@ -137,7 +137,7 @@ class HealthCheckFactory:
                     iterations=iterations,
                     **kwargs
                 )
-                if not plugin.can_run(plugin_config):
+                if not self.__can_run(plugin, plugin_config, plugin_type):
                     continue
                 if plugin.manages_own_threads():
                     tq = queue.SimpleQueue()
@@ -160,6 +160,30 @@ class HealthCheckFactory:
                     f"Health check plugin '{plugin_type}' not found, skipping"
                 )
         return checkers
+
+    @staticmethod
+    def __can_run(plugin, plugin_config: dict, plugin_type: str) -> bool:
+        """
+        Asks a plugin whether it can run, treating a raising ``can_run()`` as "no".
+
+        ``can_run()`` inspects raw config, so a malformed section (wrong type, or
+        wrong entry types within a list) can raise out of it. It is called here on
+        the main thread, so an uncaught exception would abort Kraken startup for
+        every scenario rather than skipping the one misconfigured plugin.
+
+        :param plugin: the instantiated health check plugin
+        :param plugin_config: the plugin's section of config.yaml
+        :param plugin_type: the plugin's health check type, for logging
+        :return: True if the plugin should be started; False otherwise
+        """
+        try:
+            return plugin.can_run(plugin_config)
+        except Exception as e:
+            logging.warning(
+                f"Health check plugin '{plugin_type}' failed to validate its "
+                f"configuration, skipping: {e}"
+            )
+            return False
 
     def __load_plugins(self, base_class: Type):
         """
