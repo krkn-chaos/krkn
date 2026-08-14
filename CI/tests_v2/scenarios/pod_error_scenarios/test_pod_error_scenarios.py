@@ -99,9 +99,11 @@ class TestPodErrorScenarios(BaseScenarioTest):
         READINESS_DELAY = 120
         RECOVERY_TIMEOUT = 10
 
-        # Patch deployment: add a readiness probe that won't pass for 120s
+        # Patch deployment: use Recreate strategy so both pods roll out in
+        # parallel, and add a readiness probe that won't pass for 120s.
         patch_body = {
             "spec": {
+                "strategy": {"type": "Recreate"},
                 "template": {
                     "spec": {
                         "containers": [{
@@ -129,6 +131,10 @@ class TestPodErrorScenarios(BaseScenarioTest):
             self.tmp_path, ns, overrides={"krkn_pod_recovery_time": RECOVERY_TIMEOUT}
         )
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
+
+        self.assert_failure_logs_contain(
+            result, ns, expected_reasons=["unrecovered"]
+        )
 
     @pytest.mark.no_workload
     def test_invalid_namespace_pattern_fails(self):
