@@ -170,6 +170,66 @@ class TestKillingPodsMode(unittest.TestCase):
         # Only pod2 should be deleted; pod1 is excluded
         self.kubecli.delete_pod.assert_called_once_with("pod2", "ns1")
 
+    # --- force deletion tests ---
+
+    def test_force_defaults_to_false(self):
+        """force defaults to False when not specified in config."""
+        params = InputParams({"kill": 1})
+        self.assertFalse(params.force)
+
+    def test_force_invalid_type_raises_value_error(self):
+        """force raises ValueError when given a non-boolean value like a string."""
+        with self.assertRaises(ValueError) as context:
+            InputParams({"kill": 1, "force": "false"})
+
+        self.assertIn("Must be a boolean", str(context.exception))
+
+    def test_serial_mode_force_passes_grace_period_zero(self):
+        """Serial mode with force=True calls delete_pod with grace_period_seconds=0."""
+        config = InputParams({"kill": 2, "execution": "serial", "force": True})
+        self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
+
+        result = self.plugin.killing_pods(config, self.kubecli)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(self.kubecli.delete_pod.call_count, 2)
+        self.kubecli.delete_pod.assert_any_call("pod1", "ns1", grace_period_seconds=0)
+        self.kubecli.delete_pod.assert_any_call("pod2", "ns1", grace_period_seconds=0)
+
+    def test_serial_mode_graceful_no_grace_period_kwarg(self):
+        """Serial mode with force=False (default) calls delete_pod without grace_period_seconds."""
+        config = InputParams({"kill": 1, "execution": "serial", "force": False})
+        self.plugin.get_pods.return_value = [("pod1", "ns1")]
+
+        result = self.plugin.killing_pods(config, self.kubecli)
+
+        self.assertEqual(result, 0)
+        self.kubecli.delete_pod.assert_called_once_with("pod1", "ns1")
+
+    def test_parallel_mode_force_passes_grace_period_zero(self):
+        """Parallel mode with force=True calls delete_pod with grace_period_seconds=0."""
+        config = InputParams({"kill": 2, "execution": "parallel", "force": True})
+        self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
+
+        result = self.plugin.killing_pods(config, self.kubecli)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(self.kubecli.delete_pod.call_count, 2)
+        self.kubecli.delete_pod.assert_any_call("pod1", "ns1", grace_period_seconds=0)
+        self.kubecli.delete_pod.assert_any_call("pod2", "ns1", grace_period_seconds=0)
+
+    def test_parallel_mode_graceful_no_grace_period_kwarg(self):
+        """Parallel mode with force=False (default) calls delete_pod without grace_period_seconds."""
+        config = InputParams({"kill": 2, "execution": "parallel", "force": False})
+        self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
+
+        result = self.plugin.killing_pods(config, self.kubecli)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(self.kubecli.delete_pod.call_count, 2)
+        self.kubecli.delete_pod.assert_any_call("pod1", "ns1")
+        self.kubecli.delete_pod.assert_any_call("pod2", "ns1")
+
 
 if __name__ == "__main__":
     unittest.main()
