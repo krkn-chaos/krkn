@@ -15,6 +15,7 @@ import krkn_lib.utils
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+from kubernetes.client.exceptions import ApiException
 from tzlocal.unix import get_localzone
 import logging
 
@@ -59,11 +60,26 @@ def collect_and_put_ocp_logs(
     start_timestamp: int,
     end_timestamp: int,
 ):
+    try:
+        is_k8s = telemetry_ocp.get_lib_kubernetes().is_kubernetes()
+    except ApiException as e:
+        logging.error(
+            f"API error ({e.status}) checking cluster type for OCP log "
+            f"collection, skipping: {e.reason}"
+        )
+        return
+    except Exception as e:
+        logging.error(
+            f"unexpected error checking cluster type for OCP log "
+            f"collection, skipping: {e}"
+        )
+        return
+
     if (
         telemetry_ocp.get_telemetry_config()
         and telemetry_ocp.get_telemetry_config()["enabled"]
         and telemetry_ocp.get_telemetry_config()["logs_backup"]
-        and not telemetry_ocp.get_lib_kubernetes().is_kubernetes()
+        and not is_k8s
     ):
         namespaces = __retrieve_namespaces(
             scenario_config, telemetry_ocp.get_lib_kubernetes()
