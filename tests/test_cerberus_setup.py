@@ -161,8 +161,18 @@ class TestCerberusSetup(unittest.TestCase):
         self.assertEqual(cm.exception.code, 1)
 
     @patch('krkn.cerberus.setup.get_status')
+    def test_publish_kraken_status_cerberus_disabled_skips(self, mock_get_status):
+        """Test publish_kraken_status returns immediately when cerberus is disabled"""
+        cerberus_setup.cerberus_enabled = False
+
+        cerberus_setup.publish_kraken_status(0, 100)
+
+        mock_get_status.assert_not_called()
+
+    @patch('krkn.cerberus.setup.get_status')
     def test_publish_kraken_status_healthy_exit_on_failure_false(self, mock_get_status):
         """Test publish_kraken_status when cluster is healthy and exit_on_failure is False"""
+        cerberus_setup.cerberus_enabled = True
         cerberus_setup.exit_on_failure = False
         mock_get_status.return_value = True
 
@@ -173,6 +183,7 @@ class TestCerberusSetup(unittest.TestCase):
     @patch('krkn.cerberus.setup.get_status')
     def test_publish_kraken_status_healthy_exit_on_failure_true(self, mock_get_status):
         """Test publish_kraken_status when cluster is healthy and exit_on_failure is True"""
+        cerberus_setup.cerberus_enabled = True
         cerberus_setup.exit_on_failure = True
         mock_get_status.return_value = True
 
@@ -185,6 +196,7 @@ class TestCerberusSetup(unittest.TestCase):
     @patch('krkn.cerberus.setup.get_status')
     def test_publish_kraken_status_unhealthy_exit_on_failure_false(self, mock_get_status):
         """Test publish_kraken_status when cluster is unhealthy and exit_on_failure is False"""
+        cerberus_setup.cerberus_enabled = True
         cerberus_setup.exit_on_failure = False
         mock_get_status.return_value = False
 
@@ -195,6 +207,7 @@ class TestCerberusSetup(unittest.TestCase):
     @patch('krkn.cerberus.setup.get_status')
     def test_publish_kraken_status_unhealthy_exit_on_failure_true(self, mock_get_status):
         """Test publish_kraken_status when cluster is unhealthy and exit_on_failure is True"""
+        cerberus_setup.cerberus_enabled = True
         cerberus_setup.exit_on_failure = True
         mock_get_status.return_value = False
 

@@ -40,6 +40,7 @@ TEST_DURATION = 30
 
 @pytest.mark.functional
 @pytest.mark.node_network_chaos
+@pytest.mark.xdist_group("node_network_chaos")
 class TestNodeNetworkChaos(BaseScenarioTest):
     """Node network chaos: packet loss, latency, bandwidth, direction, targeting, safety, cleanup."""
 

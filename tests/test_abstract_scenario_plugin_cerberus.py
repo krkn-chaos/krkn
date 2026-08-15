@@ -354,6 +354,82 @@ class TestAbstractScenarioPluginCerberusIntegration(unittest.TestCase):
 
 
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.cerberus.publish_kraken_status')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.cleanup_rollback_version_files')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
+    @patch('time.sleep')
+    @patch('time.time')
+    def test_end_timestamp_includes_wait_duration_soak(
+        self, mock_time, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs,
+        mock_cleanup, mock_cerberus_publish
+    ):
+        """Test that end_timestamp is captured AFTER wait_duration sleep (soak window)"""
+        mock_signal_ctx.return_value.__enter__ = Mock()
+        mock_signal_ctx.return_value.__exit__ = Mock(return_value=False)
+
+        # Simulate: start=1000, scenario ends, sleep 60s, end_timestamp=1060
+        time_values = iter([1000.0, 1060.0])
+        mock_time.side_effect = lambda: next(time_values)
+
+        krkn_config = {
+            "tunings": {"wait_duration": 60},
+            "telemetry": {"events_backup": False}
+        }
+
+        scenarios_list = ["scenario1.yaml"]
+
+        failed_scenarios, telemetries = self.plugin.run_scenarios(
+            "test-uuid",
+            scenarios_list,
+            krkn_config,
+            self.mock_telemetry
+        )
+
+        # sleep should be called with the configured wait_duration
+        mock_sleep.assert_called_once_with(60)
+        # end_timestamp should reflect post-soak time (1060), not pre-soak
+        self.assertEqual(telemetries[0].start_timestamp, 1000.0)
+        self.assertEqual(telemetries[0].end_timestamp, 1060.0)
+        # SLO window should span the full 60s soak period
+        call_args = mock_cerberus_publish.call_args[0]
+        self.assertEqual(call_args[0], 1000)
+        self.assertEqual(call_args[1], 1060)
+
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.cerberus.publish_kraken_status')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.cleanup_rollback_version_files')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.utils.collect_and_put_ocp_logs')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.signal_handler.signal_context')
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=True)
+    @patch('time.sleep')
+    def test_wait_duration_runs_for_every_scenario_including_last(
+        self, mock_sleep, mock_exists, mock_signal_ctx, mock_collect_logs,
+        mock_cleanup, mock_cerberus_publish
+    ):
+        """Test that wait_duration sleep runs for ALL scenarios (soak window, not just inter-scenario delay)"""
+        mock_signal_ctx.return_value.__enter__ = Mock()
+        mock_signal_ctx.return_value.__exit__ = Mock(return_value=False)
+
+        krkn_config = {
+            "tunings": {"wait_duration": 30},
+            "telemetry": {"events_backup": False}
+        }
+
+        scenarios_list = ["scenario1.yaml", "scenario2.yaml", "scenario3.yaml"]
+
+        self.plugin.run_scenarios(
+            "test-uuid",
+            scenarios_list,
+            krkn_config,
+            self.mock_telemetry
+        )
+
+        # sleep should be called once per scenario (including the last)
+        self.assertEqual(mock_sleep.call_count, 3)
+        for call in mock_sleep.call_args_list:
+            self.assertEqual(call[0][0], 30)
+
+    @patch('krkn.scenario_plugins.abstract_scenario_plugin.cerberus.publish_kraken_status')
     @patch('krkn.scenario_plugins.abstract_scenario_plugin.os.path.exists', return_value=False)
     @patch('time.sleep')
     def test_missing_scenario_file_logs_error_and_marks_failed(
