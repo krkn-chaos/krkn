@@ -107,7 +107,7 @@
   {
     "name": "generate-pdf-report",
     "short_description": "Generate PDF report",
-    "description": "Generate a PDF summary report after the chaos run",
+    "description": "Generates a PDF report summarizing the chaos run results at the end of each scenario",
     "variable": "GENERATE_PDF_REPORT",
     "type": "enum",
     "allowed_values": "True,False",
@@ -446,7 +446,7 @@
   {
     "name": "telemetry-archive-size",
     "short_description": "Telemetry archive size",
-    "description": "Maximum size for telemetry archives",
+    "description": "Maximum size for telemetry archives in KB",
     "variable": "TELEMETRY_ARCHIVE_SIZE",
     "type": "number",
     "default": "1000",
@@ -506,7 +506,7 @@
   {
     "name": "health-check-interval",
     "short_description": "Heath check interval",
-    "description": "How often to check the health check urls",
+    "description": "How often to check the health check urls (seconds)",
     "variable": "HEALTH_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
@@ -576,7 +576,7 @@
   {
     "name": "kubevirt-check-interval",
     "short_description": "Kube Virt check interval",
-    "description": "How often to check the kube virt check Vms ssh status",
+    "description": "How often to check the KubeVirt VMs SSH status (seconds)",
     "variable": "KUBE_VIRT_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
@@ -618,7 +618,7 @@
   {
     "name": "kubevirt-disconnected",
     "short_description": "KubeVirt checks in disconnected mode",
-    "description": "KubeVirt checks in disconnected mode, bypassing the clusters Api",
+    "description": "KubeVirt checks in disconnected mode, bypassing the cluster API",
     "variable": "KUBE_VIRT_DISCONNECTED",
     "type": "enum",
     "allowed_values": "True,False,true,false",
@@ -630,7 +630,7 @@
   {
     "name": "kubevirt-ssh-node",
     "short_description": "KubeVirt node to ssh from",
-    "description": "KubeVirt node to ssh from, should be available whole chaos run",
+    "description": "KubeVirt backup node to SSH into when checking VMI IP address status",
     "variable": "KUBE_VIRT_SSH_NODE",
     "type": "string",
     "default": "",
@@ -687,7 +687,7 @@
   {
     "name": "disable-resiliency-score",
     "short_description": "Disable resiliency score calculation",
-    "description": "Disable resiliency score calculation",
+    "description": "Disables resiliency score calculation entirely",
     "variable": "DISABLE_RESILIENCY_SCORE",
     "type": "boolean",
     "required": "false",
@@ -696,7 +696,7 @@
   {
     "name": "resiliency-file",
     "short_description": "Resiliency Score metrics file",
-    "description": "Custom Resiliency score file",
+    "description": "Path to a YAML file containing SLO definitions for resiliency scoring, defaults to the alerts profile or config/alerts.yaml",
     "variable": "RESILIENCY_FILE",
     "type": "file",
     "required": "false",

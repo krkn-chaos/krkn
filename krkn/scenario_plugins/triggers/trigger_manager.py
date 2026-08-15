@@ -108,6 +108,7 @@ class TriggerManager:
 
         if trigger_type == "prometheus":
             return PrometheusTrigger(condition_config)
+            
         if trigger_type == "k8s":
             return K8sTrigger(condition_config, kubecli=kubecli)
 

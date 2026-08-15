@@ -41,7 +41,9 @@ class PrometheusTrigger(AbstractTrigger):
             raise ValueError(
                 "prometheus trigger requires a 'prometheus_url' field"
             )
-        self._prometheus_bearer_token = config.get("prometheus_bearer_token")
+        self._prometheus_bearer_token = (
+            config.get("prometheus_bearer_token") or None
+        )
         self._prom_client = None
         self._last_result: bool | None = None
 
@@ -54,9 +56,8 @@ class PrometheusTrigger(AbstractTrigger):
             self._prom_client = KrknPrometheus(
                 self._prometheus_url,
                 self._prometheus_bearer_token,
+                timeout=PROM_REQUEST_TIMEOUT_SECONDS,
             )
-            # KrknPrometheus does not expose a timeout; PrometheusConnect does.
-            self._prom_client.prom_cli._timeout = PROM_REQUEST_TIMEOUT_SECONDS
         return self._prom_client
 
     def evaluate(self) -> bool:

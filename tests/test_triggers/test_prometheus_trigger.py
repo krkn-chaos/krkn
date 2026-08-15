@@ -128,11 +128,27 @@ class TestPrometheusTrigger(unittest.TestCase):
             trigger.evaluate()
             trigger.evaluate()
 
-        mock_cls.assert_called_once_with("http://prometheus:9090", "tok")
+        mock_cls.assert_called_once_with(
+            "http://prometheus:9090",
+            "tok",
+            timeout=PROM_REQUEST_TIMEOUT_SECONDS,
+        )
         self.assertEqual(mock_cls.return_value.process_query.call_count, 2)
-        self.assertEqual(
-            trigger._prom_client.prom_cli._timeout,
-            PROM_REQUEST_TIMEOUT_SECONDS,
+
+    def test_empty_bearer_token_normalized_to_none(self):
+        """Empty-string bearer token becomes None (same idea as HttpTrigger)."""
+        mock_cls = MagicMock(
+            return_value=self._mock_client(result=[{"value": [0, "1"]}])
+        )
+        trigger = self._make_trigger(prometheus_bearer_token="")
+
+        with self._patch_krkn_prometheus(mock_cls):
+            trigger.evaluate()
+
+        mock_cls.assert_called_once_with(
+            "http://prometheus:9090",
+            None,
+            timeout=PROM_REQUEST_TIMEOUT_SECONDS,
         )
 
     def test_state_change_logging(self):
