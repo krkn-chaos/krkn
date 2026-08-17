@@ -405,25 +405,16 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         scenario_plugin_factory = ScenarioPluginFactory()
         health_check_factory = HealthCheckFactory()
 
-        # Determine which scenario types are configured for this run
-        configured_types: set[str] = set()
-        for scenario in chaos_scenarios:
-            if isinstance(scenario, dict):
-                configured_types.add(list(scenario.keys())[0])
-
-        # Log only the plugins that will actually execute (INFO)
+        # Log loaded/failed plugin counts (INFO)
         logging.info(
             f"📣 `ScenarioPluginFactory`: {len(scenario_plugin_factory.loaded_plugins)} scenario types loaded"
             f" ({len(scenario_plugin_factory.failed_plugins)} failed)"
         )
-        if configured_types:
-            logging.info("Scenario plugins for this run:")
-            for stype in sorted(configured_types):
-                if stype in scenario_plugin_factory.loaded_plugins:
-                    cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
-                    logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
-                else:
-                    logging.warning(f"  ⚠️ {stype} ➡️ no matching plugin found")
+        if len(scenario_plugin_factory.failed_plugins) > 0:
+            for failed in scenario_plugin_factory.failed_plugins:
+                module_name, class_name, error = failed
+                logging.error(f"⛔ Class: {class_name} Module: {module_name}")
+                logging.error(f"⚠️ {error}")
 
         # Full plugin registry at DEBUG for troubleshooting
         if logging.getLogger().isEnabledFor(logging.DEBUG):
@@ -442,20 +433,16 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                         f"  types: [{', '.join(types)}] ➡️ `{class_loaded}`"
                     )
 
-        if len(scenario_plugin_factory.failed_plugins) > 0:
-            for failed in scenario_plugin_factory.failed_plugins:
-                module_name, class_name, error = failed
-                logging.error(f"⛔ Class: {class_name} Module: {module_name}")
-                logging.error(f"⚠️ {error}")
-
         # Log health check plugins
         logging.info(
             f"📣 `HealthCheckFactory`: {len(health_check_factory.loaded_plugins)} health check plugins loaded"
             f" ({len(health_check_factory.failed_plugins)} failed)"
         )
-        logging.debug(
-            f"Available health check plugins: {list(health_check_factory.loaded_plugins.keys())}"
-        )
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(
+                "Available health check plugins: %s",
+                list(health_check_factory.loaded_plugins.keys()),
+            )
         if len(health_check_factory.failed_plugins) > 0:
             for failed in health_check_factory.failed_plugins:
                 module_name, class_name, error = failed
@@ -491,6 +478,20 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             except ValueError as e:
                 logging.error("invalid trigger configuration: %s", e)
                 return 1
+
+        # Log run-specific plugin mappings (after triggers may have cleared chaos_scenarios)
+        configured_types: set[str] = set()
+        for scenario in chaos_scenarios:
+            if isinstance(scenario, dict):
+                configured_types.add(list(scenario.keys())[0])
+        if configured_types:
+            logging.info("Scenario plugins for this run:")
+            for stype in sorted(configured_types):
+                if stype in scenario_plugin_factory.loaded_plugins:
+                    cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
+                    logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
+                else:
+                    logging.warning(f"  ⚠️ {stype} ➡️ no matching plugin found")
 
         # Start all health check plugins discovered via config_key_map.
         # Returns list of (plugin, worker_thread, telemetry_queue);
