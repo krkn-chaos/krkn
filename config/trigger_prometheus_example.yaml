@@ -1,0 +1,21 @@
+# Example: gate chaos on a Prometheus PromQL condition.
+#
+# Set prometheus_url (and optional prometheus_bearer_token) on the condition.
+# Chaos starts only after the query returns a non-empty result.
+# on_timeout: skip | fail | run_anyway
+
+kraken:
+  chaos_scenarios:
+    - network_chaos_ng_scenarios:
+        - scenarios/kube/pod-network-chaos.yml
+
+triggers:
+  mode: all_of
+  timeout: 600
+  interval: 10
+  on_timeout: skip
+  conditions:
+    - type: prometheus
+      query: "avg(rate(container_cpu_usage_seconds_total{namespace='production'}[5m])) > 0.8"
+      prometheus_url: "http://prometheus:9090"
+      # prometheus_bearer_token: "optional-token"
