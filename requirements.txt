@@ -11,7 +11,7 @@ azure-mgmt-network==27.0.0
 coverage==7.6.12
 datetime==5.4
 docker>=7.0.0  # Upgraded to support requests>=2.32; Unix socket support now native
-gitpython==3.1.52
+gitpython==3.1.58
 google-auth==2.37.0
 google-cloud-compute==1.22.0
 ibm-cloud-sdk-core>=3.24.4  # Requires requests>=2.32.4
