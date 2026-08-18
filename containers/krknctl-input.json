@@ -873,5 +873,36 @@
     "default": "",
     "required": "false",
     "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-query",
+    "short_description": "Prometheus trigger query",
+    "description": "PromQL expression for the prometheus trigger. Chaos begins only after the query returns a non-empty result. Leave empty to disable.",
+    "variable": "TRIGGER_PROM_QUERY",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-url",
+    "short_description": "Prometheus trigger URL",
+    "description": "Prometheus API URL used by the prometheus trigger condition. Required when trigger-prom-query is set.",
+    "variable": "TRIGGER_PROM_URL",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-token",
+    "short_description": "Prometheus trigger bearer token",
+    "description": "Optional bearer token for authenticating the prometheus trigger against prometheus-url",
+    "variable": "TRIGGER_PROM_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "secret": "true",
+    "group": "triggers"
   }
 ]
