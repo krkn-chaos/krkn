@@ -28,6 +28,7 @@ SCENARIO_EXECUTION_MARKERS = {
     "node_network_chaos": r"creating workload to inject network chaos in node|removing tc rules",
     "container_scenarios": r"Killing container .+ in pod",
     "namespace_deletion": r"Delete objects in selected namespace|Deleted all objects in namespace",
+    "service_hijacking": r"patching service:|service:.+successfully patched|selectors successfully restored",
 }
 
 # nodeid -> {"scenario", "pattern", "verified"}; consumed by conftest to build the
