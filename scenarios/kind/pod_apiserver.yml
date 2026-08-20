@@ -1,0 +1,6 @@
+- id: kill-pods
+  config:
+    namespace_pattern: "kube-system"
+    label_selector: "component=kube-apiserver"
+    krkn_pod_recovery_time: 120
+    kill: 1

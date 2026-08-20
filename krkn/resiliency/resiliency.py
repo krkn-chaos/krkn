@@ -113,11 +113,25 @@ class Resiliency:
             prom_cli: Initialized KrknPrometheus instance.
             start_time: Window start.
             end_time: Window end.
-            weight: Weight to use for the final weighted average calculation.
+            weight: Weight to use for the final weighted average calculation (must be > 0).
             health_check_results: Optional mapping of custom health-check name ➡ bool.
         Returns:
             The calculated integer resiliency score (0-100) for this scenario.
         """
+        # Validate weight
+        try:
+            weight = float(weight)
+            if weight <= 0:
+                logging.warning(
+                    f"Invalid weight {weight} for scenario '{scenario_name}' (must be > 0). Using default weight=1"
+                )
+                weight = 1
+        except (TypeError, ValueError):
+            logging.warning(
+                f"Invalid weight type '{weight}' for scenario '{scenario_name}' (must be numeric). Using default weight=1"
+            )
+            weight = 1
+
         slo_results = evaluate_slos(
             prom_cli=prom_cli,
             slo_list=self._slos,
@@ -158,9 +172,19 @@ class Resiliency:
 
         # ---------------- Weighted average (primary resiliency_score) ----------
         total_weight = sum(rep["weight"] for rep in self.scenario_reports)
-        resiliency_score = int(
-            sum(rep["score"] * rep["weight"] for rep in self.scenario_reports) / total_weight
-        )
+
+        if total_weight <= 0:
+            logging.error(
+                f"Invalid total weight {total_weight} (sum of all scenario weights). "
+                "All scenario weights must be positive numbers. Defaulting to simple average."
+            )
+            # Fallback to simple average if weights are invalid
+            resiliency_score = int(sum(rep["score"] for rep in self.scenario_reports) / len(self.scenario_reports))
+        else:
+            weighted_sum = sum(rep["score"] * rep["weight"] for rep in self.scenario_reports)
+            resiliency_score = int(weighted_sum / total_weight)
+
+        logging.info(f"Calculated weighted resiliency score: {resiliency_score}/100 (weighted average of {len(self.scenario_reports)} scenarios)")
 
         # ---------------- Overall SLO evaluation across full test window -----------------------------
         full_slo_results = evaluate_slos(
