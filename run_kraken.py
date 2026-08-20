@@ -73,6 +73,7 @@ from krkn.rollback.command import (
     execute_rollback as execute_rollback_command,
 )
 from krkn.summarized_reports.transform import build_chaos_report, build_chaos_report_pdf
+from krkn.summarized_reports.transform_html import build_chaos_report_html
 from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
 # removes TripleDES warning
@@ -105,7 +106,9 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
-        generate_pdf_report = get_yaml_item_value(config["kraken"], "generate_pdf_report", True)
+        report_formats = get_yaml_item_value(config["kraken"], "report_formats", ["pdf", "html"])
+        generate_pdf_report = "pdf" in report_formats
+        generate_html_report = "html" in report_formats
         rollback_versions_dir = get_yaml_item_value(
             config["kraken"],
             "rollback_versions_directory",
@@ -704,9 +707,17 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 abs_pdf_path = os.path.abspath(pdf_path)
                 build_chaos_report_pdf(chaos_output_dict, abs_pdf_path)
                 logging.info("PDF report generated: %s", abs_pdf_path)
-                print(f"\nfile://{abs_pdf_path}\n")
             except Exception as e:
                 logging.exception("Failed to generate PDF report: %s", e)
+
+        if generate_html_report:
+            html_path = report_file + ".html"
+            try:
+                abs_html_path = os.path.abspath(html_path)
+                build_chaos_report_html(chaos_output_dict, abs_html_path)
+                logging.info("HTML report generated: %s", abs_html_path)
+            except Exception as e:
+                logging.exception("Failed to generate HTML report: %s", e)
 
         if enable_elastic:
             result = elastic_search.push_telemetry(

@@ -947,7 +947,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
                     row.append(n.get("node_id", ""))
                 for key in ["stopped_time", "running_time", "terminating_time", "not_ready_time", "ready_time"]:
                     val = n.get(key)
-                    row.append(f"{val:.2f}s" if val else "")
+                    row.append(f"{val:.2f}s" if val is not None else "")
                 rows.append(row)
             f.extend(_make_data_table(headers, rows, col_widths=cw, small=True, span_header=s["scenario"]))
 

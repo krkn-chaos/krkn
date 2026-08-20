@@ -57,6 +57,18 @@
     "group": "kraken"
   },
   {
+    "name": "generate-html-report",
+    "short_description": "Generate HTML report",
+    "description": "Generate an interactive HTML summary report after the chaos run",
+    "variable": "GENERATE_HTML_REPORT",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "True",
+    "required": "false",
+    "group": "general"
+  },
+  {
     "name": "krkn-debug",
     "short_description": "Krkn debug mode",
     "description": "Enables debug mode for Krkn",
