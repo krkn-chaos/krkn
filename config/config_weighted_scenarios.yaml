@@ -1,0 +1,70 @@
+kraken:
+    kubeconfig_path: ~/.kube/config
+    exit_on_failure: False
+    auto_rollback: True
+    publish_kraken_status: True
+    signal_state: RUN
+    signal_address: 0.0.0.0
+    port: 8081
+    generate_pdf_report: True
+
+    # Example: Weighted chaos scenarios for resiliency scoring
+    # Scenarios with higher weights contribute more to the final resiliency score
+    chaos_scenarios:
+       # Critical infrastructure scenarios - highest weight (3x)
+       - pod_disruption_scenarios:
+           weight: 3
+           files:
+             - scenarios/kind/pod_etcd.yml
+
+       # Important pod api server - high weight (2x)
+       - pod_disruption_scenarios:
+           weight: 2
+           files:
+             - scenarios/kind/pod_apiserver.yml
+
+       # Pod DNS failures - medium-high weight (1x)
+       - pod_disruption_scenarios:
+           - scenarios/kind/pod_dns.yml
+
+telemetry:
+    enabled: False                                         # enable/disables the telemetry collection feature
+    archive_path:                                          # local path where the archive files will be temporarily stored. If empty, a secure temp directory is created automatically.
+    events_backup: True                                    # enables/disables cluster events collection
+    logs_backup: False                                     # OCP-specific logs - disabled for KinD
+
+resiliency:
+  resiliency_run_mode: standalone  # Options: standalone, detailed, disabled
+  resiliency_file: config/alerts.yaml
+
+cerberus:
+    cerberus_enabled: False
+    cerberus_url:
+    check_application_routes: False
+
+performance_monitoring:
+    prometheus_url: ''
+    prometheus_bearer_token: ''
+    uuid:
+    enable_alerts: False
+    enable_metrics: False
+    alert_profile: config/alerts.yaml
+    metrics_profile: config/metrics-report.yaml
+    check_critical_alerts: False
+
+elastic:
+    enable_elastic: False
+    verify_certs: False
+    elastic_url: ""
+    elastic_port: 32766
+    username: "elastic"
+    password: "test"
+    metrics_index: "krkn-metrics"
+    alerts_index: "krkn-alerts"
+    telemetry_index: "krkn-telemetry"
+    run_tag: ""
+
+tunings:
+    wait_duration: 1
+    iterations: 1
+    daemon_mode: False
