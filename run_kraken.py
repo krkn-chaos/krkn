@@ -268,10 +268,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         distribution = "kubernetes"
         if ocpcli.is_openshift():
             distribution = "openshift"
-        logging.info("Detected distribution %s" % (distribution))
-
-        # find node kraken might be running on
-        kubecli.find_kraken_node()
+        logging.info("Detected cluster platform: %s" % (distribution))
 
         # Set up kraken url to track signal
         if not 0 <= int(port) <= 65535:
@@ -400,56 +397,57 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # Capture the start time
         start_time = int(time.time())
         post_critical_alerts = 0
-        profile_critical_alerts = 0
+        profile_critical_alerts = []
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
         chaos_telemetry.tag = elastic_run_tag
         scenario_plugin_factory = ScenarioPluginFactory()
         health_check_factory = HealthCheckFactory()
-        classes_and_types: dict[str, list[str]] = {}
-        for loaded in scenario_plugin_factory.loaded_plugins.keys():
-            if (
-                    scenario_plugin_factory.loaded_plugins[loaded].__name__
-                    not in classes_and_types.keys()
-            ):
-                classes_and_types[
-                    scenario_plugin_factory.loaded_plugins[loaded].__name__
-                ] = []
-            classes_and_types[
-                scenario_plugin_factory.loaded_plugins[loaded].__name__
-            ].append(loaded)
+
+        # Log loaded/failed plugin counts (INFO)
         logging.info(
-            "📣 `ScenarioPluginFactory`: types from config.yaml mapped to respective classes for execution:"
+            f"📣 `ScenarioPluginFactory`: {len(scenario_plugin_factory.loaded_plugins)} scenario types loaded"
+            f" ({len(scenario_plugin_factory.failed_plugins)} failed)"
         )
-        for class_loaded in classes_and_types.keys():
-            if len(classes_and_types[class_loaded]) <= 1:
-                logging.info(
-                    f"  ✅ type: {classes_and_types[class_loaded][0]} ➡️ `{class_loaded}` "
-                )
-            else:
-                logging.info(
-                    f"  ✅ types: [{', '.join(classes_and_types[class_loaded])}] ➡️ `{class_loaded}` "
-                )
-        logging.info("\n")
         if len(scenario_plugin_factory.failed_plugins) > 0:
-            logging.info("Failed to load Scenario Plugins:\n")
             for failed in scenario_plugin_factory.failed_plugins:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
-                logging.error(f"⚠️ {error}\n")
+                logging.error(f"⚠️ {error}")
 
-        # Log loaded health check plugins
+        # Full plugin registry at DEBUG for troubleshooting
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            classes_and_types: dict[str, list[str]] = {}
+            for loaded in scenario_plugin_factory.loaded_plugins.keys():
+                cls_name = scenario_plugin_factory.loaded_plugins[loaded].__name__
+                if cls_name not in classes_and_types:
+                    classes_and_types[cls_name] = []
+                classes_and_types[cls_name].append(loaded)
+            logging.debug("Full plugin registry:")
+            for class_loaded, types in classes_and_types.items():
+                if len(types) <= 1:
+                    logging.debug(f"  type: {types[0]} ➡️ `{class_loaded}`")
+                else:
+                    logging.debug(
+                        f"  types: [{', '.join(types)}] ➡️ `{class_loaded}`"
+                    )
+
+        # Log health check plugins
         logging.info(
-            "📣 `HealthCheckFactory`: Available health check plugins: "
-            f"{list(health_check_factory.loaded_plugins.keys())}"
+            f"📣 `HealthCheckFactory`: {len(health_check_factory.loaded_plugins)} health check plugins loaded"
+            f" ({len(health_check_factory.failed_plugins)} failed)"
         )
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(
+                "Available health check plugins: %s",
+                list(health_check_factory.loaded_plugins.keys()),
+            )
         if len(health_check_factory.failed_plugins) > 0:
-            logging.info("Failed to load Health Check Plugins:\n")
             for failed in health_check_factory.failed_plugins:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
-                logging.error(f"⚠️ {error}\n")
+                logging.error(f"⚠️ {error}")
 
         # Evaluate top-level triggers before starting health checks or chaos
         trigger_config = config.get("triggers")
@@ -480,6 +478,20 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             except ValueError as e:
                 logging.error("invalid trigger configuration: %s", e)
                 return 1
+
+        # Log run-specific plugin mappings (after triggers may have cleared chaos_scenarios)
+        configured_types: set[str] = set()
+        for scenario in chaos_scenarios:
+            if isinstance(scenario, dict):
+                configured_types.add(list(scenario.keys())[0])
+        if configured_types:
+            logging.info("Scenario plugins for this run:")
+            for stype in sorted(configured_types):
+                if stype in scenario_plugin_factory.loaded_plugins:
+                    cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
+                    logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
+                else:
+                    logging.warning(f"  ⚠️ {stype} ➡️ no matching plugin found")
 
         # Start all health check plugins discovered via config_key_map.
         # Returns list of (plugin, worker_thread, telemetry_queue);
@@ -599,7 +611,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # through OCP specific APIs
         if distribution == "openshift":
             logging.info(
-                "collecting OCP cluster metadata, this may take few minutes...."
+                "Collecting OCP cluster metadata (nodes, resources, network plugins)..."
             )
             telemetry_ocp.collect_cluster_metadata(chaos_telemetry)
         else:
@@ -611,7 +623,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             logging.info(f"Collected {len(error_logs)} error logs for telemetry")
             chaos_telemetry.error_logs = error_logs
         else:
-            logging.info("No error logs collected during chaos run")
+            logging.debug("No error logs collected during chaos run")
             chaos_telemetry.error_logs = []
         if resiliency_obj and hist_window is None:
             try:
@@ -630,8 +642,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
 
             except Exception as e:
                 logging.error("Failed to finalize resiliency scoring: %s", e)
-
-
+        
         # Check for the alerts specified before telemetry so job_status is included in output
         if enable_alerts:
             logging.info("Alerts checking is enabled")
@@ -645,11 +656,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                     alert_profile,
                     elastic_alerts_index
                 )
+                if profile_critical_alerts:
+                    chaos_telemetry.failed_alerts = profile_critical_alerts
             else:
                 logging.error("Alert profile is not defined")
                 return -1
 
-        if post_critical_alerts > 0 or profile_critical_alerts > 0:
+        if post_critical_alerts > 0 or len(profile_critical_alerts) > 0:
             chaos_telemetry.job_status = False
 
         telemetry_json = chaos_telemetry.to_json()
@@ -809,7 +822,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             logging.error("Critical alerts are firing, please check; exiting")
             return 2
 
-        if profile_critical_alerts > 0:
+        if len(profile_critical_alerts) > 0:
             logging.error("Critical or Error alerts from alert profile are firing, please check; exiting")
             return 2
 

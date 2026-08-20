@@ -29,30 +29,10 @@
     "group": "cerberus"
   },
   {
-    "name": "general",
-    "short_description": "General group",
-    "description": "Group containing general krkn configuration options",
+    "name": "kraken",
+    "short_description": "Kraken group",
+    "description": "Group containing core krkn run configuration options",
     "type": "Group"
-  },
-  {
-    "name": "ssh-public-key",
-    "short_description": "Krkn ssh public key path",
-    "description": "Sets the path where krkn will search for ssh public key (in container)",
-    "variable": "KRKN_SSH_PUBLIC",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "ssh-private-key",
-    "short_description": "Krkn ssh private key path",
-    "description": "Sets the path where krkn will search for ssh private key (in container)",
-    "variable": "KRKN_SSH_PRIVATE",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "group": "general"
   },
   {
     "name": "krkn-kubeconfig",
@@ -62,59 +42,19 @@
     "type": "string",
     "default": "/home/krkn/.kube/config",
     "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "wait-duration",
-    "short_description": "Post chaos wait duration",
-    "description": "waits for a certain amount of time after the scenario",
-    "variable": "WAIT_DURATION",
-    "type": "number",
-    "default": "1",
-    "group": "general"
-  },
-  {
-    "name": "iterations",
-    "short_description": "Chaos scenario iterations",
-    "description": "number of times the same chaos scenario will be executed",
-    "variable": "ITERATIONS",
-    "type": "number",
-    "default": "1",
-    "group": "general"
-  },
-  {
-    "name": "daemon-mode",
-    "short_description": "Sets krkn daemon mode",
-    "description": "if set the scenario will execute forever",
-    "variable": "DAEMON_MODE",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false",
-    "group": "general"
-  },
-  {
-    "name": "uuid",
-    "short_description": "Sets krkn run uuid",
-    "description": "sets krkn run uuid instead of generating it",
-    "variable": "UUID",
-    "type": "string",
-    "default": "",
-    "required": "false",
-    "group": "general"
+    "group": "kraken"
   },
   {
     "name": "generate-pdf-report",
     "short_description": "Generate PDF report",
-    "description": "Generate a PDF summary report after the chaos run",
+    "description": "Generates a PDF report summarizing the chaos run results at the end of each scenario",
     "variable": "GENERATE_PDF_REPORT",
     "type": "enum",
     "allowed_values": "True,False",
     "separator": ",",
     "default": "True",
     "required": "false",
-    "group": "general"
+    "group": "kraken"
   },
   {
     "name": "krkn-debug",
@@ -126,7 +66,43 @@
     "separator": ",",
     "default": "False",
     "required": "false",
-    "group": "general"
+    "group": "kraken"
+  },
+  {
+    "name": "tunings",
+    "short_description": "Tunings group",
+    "description": "Group containing chaos scenario timing and repetition configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "wait-duration",
+    "short_description": "Post chaos wait duration",
+    "description": "waits for a certain amount of time after the scenario",
+    "variable": "WAIT_DURATION",
+    "type": "number",
+    "default": "1",
+    "group": "tunings"
+  },
+  {
+    "name": "iterations",
+    "short_description": "Chaos scenario iterations",
+    "description": "number of times the same chaos scenario will be executed",
+    "variable": "ITERATIONS",
+    "type": "number",
+    "default": "1",
+    "group": "tunings"
+  },
+  {
+    "name": "daemon-mode",
+    "short_description": "Sets krkn daemon mode",
+    "description": "if set the scenario will execute forever",
+    "variable": "DAEMON_MODE",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "tunings"
   },
   {
     "name": "prometheus",
@@ -149,6 +125,16 @@
     "short_description": "Prometheus bearer token",
     "description": "Prometheus bearer token for prometheus url authentication",
     "variable": "PROMETHEUS_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "uuid",
+    "short_description": "Sets krkn run uuid",
+    "description": "sets krkn run uuid instead of generating it",
+    "variable": "UUID",
     "type": "string",
     "default": "",
     "required": "false",
@@ -446,7 +432,7 @@
   {
     "name": "telemetry-archive-size",
     "short_description": "Telemetry archive size",
-    "description": "Maximum size for telemetry archives",
+    "description": "Maximum size for telemetry archives in KB",
     "variable": "TELEMETRY_ARCHIVE_SIZE",
     "type": "number",
     "default": "1000",
@@ -506,7 +492,7 @@
   {
     "name": "health-check-interval",
     "short_description": "Heath check interval",
-    "description": "How often to check the health check urls",
+    "description": "How often to check the health check urls (seconds)",
     "variable": "HEALTH_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
@@ -576,7 +562,7 @@
   {
     "name": "kubevirt-check-interval",
     "short_description": "Kube Virt check interval",
-    "description": "How often to check the kube virt check Vms ssh status",
+    "description": "How often to check the KubeVirt VMs SSH status (seconds)",
     "variable": "KUBE_VIRT_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
@@ -618,7 +604,7 @@
   {
     "name": "kubevirt-disconnected",
     "short_description": "KubeVirt checks in disconnected mode",
-    "description": "KubeVirt checks in disconnected mode, bypassing the clusters Api",
+    "description": "KubeVirt checks in disconnected mode, bypassing the cluster API",
     "variable": "KUBE_VIRT_DISCONNECTED",
     "type": "enum",
     "allowed_values": "True,False,true,false",
@@ -630,7 +616,7 @@
   {
     "name": "kubevirt-ssh-node",
     "short_description": "KubeVirt node to ssh from",
-    "description": "KubeVirt node to ssh from, should be available whole chaos run",
+    "description": "KubeVirt backup node to SSH into when checking VMI IP address status",
     "variable": "KUBE_VIRT_SSH_NODE",
     "type": "string",
     "default": "",
@@ -687,7 +673,7 @@
   {
     "name": "disable-resiliency-score",
     "short_description": "Disable resiliency score calculation",
-    "description": "Disable resiliency score calculation",
+    "description": "Disables resiliency score calculation entirely",
     "variable": "DISABLE_RESILIENCY_SCORE",
     "type": "boolean",
     "required": "false",
@@ -696,7 +682,7 @@
   {
     "name": "resiliency-file",
     "short_description": "Resiliency Score metrics file",
-    "description": "Custom Resiliency score file",
+    "description": "Path to a YAML file containing SLO definitions for resiliency scoring, defaults to the alerts profile or config/alerts.yaml",
     "variable": "RESILIENCY_FILE",
     "type": "file",
     "required": "false",
@@ -872,6 +858,37 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-query",
+    "short_description": "Prometheus trigger query",
+    "description": "PromQL expression for the prometheus trigger. Chaos begins only after the query returns a non-empty result. Leave empty to disable.",
+    "variable": "TRIGGER_PROM_QUERY",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-url",
+    "short_description": "Prometheus trigger URL",
+    "description": "Prometheus API URL used by the prometheus trigger condition. Required when trigger-prom-query is set.",
+    "variable": "TRIGGER_PROM_URL",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-token",
+    "short_description": "Prometheus trigger bearer token",
+    "description": "Optional bearer token for authenticating the prometheus trigger against prometheus-url",
+    "variable": "TRIGGER_PROM_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "secret": "true",
     "group": "triggers"
   }
 ]
