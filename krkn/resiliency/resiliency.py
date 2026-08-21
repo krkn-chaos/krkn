@@ -146,6 +146,22 @@ class Resiliency:
         )
         return score
 
+    def _merge_scenario_slo_results(self) -> Dict[str, bool]:
+        """Merge SLO results from all per-scenario evaluations.
+
+        A SLO is considered failed if it failed in *any* scenario window.
+        This avoids a redundant full-window Prometheus query by reusing the
+        results already collected during ``add_scenario_report()`` calls.
+        """
+        merged: Dict[str, bool] = {}
+        for rep in self.scenario_reports:
+            for name, passed in rep["slo_results"].items():
+                if name in merged:
+                    merged[name] = merged[name] and passed
+                else:
+                    merged[name] = passed
+        return merged
+
     def finalize_report(
         self,
         *,
@@ -162,13 +178,11 @@ class Resiliency:
             sum(rep["score"] * rep["weight"] for rep in self.scenario_reports) / total_weight
         )
 
-        # ---------------- Overall SLO evaluation across full test window -----------------------------
-        full_slo_results = evaluate_slos(
-            prom_cli=prom_cli,
-            slo_list=self._slos,
-            start_time=total_start_time,
-            end_time=total_end_time,
+        logging.info(
+            "Deriving full-run SLO results by merging %d per-scenario evaluations",
+            len(self.scenario_reports),
         )
+        full_slo_results = self._merge_scenario_slo_results()
         slo_defs = {slo["name"]: {"severity": slo["severity"], "weight": slo.get("weight")} for slo in self._slos}
         _overall_score, full_breakdown = calculate_resiliency_score(
             slo_definitions=slo_defs,
@@ -395,3 +409,4 @@ class Resiliency:
                 }
             )
         return slos
+
