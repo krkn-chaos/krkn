@@ -404,5 +404,72 @@ class TestCommonFunctions(unittest.TestCase):
         )
 
 
+class TestManifestWorkTemplate(unittest.TestCase):
+    """
+    Test suite for the manifestwork template used by the managed cluster scenarios
+    """
+
+    def test_template_file_exists(self):
+        """
+        Test the manifestwork template file is present in the plugin directory
+        """
+        import os
+
+        template_path = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "krkn",
+            "scenario_plugins",
+            "managed_cluster",
+            "manifestwork.j2",
+        )
+        self.assertTrue(os.path.isfile(template_path))
+
+    def test_template_renders_valid_manifestwork(self):
+        """
+        Test the template renders into a valid ManifestWork document with
+        the variables the scenarios pass in, including multiline args
+        """
+        import os
+
+        import yaml
+        from jinja2 import Environment, FileSystemLoader
+
+        template_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+            "krkn",
+            "scenario_plugins",
+            "managed_cluster",
+        )
+        env = Environment(
+            loader=FileSystemLoader(os.path.abspath(template_dir)),
+            autoescape=False,
+        )
+        template = env.get_template("manifestwork.j2")
+        body = yaml.safe_load(
+            template.render(
+                managedcluster_name="test-cluster",
+                args="""kubectl scale deployment.apps/klusterlet --replicas 3 &&
+                                kubectl scale deployment.apps/klusterlet-registration-agent --replicas 0 -n open-cluster-management-agent""",
+            )
+        )
+
+        self.assertEqual(body["kind"], "ManifestWork")
+        self.assertEqual(body["metadata"]["namespace"], "test-cluster")
+        self.assertEqual(body["apiVersion"], "work.open-cluster-management.io/v1")
+        manifests = body["spec"]["workload"]["manifests"]
+        self.assertEqual(len(manifests), 5)
+        cluster_role = manifests[0]
+        self.assertEqual(cluster_role["kind"], "ClusterRole")
+        self.assertNotIn("namespace", cluster_role["metadata"])
+        job = manifests[4]
+        self.assertEqual(job["kind"], "Job")
+        self.assertEqual(
+            job["spec"]["template"]["spec"]["containers"][0]["args"][0],
+            "kubectl scale deployment.apps/klusterlet --replicas 3 && "
+            "kubectl scale deployment.apps/klusterlet-registration-agent "
+            "--replicas 0 -n open-cluster-management-agent",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
