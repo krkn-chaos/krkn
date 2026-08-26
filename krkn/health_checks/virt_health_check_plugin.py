@@ -44,8 +44,8 @@ from krkn_lib.models.telemetry.models import VirtCheck
 from krkn_lib.utils.functions import get_yaml_item_value
 from krkn.health_checks.abstract_health_check_plugin import AbstractHealthCheckPlugin
 from krkn.invoke.command import invoke_no_exit
-from krkn.scenario_plugins.kubevirt_vm_outage.kubevirt_vm_outage_scenario_plugin import (
-    KubevirtVmOutageScenarioPlugin,
+from krkn.scenario_plugins.vmi_outage.vmi_outage_scenario_plugin import (
+    VmiOutageScenarioPlugin,
 )
 
 
@@ -150,7 +150,7 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
             return False
 
         try:
-            self.kube_vm_plugin = KubevirtVmOutageScenarioPlugin()
+            self.kube_vm_plugin = VmiOutageScenarioPlugin()
             self.kube_vm_plugin.init_clients(k8s_client=self.krkn_lib)
             self.vmis_list = self.kube_vm_plugin.k8s_client.get_vmis(
                 vmi_name_match, self.namespace, label_selector=label_selector

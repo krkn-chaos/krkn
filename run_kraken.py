@@ -73,6 +73,7 @@ from krkn.rollback.command import (
     execute_rollback as execute_rollback_command,
 )
 from krkn.summarized_reports.transform import build_chaos_report, build_chaos_report_pdf
+from krkn.summarized_reports.transform_html import build_chaos_report_html
 from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
 # removes TripleDES warning
@@ -105,7 +106,9 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             config["kraken"], "publish_kraken_status", False
         )
         port = get_yaml_item_value(config["kraken"], "port", 8081)
-        generate_pdf_report = get_yaml_item_value(config["kraken"], "generate_pdf_report", True)
+        report_formats = get_yaml_item_value(config["kraken"], "report_formats", ["pdf", "html"])
+        generate_pdf_report = "pdf" in report_formats
+        generate_html_report = "html" in report_formats
         rollback_versions_dir = get_yaml_item_value(
             config["kraken"],
             "rollback_versions_directory",
@@ -404,49 +407,50 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         chaos_telemetry.tag = elastic_run_tag
         scenario_plugin_factory = ScenarioPluginFactory()
         health_check_factory = HealthCheckFactory()
-        classes_and_types: dict[str, list[str]] = {}
-        for loaded in scenario_plugin_factory.loaded_plugins.keys():
-            if (
-                    scenario_plugin_factory.loaded_plugins[loaded].__name__
-                    not in classes_and_types.keys()
-            ):
-                classes_and_types[
-                    scenario_plugin_factory.loaded_plugins[loaded].__name__
-                ] = []
-            classes_and_types[
-                scenario_plugin_factory.loaded_plugins[loaded].__name__
-            ].append(loaded)
+
+        # Log loaded/failed plugin counts (INFO)
         logging.info(
-            "📣 `ScenarioPluginFactory`: types from config.yaml mapped to respective classes for execution:"
+            f"📣 `ScenarioPluginFactory`: {len(scenario_plugin_factory.loaded_plugins)} scenario types loaded"
+            f" ({len(scenario_plugin_factory.failed_plugins)} failed)"
         )
-        for class_loaded in classes_and_types.keys():
-            if len(classes_and_types[class_loaded]) <= 1:
-                logging.info(
-                    f"  ✅ type: {classes_and_types[class_loaded][0]} ➡️ `{class_loaded}` "
-                )
-            else:
-                logging.info(
-                    f"  ✅ types: [{', '.join(classes_and_types[class_loaded])}] ➡️ `{class_loaded}` "
-                )
-        logging.info("\n")
         if len(scenario_plugin_factory.failed_plugins) > 0:
-            logging.info("Failed to load Scenario Plugins:\n")
             for failed in scenario_plugin_factory.failed_plugins:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
-                logging.error(f"⚠️ {error}\n")
+                logging.error(f"⚠️ {error}")
 
-        # Log loaded health check plugins
+        # Full plugin registry at DEBUG for troubleshooting
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            classes_and_types: dict[str, list[str]] = {}
+            for loaded in scenario_plugin_factory.loaded_plugins.keys():
+                cls_name = scenario_plugin_factory.loaded_plugins[loaded].__name__
+                if cls_name not in classes_and_types:
+                    classes_and_types[cls_name] = []
+                classes_and_types[cls_name].append(loaded)
+            logging.debug("Full plugin registry:")
+            for class_loaded, types in classes_and_types.items():
+                if len(types) <= 1:
+                    logging.debug(f"  type: {types[0]} ➡️ `{class_loaded}`")
+                else:
+                    logging.debug(
+                        f"  types: [{', '.join(types)}] ➡️ `{class_loaded}`"
+                    )
+
+        # Log health check plugins
         logging.info(
-            "📣 `HealthCheckFactory`: Available health check plugins: "
-            f"{list(health_check_factory.loaded_plugins.keys())}"
+            f"📣 `HealthCheckFactory`: {len(health_check_factory.loaded_plugins)} health check plugins loaded"
+            f" ({len(health_check_factory.failed_plugins)} failed)"
         )
+        if logging.getLogger().isEnabledFor(logging.DEBUG):
+            logging.debug(
+                "Available health check plugins: %s",
+                list(health_check_factory.loaded_plugins.keys()),
+            )
         if len(health_check_factory.failed_plugins) > 0:
-            logging.info("Failed to load Health Check Plugins:\n")
             for failed in health_check_factory.failed_plugins:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
-                logging.error(f"⚠️ {error}\n")
+                logging.error(f"⚠️ {error}")
 
         # Evaluate top-level triggers before starting health checks or chaos
         trigger_config = config.get("triggers")
@@ -477,6 +481,20 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             except ValueError as e:
                 logging.error("invalid trigger configuration: %s", e)
                 return 1
+
+        # Log run-specific plugin mappings (after triggers may have cleared chaos_scenarios)
+        configured_types: set[str] = set()
+        for scenario in chaos_scenarios:
+            if isinstance(scenario, dict):
+                configured_types.add(list(scenario.keys())[0])
+        if configured_types:
+            logging.info("Scenario plugins for this run:")
+            for stype in sorted(configured_types):
+                if stype in scenario_plugin_factory.loaded_plugins:
+                    cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
+                    logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
+                else:
+                    logging.warning(f"  ⚠️ {stype} ➡️ no matching plugin found")
 
         # Start all health check plugins discovered via config_key_map.
         # Returns list of (plugin, worker_thread, telemetry_queue);
@@ -689,9 +707,17 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 abs_pdf_path = os.path.abspath(pdf_path)
                 build_chaos_report_pdf(chaos_output_dict, abs_pdf_path)
                 logging.info("PDF report generated: %s", abs_pdf_path)
-                print(f"\nfile://{abs_pdf_path}\n")
             except Exception as e:
                 logging.exception("Failed to generate PDF report: %s", e)
+
+        if generate_html_report:
+            html_path = report_file + ".html"
+            try:
+                abs_html_path = os.path.abspath(html_path)
+                build_chaos_report_html(chaos_output_dict, abs_html_path)
+                logging.info("HTML report generated: %s", abs_html_path)
+            except Exception as e:
+                logging.exception("Failed to generate HTML report: %s", e)
 
         if enable_elastic:
             result = elastic_search.push_telemetry(

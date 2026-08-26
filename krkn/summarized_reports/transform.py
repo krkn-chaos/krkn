@@ -11,10 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import logging
-import os
+
 from datetime import datetime
-from pathlib import Path
 from xml.sax.saxutils import escape as _xml_escape
 
 from reportlab.lib import colors
@@ -42,7 +40,7 @@ SCENARIO_TYPE_DOCS = {
     "service_hijacking_scenarios": "https://krkn-chaos.dev/docs/scenarios/service-hijacking/",
     "syn_flood_scenarios": "https://krkn-chaos.dev/docs/scenarios/syn-flood/",
     "http_load_scenarios": "https://krkn-chaos.dev/docs/scenarios/http-load/",
-    "kubevirt_vm_outage": "https://krkn-chaos.dev/docs/scenarios/kubevirt-vm-outage/",
+    "vmi_outage": "https://krkn-chaos.dev/docs/scenarios/vmi-outage/",
     "managedcluster_scenarios": "https://krkn-chaos.dev/docs/scenarios/managed-cluster/",
     "storage_throttle_scenarios": "https://krkn-chaos.dev/docs/scenarios/storage-throttle/",
 }
@@ -960,7 +958,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
                     row.append(n.get("node_id", ""))
                 for key in ["stopped_time", "running_time", "terminating_time", "not_ready_time", "ready_time"]:
                     val = n.get(key)
-                    row.append(f"{val:.2f}s" if val else "")
+                    row.append(f"{val:.2f}s" if val is not None else "")
                 rows.append(row)
             f.extend(_make_data_table(headers, rows, col_widths=cw, small=True, span_header=s["scenario"]))
 

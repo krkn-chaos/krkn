@@ -48,7 +48,7 @@ def calculate_resiliency_score(
         slo_definitions: Mapping of SLO name -> severity ("critical" | "warning") OR
             SLO name -> {"severity": str, "weight": int | None}.
         prometheus_results: Mapping of SLO name -> bool indicating whether the SLO
-            passed. Any SLO missing in this mapping is treated as failed.
+            passed. Any SLO defined but missing from this mapping is treated as failed.
         health_check_results: Mapping of custom health-check name -> bool pass flag.
             These checks are always treated as *critical*.
 
@@ -59,10 +59,7 @@ def calculate_resiliency_score(
 
     slo_objects: List[SLOResult] = []
     for slo_name, slo_def in slo_definitions.items():
-        # Exclude SLOs that were not evaluated (query returned no data)
-        if slo_name not in prometheus_results:
-            continue
-        passed = bool(prometheus_results[slo_name])
+        passed = bool(prometheus_results.get(slo_name, False))
 
         # Support both old format (str) and new format (dict)
         if isinstance(slo_def, str):
