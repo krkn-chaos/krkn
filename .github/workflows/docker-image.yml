@@ -257,12 +257,18 @@ jobs:
         cosign public-key --key env://COSIGN_PRIVATE_KEY > /tmp/cosign.pub
         cosign verify --insecure-ignore-tlog=true --key /tmp/cosign.pub "${REF}"
 
+    # NOTE: bump the pinned SHA below to the merge commit of
+    # redhat-chaos/actions#34 once it lands, so this release-time rebuild signs
+    # the krkn-hub scenario images it pushes (the COSIGN_* inputs are consumed
+    # there).
     - name: Rebuild krkn-hub
       uses: redhat-chaos/actions/krkn-hub@aa421229ca6d4ad13785039d0736611c6439fc3e # main
       with:
         QUAY_USER: ${{ secrets.QUAY_USERNAME }}
         QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
         AUTOPUSH: ${{ secrets.AUTOPUSH }}
+        COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
 
   security-badge:
     permissions:
