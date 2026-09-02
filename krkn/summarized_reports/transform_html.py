@@ -15,6 +15,7 @@
 from datetime import datetime
 from xml.sax.saxutils import escape as _xml_escape
 
+from krkn.telemetry_helpers import group_checks_by_phase
 from krkn.summarized_reports.transform import (
     SCENARIO_TYPE_DOCS,
     _extract_critical_alerts,
@@ -283,8 +284,6 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
 
     node_infos = telemetry.get("node_summary_infos") or []
     health_checks = telemetry.get("health_checks")
-    virt_checks = telemetry.get("virt_checks")
-    post_virt_checks = telemetry.get("post_virt_checks")
     failed_slos = total_slos - passed_slos
     per_scenario_scores = resiliency.get("scenarios", {})
     overall_score = resiliency.get("resiliency_score", "N/A")
@@ -504,75 +503,172 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
     if metrics_body:
         parts.append(_html_section("Key Metrics", "\n".join(metrics_body)))
 
-    # 10. Health Checks
+    # 10. Health Checks (HTTP)
     if health_checks:
-        rows = []
+        # Separate string checks from dict checks
+        string_checks = []
+        checks_by_phase = {}
+
         for check in health_checks:
-            if isinstance(check, dict):
-                url = check.get("url") or check.get("name") or check.get("check_name", "")
-                status_code = str(check.get("status_code", ""))
-                duration = ""
-                if check.get("duration") is not None and check.get("duration") != "":
-                    duration = f"{float(check['duration']):.2f}s"
-                passed = check.get("status") or check.get("passed")
-                rows.append([
-                    _h(url), _h(status_code), duration,
-                    _html_badge("PASS" if passed else "FAIL", bool(passed)),
-                ])
-            else:
-                rows.append([_h(str(check)), "", "", ""])
-        parts.append(_html_section(
-            "Health Checks",
-            _html_data_table(["URL / Endpoint", "Status Code", "Duration", "Result"], rows),
-        ))
+            if isinstance(check, str):
+                string_checks.append(check)
+            elif isinstance(check, dict):
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
 
-    # 11. KubeVirt Health Checks (Pre-Chaos)
+        # Display string checks first (raw check strings)
+        if string_checks:
+            rows = [[_h(check_str)] for check_str in string_checks]
+            parts.append(_html_section(
+                "Health Checks",
+                _html_data_table(["Details"], rows),
+            ))
+
+        # Display in order: pre, during, post (HTTP health checks)
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.capitalize()
+                rows = []
+                for check in checks_by_phase[phase]:
+                    url = check.get("url") or check.get("name") or check.get("check_name", "")
+                    status_code = str(check.get("status_code", ""))
+                    duration = ""
+                    if check.get("duration") is not None and check.get("duration") != "":
+                        duration = f"{float(check['duration']):.2f}s"
+                    passed = check.get("status") or check.get("passed")
+                    rows.append([
+                        _h(url), _h(status_code), duration,
+                        _html_badge("PASS" if passed else "FAIL", bool(passed)),
+                    ])
+                parts.append(_html_section(
+                    f"Health Checks (HTTP) - {phase_label}-Chaos",
+                    _html_data_table(["URL / Endpoint", "Status Code", "Duration", "Result"], rows),
+                ))
+
+    # 10a. Object State Health Checks
+    object_state_checks = telemetry.get("object_state_checks")
+    if object_state_checks:
+        # Group by phase
+        checks_by_phase = {}
+        for check in object_state_checks:
+            if isinstance(check, dict):
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.capitalize()
+                rows = []
+                for check in checks_by_phase[phase]:
+                    check_name = check.get("check_name", "unnamed")
+                    kind = check.get("kind", "")
+                    namespace = check.get("namespace", "")
+                    condition = f"{check.get('condition_type', '')}={check.get('condition_status', '')}"
+                    objects_checked = check.get("objects_checked", 0)
+                    objects_failed = check.get("objects_failed", 0)
+                    duration = ""
+                    if check.get("duration") is not None and check.get("duration") != "":
+                        duration = f"{float(check['duration']):.2f}s"
+                    passed = check.get("passed", False)
+                    message = check.get("message", "")
+
+                    # Build objects info
+                    objects_info = f"{objects_checked} checked"
+                    if objects_failed > 0:
+                        objects_info += f", {objects_failed} failed"
+
+                    # Show failed objects if any
+                    failed_info = ""
+                    if not passed and message and message != "All objects passed":
+                        failed_info = _h(message)
+
+                    rows.append([
+                        _h(check_name),
+                        _h(kind),
+                        _h(namespace),
+                        _h(condition),
+                        _h(objects_info),
+                        duration,
+                        _html_badge("PASS" if passed else "FAIL", bool(passed)),
+                        failed_info,
+                    ])
+
+                parts.append(_html_section(
+                    f"Object State Checks ({phase_label}-Chaos)",
+                    _html_data_table(
+                        ["Check Name", "Kind", "Namespace", "Condition", "Objects", "Duration", "Result", "Failed Objects"],
+                        rows
+                    ),
+                ))
+
+    # 11. KubeVirt Health Checks
+    virt_checks = telemetry.get("virt_checks")
     if virt_checks:
-        rows = []
-        for check in virt_checks:
-            if isinstance(check, dict):
-                passed = not (check.get("status") is not None and not check.get("status"))
-                rows.append([
-                    _h(check.get("vm_name") or check.get("vmi_name") or check.get("name", "")),
-                    _h(check.get("namespace", "")),
-                    _h(check.get("node_name", "")),
-                    _h(check.get("ip_address", "")),
-                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
-                    _html_badge("PASS" if passed else "FAIL", passed),
-                ])
-            else:
-                rows.append([_h(str(check)), "", "", "", "", ""])
-        parts.append(_html_section(
-            "KubeVirt Health Checks (Pre-Chaos)",
-            _html_data_table(["VM Name", "Namespace", "Node", "IP Address", "Duration", "Result"], rows),
-        ))
+        # Separate string checks from dict checks
+        string_virt_checks = []
+        checks_by_phase = {}
 
-    # 12. KubeVirt Health Checks (Post-Chaos)
-    if post_virt_checks:
-        rows = []
-        for check in post_virt_checks:
-            if isinstance(check, dict):
-                passed = not (check.get("status") is not None and not check.get("status"))
-                new_ip = ""
-                if check.get("new_ip_address") and check.get("new_ip_address") != check.get("ip_address"):
-                    new_ip = _h(check["new_ip_address"])
-                rows.append([
-                    _h(check.get("vm_name") or check.get("vmi_name") or check.get("name", "")),
-                    _h(check.get("namespace", "")),
-                    _h(check.get("node_name", "")),
-                    _h(check.get("ip_address", "")),
-                    new_ip,
-                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
-                    _html_badge("PASS" if passed else "FAIL", passed),
-                ])
-            else:
-                rows.append([_h(str(check)), "", "", "", "", "", ""])
-        parts.append(_html_section(
-            "KubeVirt Health Checks (Post-Chaos)",
-            _html_data_table(
-                ["VM Name", "Namespace", "Node", "IP Address", "New IP", "Duration", "Result"], rows,
-            ),
-        ))
+        for check in virt_checks:
+            if isinstance(check, str):
+                string_virt_checks.append(check)
+            elif isinstance(check, dict):
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
+
+        # Display string checks first (raw virt check strings)
+        if string_virt_checks:
+            rows = [[_h(check_str)] for check_str in string_virt_checks]
+            parts.append(_html_section(
+                "KubeVirt Health Checks",
+                _html_data_table(["Details"], rows),
+            ))
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = f"{phase.capitalize()}-Chaos"
+                rows = []
+
+                # Check if any check has new_ip_address (post-chaos feature)
+                has_new_ip = any(c.get("new_ip_address") for c in checks_by_phase[phase])
+
+                for check in checks_by_phase[phase]:
+                    passed = not (check.get("status") is not None and not check.get("status"))
+                    row = [
+                        _h(check.get("vm_name") or check.get("vmi_name") or check.get("name", "")),
+                        _h(check.get("namespace", "")),
+                        _h(check.get("node_name", "")),
+                        _h(check.get("ip_address", "")),
+                    ]
+
+                    if has_new_ip:
+                        new_ip = ""
+                        if check.get("new_ip_address") and check.get("new_ip_address") != check.get("ip_address"):
+                            new_ip = _h(check["new_ip_address"])
+                        row.append(new_ip)
+
+                    row.extend([
+                        f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
+                        _html_badge("PASS" if passed else "FAIL", passed),
+                    ])
+                    rows.append(row)
+
+                headers = ["VM Name", "Namespace", "Node", "IP Address"]
+                if has_new_ip:
+                    headers.append("New IP")
+                headers.extend(["Duration", "Result"])
+
+                parts.append(_html_section(
+                    f"KubeVirt Health Checks ({phase_label})",
+                    _html_data_table(headers, rows),
+                ))
 
     # 13. Alerts & SLOs
     alerts_body = []

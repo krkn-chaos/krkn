@@ -21,18 +21,18 @@ Example configuration in config.yaml:
     health_checks:
       type: http_health_check
       interval: 2
+      exit_on_failure: false       # Optional, default: false
       config:
         - url: "http://example.com/health"
           bearer_token: "your-token"  # Optional
           auth: "username,password"   # Optional (basic auth)
           verify_url: true             # Optional, default: true
-          exit_on_failure: false       # Optional, default: false
 """
 
 import logging
 import queue
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import requests
@@ -157,6 +157,8 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
         health_check_telemetry = []
         health_check_tracker = {}
         interval = config.get("interval", 2)
+        only_failures = config.get("only_failures", False)
+        section_exit_on_failure = config.get("exit_on_failure")
 
         # Track current response status for each URL
         response_tracker = {
@@ -196,14 +198,19 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
                     # First time seeing this URL in this run
                     start_timestamp = datetime.now()
                     health_check_tracker[url] = {
+                        "status": response["status"],
                         "status_code": response["status_code"],
                         "start_timestamp": start_timestamp,
                     }
-                    if response["status_code"] != 200:
+                    if not response["status"]:
                         if response_tracker[url] != False:
                             response_tracker[url] = False
                         if (
-                            check_config.get("exit_on_failure", False)
+                            (
+                                section_exit_on_failure
+                                if section_exit_on_failure is not None
+                                else check_config.get("exit_on_failure", False)
+                            )
                             and self.ret_value == 0
                         ):
                             self.ret_value = 3
@@ -215,6 +222,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
                     ):
                         end_timestamp = datetime.now()
                         start_timestamp = health_check_tracker[url]["start_timestamp"]
+                        previous_status = health_check_tracker[url]["status"]
                         previous_status_code = str(
                             health_check_tracker[url]["status_code"]
                         )
@@ -223,14 +231,17 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
                         # Record the status change period
                         change_record = {
                             "url": url,
-                            "status": previous_status_code == "200",
+                            "status": previous_status,
                             "status_code": previous_status_code,
                             "start_timestamp": start_timestamp.isoformat(),
                             "end_timestamp": end_timestamp.isoformat(),
                             "duration": duration,
+                            "phase": "during",
                         }
 
-                        health_check_telemetry.append(HealthCheck(change_record))
+                        # Only include if: not only_failures OR check failed
+                        if not only_failures or not previous_status:
+                            health_check_telemetry.append(HealthCheck(change_record))
 
                         if response_tracker[url] != True:
                             response_tracker[url] = True
@@ -249,15 +260,117 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
             ).total_seconds()
             final_record = {
                 "url": url,
-                "status": health_check_tracker[url]["status_code"] == 200,
+                "status": health_check_tracker[url]["status"],
                 "status_code": health_check_tracker[url]["status_code"],
                 "start_timestamp": health_check_tracker[url][
                     "start_timestamp"
                 ].isoformat(),
                 "end_timestamp": health_check_end_timestamp.isoformat(),
                 "duration": duration,
+                "phase": "during",
             }
-            health_check_telemetry.append(HealthCheck(final_record))
+            # Only include if: not only_failures OR check failed
+            if not only_failures or not health_check_tracker[url]["status"]:
+                health_check_telemetry.append(HealthCheck(final_record))
 
         # Put telemetry data in the queue
         telemetry_queue.put(health_check_telemetry)
+
+    def run_once(
+        self,
+        config: dict[str, Any],
+        telemetry_queue: queue.Queue = None,
+        phase: str = None
+    ) -> dict[str, Any]:
+        """
+        Runs a one-time HTTP health check for all configured endpoints.
+
+        :param config: the health check configuration dictionary
+        :param telemetry_queue: optional queue to put telemetry data
+        :param phase: optional phase identifier (pre, during, post)
+        :return: dictionary with results:
+                 {
+                   "passed": bool,
+                   "failures": list of {"url": str, "status_code": int, "message": str},
+                   "details": dict with per-URL status
+                 }
+        """
+        if not config or not config.get("config") or not any(
+            cfg.get("url") for cfg in config.get("config", [])
+        ):
+            logging.info("HTTP health check config is not defined, skipping one-time check")
+            return {"passed": True, "failures": [], "details": {}}
+
+        failures = []
+        details = {}
+        only_failures = config.get("only_failures", False)
+
+        for check_config in config.get("config", []):
+            auth, headers = None, None
+            verify_url = check_config.get("verify_url", True)
+            url = check_config.get("url")
+
+            if not url:
+                continue
+
+            # Set up authentication
+            if check_config.get("bearer_token"):
+                bearer_token = "Bearer " + check_config["bearer_token"]
+                headers = {"Authorization": bearer_token}
+
+            if check_config.get("auth"):
+                auth = tuple(check_config["auth"].split(","))
+
+            # Make the HTTP request
+            try:
+                start_time = time.time()
+                start_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                response = self.make_request(url, auth, headers, verify_url)
+
+                end_time = time.time()
+                end_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                duration = end_time - start_time
+
+                details[url] = {
+                    "status_code": response["status_code"],
+                    "passed": response["status"]
+                }
+
+                # Create telemetry record if queue provided
+                # Only include if: not only_failures OR check failed
+                if telemetry_queue is not None and (not only_failures or not response["status"]):
+                    from krkn_lib.models.telemetry.models import HealthCheck
+                    telemetry_record = {
+                        "url": url,
+                        "status": response["status"],
+                        "status_code": str(response["status_code"]),
+                        "start_timestamp": start_timestamp,
+                        "end_timestamp": end_timestamp,
+                        "duration": duration,
+                        "phase": phase if phase else "during"
+                    }
+                    telemetry_queue.put(HealthCheck(telemetry_record))
+
+                if not response["status"]:
+                    failures.append({
+                        "url": url,
+                        "status_code": response["status_code"],
+                        "message": f"HTTP health check failed for {url}: status {response['status_code']}"
+                    })
+            except Exception as e:
+                logging.error(f"Exception during one-time HTTP health check for {url}: {e}")
+                end_timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                details[url] = {"status_code": 500, "passed": False, "error": str(e)}
+                failures.append({
+                    "url": url,
+                    "status_code": 500,
+                    "message": f"HTTP health check exception for {url}: {str(e)}"
+                })
+
+        passed = len(failures) == 0
+        return {
+            "passed": passed,
+            "failures": failures,
+            "details": details
+        }

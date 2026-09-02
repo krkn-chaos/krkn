@@ -342,6 +342,52 @@ class TestHttpHealthCheckPlugin(unittest.TestCase):
 
     @patch('krkn.health_checks.http_health_check_plugin.HttpHealthCheckPlugin.make_request')
     @patch('time.sleep')
+    def test_run_health_check_section_exit_on_failure(self, mock_sleep, mock_make_request):
+        """Test section-level exit_on_failure applies to endpoint failures."""
+        mock_make_request.side_effect = self.make_increment_side_effect({
+            "url": "http://example.com",
+            "status": False,
+            "status_code": 500
+        })
+
+        config = {
+            "exit_on_failure": True,
+            "config": [{"url": "http://example.com"}],
+            "interval": 0.01
+        }
+
+        self.plugin.iterations = 1
+        self.plugin.run_health_check(config, self.health_check_queue)
+
+        self.assertEqual(self.plugin.get_return_value(), 3)
+
+    @patch('krkn.health_checks.http_health_check_plugin.HttpHealthCheckPlugin.make_request')
+    @patch('time.sleep')
+    def test_run_health_check_uses_boolean_status(self, mock_sleep, mock_make_request):
+        """Test status decisions do not depend on the status code type."""
+        mock_make_request.side_effect = self.make_increment_side_effect({
+            "url": "http://example.com",
+            "status": True,
+            "status_code": "200",
+        })
+
+        config = {
+            "config": [{
+                "url": "http://example.com",
+                "exit_on_failure": True,
+            }],
+            "interval": 0.01,
+        }
+
+        self.plugin.iterations = 1
+        self.plugin.run_health_check(config, self.health_check_queue)
+
+        self.assertEqual(self.plugin.get_return_value(), 0)
+        telemetry = self.health_check_queue.get()
+        self.assertTrue(telemetry[0].status)
+
+    @patch('krkn.health_checks.http_health_check_plugin.HttpHealthCheckPlugin.make_request')
+    @patch('time.sleep')
     def test_run_health_check_multiple_urls(self, mock_sleep, mock_make_request):
         """Test run_health_check with multiple URLs"""
         call_count = [0]

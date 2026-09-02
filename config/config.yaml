@@ -129,21 +129,39 @@ telemetry:
     oc_cli_path: /usr/bin/oc                                # optional, if not specified will be search in $PATH
     events_backup: True                                     # enables/disables cluster events collection
 
-health_checks:                                              # Utilizing health check endpoints to observe application behavior during chaos injection.
-    interval:                                               # Interval in seconds to perform health checks, default value is 2 seconds
-    config:                                                 # Provide list of health check configurations for applications
-        - url:                                              # Provide application endpoint
-          bearer_token:                                     # Bearer token for authentication if any
-          auth:                                             # Provide authentication credentials (username , password) in tuple format if any, ex:("admin","secretpassword")
-          exit_on_failure:                                  # If value is True exits when health check failed for application, values can be True/False
+health_checks:                                              # HTTP health check endpoints
+    interval: 2                                             # Check interval in seconds (for run_during: "during")
+    run_during: post                                      # When to run: "pre", "during", "post", or ["pre", "post"]
+    exit_on_failure: False                                  # True: pre-checks block chaos, post-checks fail run
+    only_failures: False                                    # True: only create telemetry for failed checks, False: report all
+    config:
+        - url: 
+          bearer_token:                                     # Optional: Bearer token
+          auth:                                             # Optional: Basic auth "username,password"
 
-kubevirt_checks:                                            # Utilizing virt check endpoints to observe ssh ability to VMI's during chaos injection.
-    interval: 2                                             # Interval in seconds to perform virt checks, default value is 2 seconds
-    namespace:                                              # Namespace where to find VMI's
-    name:                                                   # Regex Name style of VMI's to watch, optional, will watch all VMI names in the namespace if left blank
-    only_failures: False                                    # Boolean of whether to show all VMI's failures and successful ssh connection (False), or only failure status' (True) 
-    disconnected: False                                     # Boolean of how to try to connect to the VMIs; if True will use the ip_address to try ssh from within a node, if false will use the name and uses virtctl to try to connect; Default is False
-    ssh_node: ""                                            # If set, will be a backup way to ssh to a node. Will want to set to a node that isn't targeted in chaos
-    node_names: ""
-    exit_on_failure:                                        # If value is True and VMI's are failing post chaos returns failure, values can be True/False
+kubevirt_checks:                                            # VMI SSH accessibility checks
+    interval: 2                                             # Check interval in seconds
+    run_during: during                                      # When to run: "pre", "during", "post", or ["pre", "post"]
+    exit_on_failure: False                                  # True: pre-checks block chaos, post-checks fail run
+    namespace:                                              # Namespace where VMIs are located
+    name:                                                   # Regex pattern for VMI names (optional, default: all)
+    only_failures: False                                    # True: only report failures, False: report all
+    disconnected: False                                     # True: SSH from node, False: use virtctl
+    ssh_node: ""                                            # Fallback SSH node (optional)
+    node_names: ""                                          # Filter by worker node names (optional)
+
+object_state_checks:                                        # Kubernetes object condition checks
+    interval: 2                                           # Check interval in seconds
+    run_during: []                                      # When to run: "pre", "during", "post", or ["pre", "post"]
+    exit_on_failure: False                                  # True: pre-checks block chaos, post-checks fail run
+    only_failures: False                                    # True: only create telemetry for failed checks, False: report all
+    config:
+        - name: "ready-pods"                                # Check name (e.g., "etcd-pods-ready")
+          kind: "Pod"                                       # Resource kind: Pod, Deployment, StatefulSet, etc.
+          object_name: ""                                   # Name or regex pattern (e.g., "etcd-.*")
+          namespace: ""                              # Namespace to check
+          label_selector: ""                                # Optional: Label selector
+          condition:
+              type: Ready                                   # Condition type: Ready, Available, Progressing
+              status: "True"                                # Expected status: "True", "False", "Unknown"
     

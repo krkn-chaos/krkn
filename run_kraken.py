@@ -63,6 +63,7 @@ from krkn_lib.utils.functions import get_yaml_item_value
 
 from krkn.utils import TeeLogHandler, ErrorCollectionHandler, validate_junit_options, write_junit_file
 from krkn.health_checks import HealthCheckFactory
+from krkn.telemetry_helpers import collect_health_check_telemetry
 from krkn.scenario_plugins.scenario_plugin_factory import (
     ScenarioPluginFactory,
     ScenarioPluginNotFound,
@@ -494,6 +495,38 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 else:
                     logging.warning(f"  ⚠️ {stype} ➡️ no matching plugin found")
 
+        # Pre-chaos health checks (run health checks configured with run_during: "pre")
+        logging.debug("=" * 80)
+        # Pre-chaos health checks
+        pre_check_telemetry_queue = queue.Queue()
+        pre_check_failed = False
+
+        pre_check_results = health_check_factory.run_all_once(
+            config, check_type="pre", krkn_lib=kubecli, telemetry_queue=pre_check_telemetry_queue
+        )
+
+        if not pre_check_results["passed"]:
+            logging.warning(
+                f"Pre-chaos health check failed with {len(pre_check_results['failures'])} failure(s)"
+            )
+            pre_check_failed = True
+            if pre_check_results.get("exit_on_failure", False):
+                logging.error(
+                    "Pre-chaos health check failed and exit_on_failure is True. "
+                    "Chaos scenarios will not be executed."
+                )
+        else:
+            if pre_check_results["details"]:
+                logging.info("✅ Pre-chaos health checks passed")
+
+        pre_health_checks, pre_object_state_checks = collect_health_check_telemetry(pre_check_telemetry_queue)
+
+        # A blocking pre-check is a gate for the run. Return before starting
+        # continuous checkers or running post-checks/report generation.
+        if pre_check_failed and pre_check_results.get("exit_on_failure", False):
+            logging.error("Pre-chaos health check failed and exit_on_failure is True; exiting")
+            return 4
+
         # Start all health check plugins discovered via config_key_map.
         # Returns list of (plugin, worker_thread, telemetry_queue);
         # worker_thread is None for self-threading plugins (e.g. virt).
@@ -591,12 +624,32 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # Signal all health check plugins to stop (handles early exit due to STOP/alerts/daemon mode)
         health_check_factory.stop_all()
 
+        # Post-chaos health checks
+        post_check_telemetry_queue = queue.Queue()
+        post_check_results = health_check_factory.run_all_once(
+            config, check_type="post", krkn_lib=kubecli, telemetry_queue=post_check_telemetry_queue
+        )
+
+        post_check_failed = False
+        if not post_check_results["passed"]:
+            logging.warning(
+                f"Post-chaos health check failed with {len(post_check_results['failures'])} failure(s)"
+            )
+            post_check_failed = True
+            if post_check_results.get("exit_on_failure", False):
+                logging.error("Post-chaos health check failed and exit_on_failure is True")
+        else:
+            if post_check_results["details"]:
+                logging.info("✅ Post-chaos health checks passed")
+
+        post_health_checks, post_object_state_checks = collect_health_check_telemetry(post_check_telemetry_queue)
+
         # Collect telemetry from all health check plugins.
         # worker=None means the plugin manages its own threads (virt); use thread_join() + SimpleQueue drain.
         # worker=Thread means it ran in an external thread; use worker.join() + Queue.get_nowait().
         all_health_check_telemetry = []
+        during_object_state_checks = []
         chaos_telemetry.virt_checks = []
-        chaos_telemetry.post_virt_checks = []
         for plugin, worker, tq in generic_health_checkers:
             if worker is None:
                 # Virt plugin: join its internal threads then drain its SimpleQueue
@@ -604,15 +657,25 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 virt_telem = []
                 while not tq.empty():
                     virt_telem.extend(tq.get_nowait())
-                chaos_telemetry.virt_checks = virt_telem
-                chaos_telemetry.post_virt_checks = plugin.gather_post_virt_checks(virt_telem)
+                # Gather post-virt checks and add them to the virt_checks list (with phase="post")
+                post_virt_telem = plugin.gather_post_virt_checks(virt_telem)
+                chaos_telemetry.virt_checks = virt_telem + post_virt_telem
             else:
                 worker.join()
-                try:
-                    all_health_check_telemetry.extend(tq.get_nowait())
-                except queue.Empty:
-                    pass
-        chaos_telemetry.health_checks = all_health_check_telemetry if all_health_check_telemetry else None
+                health_checks, object_state_checks = collect_health_check_telemetry(tq)
+                all_health_check_telemetry.extend(health_checks)
+                during_object_state_checks.extend(object_state_checks)
+
+        # Merge pre, during, and post object state check telemetry
+        all_object_state_checks = (
+            pre_object_state_checks + during_object_state_checks + post_object_state_checks
+        )
+
+        # Merge pre, during, and post health check telemetry
+        all_health_checks = pre_health_checks + all_health_check_telemetry + post_health_checks
+
+        chaos_telemetry.health_checks = all_health_checks if all_health_checks else None
+        chaos_telemetry.object_state_checks = all_object_state_checks if all_object_state_checks else None
         # if platform is openshift will be collected
         # Cloud platform and network plugins metadata
         # through OCP specific APIs
@@ -669,7 +732,12 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 logging.error("Alert profile is not defined")
                 return -1
 
-        if post_critical_alerts > 0 or len(profile_critical_alerts) > 0:
+        # Blocking post-check failures must be reflected in telemetry before
+        # reports are rendered; the exit-code guard runs after serialization.
+        if (
+            post_check_failed
+            and post_check_results.get("exit_on_failure", False)
+        ) or post_critical_alerts > 0 or len(profile_critical_alerts) > 0:
             chaos_telemetry.job_status = False
 
         telemetry_json = chaos_telemetry.to_json()
@@ -820,6 +888,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         #   1 = post-scenario failure
         #   2 = critical Prometheus alerts
         #   3+ = health check plugin failure
+        #   4 = pre/post health check failure (when exit_on_failure is True)
         if failed_post_scenarios:
             logging.error(
                 "Post scenarios are still failing at the end of all iterations"
@@ -845,6 +914,16 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         if not chaos_telemetry.job_status:
             logging.error("job_status is false, please check; exiting")
             return 1
+
+        # Check pre-chaos health check failure with exit_on_failure
+        if pre_check_failed and pre_check_results.get("exit_on_failure", False):
+            logging.error("Pre-chaos health check failed and exit_on_failure is True; exiting")
+            return 4
+
+        # Check post-chaos health check failure
+        if post_check_failed and post_check_results.get("exit_on_failure", False):
+            logging.error("Post-chaos health check failed and exit_on_failure is True; exiting")
+            return 4
 
         logging.info(
             "Successfully finished running Kraken, exiting"
