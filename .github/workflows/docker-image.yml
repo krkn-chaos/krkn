@@ -179,6 +179,9 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags')
     steps:
+    - name: Install cosign
+      uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
     - name: Login to krkn-chaos quay
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
@@ -186,18 +189,40 @@ jobs:
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
 
-    - name: Create and push KrknChaos manifests
+    # Push the multi-arch manifests and immediately sign them by digest with
+    # cosign, while the krkn-chaos credentials are still active. Both accounts
+    # use quay.io, so the later redhat-chaos login overwrites these creds in the
+    # docker config; signing here keeps push access to the krkn-chaos repo where
+    # the signature artifact (sha256-<digest>.sig) must live. Signing binds to
+    # the digest (anti-TOCTOU): consumers (krknctl / krkn-operator via
+    # pkg/verify) resolve the tag -> this digest and find the signature.
+    # Key-based, --tlog-upload=false, to match the offline verification policy
+    # (no Fulcio/Rekor). ${TAG} and latest reference the same per-platform
+    # digests, so they share one manifest-list digest — signing it covers both.
+    - name: Create, push and sign KrknChaos manifests
+      env:
+        COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
       run: |
+        set -euo pipefail
         TAG=${GITHUB_REF#refs/tags/}
         docker manifest create quay.io/krkn-chaos/krkn:${TAG} \
           quay.io/krkn-chaos/krkn:${TAG}-amd64 \
           quay.io/krkn-chaos/krkn:${TAG}-arm64
-        docker manifest push quay.io/krkn-chaos/krkn:${TAG}
+        DIGEST=$(docker manifest push quay.io/krkn-chaos/krkn:${TAG} | tail -n1)
 
         docker manifest create quay.io/krkn-chaos/krkn:latest \
           quay.io/krkn-chaos/krkn:latest-amd64 \
           quay.io/krkn-chaos/krkn:latest-arm64
         docker manifest push quay.io/krkn-chaos/krkn:latest
+
+        REF="quay.io/krkn-chaos/krkn@${DIGEST}"
+        echo "Signing ${REF}"
+        cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY "${REF}"
+        # Self-check: fail the pipeline if the signature does not verify against
+        # the public half of the signing key (derived on the fly, no extra secret).
+        cosign public-key --key env://COSIGN_PRIVATE_KEY > /tmp/cosign.pub
+        cosign verify --insecure-ignore-tlog=true --key /tmp/cosign.pub "${REF}"
 
     - name: Login to redhat-chaos quay
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -206,18 +231,31 @@ jobs:
         username: ${{ secrets.QUAY_USER_1 }}
         password: ${{ secrets.QUAY_TOKEN_1 }}
 
-    - name: Create and push RedHat Chaos manifests
+    # Same as the krkn-chaos step: push and sign the redhat-chaos mirror by
+    # digest while its credentials are active, so images pulled from
+    # quay.io/redhat-chaos/krkn are verifiable with the same embedded key.
+    - name: Create, push and sign RedHat Chaos manifests
+      env:
+        COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
       run: |
+        set -euo pipefail
         TAG=${GITHUB_REF#refs/tags/}
         docker manifest create quay.io/redhat-chaos/krkn:${TAG} \
           quay.io/redhat-chaos/krkn:${TAG}-amd64 \
           quay.io/redhat-chaos/krkn:${TAG}-arm64
-        docker manifest push quay.io/redhat-chaos/krkn:${TAG}
+        DIGEST=$(docker manifest push quay.io/redhat-chaos/krkn:${TAG} | tail -n1)
 
         docker manifest create quay.io/redhat-chaos/krkn:latest \
           quay.io/redhat-chaos/krkn:latest-amd64 \
           quay.io/redhat-chaos/krkn:latest-arm64
         docker manifest push quay.io/redhat-chaos/krkn:latest
+
+        REF="quay.io/redhat-chaos/krkn@${DIGEST}"
+        echo "Signing ${REF}"
+        cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY "${REF}"
+        cosign public-key --key env://COSIGN_PRIVATE_KEY > /tmp/cosign.pub
+        cosign verify --insecure-ignore-tlog=true --key /tmp/cosign.pub "${REF}"
 
     - name: Rebuild krkn-hub
       uses: redhat-chaos/actions/krkn-hub@aa421229ca6d4ad13785039d0736611c6439fc3e # main
