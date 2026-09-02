@@ -273,12 +273,10 @@ jobs:
         docker buildx imagetools create --tag ${REPO}:${TAG} "${REF}"
         docker buildx imagetools create --tag ${REPO}:latest "${REF}"
 
-    # NOTE: bump the pinned SHA below to the merge commit of
-    # redhat-chaos/actions#34 once it lands, so this release-time rebuild signs
-    # the krkn-hub scenario images it pushes (the COSIGN_* inputs are consumed
-    # there).
+    # This release-time rebuild signs the krkn-hub scenario images it pushes;
+    # the COSIGN_* inputs are consumed by the action (redhat-chaos/actions#34).
     - name: Rebuild krkn-hub
-      uses: redhat-chaos/actions/krkn-hub@aa421229ca6d4ad13785039d0736611c6439fc3e # main
+      uses: redhat-chaos/actions/krkn-hub@e754860045f942df491ec4122e74d23e8cec571b # main
       with:
         QUAY_USER: ${{ secrets.QUAY_USERNAME }}
         QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
