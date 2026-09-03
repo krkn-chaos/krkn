@@ -179,8 +179,25 @@ jobs:
     needs: build
     if: startsWith(github.ref, 'refs/tags')
     steps:
+    # Check out the repo so the vendored cosign signing-config is on the runner.
+    # This job otherwise only manipulates already-pushed tags.
+    - name: Check out code
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
     - name: Install cosign
       uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+    # cosign 2.6+ deprecated --tlog-upload and made --tlog-upload=false
+    # incompatible with its signing-config flow. To keep key-based, offline
+    # signing (no Fulcio/Rekor) we sign with a signing-config whose
+    # transparency-log (and timestamp) services are stripped out. The config is
+    # vendored in-repo (.github/cosign/signing-config.json) rather than fetched
+    # at release time, so we don't depend on an upstream file that could move or
+    # disappear. The signature format is unchanged, so offline key-based
+    # verification in pkg/verify (krknctl / krkn-operator) is unaffected.
+    # $SIGNING_CONFIG is reused by both signing steps below.
+    - name: Locate offline signing config
+      run: echo "SIGNING_CONFIG=${GITHUB_WORKSPACE}/.github/cosign/signing-config.json" >> "$GITHUB_ENV"
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -206,8 +223,8 @@ jobs:
     # (krknctl / krkn-operator via pkg/verify) enforce signatures, so a partial
     # release would otherwise be unusable. ${TAG} and latest share the same
     # per-platform digests, hence the same manifest-list digest, so one
-    # signature covers both. Key-based, --tlog-upload=false, to match the
-    # offline verification policy (no Fulcio/Rekor).
+    # signature covers both. Key-based, signed with a no-transparency-log
+    # signing-config, to match the offline verification policy (no Fulcio/Rekor).
     - name: Push, sign and promote KrknChaos manifests
       env:
         COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -226,7 +243,7 @@ jobs:
 
         REF="${REPO}@${DIGEST}"
         echo "Signing ${REF}"
-        cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY "${REF}"
+        cosign sign --yes --signing-config "${SIGNING_CONFIG}" --key env://COSIGN_PRIVATE_KEY "${REF}"
         # Self-check: fail the pipeline if the signature does not verify against
         # the public half of the signing key (derived on the fly, no extra secret).
         cosign public-key --key env://COSIGN_PRIVATE_KEY > /tmp/cosign.pub
@@ -266,7 +283,7 @@ jobs:
 
         REF="${REPO}@${DIGEST}"
         echo "Signing ${REF}"
-        cosign sign --yes --tlog-upload=false --key env://COSIGN_PRIVATE_KEY "${REF}"
+        cosign sign --yes --signing-config "${SIGNING_CONFIG}" --key env://COSIGN_PRIVATE_KEY "${REF}"
         cosign public-key --key env://COSIGN_PRIVATE_KEY > /tmp/cosign.pub
         cosign verify --insecure-ignore-tlog=true --key /tmp/cosign.pub "${REF}"
 
