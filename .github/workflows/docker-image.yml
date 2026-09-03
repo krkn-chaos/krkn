@@ -293,7 +293,7 @@ jobs:
     # This release-time rebuild signs the krkn-hub scenario images it pushes;
     # the COSIGN_* inputs are consumed by the action (redhat-chaos/actions#34).
     - name: Rebuild krkn-hub
-      uses: redhat-chaos/actions/krkn-hub@aea088ebf9266171f24f7190742e1331988d5642 # main
+      uses: redhat-chaos/actions/krkn-hub@b3118123a105aa4d208b282639d24f71d02fb25c # main
       with:
         QUAY_USER: ${{ secrets.QUAY_USERNAME }}
         QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
