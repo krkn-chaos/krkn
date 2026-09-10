@@ -95,6 +95,16 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         return "health_checks"
 
+    def can_run(self, config: dict[str, Any]) -> bool:
+        """Return whether at least one HTTP health-check URL is configured."""
+        if not isinstance(config, dict) or not config.get("config") or not any(
+            isinstance(check, dict) and check.get("url")
+            for check in config.get("config", [])
+        ):
+            logging.info("HTTP health check config is not defined, skipping")
+            return False
+        return True
+
     def increment_iterations(self) -> None:
         """
         Increments the current iteration counter.
@@ -148,10 +158,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
         :param telemetry_queue: a queue to put telemetry data for collection
         :return: None
         """
-        if not config or not config.get("config") or not any(
-            cfg.get("url") for cfg in config.get("config", [])
-        ):
-            logging.info("HTTP health check config is not defined, skipping")
+        if not self.can_run(config):
             return
 
         health_check_telemetry = []

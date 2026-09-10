@@ -110,6 +110,16 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         return "kubevirt_checks"
 
+    def can_run(self, config: dict[str, Any]) -> bool:
+        """Return whether a namespace is configured for KubeVirt checks."""
+        if not config:
+            logging.info("Virt health check config not provided, skipping")
+            return False
+        if get_yaml_item_value(config, "namespace", "") == "":
+            logging.info("kubevirt checks config namespace is not defined, skipping them")
+            return False
+        return True
+
     def manages_own_threads(self) -> bool:
         """
         Virt plugin spawns its own worker threads internally via run_health_check().
@@ -580,8 +590,7 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         :param telemetry_queue: queue for telemetry data
         :return: None
         """
-        if not config:
-            logging.info("Virt health check config not provided, skipping")
+        if not self.can_run(config):
             return
 
         # Initialize from config

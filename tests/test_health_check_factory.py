@@ -12,6 +12,7 @@ import queue
 import sys
 import os
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -87,6 +88,54 @@ class TestHealthCheckFactory(unittest.TestCase):
         self.assertIsNotNone(plugin)
         self.assertEqual(plugin.iterations, 10)
         self.assertEqual(plugin.__class__.__name__, "HttpHealthCheckPlugin")
+
+    def test_start_all_skips_http_plugin_without_a_url(self):
+        """A skipped plugin must not be reported as started (#1537)."""
+        if "http_health_check" not in self.factory.loaded_plugins:
+            self.skipTest("http_health_check plugin not loaded (missing dependencies)")
+        self.factory.config_key_map = {"health_checks": "http_health_check"}
+
+        with self.assertLogs(level=logging.INFO) as captured:
+            checkers = self.factory.start_all(
+                {"health_checks": {"config": [{"missing_url": "value"}]}},
+                iterations=1,
+            )
+
+        self.assertEqual(checkers, [])
+        self.assertTrue(any("skipping" in message for message in captured.output))
+        self.assertFalse(
+            any("Started health check plugin" in message for message in captured.output)
+        )
+
+    def test_start_all_starts_http_plugin_with_a_url(self):
+        """The pre-start validation must not suppress a configured plugin."""
+        if "http_health_check" not in self.factory.loaded_plugins:
+            self.skipTest("http_health_check plugin not loaded (missing dependencies)")
+        self.factory.config_key_map = {"health_checks": "http_health_check"}
+        plugin_class = self.factory.loaded_plugins["http_health_check"]
+
+        with patch.object(plugin_class, "run_health_check"):
+            with self.assertLogs(level=logging.INFO) as captured:
+                checkers = self.factory.start_all(
+                    {"health_checks": {"config": [{"url": "http://example.test"}]}},
+                    iterations=1,
+                )
+            for _, worker, _ in checkers:
+                worker.join(timeout=1)
+
+        self.assertEqual(len(checkers), 1)
+        self.assertTrue(
+            any("Started health check plugin" in message for message in captured.output)
+        )
+
+    def test_virt_plugin_requires_a_namespace(self):
+        """KubeVirt checks with no namespace must be skipped before startup."""
+        if "virt_health_check" not in self.factory.loaded_plugins:
+            self.skipTest("virt_health_check plugin not loaded (missing dependencies)")
+        plugin = self.factory.create_plugin("virt_health_check", iterations=1)
+
+        self.assertFalse(plugin.can_run({"name": ".*"}))
+        self.assertTrue(plugin.can_run({"namespace": "default"}))
 
 
 if __name__ == "__main__":
