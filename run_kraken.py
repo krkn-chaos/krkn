@@ -72,6 +72,7 @@ from krkn.rollback.command import (
     list_rollback as list_rollback_command,
     execute_rollback as execute_rollback_command,
 )
+from krkn.scenario_config_parser import parse_scenario_config, extract_scenario_types
 from krkn.summarized_reports.transform import build_chaos_report, build_chaos_report_pdf
 from krkn.summarized_reports.transform_html import build_chaos_report_html
 from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
@@ -483,10 +484,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 return 1
 
         # Log run-specific plugin mappings (after triggers may have cleared chaos_scenarios)
-        configured_types: set[str] = set()
-        for scenario in chaos_scenarios:
-            if isinstance(scenario, dict):
-                configured_types.add(list(scenario.keys())[0])
+        configured_types = extract_scenario_types(chaos_scenarios)
         if configured_types:
             logging.info("Scenario plugins for this run:")
             for stype in sorted(configured_types):
@@ -523,8 +521,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                     if run_signal == "STOP":
                         logging.info("Received STOP signal; ending Kraken run")
                         break
-                    scenario_type = list(scenario.keys())[0]
-                    scenarios_list = scenario[scenario_type]
+
+                    # Parse scenario config (type, files, weight)
+                    scenario_type, scenarios_list, scenario_weight = parse_scenario_config(scenario)
+
+                    if scenario_weight != 1:
+                        logging.info(f"Scenario '{scenario_type}' has weight {scenario_weight} for resiliency scoring")
+
                     if scenarios_list:
                         try:
                             scenario_plugin = scenario_plugin_factory.create_plugin(
@@ -553,6 +556,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                                 scenario_type=scenario_type,
                                 batch_start_dt=batch_window_start_dt,
                                 batch_end_dt=batch_window_end_dt,
+                                weight=scenario_weight,
                             )
 
                         post_critical_alerts = 0
@@ -693,6 +697,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         chaos_output_dict = json.loads(chaos_output.to_json())
         if resiliency_obj and hasattr(resiliency_obj, 'scenario_reports') and resiliency_obj.scenario_reports:
             chaos_output_dict["scenario_slo_details"] = resiliency_obj.get_scenario_slo_details()
+            chaos_output_dict["resiliency_report"] = resiliency_obj.get_detailed_report()
         try:
             text_summary = build_chaos_report(chaos_output_dict)
             logging.info(f"\n{text_summary}")
