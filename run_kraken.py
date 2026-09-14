@@ -58,6 +58,10 @@ from krkn.rollback.command import (
     list_rollback as list_rollback_command,
     execute_rollback as execute_rollback_command,
 )
+from krkn.scenario_config_parser import parse_scenario_config, extract_scenario_types
+from krkn.summarized_reports.transform import build_chaos_report, build_chaos_report_pdf
+from krkn.summarized_reports.transform_html import build_chaos_report_html
+from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
 
 # removes TripleDES warning
 import warnings
@@ -400,7 +404,48 @@ def main(options, command: Optional[str]) -> int:
             for failed in health_check_factory.failed_plugins:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
-                logging.error(f"⚠️ {error}\n")
+                logging.error(f"⚠️ {error}")
+
+        # Evaluate top-level triggers before starting health checks or chaos
+        trigger_config = config.get("triggers")
+        if trigger_config:
+            try:
+                trigger_manager = TriggerManager(trigger_config, kubecli=kubecli)
+                logging.info(
+                    "waiting for triggers before starting chaos:\n%s",
+                    trigger_manager.describe(),
+                )
+                triggered = trigger_manager.wait_for_triggers()
+                if not triggered:
+                    on_timeout = trigger_manager.on_timeout
+                    if on_timeout == "skip":
+                        logging.warning(
+                            "trigger timed out, skipping all scenarios"
+                        )
+                        chaos_scenarios = []
+                    elif on_timeout == "fail":
+                        logging.error(
+                            "trigger timed out, exiting with failure"
+                        )
+                        return 1
+                    else:
+                        logging.warning(
+                            "trigger timed out, running scenarios anyway"
+                        )
+            except ValueError as e:
+                logging.error("invalid trigger configuration: %s", e)
+                return 1
+
+        # Log run-specific plugin mappings (after triggers may have cleared chaos_scenarios)
+        configured_types = extract_scenario_types(chaos_scenarios)
+        if configured_types:
+            logging.info("Scenario plugins for this run:")
+            for stype in sorted(configured_types):
+                if stype in scenario_plugin_factory.loaded_plugins:
+                    cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
+                    logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
+                else:
+                    logging.warning(f"  ⚠️ {stype} ➡️ no matching plugin found")
 
         # Start all health check plugins discovered via config_key_map.
         # Returns list of (plugin, worker_thread, telemetry_queue);
@@ -429,8 +474,13 @@ def main(options, command: Optional[str]) -> int:
                     if run_signal == "STOP":
                         logging.info("Received STOP signal; ending Kraken run")
                         break
-                    scenario_type = list(scenario.keys())[0]
-                    scenarios_list = scenario[scenario_type]
+
+                    # Parse scenario config (type, files, weight)
+                    scenario_type, scenarios_list, scenario_weight = parse_scenario_config(scenario)
+
+                    if scenario_weight != 1:
+                        logging.info(f"Scenario '{scenario_type}' has weight {scenario_weight} for resiliency scoring")
+
                     if scenarios_list:
                         try:
                             scenario_plugin = scenario_plugin_factory.create_plugin(
@@ -480,6 +530,7 @@ def main(options, command: Optional[str]) -> int:
                                 scenario_type=scenario_type,
                                 batch_start_dt=batch_window_start_dt,
                                 batch_end_dt=batch_window_end_dt,
+                                weight=scenario_weight,
                             )
 
                         post_critical_alerts = 0
