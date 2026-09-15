@@ -632,9 +632,25 @@ def build_chaos_report(chaos_output: dict) -> str:
 
     # --- Resiliency Score ---
     lines.append("RESILIENCY SCORE")
+
+    # Extract weights from detailed report
+    weight_map = {}
+    scenario_details = chaos_output.get("resiliency_report", {}).get("scenarios", [])
+    if scenario_details:
+        for scenario_report in scenario_details:
+            weight_map[scenario_report.get("name")] = scenario_report.get("weight", 1)
+
     per_scenario_scores = resiliency.get("scenarios", {})
     for scenario_name, score in per_scenario_scores.items():
-        lines.append(f"  {scenario_name:<28} : {score} / 100")
+        weight = weight_map.get(scenario_name, 1)
+        lines.append(f"  {scenario_name:<28} : {score} / 100 (weight: {weight}x)")
+
+    # Calculate and display weighted average explanation
+    if weight_map and per_scenario_scores:
+        total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        weighted_sum = sum(per_scenario_scores.get(name, 0) * weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        weighted_avg = int(weighted_sum / total_weight) if total_weight > 0 else 0
+        lines.append(f"  Calculation: ({' + '.join(f'{score}×{weight_map.get(name, 1)}' for name, score in per_scenario_scores.items())}) ÷ {total_weight} = {weighted_avg}")
 
     overall_score = resiliency.get("resiliency_score", "N/A")
     emoji = ""
@@ -1139,15 +1155,37 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
 
     # 16. Resiliency Score
     f.extend(_section_header("Resiliency Score"))
+
+    # Extract scenario weights from detailed report
+    weight_map = {}
+    scenario_details = chaos_output.get("resiliency_report", {}).get("scenarios", [])
+    if scenario_details:
+        for scenario_report in scenario_details:
+            weight_map[scenario_report.get("name")] = scenario_report.get("weight", 1)
+
+    # Build scenario scores table with weights
     if per_scenario_scores:
         rows = []
         for name, score in per_scenario_scores.items():
             c = _score_color(score)
+            weight = weight_map.get(name, 1)
             rows.append([
                 name,
+                f"Weight: {weight}x",
                 Paragraph(f'<font color="{c}"><b>{score} / 100</b></font>', _STYLE_CELL),
             ])
-        f.extend(_make_data_table(["Scenario", "Score"], rows))
+        f.extend(_make_data_table(["Scenario", "Weight", "Score"], rows))
+
+        # Add resiliency score calculation explanation
+        f.append(Spacer(1, 8))
+        total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        calc_detail = (
+            f'<b>Resiliency Score Calculation:</b> Weighted average of scenario scores. '
+            f'Total weight: {total_weight}x. '
+            f'Formula: (Σ score × weight) ÷ total weight'
+        )
+        f.append(Paragraph(calc_detail, _STYLE_CELL))
+        f.append(Spacer(1, 8))
 
     c = _score_color(overall_score)
     overall_style = ParagraphStyle(
