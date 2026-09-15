@@ -21,7 +21,15 @@ from unittest.mock import MagicMock, patch
 # ---------------------------------------------------------------------------
 
 def _inject(name, **attrs):
-    mod = types.ModuleType(name)
+    """Create a module stub that returns MagicMock for any undefined attribute."""
+    class FlexibleModule(types.ModuleType):
+        def __getattr__(self, item):
+            # If an attribute is requested that doesn't exist, return a MagicMock
+            if item not in self.__dict__:
+                self.__dict__[item] = MagicMock()
+            return self.__dict__[item]
+
+    mod = FlexibleModule(name)
     for k, v in attrs.items():
         setattr(mod, k, v)
     sys.modules.setdefault(name, mod)
@@ -30,15 +38,16 @@ def _inject(name, **attrs):
 
 # -- krkn_lib ----------------------------------------------------------------
 _inject("krkn_lib")
-_inject("krkn_lib.utils", deep_get_attribute=MagicMock(return_value=[]))
+_inject("krkn_lib.utils", deep_get_attribute=MagicMock(return_value=[]), log_exception=MagicMock())
 _inject("krkn_lib.utils.functions",
         get_yaml_item_value=MagicMock(
             side_effect=lambda cfg, key, default: (
                 cfg.get(key, default) if isinstance(cfg, dict) else default
             )
-        ))
+        ),
+        get_junit_test_case=MagicMock())
 _inject("krkn_lib.models.telemetry",
-        ScenarioTelemetry=MagicMock(), ChaosRunTelemetry=MagicMock())
+        ScenarioTelemetry=MagicMock(), ChaosRunTelemetry=MagicMock(), FailedAlert=MagicMock())
 
 
 class _VirtCheck:
@@ -52,7 +61,7 @@ _inject("krkn_lib.models.krkn",
         ChaosRunAlertSummary=MagicMock(), ChaosRunAlert=MagicMock())
 _inject("krkn_lib.models.elastic.models", ElasticAlert=MagicMock())
 _inject("krkn_lib.models.elastic", ElasticChaosRunTelemetry=MagicMock())
-_inject("krkn_lib.models.k8s", ResiliencyReport=MagicMock())
+_inject("krkn_lib.models.k8s", ResiliencyReport=MagicMock(), AffectedVMI=MagicMock(), VmisStatus=MagicMock())
 _inject("krkn_lib.elastic.krkn_elastic", KrknElastic=MagicMock())
 _inject("krkn_lib.prometheus.krkn_prometheus", KrknPrometheus=MagicMock())
 _inject("krkn_lib.telemetry.ocp", KrknTelemetryOpenshift=MagicMock())
@@ -70,17 +79,20 @@ if not hasattr(urllib3.exceptions, "HTTPError"):
 _inject("kubernetes")
 _inject("kubernetes.client")
 _inject("kubernetes.client.rest", ApiException=type("ApiException", (Exception,), {}))
+_inject("kubernetes.client.exceptions", ApiException=type("ApiException", (Exception,), {}))
 
 # -- other stubs needed by krkn internals ------------------------------------
 _inject("tzlocal")
 _inject("tzlocal.unix", get_localzone=MagicMock(return_value="UTC"))
 
-# kubevirt plugin (imports kubernetes.client.rest)
-_KubevirtPlugin = MagicMock()
+# vmi_outage plugin (imports kubernetes.client.rest)
+# NOTE: This mocking should not affect test_vmi_outage.py because we use
+# setdefault() which doesn't override if the module is already imported
+_VmiOutagePlugin = MagicMock()
 _inject(
-    "krkn.scenario_plugins.kubevirt_vm_outage"
-    ".kubevirt_vm_outage_scenario_plugin",
-    KubevirtVmOutageScenarioPlugin=_KubevirtPlugin,
+    "krkn.scenario_plugins.vmi_outage"
+    ".vmi_outage_scenario_plugin",
+    VmiOutageScenarioPlugin=_VmiOutagePlugin,
 )
 _inject("krkn.health_checks.abstract_health_check_plugin",
         AbstractHealthCheckPlugin=type("AbstractHealthCheckPlugin", (), {"__init__": lambda self, *a, **kw: None}))

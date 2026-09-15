@@ -158,17 +158,17 @@ class TestCalculateResiliencyScore(unittest.TestCase):
         self.assertEqual(breakdown["passed"], 1)
         self.assertEqual(breakdown["failed"], 1)
 
-    def test_slo_not_in_prometheus_results_is_excluded(self):
-        """Test that SLOs not in prometheus_results are excluded from calculation."""
+    def test_slo_not_in_prometheus_results_is_treated_as_failed(self):
+        """Test that SLOs not in prometheus_results are treated as failed."""
         slo_definitions = {
-            "slo1": "critical",
-            "slo2": "warning",
-            "slo3": "critical",  # Not in prometheus_results
+            "slo1": "critical",   # weight=3
+            "slo2": "warning",    # weight=1
+            "slo3": "critical",   # weight=3, not in prometheus_results -> failed
         }
         prometheus_results = {
             "slo1": True,
             "slo2": True,
-            # slo3 is missing (no data)
+            # slo3 is missing -> treated as failed
         }
         health_check_results = {}
 
@@ -176,10 +176,13 @@ class TestCalculateResiliencyScore(unittest.TestCase):
             slo_definitions, prometheus_results, health_check_results
         )
 
-        # Only slo1 and slo2 should be counted
-        self.assertEqual(score, 100)
+        # All three SLOs counted: total=3+1+3=7, lost=3 (slo3 failed)
+        # Score: (7-3)/7 * 100 = 57.14... -> 57
+        self.assertEqual(score, 57)
         self.assertEqual(breakdown["passed"], 2)
-        self.assertEqual(breakdown["failed"], 0)
+        self.assertEqual(breakdown["failed"], 1)
+        self.assertEqual(breakdown["total_points"], 7)
+        self.assertEqual(breakdown["points_lost"], 3)
 
     def test_health_checks_are_treated_as_critical(self):
         """Test that health checks are always weighted as critical."""

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 """
-Test suite for KubeVirt VM Outage Scenario Plugin
+Test suite for VMI Outage Scenario Plugin
 
-This comprehensive test suite covers the KubevirtVmOutageScenarioPlugin class
+This comprehensive test suite covers the VmiOutageScenarioPlugin class
 using extensive mocks to avoid needing actual Kubernetes/KubeVirt infrastructure.
 
 Test Coverage:
@@ -19,10 +19,10 @@ cluster or KubeVirt installation. All API calls are mocked.
 
 Usage:
     # Run all tests
-    python -m unittest tests.test_kubevirt_vm_outage -v
+    python -m unittest tests.test_vmi_outage -v
 
     # Run with coverage
-    python -m coverage run -a -m unittest tests/test_kubevirt_vm_outage.py -v
+    python -m coverage run -a -m unittest tests/test_vmi_outage.py -v
 
 Assisted By: Claude Code
 """
@@ -30,32 +30,55 @@ Assisted By: Claude Code
 import copy
 import itertools
 import os
+import sys
 import tempfile
 import datetime
 import unittest
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
+# Ensure we import the real plugin, not a mock from test_logging_and_code_quality.py
+# Remove any mocked versions from sys.modules before importing
+_modules_to_clear = [
+    "krkn.scenario_plugins.vmi_outage.vmi_outage_scenario_plugin",
+    "krkn.scenario_plugins.vmi_outage",
+]
+for mod in _modules_to_clear:
+    if mod in sys.modules:
+        # Check if it's a mock by seeing if it's a types.ModuleType with minimal attributes
+        module = sys.modules[mod]
+        # If the module has VmiOutageScenarioPlugin and it's a MagicMock, remove it
+        if hasattr(module, 'VmiOutageScenarioPlugin'):
+            cls = getattr(module, 'VmiOutageScenarioPlugin')
+            if type(cls).__name__ == 'MagicMock' or 'Mock' in type(cls).__name__:
+                del sys.modules[mod]
+
 import yaml
+# Import krkn_lib items - these might be mocked but we'll handle that in setUp
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedVMI, VmisStatus
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from kubernetes.client.rest import ApiException
 
-from krkn.scenario_plugins.kubevirt_vm_outage.kubevirt_vm_outage_scenario_plugin import KubevirtVmOutageScenarioPlugin
+from krkn.scenario_plugins.vmi_outage.vmi_outage_scenario_plugin import VmiOutageScenarioPlugin
 
 
-class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
+class TestVmiOutageScenarioPlugin(unittest.TestCase):
 
     def setUp(self):
         """
-        Set up test fixtures for KubevirtVmOutageScenarioPlugin
+        Set up test fixtures for VmiOutageScenarioPlugin
         """
-        self.plugin = KubevirtVmOutageScenarioPlugin()
+        self.plugin = VmiOutageScenarioPlugin()
 
-        # Create mock k8s client (spec=KrknKubernetes)
-        self.k8s_client = MagicMock(spec=KrknKubernetes)
+        # Create mock k8s client (spec=KrknKubernetes if it's a real class, otherwise no spec)
+        # This handles the case where test_logging_and_code_quality.py has already mocked KrknKubernetes
+        try:
+            self.k8s_client = MagicMock(spec=KrknKubernetes)
+        except Exception:
+            # If KrknKubernetes is already a mock, just create a plain MagicMock
+            self.k8s_client = MagicMock()
         self.custom_object_client = MagicMock()
         self.k8s_client.custom_object_client = self.custom_object_client
         self.plugin.k8s_client = self.k8s_client
@@ -98,8 +121,8 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.config = {
             "scenarios": [
                 {
-                    "name": "kubevirt outage test",
-                    "scenario": "kubevirt_vm_outage",
+                    "name": "vmi outage test",
+                    "scenario": "vmi_outage",
                     "parameters": {
                         "vm_name": "test-vm",
                         "namespace": "default",
@@ -111,7 +134,7 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
 
         # Create a temporary config file
         temp_dir = tempfile.gettempdir()
-        self.scenario_file = os.path.join(temp_dir, "test_kubevirt_scenario.yaml")
+        self.scenario_file = os.path.join(temp_dir, "test_vmi_scenario.yaml")
         with open(self.scenario_file, "w") as f:
             yaml.dump(self.config, f)
 
@@ -641,8 +664,10 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         """
         result = self.plugin.get_scenario_types()
 
-        self.assertEqual(result, ["kubevirt_vm_outage"])
-        self.assertEqual(len(result), 1)
+        # Should support both new name and legacy name for backwards compatibility
+        self.assertIn("vmi_outage", result)
+        self.assertIn("kubevirt_vm_outage", result)
+        self.assertEqual(len(result), 2)
 
     # ==================== label_selector Tests ====================
 
@@ -764,6 +789,106 @@ class TestKubevirtVmOutageScenarioPlugin(unittest.TestCase):
         self.assertEqual(len(result.unrecovered), 0)
         self.k8s_client.get_vmis.assert_not_called()
 
+    def test_legacy_scenario_name_backwards_compatibility(self):
+        """
+        Test that legacy scenario name 'kubevirt_vm_outage' still works
+        """
+        # Create test config with legacy scenario name
+        legacy_config = {
+            "scenarios": [
+                {
+                    "name": "legacy test",
+                    "scenario": "kubevirt_vm_outage",  # Old name
+                    "parameters": {
+                        "vm_name": "test-vm",
+                        "namespace": "default",
+                        "duration": 0
+                    }
+                }
+            ]
+        }
+
+        # Create a temporary config file with legacy name
+        temp_dir = tempfile.gettempdir()
+        legacy_scenario_file = os.path.join(temp_dir, "test_legacy_scenario.yaml")
+        with open(legacy_scenario_file, "w") as f:
+            yaml.dump(legacy_config, f)
+
+        # Setup k8s_client mocks
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [{"metadata": {"name": "test-vm"}}]
+
+        # Mock VMI with new timestamp after deletion
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi['metadata']['creationTimestamp'] = '2023-01-01T00:05:00Z'
+
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,  # validate_environment
+            self.mock_vmi,  # execute_scenario
+            new_vmi,        # delete_vmi - recreated
+            new_vmi         # wait_for_running
+        ]
+
+        self.k8s_client.delete_vmi.return_value = None
+
+        # Run with legacy scenario name - should still work
+        with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(legacy_config))):
+            result = self.plugin.run("test-uuid", legacy_scenario_file, self.telemetry, self.scenario_telemetry)
+
+        # Should succeed with legacy name
+        self.assertEqual(result, 0)
+        self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
+
 
 if __name__ == "__main__":
     unittest.main()
+
+    def test_legacy_scenario_name_backwards_compatibility(self):
+        """
+        Test that legacy scenario name 'kubevirt_vm_outage' still works
+        """
+        # Create test config with legacy scenario name
+        legacy_config = {
+            "scenarios": [
+                {
+                    "name": "legacy test",
+                    "scenario": "kubevirt_vm_outage",  # Old name
+                    "parameters": {
+                        "vm_name": "test-vm",
+                        "namespace": "default",
+                        "duration": 0
+                    }
+                }
+            ]
+        }
+
+        # Create a temporary config file with legacy name
+        temp_dir = tempfile.gettempdir()
+        legacy_scenario_file = os.path.join(temp_dir, "test_legacy_scenario.yaml")
+        with open(legacy_scenario_file, "w") as f:
+            yaml.dump(legacy_config, f)
+
+        # Setup k8s_client mocks
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [{"metadata": {"name": "test-vm"}}]
+
+        # Mock VMI with new timestamp after deletion
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi['metadata']['creationTimestamp'] = '2023-01-01T00:05:00Z'
+
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,  # validate_environment
+            self.mock_vmi,  # execute_scenario
+            new_vmi,        # delete_vmi - recreated
+            new_vmi         # wait_for_running
+        ]
+
+        self.k8s_client.delete_vmi.return_value = None
+
+        # Run with legacy scenario name - should still work
+        with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(legacy_config))):
+            result = self.plugin.run("test-uuid", legacy_scenario_file, self.telemetry, self.scenario_telemetry)
+
+        # Should succeed with legacy name
+        self.assertEqual(result, 0)
+        self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")

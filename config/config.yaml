@@ -6,8 +6,10 @@ kraken:
     publish_kraken_status: True                            # Can be accessed at http://0.0.0.0:8081
     signal_state: RUN                                      # Will wait for the RUN signal when set to PAUSE before running the scenarios, refer docs/signal.md for more details
     signal_address: 0.0.0.0                                # Signal listening address
-    port: 8081                                             # Signal port
-    generate_pdf_report: True                              # Generate a PDF summary report after the run
+    port: 8081
+    report_formats:                                          # List of report formats to generate (pdf, html)
+        - pdf
+        - html
     chaos_scenarios:
        # List of policies/chaos scenarios to load
        - hog_scenarios:
@@ -58,11 +60,10 @@ kraken:
                - scenarios/kube/node_interface_down.yaml
                - scenarios/openshift/virt_network_chaos.yaml
                - scenarios/openshift/virt_network.yaml
-       -  kubevirt_vm_outage:
-              - scenarios/kubevirt/kubevirt-vm-outage.yaml
+       -  vmi_outage:  # Also supports legacy name: kubevirt_vm_outage
+              - scenarios/kubevirt/vmi-outage.yaml
        - http_load_scenarios:
               - scenarios/kube/http_load_scenario.yml
-
 
 resiliency:
   resiliency_run_mode: standalone  # Options: standalone, detailed, disabled
