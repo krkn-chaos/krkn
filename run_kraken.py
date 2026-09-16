@@ -43,6 +43,7 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
+from krkn.chaos_health_check.pre_chaos_check import run_pre_chaos_check
 import server as server
 from krkn.resiliency.resiliency import (
     Resiliency
@@ -506,65 +507,22 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
 
         # Pre-chaos baseline check: verify the cluster isn't already unhealthy
         # before injecting failures, and record a "pre_chaos" baseline snapshot.
-        if chaos_scenarios and (check_critical_alerts or enable_alerts or enable_metrics):
-            logging.info("Running pre-chaos health check")
-            pre_check_failed = False
-            pre_check_start_time = int(time.time()) - 60
-            pre_check_end_time = int(time.time())
-
-            if check_critical_alerts:
-                pre_summary = ChaosRunAlertSummary()
-                prometheus_plugin.critical_alerts(
-                    prometheus,
-                    pre_summary,
-                    elastic_search,
-                    run_uuid,
-                    "pre_chaos_check",
-                    pre_check_start_time,
-                    datetime.datetime.fromtimestamp(pre_check_end_time),
-                    elastic_alerts_index,
-                    phase="pre_chaos"
-                )
-                if len(pre_summary.post_chaos_alerts) > 0:
-                    pre_check_failed = True
-
-            if enable_alerts and alert_profile:
-                pre_profile_alerts = prometheus_plugin.alerts(
-                    prometheus,
-                    elastic_search,
-                    run_uuid,
-                    pre_check_start_time,
-                    pre_check_end_time,
-                    alert_profile,
-                    elastic_alerts_index,
-                    phase="pre_chaos"
-                )
-                if pre_profile_alerts:
-                    pre_check_failed = True
-
-            if pre_check_failed:
-                logging.error(
-                    "Pre-chaos check found critical/error alerts already firing on the cluster"
-                )
-                if exit_on_pre_check_failure:
-                    logging.error(
-                        "exit_on_pre_check_failure is set, exiting before running chaos scenarios"
-                    )
-                    return 2
-
-            if enable_metrics and metrics_profile:
-                logging.info("Capturing pre-chaos metrics baseline")
-                prometheus_plugin.metrics(
-                    prometheus,
-                    elastic_search,
-                    run_uuid,
-                    pre_check_start_time,
-                    pre_check_end_time,
-                    metrics_profile,
-                    elastic_metrics_index,
-                    json.dumps({"scenarios": [], "health_checks": [], "virt_checks": []}),
-                    phase="pre_chaos"
-                )
+        pre_chaos_result = run_pre_chaos_check(
+            chaos_scenarios=chaos_scenarios,
+            check_critical_alerts=check_critical_alerts,
+            enable_alerts=enable_alerts,
+            enable_metrics=enable_metrics,
+            exit_on_pre_check_failure=exit_on_pre_check_failure,
+            prometheus=prometheus,
+            elastic_search=elastic_search,
+            run_uuid=run_uuid,
+            elastic_alerts_index=elastic_alerts_index,
+            elastic_metrics_index=elastic_metrics_index,
+            alert_profile=alert_profile,
+            metrics_profile=metrics_profile,
+        )
+        if pre_chaos_result.should_exit:
+            return 2
 
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":
