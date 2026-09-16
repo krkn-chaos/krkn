@@ -17,9 +17,13 @@ import yaml
 class TestPluginFactory(unittest.TestCase):
 
     def test_plugin_factory(self):
-        factory = ScenarioPluginFactory("krkn.tests.test_classes")
+        try:
+            factory = ScenarioPluginFactory("krkn.tests.test_classes")
+        except Exception as e:
+            self.fail(f"ScenarioPluginFactory raised on a broken import fixture: {e}")
+
         self.assertEqual(len(factory.loaded_plugins), 5)
-        self.assertEqual(len(factory.failed_plugins), 4)
+        self.assertEqual(len(factory.failed_plugins), 6)
         self.assertIs(
             factory.loaded_plugins["correct_scenarios"].__base__,
             AbstractScenarioPlugin,
@@ -48,6 +52,15 @@ class TestPluginFactory(unittest.TestCase):
             "krkn.tests.test_classes.wrong_module"
             in [p[0] for p in factory.failed_plugins]
         )
+        self.assertTrue(
+        "krkn.tests.test_classes.broken_import_scenario_plugin"
+        in [p[0] for p in factory.failed_plugins]
+        )
+        self.assertTrue(
+        "krkn.tests.test_classes.broken_package"
+        in [p[0] for p in factory.failed_plugins]
+        )
+
 
     def test_plugin_factory_naming_convention(self):
         factory = ScenarioPluginFactory()

@@ -17,6 +17,7 @@ import time
 from abc import ABC, abstractmethod
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+from krkn_lib.utils.functions import get_yaml_item_value
 
 from krkn import utils, cerberus
 from krkn.rollback.handler import (
@@ -85,8 +86,9 @@ class AbstractScenarioPlugin(ABC):
 
         scenario_telemetries: list[ScenarioTelemetry] = []
         failed_scenarios = []
-        wait_duration = krkn_config["tunings"]["wait_duration"]
-        events_backup = krkn_config["telemetry"]["events_backup"]
+        wait_duration = get_yaml_item_value(krkn_config["tunings"], "wait_duration", 30)
+        events_backup = get_yaml_item_value(krkn_config["telemetry"], "events_backup", True)
+
         for scenario_config in scenarios_list:
             if isinstance(scenario_config, list):
                 logging.error(

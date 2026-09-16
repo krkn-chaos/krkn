@@ -1,3 +1,17 @@
+# Copyright 2026 The Krkn Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 from datetime import datetime
 from xml.sax.saxutils import escape as _xml_escape
 
@@ -628,15 +642,34 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
 
     # 16. Resiliency Score
     score_body = []
+
+    # Extract scenario weights from detailed report
+    weight_map = {}
+    scenario_details = chaos_output.get("resiliency_report", {}).get("scenarios", [])
+    if scenario_details:
+        for scenario_report in scenario_details:
+            weight_map[scenario_report.get("name")] = scenario_report.get("weight", 1)
+
     if per_scenario_scores:
         rows = []
         for name, score in per_scenario_scores.items():
             cls = _html_score_class(score)
+            weight = weight_map.get(name, 1)
             rows.append([
                 _h(name),
+                _h(f"Weight: {weight}x"),
                 f'<span class="{cls}"><b>{_h(str(score))} / 100</b></span>',
             ])
-        score_body.append(_html_data_table(["Scenario", "Score"], rows))
+        score_body.append(_html_data_table(["Scenario", "Weight", "Score"], rows))
+
+        # Add resiliency score calculation explanation
+        total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        calc_detail = (
+            f'<p><b>Resiliency Score Calculation:</b> Weighted average of scenario scores. '
+            f'Total weight: {total_weight}x. '
+            f'Formula: (Σ score × weight) ÷ total weight</p>'
+        )
+        score_body.append(calc_detail)
 
     cls = _html_score_class(overall_score)
     score_body.append(f'<div class="overall-score {cls}">Overall: {_h(str(overall_score))} / 100</div>')
