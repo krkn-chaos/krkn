@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-from krkn.chaos_health_check.pre_chaos_check import run_pre_chaos_check
+from krkn.alert_health_check.pre_chaos_check import run_pre_chaos_check
 
 
 class TestPreChaosCheck(unittest.TestCase):
@@ -23,7 +23,7 @@ class TestPreChaosCheck(unittest.TestCase):
         kwargs.update(overrides)
         return kwargs
 
-    @patch("krkn.chaos_health_check.pre_chaos_check.prometheus_plugin")
+    @patch("krkn.alert_health_check.pre_chaos_check.prometheus_plugin")
     def test_critical_alerts_failure_sets_failed(self, mock_plugin):
         def fake_critical_alerts(prom, summary, *args, **kwargs):
             summary.post_chaos_alerts.append("ALERT")
@@ -34,7 +34,7 @@ class TestPreChaosCheck(unittest.TestCase):
         self.assertTrue(result.failed)
         self.assertFalse(result.should_exit)
 
-    @patch("krkn.chaos_health_check.pre_chaos_check.prometheus_plugin")
+    @patch("krkn.alert_health_check.pre_chaos_check.prometheus_plugin")
     def test_alerts_profile_failure_sets_failed(self, mock_plugin):
         mock_plugin.alerts.return_value = ["some-alert"]
         result = run_pre_chaos_check(**self._base_kwargs(enable_alerts=True))
@@ -42,7 +42,7 @@ class TestPreChaosCheck(unittest.TestCase):
         self.assertTrue(result.failed)
         self.assertFalse(result.should_exit)
 
-    @patch("krkn.chaos_health_check.pre_chaos_check.prometheus_plugin")
+    @patch("krkn.alert_health_check.pre_chaos_check.prometheus_plugin")
     def test_metrics_capture_called_when_enabled(self, mock_plugin):
         result = run_pre_chaos_check(**self._base_kwargs(enable_metrics=True))
         mock_plugin.metrics.assert_called_once()
@@ -50,7 +50,7 @@ class TestPreChaosCheck(unittest.TestCase):
         self.assertFalse(result.failed)
         self.assertFalse(result.should_exit)
 
-    @patch("krkn.chaos_health_check.pre_chaos_check.prometheus_plugin")
+    @patch("krkn.alert_health_check.pre_chaos_check.prometheus_plugin")
     def test_exit_on_pre_check_failure_true_signals_exit(self, mock_plugin):
         def fake_critical_alerts(prom, summary, *args, **kwargs):
             summary.post_chaos_alerts.append("ALERT")
@@ -64,7 +64,7 @@ class TestPreChaosCheck(unittest.TestCase):
         self.assertTrue(result.failed)
         self.assertTrue(result.should_exit)
 
-    @patch("krkn.chaos_health_check.pre_chaos_check.prometheus_plugin")
+    @patch("krkn.alert_health_check.pre_chaos_check.prometheus_plugin")
     def test_exit_on_pre_check_failure_false_does_not_exit(self, mock_plugin):
         def fake_critical_alerts(prom, summary, *args, **kwargs):
             summary.post_chaos_alerts.append("ALERT")
@@ -78,7 +78,7 @@ class TestPreChaosCheck(unittest.TestCase):
         self.assertTrue(result.failed)
         self.assertFalse(result.should_exit)
 
-    @patch("krkn.chaos_health_check.pre_chaos_check.prometheus_plugin")
+    @patch("krkn.alert_health_check.pre_chaos_check.prometheus_plugin")
     def test_empty_chaos_scenarios_skips(self, mock_plugin):
         result = run_pre_chaos_check(
             **self._base_kwargs(chaos_scenarios=[], check_critical_alerts=True)
@@ -88,7 +88,7 @@ class TestPreChaosCheck(unittest.TestCase):
         self.assertFalse(result.should_exit)
         mock_plugin.critical_alerts.assert_not_called()
 
-    @patch("krkn.chaos_health_check.pre_chaos_check.prometheus_plugin")
+    @patch("krkn.alert_health_check.pre_chaos_check.prometheus_plugin")
     def test_no_flags_enabled_skips(self, mock_plugin):
         result = run_pre_chaos_check(**self._base_kwargs())
         self.assertFalse(result.ran)

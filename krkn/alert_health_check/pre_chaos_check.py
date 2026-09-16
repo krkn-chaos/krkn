@@ -22,7 +22,7 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.krkn import ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 
-from krkn.chaos_health_check.models import ChaosHealthCheckResult
+from krkn.alert_health_check.models import AlertHealthCheckResult
 
 
 def run_pre_chaos_check(
@@ -38,7 +38,7 @@ def run_pre_chaos_check(
     elastic_metrics_index: str,
     alert_profile: Optional[str],
     metrics_profile: Optional[str],
-) -> ChaosHealthCheckResult:
+) -> AlertHealthCheckResult:
     """
     Run the pre-chaos baseline check: verify the cluster isn't already
     unhealthy before injecting failures, and record a "pre_chaos"
@@ -48,7 +48,7 @@ def run_pre_chaos_check(
     can perform the actual early return.
     """
     if not (chaos_scenarios and (check_critical_alerts or enable_alerts or enable_metrics)):
-        return ChaosHealthCheckResult(ran=False, failed=False, should_exit=False)
+        return AlertHealthCheckResult(ran=False, failed=False, should_exit=False)
 
     logging.info("Running pre-chaos health check")
     pre_check_failed = False
@@ -110,4 +110,4 @@ def run_pre_chaos_check(
             phase="pre_chaos"
         )
 
-    return ChaosHealthCheckResult(ran=True, failed=pre_check_failed, should_exit=should_exit)
+    return AlertHealthCheckResult(ran=True, failed=pre_check_failed, should_exit=should_exit)

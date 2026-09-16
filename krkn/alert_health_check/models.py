@@ -15,7 +15,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class ChaosHealthCheckResult:
+class AlertHealthCheckResult:
     """Outcome of a pre- or post-chaos health check pass."""
     ran: bool
     failed: bool
