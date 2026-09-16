@@ -43,7 +43,7 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
-from krkn.alert_health_check.pre_chaos_check import run_pre_chaos_check
+from krkn.alert_health_check.pre_chaos_check import PreChaosCheck
 import server as server
 from krkn.resiliency.resiliency import (
     Resiliency
@@ -507,7 +507,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
 
         # Pre-chaos baseline check: verify the cluster isn't already unhealthy
         # before injecting failures, and record a "pre_chaos" baseline snapshot.
-        pre_chaos_result = run_pre_chaos_check(
+        pre_chaos_result = PreChaosCheck().run(
             chaos_scenarios=chaos_scenarios,
             check_critical_alerts=check_critical_alerts,
             enable_alerts=enable_alerts,
