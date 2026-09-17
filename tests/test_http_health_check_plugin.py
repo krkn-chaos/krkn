@@ -155,6 +155,21 @@ class TestHttpHealthCheckPlugin(unittest.TestCase):
         self.assertEqual(result["status"], False)
         self.assertEqual(result["status_code"], 500)
 
+    @patch("krkn.health_checks.http_health_check_plugin.logging.debug")
+    def test_make_request_exception_is_logged_at_debug(self, mock_debug):
+        """Test request exceptions are logged at debug level."""
+        mock_session = MagicMock()
+        mock_session.get.side_effect = RuntimeError("Connection error")
+        self.plugin.http_session = mock_session
+
+        result = self.plugin.make_request("http://example.com")
+
+        self.assertEqual(result["status"], False)
+        self.assertEqual(result["status_code"], 500)
+        mock_debug.assert_called_once_with(
+            "HTTP request to http://example.com failed: Connection error"
+        )
+
     def test_make_request_with_verify_false(self):
         """Test make_request with SSL verification disabled"""
         self.plugin.http_session = self._make_mock_session()

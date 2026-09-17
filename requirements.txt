@@ -1,6 +1,6 @@
 setuptools<82.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored jaraco-context
 wheel>=0.46.2  # Fixes GHSA-8rrh-rw8j-w5fx
-aliyun-python-sdk-core==2.13.36
+aliyun-python-sdk-core==2.16.1
 aliyun-python-sdk-ecs==4.24.25
 arcaflow-plugin-sdk==0.14.3
 boto3>=1.34.0  # Updated to support urllib3 2.x
