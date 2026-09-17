@@ -223,7 +223,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
                         # Record the status change period
                         change_record = {
                             "url": url,
-                            "status": previous_status_code == "200",
+                            "status": False,
                             "status_code": previous_status_code,
                             "start_timestamp": start_timestamp.isoformat(),
                             "end_timestamp": end_timestamp.isoformat(),
@@ -249,7 +249,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
             ).total_seconds()
             final_record = {
                 "url": url,
-                "status": health_check_tracker[url]["status_code"] == 200,
+                "status": True,
                 "status_code": health_check_tracker[url]["status_code"],
                 "start_timestamp": health_check_tracker[url][
                     "start_timestamp"

@@ -15,6 +15,7 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+from typing import Callable, Optional
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils.functions import get_yaml_item_value
@@ -82,6 +83,7 @@ class AbstractScenarioPlugin(ABC):
         scenarios_list: list[str],
         krkn_config: dict[str, any],
         telemetry: KrknTelemetryOpenshift,
+        get_signal_fn: Optional[Callable[[], str]] = None,
     ) -> tuple[list[str], list[ScenarioTelemetry]]:
 
         scenario_telemetries: list[ScenarioTelemetry] = []
@@ -97,6 +99,17 @@ class AbstractScenarioPlugin(ABC):
                 )
                 failed_scenarios.append(scenario_config)
                 break
+
+            # Check signal before starting each scenario so a STOP sent
+            # while the previous scenario was running is honoured immediately.
+            if get_signal_fn is not None:
+                signal = get_signal_fn()
+                if signal == "STOP":
+                    logging.info(
+                        "STOP signal received before starting next scenario, "
+                        "aborting remaining scenarios in this batch"
+                    )
+                    return failed_scenarios, scenario_telemetries
 
             scenario_telemetry = ScenarioTelemetry()
             scenario_telemetry.scenario = scenario_config
@@ -125,6 +138,7 @@ class AbstractScenarioPlugin(ABC):
                     logging.info(
                         f"Running {self.__class__.__name__}: {self.get_scenario_types()} -> {scenario_config}"
                     )
+                    # pass all the parameters by kwargs to make `set_rollback_context_decorator` get the `run_uuid` and `scenario_type`
                     return_value = self.run(
                         run_uuid=run_uuid,
                         scenario=scenario_config,
@@ -143,6 +157,7 @@ class AbstractScenarioPlugin(ABC):
                     run_uuid, scenario_telemetry.scenario_type
                 )
             else:
+                # execute rollback files based on the return value
                 execute_rollback_version_files(
                     telemetry, run_uuid, scenario_telemetry.scenario_type
                 )
@@ -152,7 +167,23 @@ class AbstractScenarioPlugin(ABC):
                 f"waiting {wait_duration}s for cluster to stabilize "
                 f"before collecting metrics"
             )
-            time.sleep(wait_duration)
+            # Interruptible sleep: use a monotonic deadline to preserve
+            # sub-second wait_duration semantics and allow a STOP signal
+            # to be honoured promptly without overshooting by a full second.
+            # PAUSE is handled by the outer loop in run_kraken.py.
+            end = time.monotonic() + wait_duration
+            while time.monotonic() < end:
+                if get_signal_fn is not None and get_signal_fn() == "STOP":
+                    logging.info(
+                        "STOP signal received during inter-scenario wait, "
+                        "aborting remaining scenarios in this batch"
+                    )
+                    return failed_scenarios, scenario_telemetries
+                # Sleep only the remaining slice so we never overshoot the
+                # deadline by a full second (important for sub-second
+                # wait_duration values).
+                time.sleep(min(1, max(0, end - time.monotonic())))
+
             scenario_telemetry.end_timestamp = time.time()
             start_time = int(scenario_telemetry.start_timestamp)
             end_time = int(scenario_telemetry.end_timestamp)
@@ -191,5 +222,3 @@ class AbstractScenarioPlugin(ABC):
             cerberus.publish_kraken_status(start_time, end_time)
 
         return failed_scenarios, scenario_telemetries
-
-    
