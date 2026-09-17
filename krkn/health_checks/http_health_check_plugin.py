@@ -125,7 +125,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
             response_data["status"] = response.status_code == 200
             response_data["status_code"] = response.status_code
         except Exception as e:
-            logging.warning(f"HTTP request to {url} failed: {e}")
+            logging.debug(f"HTTP request to {url} failed: {e}")
             response_data["url"] = url
             response_data["status"] = False
             response_data["status_code"] = 500
