@@ -1,4 +1,4 @@
-# Copyright 2025 The Krkn Authors
+# Copyright 2026 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,8 +22,8 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.krkn import ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 
-from krkn.alert_health_check.abstract_alert_health_check import AbstractAlertHealthCheck
-from krkn.alert_health_check.models import AlertHealthCheckResult
+from krkn.health_checks.abstract_alert_health_check import AbstractAlertHealthCheck
+from krkn.health_checks.models import AlertHealthCheckResult
 
 
 class PreChaosCheck(AbstractAlertHealthCheck):

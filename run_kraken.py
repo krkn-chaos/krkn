@@ -43,7 +43,7 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
-from krkn.alert_health_check.pre_chaos_check import PreChaosCheck
+from krkn.health_checks.pre_chaos_check import PreChaosCheck
 import server as server
 from krkn.resiliency.resiliency import (
     Resiliency
