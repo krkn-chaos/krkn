@@ -137,6 +137,8 @@ class HealthCheckFactory:
                     iterations=iterations,
                     **kwargs
                 )
+                if not plugin.can_run(plugin_config):
+                    continue
                 if plugin.manages_own_threads():
                     tq = queue.SimpleQueue()
                     plugin.run_health_check(plugin_config, tq)

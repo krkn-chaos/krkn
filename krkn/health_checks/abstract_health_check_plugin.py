@@ -106,6 +106,18 @@ class AbstractHealthCheckPlugin(ABC):
         """
         pass
 
+    def can_run(self, config: dict[str, Any]) -> bool:
+        """Return whether the plugin has enough configuration to start.
+
+        The factory calls this before starting a plugin.  The default preserves
+        compatibility for existing and out-of-tree plugins that have no
+        configuration prerequisites.
+
+        :param config: the plugin's section of config.yaml
+        :return: True when the plugin should start
+        """
+        return True
+
     def manages_own_threads(self) -> bool:
         """
         Indicates whether this plugin spawns and manages its own worker threads internally.
