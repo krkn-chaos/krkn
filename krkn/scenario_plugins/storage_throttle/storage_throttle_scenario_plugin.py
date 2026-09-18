@@ -67,7 +67,7 @@ class ThrottleParams:
 class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
     """Chaos scenario that throttles I/O on PVC-backed volumes via Linux cgroups (v1/v2)."""
 
-    DEFAULT_IMAGE = "quay.io/krkn-chaos/krkn:tools"
+    DEFAULT_IMAGE = "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
     _V1_BLKIO_FILES = [
         "blkio.throttle.read_bps_device",
         "blkio.throttle.write_bps_device",

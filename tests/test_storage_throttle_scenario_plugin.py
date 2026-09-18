@@ -556,7 +556,7 @@ class TestApplyRemoveThrottle(unittest.TestCase):
             pvc_name="", pod_name="app-pod", namespace="default",
             throttle_type="bandwidth", read_iops=100, write_iops=50,
             read_bps=1048576, write_bps=524288, duration=60,
-            mount_path="", image="quay.io/krkn-chaos/krkn:tools",
+            mount_path="", image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
         )
         defaults.update(overrides)
         return ThrottleParams(**defaults)

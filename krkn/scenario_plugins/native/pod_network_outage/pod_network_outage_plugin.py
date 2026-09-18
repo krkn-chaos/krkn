@@ -782,7 +782,7 @@ def check_cookie(
 
 
 def get_pod_interface(
-    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes, image: str = "quay.io/krkn-chaos/krkn:tools"
+    node: str, ip: str, pod_template, br_name, kubecli: KrknKubernetes, image: str = "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
 ) -> str:
     """
     Function to query the pod interface on a node
@@ -850,7 +850,7 @@ def get_pod_interface(
 
 def check_bridge_interface(
     node_name: str, pod_template, bridge_name: str, kubecli: KrknKubernetes,
-    image: str = "quay.io/krkn-chaos/krkn:tools"
+    image: str = "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
 ) -> bool:
     """
     Function  is used to check if the required OVS or OVN bridge is found in
@@ -901,7 +901,7 @@ class InputParams:
     )
 
     image: typing.Annotated[str, validation.min(1)]= field(
-        default="quay.io/krkn-chaos/krkn:tools",
+        default="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
         metadata={
             "name": "Image",
             "description": "Image of krkn tools to run"
@@ -1176,7 +1176,7 @@ class EgressParams:
     )
 
     image: typing.Annotated[str, validation.min(1)]= field(
-        default="quay.io/krkn-chaos/krkn:tools",
+        default="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
         metadata={
             "name": "Image",
             "description": "Image of krkn tools to run"
@@ -1452,7 +1452,7 @@ class IngressParams:
     )
     
     image: typing.Annotated[str, validation.min(1)] = field(
-        default="quay.io/krkn-chaos/krkn:tools",
+        default="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
         metadata={
             "name": "Image",
             "description": "Image to use for injecting network chaos",

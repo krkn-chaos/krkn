@@ -40,7 +40,7 @@ class NetworkScenarioConfig:
     )
 
     image: typing.Annotated[str, validation.min(1)]= field(
-        default="quay.io/krkn-chaos/krkn:tools",
+        default="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
         metadata={
             "name": "Image",
             "description": "Image of krkn tools to run"
@@ -358,7 +358,7 @@ def apply_ingress_filter(
     kubecli: KrknKubernetes,
     create_interfaces: bool = True,
     param_selector: str = "all",
-    image: str = "quay.io/krkn-chaos/krkn:tools",
+    image: str = "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
 ) -> str:
     """
     Function that applies the filters to shape incoming traffic to

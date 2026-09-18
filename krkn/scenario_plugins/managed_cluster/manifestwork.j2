@@ -59,7 +59,7 @@ spec:
               serviceAccountName: internal-kubectl
               containers:
               - name: kubectl
-                image: quay.io/sighup/kubectl-kustomize:1.21.6_3.9.1
+          image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-kubectl-kustomize
                 command: ["/bin/sh", "-c"]
                 args:
                   - {{args}}
