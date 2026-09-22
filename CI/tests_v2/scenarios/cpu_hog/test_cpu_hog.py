@@ -11,8 +11,10 @@ failure on invalid selector/config.
 
 import logging
 import subprocess
+from pathlib import Path
 
 import pytest
+import yaml
 
 from lib.base import BaseScenarioTest
 from lib.utils import (
@@ -127,4 +129,51 @@ class TestCpuHog(BaseScenarioTest):
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_failure(
             result, context=f"missing hog-type namespace={ns}", tmp_path=self.tmp_path
+        )
+
+    @pytest.mark.no_workload
+    @pytest.mark.order(4)
+    def test_unsigned_legacy_hog_image_is_rejected(self):
+        """Negative: signature verification rejects the legacy production image."""
+        ns = self.ns
+        scenario = self._scenario(ns, {
+            "duration": 20,
+            "image": (
+                "quay.io/krkn-chaos/krkn-hog@sha256:"
+                "caaf730f5586e690c4af8a8164a746c8b4b2686f3b8b93327df9dbf6e9a04a3f"
+            ),
+        })
+        scenario_path = self.write_scenario(self.tmp_path, scenario)
+        config_path = self.build_config(
+            self.SCENARIO_TYPE,
+            str(scenario_path),
+            filename="cpu_hog_unsigned_image_config.yaml",
+        )
+
+        config = yaml.safe_load(Path(config_path).read_text())
+        config["kraken"]["image_signature_verification_enabled"] = True
+        config["kraken"]["image_signature_public_key"] = "cosign.pub"
+        Path(config_path).write_text(
+            yaml.safe_dump(config, default_flow_style=False, sort_keys=False)
+        )
+
+        result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
+
+        assert_kraken_failure(
+            result,
+            context=f"unsigned image namespace={ns}",
+            tmp_path=self.tmp_path,
+        )
+        combined = (result.stdout or "") + "\n" + (result.stderr or "")
+        assert "Image signature verification failed" in combined
+        assert (
+            "quay.io/krkn-chaos/krkn-hog@sha256:"
+            "caaf730f5586e690c4af8a8164a746c8b4b2686f3b8b93327df9dbf6e9a04a3f"
+            in combined
+        )
+        wait_for_no_pods_by_prefix(
+            self.k8s_core,
+            ns,
+            HOG_POD_PREFIX,
+            timeout=HOG_POD_CLEANUP_TIMEOUT,
         )

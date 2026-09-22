@@ -1099,7 +1099,9 @@ def pod_outage(
         node_dict = {}
         label_set = set()
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
+        kubecli = getattr(params, "kubecli", None) or KrknKubernetes(
+            kubeconfig_path=params.kubeconfig_path
+        )
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 
@@ -1366,7 +1368,9 @@ def pod_egress_shaping(
         param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
+        kubecli = getattr(params, "kubecli", None) or KrknKubernetes(
+            kubeconfig_path=params.kubeconfig_path
+        )
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 
@@ -1643,7 +1647,9 @@ def pod_ingress_shaping(
         param_lst = ["latency", "loss", "bandwidth"]
         mod_lst = [i for i in param_lst if i in params.network_params]
 
-        kubecli = KrknKubernetes(kubeconfig_path=params.kubeconfig_path)
+        kubecli = getattr(params, "kubecli", None) or KrknKubernetes(
+            kubeconfig_path=params.kubeconfig_path
+        )
         api_ext = client.ApiextensionsV1Api(kubecli.api_client)
         custom_obj = client.CustomObjectsApi(kubecli.api_client)
 

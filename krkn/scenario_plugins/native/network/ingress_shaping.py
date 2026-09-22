@@ -709,7 +709,9 @@ def network_chaos(
     job_template = env.get_template("job.j2")
     pod_interface_template = env.get_template("pod_interface.j2")
     pod_module_template = env.get_template("pod_module.j2")
-    kubecli = KrknKubernetes(kubeconfig_path=cfg.kubeconfig_path)
+    kubecli = getattr(cfg, "kubecli", None) or KrknKubernetes(
+        kubeconfig_path=cfg.kubeconfig_path
+    )
     test_image = cfg.image
     logging.info("Starting Ingress Network Chaos")
     try:
