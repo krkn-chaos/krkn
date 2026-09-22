@@ -135,8 +135,13 @@ class TestCpuHog(BaseScenarioTest):
     @pytest.mark.order(4)
     def test_unsigned_legacy_hog_image_is_rejected(self):
         """Negative: signature verification rejects the legacy production image."""
+        nodes = schedulable_worker_nodes(self.k8s_core)
+        if not nodes:
+            pytest.skip("No schedulable worker node available for signature verification test")
         ns = self.ns
         scenario = self._scenario(ns, {
+            "node-selector": f"kubernetes.io/hostname={nodes[0]}",
+            "number-of-nodes": 1,
             "duration": 20,
             "image": (
                 "quay.io/krkn-chaos/krkn-hog@sha256:"
