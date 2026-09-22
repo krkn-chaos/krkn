@@ -1,6 +1,6 @@
 kraken:
     kubeconfig_path: ~/.kube/config                     # Path to kubeconfig
-    image_signature_verification_enabled: False          # Verify workload image signatures before deployment
+    image_signature_verification_enabled: True          # Verify workload image signatures before deployment
     image_signature_public_key: cosign.pub               # Relative to the Krkn repository root
     exit_on_failure: False                                 # Exit when a post action scenario fails
     auto_rollback: True                                    # Enable auto rollback for scenarios.
