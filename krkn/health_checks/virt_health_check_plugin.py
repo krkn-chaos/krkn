@@ -362,6 +362,7 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
             "check_type": self._compute_check_type(ssh_status, vmi_ready),
             "start_timestamp": datetime.now(),
             "new_ip_address": vm.new_ip_address,
+            "phase": "during",
         }
 
     def thread_join(self):
@@ -559,6 +560,7 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
                             "new_ip_address": vm.new_ip_address,
                             "duration": 0,
                             "end_timestamp": start_timestamp.isoformat(),
+                            "phase": "post",
                         }
                     )
                 )
@@ -590,3 +592,105 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
 
         # Start batch checking in worker threads
         self.batch_list(telemetry_queue)
+
+    def run_once(
+        self,
+        config: dict[str, Any],
+        telemetry_queue: queue.Queue = None,
+        phase: str = None
+    ) -> dict[str, Any]:
+        """
+        Runs a one-time virt health check for all configured VMIs.
+
+        When telemetry_queue is provided, enqueues VirtCheck records with the specified phase.
+
+        :param config: the health check configuration dictionary
+        :param telemetry_queue: optional queue to put telemetry data
+        :param phase: optional phase indicator ("pre", "post"); identifies check timing
+        :return: dictionary with results:
+                 {
+                   "passed": bool,
+                   "failures": list of {"vm_name": str, "namespace": str, "ssh_status": bool, "vmi_ready": bool, "message": str},
+                   "details": dict with per-VM status
+                 }
+        """
+        if not config:
+            logging.info("Virt health check config not provided, skipping one-time check")
+            return {"passed": True, "failures": [], "details": {}}
+
+        # Initialize from config
+        if not self._initialize_from_config(config):
+            return {"passed": True, "failures": [], "details": {}}
+
+        failures = []
+        details = {}
+        telemetry = []
+        check_phase = phase if phase else "during"
+        start_time = datetime.now()
+
+        for vm in self.vm_list:
+            try:
+                ssh_status = self._get_ssh_status(vm)
+            except Exception as e:
+                logging.exception(f"Exception checking SSH status for {vm.vm_name}: {e}")
+                ssh_status = False
+
+            vmi_ready = self.check_vmi_ready(vm.vm_name, vm.namespace)
+            combined_status = ssh_status and vmi_ready
+
+            details[f"{vm.namespace}/{vm.vm_name}"] = {
+                "ssh_status": ssh_status,
+                "vmi_ready": vmi_ready,
+                "passed": combined_status,
+                "node_name": vm.node_name,
+                "ip_address": vm.ip_address
+            }
+
+            # Create telemetry record if queue provided
+            if telemetry_queue is not None:
+                end_time = datetime.now()
+                duration = (end_time - start_time).total_seconds()
+                telemetry_record = {
+                    "vm_name": vm.vm_name,
+                    "ip_address": vm.ip_address,
+                    "namespace": vm.namespace,
+                    "node_name": vm.node_name,
+                    "ssh_status": ssh_status,
+                    "vmi_ready": vmi_ready,
+                    "status": combined_status,
+                    "check_type": self._compute_check_type(ssh_status, vmi_ready),
+                    "start_timestamp": start_time.isoformat(),
+                    "end_timestamp": end_time.isoformat(),
+                    "duration": duration,
+                    "new_ip_address": vm.new_ip_address,
+                    "phase": check_phase,
+                }
+                # Only include if: not only_failures OR check failed
+                if not self.only_failures or not combined_status:
+                    telemetry.append(VirtCheck(telemetry_record))
+
+            if not combined_status:
+                message_parts = []
+                if not ssh_status:
+                    message_parts.append("SSH access failed")
+                if not vmi_ready:
+                    message_parts.append("VMI not ready")
+
+                failures.append({
+                    "vm_name": vm.vm_name,
+                    "namespace": vm.namespace,
+                    "ssh_status": ssh_status,
+                    "vmi_ready": vmi_ready,
+                    "message": f"Virt health check failed for {vm.namespace}/{vm.vm_name}: {', '.join(message_parts)}"
+                })
+
+        # Enqueue telemetry if collected
+        if telemetry_queue is not None and telemetry:
+            telemetry_queue.put(telemetry)
+
+        passed = len(failures) == 0
+        return {
+            "passed": passed,
+            "failures": failures,
+            "details": details
+        }

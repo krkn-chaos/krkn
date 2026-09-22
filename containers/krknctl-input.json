@@ -566,6 +566,150 @@
     "group": "health_check"
   },
   {
+    "name": "health-check-run-during",
+    "short_description": "Health check run timing",
+    "description": "When to run health checks: pre (before chaos), during (continuous), post (after chaos), or combination like [pre,post]",
+    "variable": "HEALTH_CHECK_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "health_check"
+  },
+  {
+    "name": "health-check-only-failures",
+    "short_description": "Health check only report failures",
+    "description": "Only create telemetry records for failed health checks",
+    "variable": "HEALTH_CHECK_ONLY_FAILURES",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "health_check"
+  },
+  {
+    "name": "object_state_checks",
+    "short_description": "Object state checks group",
+    "description": "Group containing Kubernetes object state monitoring configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "object-state-check-interval",
+    "short_description": "Object state check interval",
+    "description": "How often to check object states (seconds)",
+    "variable": "OBJECT_STATE_CHECK_INTERVAL",
+    "type": "number",
+    "default": "2",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-run-during",
+    "short_description": "Object state check run timing",
+    "description": "When to run checks: pre (before chaos), during (continuous), post (after chaos), or combination like [pre,during]",
+    "variable": "OBJECT_STATE_CHECK_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-exit-on-failure",
+    "short_description": "Object state check exit on failure",
+    "description": "Exit on failure when object state check fails",
+    "variable": "OBJECT_STATE_CHECK_EXIT_ON_FAILURE",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-only-failures",
+    "short_description": "Object state check only report failures",
+    "description": "Only create telemetry records for failed object state checks",
+    "variable": "OBJECT_STATE_CHECK_ONLY_FAILURES",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-name",
+    "short_description": "Object state check name",
+    "description": "Name of the object state check (e.g., etcd-ready-pods)",
+    "variable": "OBJECT_STATE_CHECK_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-kind",
+    "short_description": "Object kind to check",
+    "description": "Kubernetes resource kind to check (Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet, Service, Job, etc.)",
+    "variable": "OBJECT_STATE_CHECK_KIND",
+    "type": "string",
+    "default": "Pod",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-object-name",
+    "short_description": "Object name or pattern",
+    "description": "Name or regex pattern of objects to check (leave empty for all)",
+    "variable": "OBJECT_STATE_CHECK_OBJECT_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-namespace",
+    "short_description": "Object namespace",
+    "description": "Kubernetes namespace to check objects in",
+    "variable": "OBJECT_STATE_CHECK_NAMESPACE",
+    "type": "string",
+    "default": "default",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-label-selector",
+    "short_description": "Label selector for objects",
+    "description": "Kubernetes label selector to filter objects (e.g., app=nginx)",
+    "variable": "OBJECT_STATE_CHECK_LABEL_SELECTOR",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-condition-type",
+    "short_description": "Condition type to check",
+    "description": "Kubernetes condition type to check (Ready, Available, Progressing, etc.)",
+    "variable": "OBJECT_STATE_CHECK_CONDITION_TYPE",
+    "type": "string",
+    "default": "Ready",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-condition-status",
+    "short_description": "Expected condition status",
+    "description": "Expected status for the condition (True, False, or Unknown)",
+    "variable": "OBJECT_STATE_CHECK_CONDITION_STATUS",
+    "type": "enum",
+    "allowed_values": "True,False,Unknown",
+    "separator": ",",
+    "default": "True",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
     "name": "kubevirt",
     "short_description": "KubeVirt group",
     "description": "Group containing KubeVirt VM monitoring and check configuration options",

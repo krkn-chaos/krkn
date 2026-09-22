@@ -55,7 +55,8 @@ MANIFEST
 # Per-project virtualenvs
 .venv*/
 venv*/
-*.report
+*.report*
+
 collected-metrics/*
 inspect.local.*
 
