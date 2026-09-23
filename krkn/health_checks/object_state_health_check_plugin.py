@@ -98,6 +98,14 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         return "object_state_checks"
 
+    def is_configured(self, config: dict[str, Any]) -> bool:
+        """Run only when at least one object-state check has a namespace."""
+        checks = config.get("config", [])
+        return any(
+            isinstance(check, dict) and str(check.get("namespace", "")).strip()
+            for check in checks
+        )
+
     def increment_iterations(self) -> None:
         """
         Increments the current iteration counter.
@@ -394,7 +402,7 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
                  }
         """
         if not config or not config.get("config"):
-            logging.info("Object state health check config is not defined, skipping one-time check")
+            logging.debug("Object state health check config is not defined, skipping one-time check")
             return {"passed": True, "failures": [], "details": {}}
 
         run_during = config.get("run_during")
@@ -402,7 +410,7 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
             (isinstance(run_during, str) and not run_during.strip())
             or (isinstance(run_during, list) and not run_during)
         ):
-            logging.info("Object state health check run_during is blank, skipping one-time check")
+            logging.debug("Object state health check run_during is blank, skipping one-time check")
             return {"passed": True, "failures": [], "details": {}}
 
         failures = []
@@ -412,7 +420,7 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
         for check_config in config.get("config", []):
             namespace = check_config.get("namespace", "default")
             if not isinstance(namespace, str) or not namespace.strip():
-                logging.info(
+                logging.debug(
                     "Object state check '%s' has no namespace, skipping",
                     check_config.get("name", "unnamed-check")
                 )
@@ -477,7 +485,7 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
         :return: None
         """
         if not config or not config.get("config"):
-            logging.info("Object state health check config is not defined, skipping")
+            logging.debug("Object state health check config is not defined, skipping")
             return
 
         run_during = config.get("run_during")
@@ -485,7 +493,7 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
             (isinstance(run_during, str) and not run_during.strip())
             or (isinstance(run_during, list) and not run_during)
         ):
-            logging.info("Object state health check run_during is blank, skipping")
+            logging.debug("Object state health check run_during is blank, skipping")
             return
 
         check_configs = [
@@ -494,7 +502,7 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
             and cfg.get("namespace", "default").strip()
         ]
         if len(check_configs) != len(config.get("config", [])):
-            logging.info("Skipping object state checks with no namespace")
+            logging.debug("Skipping object state checks with no namespace")
         if not check_configs:
             return
 

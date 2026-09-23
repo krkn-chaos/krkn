@@ -624,8 +624,16 @@ def build_chaos_report(chaos_output: dict) -> str:
     total_slos = resiliency.get("total_slos", 0)
     passed_slos = resiliency.get("passed_slos", 0)
     failed_slos = total_slos - passed_slos
+    telemetry_alerts = telemetry.get("alerts") or []
     critical_alerts_raw = chaos_output.get("critical_alerts") or {}
     chaos_alerts, post_chaos_alerts = _extract_critical_alerts(critical_alerts_raw)
+    legacy_alerts = [
+        {**alert, "phase": "during"} if isinstance(alert, dict) else alert for alert in chaos_alerts
+    ] + [
+        {**alert, "phase": "post"} if isinstance(alert, dict) else alert for alert in post_chaos_alerts
+    ]
+    evaluated_alerts = telemetry_alerts + legacy_alerts
+    using_legacy_alerts = not telemetry_alerts
     error_logs = telemetry.get("error_logs") or []
 
     lines.append("ALERTS & SLOs")
@@ -633,32 +641,32 @@ def build_chaos_report(chaos_output: dict) -> str:
     lines.append(f"  SLOs Passed     : {passed_slos} / {total_slos}")
     lines.append("  SLOs Failed     : " + str(failed_slos))
 
-    total_alert_count = len(chaos_alerts) + len(post_chaos_alerts)
-    lines.append("  Critical Alerts : " + (str(total_alert_count) if total_alert_count else "None"))
-    if chaos_alerts:
-        lines.append("    During Chaos:")
-        for alert in chaos_alerts:
+    total_alert_count = len(evaluated_alerts)
+    if using_legacy_alerts:
+        lines.append("  Critical Alerts : " + (str(total_alert_count) if total_alert_count else "None"))
+    if using_legacy_alerts:
+        for title, alerts in (("During Chaos:", chaos_alerts), ("Post Chaos:", post_chaos_alerts)):
+            if alerts:
+                lines.append(f"    {title}")
+                for alert in alerts:
+                    if isinstance(alert, dict):
+                        lines.append(f"      - {alert.get('alertname', 'N/A')} [{alert.get('severity', 'N/A')}] ns={alert.get('namespace', 'N/A')} state={alert.get('alertstate', 'N/A')}")
+                    else:
+                        lines.append(f"      - {alert}")
+    else:
+        for alert in evaluated_alerts:
             if isinstance(alert, dict):
-                lines.append(
-                    f"      - {alert.get('alertname', 'N/A')} "
-                    f"[{alert.get('severity', 'N/A')}] "
-                    f"ns={alert.get('namespace', 'N/A')} "
-                    f"state={alert.get('alertstate', 'N/A')}"
-                )
+                name = alert.get("name", alert.get("alertname", "N/A"))
+                severity = alert.get("severity", "N/A")
+                status = alert.get("status", alert.get("alertstate", "N/A"))
+                phase = alert.get("phase", "N/A")
             else:
-                lines.append(f"      - {alert}")
-    if post_chaos_alerts:
-        lines.append("    Post Chaos:")
-        for alert in post_chaos_alerts:
-            if isinstance(alert, dict):
-                lines.append(
-                    f"      - {alert.get('alertname', 'N/A')} "
-                    f"[{alert.get('severity', 'N/A')}] "
-                    f"ns={alert.get('namespace', 'N/A')} "
-                    f"state={alert.get('alertstate', 'N/A')}"
-                )
-            else:
-                lines.append(f"      - {alert}")
+                name = getattr(alert, "name", "N/A")
+                severity = getattr(alert, "severity", "N/A")
+                status = getattr(alert, "status", "N/A")
+                phase = getattr(alert, "phase", "N/A")
+            status = "PASS" if status is True else "FAIL" if status is False else str(status)
+            lines.append(f"      - {name} [{severity}] status={status} phase={phase}")
 
     if error_logs:
         lines.append(f"  Error Logs      : {len(error_logs)}")
@@ -671,23 +679,6 @@ def build_chaos_report(chaos_output: dict) -> str:
                 lines.append(f"    {log_entry}")
         if len(error_logs) > 20:
             lines.append(f"    ... and {len(error_logs) - 20} more")
-
-    # --- Failed SLOs ---
-    if scenario_slo_details:
-        has_failures = any(
-            not s["passed"]
-            for entry in scenario_slo_details
-            for s in entry.get("slo_details", [])
-        )
-        if has_failures:
-            lines.append("FAILED SLOs (per scenario)")
-            for entry in scenario_slo_details:
-                failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
-                if not failed:
-                    continue
-                lines.append(f"  Scenario: {entry['scenario']}")
-                for slo in failed:
-                    lines.append(f"    FAIL  [{slo.get('severity', 'unknown'):<8}]  {slo['name']}")
 
     # --- Resiliency Score ---
     lines.append("RESILIENCY SCORE")
@@ -711,6 +702,19 @@ def build_chaos_report(chaos_output: dict) -> str:
         weighted_avg = int(weighted_sum / total_weight) if total_weight > 0 else 0
         lines.append(f"  Calculation: ({' + '.join(f'{score}×{weight_map.get(name, 1)}' for name, score in per_scenario_scores.items())}) ÷ {total_weight} = {weighted_avg}")
 
+    if scenario_slo_details:
+        failed_entries = [
+            (entry["scenario"], [s for s in entry.get("slo_details", []) if not s["passed"]])
+            for entry in scenario_slo_details
+        ]
+        failed_entries = [(name, failed) for name, failed in failed_entries if failed]
+        if failed_entries:
+            lines.append("FAILED SLOs (per scenario)")
+            lines.append("  Resiliency Alert File: " + str(chaos_output.get("resiliency_alert_file", "N/A")))
+            for scenario, failed in failed_entries:
+                lines.append(f"  Scenario: {scenario}")
+                for slo in failed:
+                    lines.append(f"    FAIL  [{slo.get('severity', 'unknown'):<8}]  {slo['name']}")
     overall_score = resiliency.get("resiliency_score", "N/A")
     lines.append(f"  Overall Score                : {overall_score} / 100")
     lines.append("=" * 80)
@@ -834,13 +838,21 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
     total_slos = resiliency.get("total_slos", 0)
     passed_slos = resiliency.get("passed_slos", 0)
 
+    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
+    telemetry_alerts = telemetry.get("alerts") or []
     critical_alerts_raw = chaos_output.get("critical_alerts") or {}
     chaos_alerts, post_chaos_alerts = _extract_critical_alerts(critical_alerts_raw)
-    total_alert_count = len(chaos_alerts) + len(post_chaos_alerts)
+    legacy_alerts = [
+        {**alert, "phase": "during"} if isinstance(alert, dict) else alert for alert in chaos_alerts
+    ] + [
+        {**alert, "phase": "post"} if isinstance(alert, dict) else alert for alert in post_chaos_alerts
+    ]
+    evaluated_alerts = telemetry_alerts + legacy_alerts
+    using_legacy_alerts = not telemetry_alerts
+    total_alert_count = len(evaluated_alerts)
 
     error_logs = telemetry.get("error_logs") or []
 
-    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
 
     security_flags = []
     if telemetry.get("fips_enabled"):
@@ -1215,16 +1227,15 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
     f.extend(_section_header("Alerts & SLOs"))
     failed_slo_val = _p(str(failed_slos)) if failed_slos == 0 else Paragraph(
         f'<font color="{_FAIL_RED}"><b>{failed_slos}</b></font>', _STYLE_CELL)
-    alert_val = _p("None") if total_alert_count == 0 else Paragraph(
-        f'<font color="{_FAIL_RED}"><b>{total_alert_count}</b></font>', _STYLE_CELL)
+    alert_summary = [("Critical Alerts", _p("None") if total_alert_count == 0 else Paragraph(
+        f'<font color="{_FAIL_RED}"><b>{total_alert_count}</b></font>', _STYLE_CELL))] if using_legacy_alerts else []
     f.extend(_make_kv_table([
         ("SLOs Evaluated", str(total_slos)),
         ("SLOs Passed", f"{passed_slos} / {total_slos}"),
         ("SLOs Failed", failed_slo_val),
-        ("Critical Alerts", alert_val),
-    ]))
+    ] + alert_summary))
 
-    def _build_alert_table(title, alerts):
+    def _build_alert_table(title, alerts, legacy=False):
         if not alerts:
             return
         f.extend(_subsection_header(title))
@@ -1232,17 +1243,21 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
         for alert in alerts:
             if isinstance(alert, dict):
                 rows.append([
-                    alert.get("alertname", "N/A"),
+                    alert.get("alertname", "N/A") if legacy else alert.get("name", alert.get("alertname", "N/A")),
                     alert.get("severity", "N/A"),
-                    alert.get("namespace", "N/A"),
-                    alert.get("alertstate", "N/A"),
+                    alert.get("namespace", "N/A") if legacy else ("PASS" if alert.get("status") is True else "FAIL" if alert.get("status") is False else alert.get("alertstate", "N/A")),
+                    alert.get("alertstate", "N/A") if legacy else alert.get("phase", "N/A"),
                 ])
             else:
-                rows.append([str(alert), "", "", ""])
-        f.extend(_make_data_table(["Alert Name", "Severity", "Namespace", "State"], rows))
+                rows.append([str(alert), "", "", ""] if legacy else [getattr(alert, "name", "N/A"), getattr(alert, "severity", "N/A"), "PASS" if getattr(alert, "status", None) is True else "FAIL", getattr(alert, "phase", "N/A")])
+        headers = ["Alert Name", "Severity", "Namespace", "State"] if legacy else ["Alert Name", "Severity", "Status", "Phase"]
+        f.extend(_make_data_table(headers, rows))
 
-    _build_alert_table("Critical Alerts (During Chaos)", chaos_alerts)
-    _build_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts)
+    if using_legacy_alerts:
+        _build_alert_table("Critical Alerts (During Chaos)", chaos_alerts, True)
+        _build_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts, True)
+    else:
+        _build_alert_table("Prometheus Alerts", evaluated_alerts)
 
     # 14. Error Logs
     if error_logs:
@@ -1262,22 +1277,6 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
         ))
         if len(error_logs) > 20:
             f.append(_p(f"... and {len(error_logs) - 20} more"))
-
-    # 15. Failed SLOs
-    if scenario_slo_details:
-        failed_entries = []
-        for entry in scenario_slo_details:
-            failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
-            if failed:
-                failed_entries.append({"scenario": entry["scenario"], "slo_details": failed})
-        if failed_entries:
-            f.extend(_section_header("Failed SLOs"))
-            for entry in failed_entries:
-                f.extend(_subsection_header(entry["scenario"]))
-                rows = []
-                for slo in entry["slo_details"]:
-                    rows.append([slo["name"], slo.get("severity", "unknown"), _badge("FAIL", False)])
-                f.extend(_make_data_table(["SLO", "Severity", "Status"], rows))
 
     # 16. Resiliency Score
     f.extend(_section_header("Resiliency Score"))
@@ -1302,22 +1301,36 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             ])
         f.extend(_make_data_table(["Scenario", "Weight", "Score"], rows))
 
-        # Add resiliency score calculation explanation
-        f.append(Spacer(1, 8))
-        total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
-        calc_detail = (
-            f'<b>Resiliency Score Calculation:</b> Weighted average of scenario scores. '
-            f'Total weight: {total_weight}x. '
-            f'Formula: (Σ score × weight) ÷ total weight'
-        )
-        f.append(Paragraph(calc_detail, _STYLE_CELL))
-        f.append(Spacer(1, 8))
-
     c = _score_color(overall_score)
     overall_style = ParagraphStyle(
         "OverallScoreBox", parent=_STYLE_OVERALL,
         textColor=c,
     )
+    failed_entries = []
+    for entry in scenario_slo_details:
+        failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
+        if failed:
+            failed_entries.append((entry["scenario"], failed))
+    if failed_entries:
+        f.extend(_subsection_header("Failed SLOs"))
+        f.append(_p(f"Resiliency Alert File: {chaos_output.get('resiliency_alert_file', 'N/A')}"))
+        for scenario, failed in failed_entries:
+            f.extend(_subsection_header(scenario))
+            f.extend(_make_data_table(
+                ["SLO", "Severity", "Status"],
+                [[s["name"], s.get("severity", "unknown"), _badge("FAIL", False)] for s in failed],
+            ))
+
+    if weight_map and per_scenario_scores:
+        f.append(Spacer(1, 8))
+        total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        calc_detail = (
+            f'<b>Resiliency Score Calculation:</b> Weighted average of scenario scores. '
+            f'Total weight: {total_weight}x. Formula: (Σ score × weight) ÷ total weight'
+        )
+        f.append(Paragraph(calc_detail, _STYLE_CELL))
+        f.append(Spacer(1, 8))
+
     f.append(Paragraph(f"Overall: {_xml_escape(str(overall_score))} / 100", overall_style))
 
     doc.build(f)

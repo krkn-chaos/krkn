@@ -139,13 +139,22 @@ class HealthCheckFactory:
             if not plugin_config:
                 continue
 
+            plugin_class = self.loaded_plugins.get(plugin_type)
+            if plugin_class is not None and not plugin_class(plugin_type).is_configured(plugin_config):
+                logging.debug("Skipping health check for '%s': configuration is incomplete", config_key)
+                continue
+
             # Check if this health check should run during chaos
             run_during = plugin_config.get("run_during", "during")
             if not self._should_run_at_timing(run_during, "during"):
-                logging.info(
+                logging.debug(
                     f"Skipping continuous health check for '{config_key}' "
                     f"(run_during={run_during} does not include 'during')"
                 )
+                continue
+
+            if plugin_class is not None and getattr(plugin_class, "defer_during", False):
+                logging.info("Deferring health check '%s' until chaos teardown", config_key)
                 continue
 
             try:
@@ -181,6 +190,7 @@ class HealthCheckFactory:
         config: dict[str, Any],
         check_type: str = "pre",
         telemetry_queue: queue.Queue = None,
+        config_keys: set[str] = None,
         **kwargs
     ) -> dict[str, Any]:
         """
@@ -195,9 +205,10 @@ class HealthCheckFactory:
         create telemetry records with the specified phase.
 
         :param config: the full config dict loaded from config.yaml
-        :param check_type: "pre" or "post" to indicate check timing
-        :param telemetry_queue: optional queue for collecting telemetry from one-time checks
-        :param kwargs: additional keyword arguments forwarded to each plugin constructor
+         :param check_type: "pre" or "post" to indicate check timing
+         :param telemetry_queue: optional queue for collecting telemetry from one-time checks
+         :param config_keys: optional set of config keys to run; when omitted, all matching checks run
+         :param kwargs: additional keyword arguments forwarded to each plugin constructor
         :return: dictionary with aggregated results:
                  {
                    "passed": bool,           # True if all checks passed (all ran and all passed)
@@ -211,12 +222,20 @@ class HealthCheckFactory:
         all_details = {}
         plugins_checked = []
         blocking_failures = []
+        alerts = []
         exit_on_failure = False
         config_has_exit_on_failure = False
 
         for config_key, plugin_type in self.config_key_map.items():
+            if config_keys is not None and config_key not in config_keys:
+                continue
             plugin_config = config.get(config_key)
             if not plugin_config:
+                continue
+
+            plugin_class = self.loaded_plugins.get(plugin_type)
+            if plugin_class is not None and not plugin_class(plugin_type).is_configured(plugin_config):
+                logging.debug("Skipping health check for '%s': configuration is incomplete", config_key)
                 continue
 
             # Check if this health check should run at this timing
@@ -245,6 +264,7 @@ class HealthCheckFactory:
                 )
                 result = plugin.run_once(plugin_config, telemetry_queue=telemetry_queue, phase=check_type)
                 all_details[config_key] = result
+                alerts.extend(result.get("alerts", []))
                 plugins_checked.append(config_key)
 
                 if not result["passed"]:
@@ -289,6 +309,7 @@ class HealthCheckFactory:
             "passed": passed,
             "failures": blocking_failures,  # Only blocking failures trigger exit_on_failure
             "details": all_details,
+            "alerts": alerts,
             "summary": summary,
             "exit_on_failure": config_has_exit_on_failure
         }
@@ -302,20 +323,20 @@ class HealthCheckFactory:
         :return: True if the check should run at this timing
         """
         if run_during is None:
-            logging.info("Skipping health check because run_during is blank")
+            logging.debug("Skipping health check because run_during is blank")
             return False
 
         # Normalize to list
         if isinstance(run_during, str):
             timing = run_during.lower().strip()
             if not timing:
-                logging.info("Skipping health check because run_during is blank")
+                logging.debug("Skipping health check because run_during is blank")
                 return False
             timings = [timing]
         elif isinstance(run_during, list):
             timings = [t.lower().strip() for t in run_during if isinstance(t, str) and t.strip()]
             if not timings:
-                logging.info("Skipping health check because run_during is blank")
+                logging.debug("Skipping health check because run_during is blank")
                 return False
         else:
             logging.warning(f"Invalid run_during value: {run_during}, defaulting to 'during'")
