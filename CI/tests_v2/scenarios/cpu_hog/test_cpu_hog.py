@@ -49,6 +49,7 @@ class TestCpuHog(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(1)
+    @pytest.mark.kind_only
     def test_cpu_hog_success_lifecycle_and_targeting(self):
         """Happy path: a hog pod is created on the node-selector target, the run succeeds, and the pod is cleaned up."""
         nodes = schedulable_worker_nodes(self.k8s_core)

@@ -40,6 +40,7 @@ TEST_DURATION = 30
 
 @pytest.mark.functional
 @pytest.mark.node_network_chaos
+@pytest.mark.kind_only
 @pytest.mark.xdist_group("node_network_chaos")
 class TestNodeNetworkChaos(BaseScenarioTest):
     """Node network chaos: packet loss, latency, bandwidth, direction, targeting, safety, cleanup."""
@@ -263,6 +264,7 @@ class TestNodeNetworkChaos(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(6)
+    @pytest.mark.kind_only
     def test_force_false_skips_injection_when_tc_rules_exist(self, request):
         """With force: false, existing complex tc rules warn and skip injection (no override)."""
         node = self._target_worker()
@@ -353,6 +355,7 @@ class TestNodeNetworkChaos(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(10)
+    @pytest.mark.kind_only
     def test_network_rules_removed_post_run(self):
         """No residual netem tc rules remain on the node after the scenario."""
         node = self._target_worker()

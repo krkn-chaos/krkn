@@ -10,6 +10,23 @@ import re
 from pathlib import Path
 
 import pytest
+from kubernetes import config as kube_config
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip tests whose contract requires local KinD node containers."""
+    try:
+        _, active = kube_config.list_kube_config_contexts()
+        cluster = ((active or {}).get("context") or {}).get("cluster", "").lower()
+    except Exception:
+        cluster = ""
+    if "kind" in cluster or "minikube" in cluster:
+        return
+    reason = "requires a local KinD/Minikube node container runtime"
+    skip = pytest.mark.skip(reason=reason)
+    for item in items:
+        if "kind_only" in item.keywords:
+            item.add_marker(skip)
 
 # Matches Krkn's log format "%(asctime)s [%(levelname)s] %(message)s" so each line can be
 # rendered as a Timestamp/Level/Message row in the HTML report; non-matching lines (banner,

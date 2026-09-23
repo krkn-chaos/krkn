@@ -72,6 +72,7 @@ class TestNodeScenarios(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(1)
+    @pytest.mark.kind_only
     def test_node_reboot_targets_node_name_and_recovers(self, request):
         """Happy path: node_reboot_scenario targeted by node_name reboots the worker container.
 
@@ -110,6 +111,7 @@ class TestNodeScenarios(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(2)
+    @pytest.mark.kind_only
     def test_node_stop_start_targets_label_selector_and_recovers(self, request):
         """Happy path: node_stop_start_scenario targeted by label_selector stops then starts the worker.
 

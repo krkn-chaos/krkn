@@ -17,9 +17,9 @@ spec:
     spec:
       containers:
       - name: app
-        image: nginx:alpine
+        image: nginxinc/nginx-unprivileged:1.29.1-alpine
         ports:
-        - containerPort: 80
+        - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
@@ -29,5 +29,5 @@ spec:
   selector:
     app: namespace-deletion-target
   ports:
-  - port: 80
-    targetPort: 80
+  - port: 8080
+    targetPort: 8080
