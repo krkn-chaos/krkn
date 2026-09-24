@@ -265,14 +265,22 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
     resiliency = telemetry.get("overall_resiliency_report", {})
     total_slos = resiliency.get("total_slos", 0)
     passed_slos = resiliency.get("passed_slos", 0)
+    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
 
+    telemetry_alerts = telemetry.get("alerts") or []
     critical_alerts_raw = chaos_output.get("critical_alerts") or {}
     chaos_alerts, post_chaos_alerts = _extract_critical_alerts(critical_alerts_raw)
-    total_alert_count = len(chaos_alerts) + len(post_chaos_alerts)
+    legacy_alerts = [
+        {**alert, "phase": "during"} if isinstance(alert, dict) else alert for alert in chaos_alerts
+    ] + [
+        {**alert, "phase": "post"} if isinstance(alert, dict) else alert for alert in post_chaos_alerts
+    ]
+    evaluated_alerts = telemetry_alerts + legacy_alerts
+    using_legacy_alerts = not telemetry_alerts
+    total_alert_count = len(evaluated_alerts)
 
     error_logs = telemetry.get("error_logs") or []
 
-    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
 
     security_flags = []
     if telemetry.get("fips_enabled"):
@@ -673,15 +681,14 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
     # 13. Alerts & SLOs
     alerts_body = []
     failed_slo_val = _h(str(failed_slos)) if failed_slos == 0 else f'<span class="badge-fail"><b>{failed_slos}</b></span>'
-    alert_val = "None" if total_alert_count == 0 else f'<span class="badge-fail"><b>{total_alert_count}</b></span>'
+    alert_summary = [("Critical Alerts", "None" if total_alert_count == 0 else f'<span class="badge-fail"><b>{total_alert_count}</b></span>')] if using_legacy_alerts else []
     alerts_body.append(_html_kv_table([
         ("SLOs Evaluated", _h(str(total_slos))),
         ("SLOs Passed", _h(f"{passed_slos} / {total_slos}")),
         ("SLOs Failed", failed_slo_val),
-        ("Critical Alerts", alert_val),
-    ]))
+    ] + alert_summary))
 
-    def _build_html_alert_table(title, alerts):
+    def _build_html_alert_table(title, alerts, legacy=False):
         if not alerts:
             return
         alerts_body.append(f'<div class="subsection-header">{_h(title)}</div>')
@@ -689,17 +696,21 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
         for alert in alerts:
             if isinstance(alert, dict):
                 rows.append([
-                    _h(alert.get("alertname", "N/A")),
+                    _h(alert.get("alertname", "N/A") if legacy else alert.get("name", alert.get("alertname", "N/A"))),
                     _h(alert.get("severity", "N/A")),
-                    _h(alert.get("namespace", "N/A")),
-                    _h(alert.get("alertstate", "N/A")),
+                    _h(alert.get("namespace", "N/A") if legacy else ("PASS" if alert.get("status") is True else "FAIL" if alert.get("status") is False else alert.get("alertstate", "N/A"))),
+                    _h(alert.get("alertstate", "N/A") if legacy else alert.get("phase", "N/A")),
                 ])
             else:
-                rows.append([_h(str(alert)), "", "", ""])
-        alerts_body.append(_html_data_table(["Alert Name", "Severity", "Namespace", "State"], rows))
+                rows.append([_h(str(alert)), "", "", ""] if legacy else [_h(getattr(alert, "name", "N/A")), _h(getattr(alert, "severity", "N/A")), _h("PASS" if getattr(alert, "status", None) is True else "FAIL"), _h(getattr(alert, "phase", "N/A"))])
+        headers = ["Alert Name", "Severity", "Namespace", "State"] if legacy else ["Alert Name", "Severity", "Status", "Phase"]
+        alerts_body.append(_html_data_table(headers, rows))
 
-    _build_html_alert_table("Critical Alerts (During Chaos)", chaos_alerts)
-    _build_html_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts)
+    if using_legacy_alerts:
+        _build_html_alert_table("Critical Alerts (During Chaos)", chaos_alerts, True)
+        _build_html_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts, True)
+    else:
+        _build_html_alert_table("Prometheus Alerts", evaluated_alerts)
 
     # 14. Error Logs
     if error_logs:
@@ -718,23 +729,6 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             alerts_body.append(f'<p class="muted">... and {len(error_logs) - 20} more</p>')
 
     parts.append(_html_section("Alerts & SLOs", "\n".join(alerts_body)))
-
-    # 15. Failed SLOs
-    if scenario_slo_details:
-        failed_entries = []
-        for entry in scenario_slo_details:
-            failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
-            if failed:
-                failed_entries.append({"scenario": entry["scenario"], "slo_details": failed})
-        if failed_entries:
-            slo_body = []
-            for entry in failed_entries:
-                slo_body.append(f'<div class="subsection-header">{_h(entry["scenario"])}</div>')
-                rows = []
-                for slo in entry["slo_details"]:
-                    rows.append([_h(slo["name"]), _h(slo.get("severity", "unknown")), _html_badge("FAIL", False)])
-                slo_body.append(_html_data_table(["SLO", "Severity", "Status"], rows))
-            parts.append(_html_section("Failed SLOs", "\n".join(slo_body)))
 
     # 16. Resiliency Score
     score_body = []
@@ -758,14 +752,28 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             ])
         score_body.append(_html_data_table(["Scenario", "Weight", "Score"], rows))
 
-        # Add resiliency score calculation explanation
+    failed_entries = []
+    for entry in scenario_slo_details:
+        failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
+        if failed:
+            failed_entries.append((entry["scenario"], failed))
+    if failed_entries:
+        slo_body = [f'<p>Resiliency Alert File: {_h(chaos_output.get("resiliency_alert_file", "N/A"))}</p>']
+        for scenario, failed in failed_entries:
+            slo_body.append(f'<div class="subsection-header">{_h(scenario)}</div>')
+            slo_body.append(_html_data_table(
+                ["SLO", "Severity", "Status"],
+                [[_h(s["name"]), _h(s.get("severity", "unknown")), _html_badge("FAIL", False)] for s in failed],
+            ))
+        score_body.append('<div class="subsection-header">Failed SLOs</div>')
+        score_body.extend(slo_body)
+
+    if weight_map and per_scenario_scores:
         total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
-        calc_detail = (
+        score_body.append(
             f'<p><b>Resiliency Score Calculation:</b> Weighted average of scenario scores. '
-            f'Total weight: {total_weight}x. '
-            f'Formula: (Σ score × weight) ÷ total weight</p>'
+            f'Total weight: {total_weight}x. Formula: (Σ score × weight) ÷ total weight</p>'
         )
-        score_body.append(calc_detail)
 
     cls = _html_score_class(overall_score)
     score_body.append(f'<div class="overall-score {cls}">Overall: {_h(str(overall_score))} / 100</div>')

@@ -110,6 +110,10 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         return "kubevirt_checks"
 
+    def is_configured(self, config: dict[str, Any]) -> bool:
+        """Run only when the KubeVirt check namespace is explicitly configured."""
+        return bool(str(config.get("namespace", "")).strip())
+
     def manages_own_threads(self) -> bool:
         """
         Virt plugin spawns its own worker threads internally via run_health_check().
@@ -146,7 +150,7 @@ class VirtHealthCheckPlugin(AbstractHealthCheckPlugin):
         label_selector = get_yaml_item_value(config, "label_selector", None) or None
 
         if self.namespace == "":
-            logging.info("kubevirt checks config namespace is not defined, skipping them")
+            logging.debug("kubevirt checks config namespace is not defined, skipping them")
             return False
 
         try:

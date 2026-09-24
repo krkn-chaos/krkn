@@ -197,6 +197,40 @@
     "group": "prometheus"
   },
   {
+    "name": "alerts-run-during",
+    "short_description": "Prometheus alert check phases",
+    "description": "Phases for Prometheus alert health checks: pre, during, post, or a comma-separated combination",
+    "variable": "ALERTS_RUN_DURING",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-exit-on-failure",
+    "short_description": "Prometheus alert exit on failure",
+    "description": "Fail the run when a critical or error Prometheus alert health check fails",
+    "variable": "ALERTS_EXIT_ON_FAILURE",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-only-failures",
+    "short_description": "Prometheus alerts only report failures",
+    "description": "Only include failed Prometheus alert evaluations in telemetry and reports",
+    "variable": "ALERTS_ONLY_FAILURES",
+    "type": "enum",
+    "allowed_values": "True,False",
+    "separator": ",",
+    "default": "False",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
     "name": "metrics-path",
     "short_description": "Cluster metrics path file (in container)",
     "description": "Allows to specify a different metrics file path",
