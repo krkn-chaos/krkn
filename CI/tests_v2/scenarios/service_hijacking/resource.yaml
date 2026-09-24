@@ -1,0 +1,60 @@
+# Nginx target workload plus three Services used by the service_hijacking tests.
+# Namespace is patched at deploy time by the test framework (see BaseScenarioTest).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-hijack-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nginx-hijack-target
+      scenario: hijack
+  template:
+    metadata:
+      labels:
+        app: nginx-hijack-target
+        scenario: hijack
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+        ports:
+        - name: http-web-svc
+          containerPort: 80
+---
+# Named-port Service (service_target_port: "http-web-svc" in scenario_base.yaml).
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx-hijack-target
+  ports:
+  - name: http-web-svc
+    port: 80
+    targetPort: http-web-svc
+---
+# Same backend, exposed with a numeric targetPort for the numeric-port-targeting test.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service-numeric
+spec:
+  selector:
+    app: nginx-hijack-target
+  ports:
+  - port: 80
+    targetPort: 80
+---
+# ExternalName services structurally reject a `spec.selector` patch (the Kubernetes API
+# rejects selector/ports/clusterIP on type=ExternalName), giving a deterministic way to
+# simulate "service patch failure" without relying on RBAC or races.
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service-unpatchable
+spec:
+  type: ExternalName
+  externalName: example.com
