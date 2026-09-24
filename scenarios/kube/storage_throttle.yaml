@@ -9,4 +9,4 @@ storage_throttle_scenario:
   read_bps: 1Mi                   # Max read bytes/sec (used when throttle_type is "bandwidth" or "both")
   write_bps: 512Ki                # Max write bytes/sec (used when throttle_type is "bandwidth" or "both")
   duration: 1m                    # How long to hold the throttle (supports suffixes: 30s, 2m, 1h)
-  # image: quay.io/krkn-chaos/krkn:tools  # (optional) override helper pod image
+  # image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools  # (optional) override helper pod image

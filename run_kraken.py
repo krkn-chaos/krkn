@@ -85,6 +85,37 @@ warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 report_file = ""
 
 
+def _get_image_signature_configuration(kraken_config: dict) -> tuple[bool, str]:
+    """Resolve image-signature settings from the Krkn configuration.
+
+    Relative public-key paths are resolved from the Krkn repository root so
+    they do not depend on the process working directory.
+    """
+    enabled = get_yaml_item_value(
+        kraken_config, "image_signature_verification_enabled", False
+    )
+    if isinstance(enabled, str):
+        enabled = enabled.lower() in {"1", "true", "yes", "on"}
+
+    configured_path = get_yaml_item_value(
+        kraken_config, "image_signature_public_key", "cosign.pub"
+    )
+    configured_path = os.path.expanduser(configured_path or "cosign.pub")
+    if not os.path.isabs(configured_path):
+        configured_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), configured_path
+        )
+    public_key_path = os.path.abspath(configured_path)
+
+    if enabled and not os.path.isfile(public_key_path):
+        raise FileNotFoundError(
+            "Image signature public key was not found: "
+            f"{public_key_path}"
+        )
+
+    return bool(enabled), public_key_path
+
+
 # Main function
 def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
     # Start kraken
@@ -98,6 +129,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
             config = yaml.safe_load(f)
+        try:
+            image_signature_verification_enabled, image_signature_public_key = (
+                _get_image_signature_configuration(config["kraken"])
+            )
+        except (TypeError, FileNotFoundError) as e:
+            logging.error("Invalid image signature configuration: %s", e)
+            return -1
         kubeconfig_path = os.path.expanduser(
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
@@ -263,12 +301,36 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
             # krkn-lib-kubernetes init
-            kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
-            ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
+            kubecli = KrknKubernetes(
+                kubeconfig_path=kubeconfig_path,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
+            ocpcli = KrknOpenshift(
+                kubeconfig_path=kubeconfig_path,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
         except Exception as e:
             logging.error("Failed to initialize Kubernetes clients: %s" % e)
-            kubecli = KrknKubernetes(kubeconfig_path=None)
-            ocpcli = KrknOpenshift(kubeconfig_path=None)
+            kubecli = KrknKubernetes(
+                kubeconfig_path=None,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
+            ocpcli = KrknOpenshift(
+                kubeconfig_path=None,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
 
         distribution = "kubernetes"
         if ocpcli.is_openshift():

@@ -45,6 +45,16 @@
     "group": "kraken"
   },
   {
+    "name": "disable-image-signature",
+    "short_description": "Disable image signature verification",
+    "description": "Disables workload image signature verification before deployment",
+    "variable": "DISABLE_IMAGE_SIGNATURE",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
     "name": "generate-pdf-report",
     "short_description": "Generate PDF report",
     "description": "Generates a PDF report summarizing the chaos run results at the end of each scenario",

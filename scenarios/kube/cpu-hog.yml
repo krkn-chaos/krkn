@@ -1,7 +1,7 @@
 duration: 10
 workers: '' # leave it empty '' node cpu auto-detection
 hog-type: cpu
-image: quay.io/krkn-chaos/krkn-hog
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog
 namespace: default
 cpu-load-percentage: 90
 cpu-method: all
