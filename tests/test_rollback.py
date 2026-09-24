@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import tempfile
+import unittest
 import uuid
 import subprocess
 
@@ -397,3 +398,65 @@ class TestSecureTempDirectories:
         """When user provides an explicit path, no fallback is triggered."""
         explicit_path = "/some/user/chosen/path"
         assert explicit_path  # truthy, so no fallback
+
+
+class TestRollbackCascadeFailure(unittest.TestCase):
+    def test_execute_rollback_cascade_failure(self):
+        """Test that a failure in one rollback file does not stop other rollback files from executing."""
+        from krkn.rollback.handler import execute_rollback_version_files
+        from krkn.rollback.config import RollbackConfig
+        from unittest.mock import Mock, patch
+
+        mock_telemetry = Mock()
+
+        # 3 mock version files
+        mock_version_files = [
+            "/tmp/file1.py",
+            "/tmp/file2.py",  # This one will be rigged to fail
+            "/tmp/file3.py"
+        ]
+
+        mock_callable_1 = Mock()
+        mock_callable_2 = Mock(side_effect=Exception("Fake Network Timeout"))
+        mock_callable_3 = Mock()
+
+        def mock_parse_side_effect(version_file):
+            mock_content = Mock()
+            mock_content.skip_kubernetes = False
+            if version_file == "/tmp/file1.py":
+                return mock_callable_1, mock_content
+            elif version_file == "/tmp/file2.py":
+                return mock_callable_2, mock_content
+            elif version_file == "/tmp/file3.py":
+                return mock_callable_3, mock_content
+            return Mock(), mock_content
+
+        with (
+            patch.object(RollbackConfig, 'auto', True),
+            patch.object(RollbackConfig, 'search_rollback_version_files', return_value=mock_version_files),
+            patch('krkn.rollback.handler._parse_rollback_module', side_effect=mock_parse_side_effect),
+            patch('os.rename') as mock_rename
+        ):
+            # Assert that the handler collects all errors and raises them at the very end
+            with self.assertRaises(ExceptionGroup) as ctx:
+                execute_rollback_version_files(
+                    mock_telemetry,
+                    "test-uuid",
+                    "scenario",
+                    ignore_auto_rollback_config=True
+                )
+
+            # The most important assertion: ALL 3 callables were executed!
+            # The crash in callable 2 did NOT stop callable 3 from running.
+            mock_callable_1.assert_called_once()
+            mock_callable_2.assert_called_once()
+            mock_callable_3.assert_called_once()
+
+            # Assert that file 1 and 3 were successfully renamed, but 2 was not
+            self.assertEqual(mock_rename.call_count, 2)
+
+            # Assert the ExceptionGroup is correctly formatted and contains our exact exception
+            self.assertIn("1 rollback(s) failed out of 3", str(ctx.exception))
+            self.assertEqual(len(ctx.exception.exceptions), 1)
+            self.assertEqual(str(ctx.exception.exceptions[0]), "Fake Network Timeout")
+
