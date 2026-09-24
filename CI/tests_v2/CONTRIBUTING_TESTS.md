@@ -67,6 +67,9 @@ python CI/tests_v2/scaffold.py --scenario node_disruption --scenario-type node_s
    <scenario>: marks a test as a <scenario> scenario test
    ```
 
+6. **Update the test coverage documentation**
+   Add the new scenario to the coverage description in `CI/tests_v2/README.md`.
+
 ## Conventions
 
 - **Folder-per-scenario**: One directory per scenario under `scenarios/`. All assets (test, resource.yaml, scenario_base.yaml, and any extra YAMLs) live there for easy tracking and onboarding.

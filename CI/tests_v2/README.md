@@ -1,6 +1,6 @@
 # Pytest Functional Tests (tests_v2)
 
-This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, and **node** scenarios with proper assertions, retries, and reporting.
+This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **application outage**, **container**, **CPU hog**, **memory hog**, **namespace deletion**, **node**, **node network chaos**, **pod disruption**, **pod error**, and **storage throttle** scenarios with proper assertions, retries, and reporting.
 
 Each test runs in its **own ephemeral Kubernetes namespace** (`krkn-test-<uuid>`). Before the test, the framework creates the namespace, deploys the target workload, and waits for pods to be ready. After the test, the namespace is deleted (cascading all resources). **You do not need to deploy any workloads manually.**
 
@@ -217,9 +217,59 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
   - **test_unknown_action_is_skipped**: An unrecognized action is skipped (logged, no node touched) and Kraken still exits 0.
   - **test_control_plane_excluded_from_targeting**: Safety guard — control-plane/master nodes are never returned by the worker-targeting helper the destructive tests use.
 
+- **scenarios/container_scenarios/**
+  Container disruption scenario (`container_scenarios`). `resource.yaml` provides the target Deployment with container `fedtools` and label `scenario=container`; `resource_decoy.yaml` provides a second Deployment with the same container name but label `scenario=decoy`. `scenario_base.yaml` is a `scenarios` list whose namespace, selector, container name, count, and recovery time are patched per test; `action` stays fixed at its base value across all tests. Tests include:
+  - **test_container_kill_and_recovery**: Happy path — kills the selected container, verifies that the run succeeds and the scenario executes, then waits for the target pod to recover and remain Ready.
+  - **test_container_label_selector_targeting**: Deploys the decoy workload and verifies that only pods matching `scenario=container` are affected; the decoy pod remains running and ready.
+  - **test_invalid_container_name_fails**: Uses a container name that does not exist and a kill count that cannot be satisfied; Kraken exits non-zero.
+  - **test_invalid_label_selector_fails**: Uses a selector that matches no pods even though workloads exist; Kraken exits non-zero.
+
+- **scenarios/namespace_deletion/**
+  Namespace deletion scenario (`service_disruption_scenarios`). `resource.yaml` provides a workload in the target namespace; `scenario_base.yaml` configures namespace matching, optional namespace label selection, `delete_count`, `runs`, `sleep`, and `wait_time`. Tests include:
+  - **test_single_namespace_object_deletion**: Matches exactly one namespace, verifies that its Kubernetes objects are deleted, and confirms a successful Kraken run.
+  - **test_multiple_namespace_delete_count**: Creates three matching namespaces and uses `delete_count=2`; exactly two namespaces are disrupted while one remains untouched.
+  - **test_multiple_runs_repeat_disruption_loop**: Sets `runs=2` and verifies that the namespace disruption loop executes twice.
+  - **test_wait_time_accepted**: Uses a non-default `wait_time` and verifies that the scenario accepts it and completes successfully.
+  - **test_label_selector_targeting**: Leaves the namespace field empty, targets namespaces by label, and verifies that only the labeled namespace is selected.
+  - **test_no_match_namespace_fails**: Uses a regex that matches no namespaces; Kraken exits non-zero with a clear failure.
+  - **test_namespace_and_label_mutual_exclusion_fails**: Sets both a namespace and a `label_selector`; Kraken exits with the expected mutual-exclusion error.
+  - **test_delete_count_exceeds_available_fails**: Requests more namespaces than match the selection; Kraken exits non-zero with a `not enough namespaces` failure.
+
+- **scenarios/node_network_chaos/**
+  Node network chaos scenario (`network_chaos_ng_scenarios`). `scenario_base.yaml` contains the list-based configuration for the `krkn-network-chaos` helper image, target node, packet loss, latency, bandwidth, direction, instance count, and cleanup behavior. Tests use a worker node and include:
+  - **test_packet_loss_applied_and_cleanup**: Applies packet loss to the target node, waits for the configured duration, verifies a successful run, and confirms cleanup.
+  - **test_latency_ingress_egress**: Applies latency with both ingress and egress enabled and verifies successful execution and cleanup.
+  - **test_bandwidth_limit**: Applies a bandwidth limit to the node network interfaces and verifies successful execution.
+  - **test_egress_only_direction**: Applies chaos only to outbound traffic and verifies the egress-only configuration.
+  - **test_instance_count_with_label_selector**: Uses a label selector matching multiple nodes and verifies that only the configured `instance_count` is targeted.
+  - **test_force_false_skips_injection_when_tc_rules_exist**: Prepares existing traffic-control rules and verifies that `force=false` skips injection instead of overriding them.
+  - **test_nonexistent_target_node_fails**: Specifies a node that does not exist; Kraken fails gracefully.
+  - **test_no_nodes_matching_selector_warns**: Uses a selector with no matches; Kraken logs that no targets were found and exits 0 without injecting chaos.
+  - **test_invalid_config_format_fails**: Provides a scenario in the wrong YAML shape instead of the required list of objects; Kraken exits 1.
+  - **test_network_rules_removed_post_run**: Verifies that no residual `netem` `tc` rules remain on the node after the scenario.
+  - **test_cluster_health_preserved**: Verifies that all cluster nodes return to Ready after network chaos.
+  - **test_chaos_helper_pod_cleaned_up**: Verifies that the temporary `node-network-chaos-*` helper pod is deleted after the run.
+
+- **scenarios/pod_error_scenarios/**
+  Pod disruption failure-mode coverage using the `pod_disruption_scenarios` plugin. `resource.yaml` provides the target workload, and `scenario_base.yaml` configures the namespace pattern, label selector, recovery time, and kill count. Tests include:
+  - **test_kill_one_pod_recovers**: Kills one matching pod, verifies a successful run, and confirms that the workload recovers.
+  - **test_kill_multiple_pods**: Kills multiple matching pods, verifies that the disruption has an observable effect, and confirms that the expected pods recover.
+  - **test_excessive_kill_count_fails**: Requests more pods than are available; Kraken exits non-zero.
+  - **test_recovery_timeout_fails**: Exercises the recovery-timeout path and verifies that Kraken reports failure when pods do not recover within the configured timeout.
+  - **test_invalid_namespace_pattern_fails**: Targets a namespace pattern with no matches; Kraken exits non-zero.
+  - **test_zero_pods_matching_label_fails**: Uses a label selector that matches no pods in an otherwise valid namespace; Kraken exits non-zero.
+
+- **scenarios/storage_throttle/**
+  Storage throttle scenario (`storage_throttle_scenarios`). `resource.yaml` provides a workload with the `krkn-throttle-pvc` volume mounted at `/data`; `scenario_base.yaml` configures the PVC, pod, mount path, throttle type, bandwidth, IOPS, duration, and helper image. Tests include:
+  - **test_bandwidth_throttle_and_recovery**: Applies read/write bytes-per-second limits, verifies a successful run, and confirms pod recovery.
+  - **test_iops_throttle_and_recovery**: Applies read/write IOPS limits, verifies a successful run, and confirms pod recovery.
+  - **test_both_throttle_and_recovery**: Applies both bandwidth and IOPS limits, verifies a successful run, and confirms pod recovery.
+  - **test_bad_namespace_fails**: Targets a non-existent namespace; Kraken exits non-zero.
+  - **test_invalid_throttle_type_fails**: Uses an unsupported `throttle_type`; Kraken exits non-zero.
+
 ## Configuration
 
-- **pytest.ini**: Markers (`functional`, `pod_disruption`, `application_outage`, `storage_throttle`, `cpu_hog`, `memory_hog`, `node_scenarios`, `no_workload`). Use `--timeout=300`, `--reruns=2`, `--reruns-delay=10` on the command line for full runs.
+- **pytest.ini**: Markers (`functional`, `pod_disruption`, `pod_error_scenarios`, `application_outage`, `storage_throttle`, `cpu_hog`, `memory_hog`, `container_scenarios`, `node_scenarios`, `node_network_chaos`, `namespace_deletion`, `no_workload`, `order`, `xdist_group`). Use `--timeout=300`, `--reruns=2`, `--reruns-delay=10` on the command line for full runs.
 - **conftest.py**: Re-exports fixtures from `lib/k8s.py`, `lib/namespace.py`, `lib/deploy.py`, `lib/kraken.py` (e.g. `test_namespace`, `deploy_workload`, `k8s_core`, `wait_for_pods_running`, `run_kraken`, `build_config`). Configs are built from `CI/tests_v2/config/common_test_config.yaml` with monitoring disabled for local runs. Timeout constants in `lib/base.py` can be overridden via env vars.
 - **Cluster access**: Reads and applies use the Kubernetes Python client; `kubectl` is still used for `port-forward` and for running Kraken.
 - **utils.py**: Pod/network policy helpers and assertion helpers (`assert_all_pods_running_and_ready`, `assert_pod_count_unchanged`, `assert_kraken_success`, `assert_kraken_failure`, `patch_namespace_in_docs`).
@@ -227,7 +277,7 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
 ## Relationship to existing CI
 
 - The **existing** bash tests in `CI/tests/` and `CI/run.sh` are **unchanged**. They continue to run as before in GitHub Actions.
-- This framework is **additive**. To run it in CI later, add a separate job or step that runs `pytest CI/tests_v2/ ...` from the repo root.
+- This framework is **additive**. The `Tests v2 (pytest functional)` workflow in `.github/workflows/tests_v2.yml` creates a KinD cluster and runs `pytest CI/tests_v2/ ...` on pull requests and pushes to `main`.
 
 ## Troubleshooting
 
