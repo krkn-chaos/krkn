@@ -3,6 +3,8 @@ import logging
 import os
 import sys
 import tempfile
+import time
+import unittest
 import uuid
 import subprocess
 
@@ -11,7 +13,7 @@ from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.utils import SafeLogger
-from krkn.rollback.config import RollbackConfig
+from krkn.rollback.config import RollbackConfig, Version, RollbackContext
 
 sys.path.append(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -397,3 +399,18 @@ class TestSecureTempDirectories:
         """When user provides an explicit path, no fallback is triggered."""
         explicit_path = "/some/user/chosen/path"
         assert explicit_path  # truthy, so no fallback
+
+
+class TestVersionDataclass(unittest.TestCase):
+    """Tests for the Version dataclass in rollback configuration."""
+
+    def test_version_uniqueness(self):
+        """Verify that Version instances evaluate dynamic fields per-instance."""
+        ctx = RollbackContext("test-uuid")
+        v1 = Version.new_version("test_scenario", ctx)
+        time.sleep(0.001)
+        v2 = Version.new_version("test_scenario", ctx)
+
+        self.assertNotEqual(v1.timestamp, v2.timestamp)
+        self.assertNotEqual(v1.hash_suffix, v2.hash_suffix)
+        self.assertNotEqual(v1.version_file_name, v2.version_file_name)
