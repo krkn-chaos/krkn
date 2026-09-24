@@ -1,0 +1,44 @@
+# Workloads for pod_network_filter v2 tests. Namespace patched at deploy time.
+# test=pod-network-filter: deploy readiness selector (all pods must become ready).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-pod-network-filter-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: krkn-pod-network-filter-target
+  template:
+    metadata:
+      labels:
+        app: krkn-pod-network-filter-target
+        test: pod-network-filter
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-filter-pool
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+        test: pod-network-filter
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
