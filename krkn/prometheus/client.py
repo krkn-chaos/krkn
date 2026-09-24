@@ -42,7 +42,8 @@ def alerts(
     start_time,
     end_time,
     alert_profile,
-    elastic_alerts_index
+    elastic_alerts_index,
+    phase: str = None
 ):
 
     if alert_profile is None or os.path.exists(alert_profile) is False:
@@ -87,6 +88,7 @@ def alerts(
                         severity=severity,
                         alert=processed_alert[1],
                         created_at=created_datetime,
+                        phase=phase,
                     )
                     result = elastic.push_alert(elastic_alert, elastic_alerts_index)
                     if result == -1:
@@ -102,12 +104,13 @@ def critical_alerts(
     scenario,
     start_time,
     end_time,
-    elastic_alerts_index
+    elastic_alerts_index,
+    phase: str = "post_chaos"
 ):
     summary.scenario = scenario
     summary.run_id = run_id
     query = r"""ALERTS{severity="critical"}"""
-    logging.info("Checking for critical alerts firing post chaos")
+    logging.info(f"Checking for critical alerts firing ({phase})")
 
     during_critical_alerts = prom_cli.process_prom_query_in_range(
         query, start_time=datetime.datetime.fromtimestamp(start_time), end_time=end_time
@@ -167,7 +170,7 @@ def critical_alerts(
                     created_at=end_time,
                     namespace=namespace,
                     alertstate=alertstate,
-                    phase="post_chaos"
+                    phase=phase
                 )
                 result = elastic.push_alert(elastic_alert, elastic_alerts_index)
                 if result == -1:
@@ -199,7 +202,8 @@ def metrics(
     end_time,
     metrics_profile,
     elastic_metrics_index,
-    telemetry_json
+    telemetry_json,
+    phase: str = "post_chaos"
 ) -> list[dict[str, list[(int, float)] | str]]:
    
     if metrics_profile is None or os.path.exists(metrics_profile) is False:
@@ -310,6 +314,9 @@ def metrics(
                         metric[k] = v
                         metric['timestamp'] = str(datetime.datetime.now())
                     metrics_list.append(metric.copy())
+
+        for metric in metrics_list:
+            metric["phase"] = phase
 
         save_metrics = False
         if elastic is not None and elastic_metrics_index is not None:

@@ -43,6 +43,7 @@ from krkn_lib.elastic.krkn_elastic import KrknElastic
 from krkn_lib.models.krkn import ChaosRunOutput, ChaosRunAlertSummary
 from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 import krkn.prometheus as prometheus_plugin
+from krkn.health_checks.pre_chaos_check import PreChaosCheck
 import server as server
 from krkn.resiliency.resiliency import (
     Resiliency
@@ -248,6 +249,9 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         metrics_profile = config["performance_monitoring"].get("metrics_profile")
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
+        )
+        exit_on_pre_check_failure = get_yaml_item_value(
+            config["performance_monitoring"], "exit_on_pre_check_failure", False
         )
         config["telemetry"] = get_yaml_item_value(config, "telemetry", {})
         telemetry_api_url = config["telemetry"].get("api_url", "")
@@ -595,6 +599,25 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         generic_health_checkers = health_check_factory.start_all(
             config, iterations=iterations, krkn_lib=kubecli
         )
+
+        # Pre-chaos baseline check: verify the cluster isn't already unhealthy
+        # before injecting failures, and record a "pre_chaos" baseline snapshot.
+        pre_chaos_result = PreChaosCheck().run(
+            chaos_scenarios=chaos_scenarios,
+            check_critical_alerts=check_critical_alerts,
+            enable_alerts=enable_alerts,
+            enable_metrics=enable_metrics,
+            exit_on_pre_check_failure=exit_on_pre_check_failure,
+            prometheus=prometheus,
+            elastic_search=elastic_search,
+            run_uuid=run_uuid,
+            elastic_alerts_index=elastic_alerts_index,
+            elastic_metrics_index=elastic_metrics_index,
+            alert_profile=alert_profile,
+            metrics_profile=metrics_profile,
+        )
+        if pre_chaos_result.should_exit:
+            return 2
 
         # Loop to run the chaos starts here
         while int(iteration) < iterations and run_signal != "STOP":

@@ -14,14 +14,48 @@ The health check plugin system consists of three main components:
 
 ```
 krkn/health_checks/
-├── __init__.py                          # Module exports
-├── abstract_health_check_plugin.py      # Abstract base class
-├── health_check_factory.py              # Plugin factory
-├── http_health_check_plugin.py          # HTTP health check implementation
-├── virt_health_check_plugin.py          # KubeVirt VM health check implementation
-├── simple_health_check_plugin.py        # Simple test plugin
-└── README.md                            # This file
+├── __init__.py                            # Module exports
+├── abstract_health_check_plugin.py        # Abstract base class (continuous monitors)
+├── health_check_factory.py                # Plugin factory
+├── http_health_check_plugin.py            # HTTP health check implementation
+├── virt_health_check_plugin.py            # KubeVirt VM health check implementation
+├── simple_health_check_plugin.py          # Simple test plugin
+├── post_chaos_alert_health_check_plugin.py # Post-chaos alert/metrics check (one-shot, see below)
+├── abstract_alert_health_check.py         # Abstract base class (one-shot phase gates)
+├── pre_chaos_check.py                     # Pre-chaos alert/metrics gate (one-shot, see below)
+├── models.py                              # AlertHealthCheckResult
+└── README.md                              # This file
 ```
+
+## Two Patterns: Continuous Monitors vs. One-Shot Phase Gates
+
+This package holds two related but distinct kinds of checks:
+
+- **Continuous background monitors** (`AbstractHealthCheckPlugin` /
+  `HealthCheckFactory`, described in detail below): started via `start_all()`
+  before the chaos loop, run in their own thread polling on an interval, and
+  are only inspected for failure *after* the full chaos loop finishes (via
+  `stop_all()` + `worker.join()` + `get_return_value()`). This fits things
+  like HTTP endpoint monitoring or VM health, where you want to observe
+  throughout the run.
+
+- **One-shot phase gates** (`AbstractAlertHealthCheck`, e.g. `PreChaosCheck`):
+  run synchronously and must return a decision *before* the next phase
+  starts. The pre-chaos check, for example, must know whether the cluster's
+  baseline is already unhealthy *before* `start_all()` is even called — there
+  is no thread to check "later," because the answer determines whether there
+  is a run at all. Because of this, it does not extend
+  `AbstractHealthCheckPlugin`: forcing a synchronous gate into a
+  thread-and-check-later contract would mean faking a thread it doesn't need.
+
+`PostChaosAlertHealthCheckPlugin` is a hybrid worth calling out: it *does*
+extend `AbstractHealthCheckPlugin`, but instead of polling on an interval, its
+`run_health_check()` simply blocks on `self._stop_event.wait()` until
+`stop_all()` is called after the chaos loop and wait duration complete, then
+performs its Prometheus alert/metrics evaluation once. This works because,
+unlike the pre-chaos gate, post-chaos evaluation only needs to happen *after*
+the run — so the existing "start early, checked after the loop" lifecycle
+fits it naturally.
 
 ## Creating a Health Check Plugin
 
@@ -404,3 +438,17 @@ See the following implementations for reference:
 - **Purpose:** Monitor KubeVirt virtual machine accessibility
 - **Features:** virtctl access checks, disconnected SSH checks, VM migration tracking, batch processing
 - **Threading:** Spawns worker threads internally; has a special post-chaos `gather_post_virt_checks()` step
+
+### Post-Chaos Alert Health Check Plugin
+- **Types:** `post_chaos_alert_check`
+- **Config key:** `post_chaos_alert_check`
+- **Purpose:** One-shot Prometheus alert/metrics evaluation over the full chaos run window
+- **Features:** Critical alert check, alert-profile check, metrics capture — all tagged `phase="post_chaos"`
+- **Threading:** Runs in a background thread that blocks on `self._stop_event` until `stop_all()` is called after the chaos loop, then evaluates once
+
+## Available One-Shot Phase Gates
+
+### Pre-Chaos Check
+- **Class:** `PreChaosCheck` (extends `AbstractAlertHealthCheck`, not `AbstractHealthCheckPlugin`)
+- **Purpose:** Verify the cluster isn't already unhealthy before injecting failures, and record a `phase="pre_chaos"` baseline snapshot
+- **Called directly** from `run_kraken.py`, synchronously, before `HealthCheckFactory.start_all()` — not auto-discovered by the factory, since its result must gate whether the run starts at all

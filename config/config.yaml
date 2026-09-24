@@ -85,6 +85,7 @@ performance_monitoring:
     alert_profile: config/alerts.yaml                          # Path or URL to alert profile with the prometheus queries
     metrics_profile: config/metrics-report.yaml
     check_critical_alerts: False                          # When enabled will check prometheus for critical alerts firing post chaos
+    exit_on_pre_check_failure: False                      # When enabled, exits before running chaos scenarios if the pre-chaos baseline check (critical alerts/alert profile) finds the cluster already unhealthy
 elastic:
     enable_elastic: False
     verify_certs: False

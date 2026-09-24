@@ -14,7 +14,7 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from krkn.prometheus import client
 
@@ -497,6 +497,150 @@ class TestMetricsQueryRouting(unittest.TestCase):
 
             self.prom_cli.process_prom_query_in_range.assert_not_called()
             self.prom_cli.process_query.assert_not_called()
+        finally:
+            os.unlink(profile_path)
+
+
+class TestPhaseTagging(unittest.TestCase):
+    """Tests that the pre/post chaos `phase` parameter is threaded through to
+    Elasticsearch alert/metric payloads for alerts(), critical_alerts(), and metrics()."""
+
+    def setUp(self):
+        self.prom_cli = MagicMock()
+        self.elastic = MagicMock()
+        self.run_uuid = "test-uuid"
+        self.start_time = 1000000
+        self.end_time = 1000060
+
+    def _write_yaml(self, content):
+        f = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+        f.write(content)
+        f.close()
+        return f.name
+
+    def test_alerts_tags_elastic_alert_with_phase(self):
+        profile_path = self._write_yaml(
+            '- expr: "up == 0"\n'
+            '  description: "target down"\n'
+            '  severity: "critical"\n'
+        )
+        try:
+            self.prom_cli.process_alert.return_value = (self.start_time, "target down")
+            self.elastic.push_alert.return_value = 0
+
+            with patch.object(client, "ElasticAlert") as mock_elastic_alert:
+                client.alerts(
+                    self.prom_cli,
+                    self.elastic,
+                    self.run_uuid,
+                    self.start_time,
+                    self.end_time,
+                    profile_path,
+                    "test-index",
+                    phase="pre_chaos",
+                )
+                self.assertEqual(mock_elastic_alert.call_args.kwargs["phase"], "pre_chaos")
+        finally:
+            os.unlink(profile_path)
+
+    def test_alerts_defaults_phase_to_none(self):
+        profile_path = self._write_yaml(
+            '- expr: "up == 0"\n'
+            '  description: "target down"\n'
+            '  severity: "critical"\n'
+        )
+        try:
+            self.prom_cli.process_alert.return_value = (self.start_time, "target down")
+            self.elastic.push_alert.return_value = 0
+
+            with patch.object(client, "ElasticAlert") as mock_elastic_alert:
+                client.alerts(
+                    self.prom_cli,
+                    self.elastic,
+                    self.run_uuid,
+                    self.start_time,
+                    self.end_time,
+                    profile_path,
+                    "test-index",
+                )
+                self.assertIsNone(mock_elastic_alert.call_args.kwargs["phase"])
+        finally:
+            os.unlink(profile_path)
+
+    def test_critical_alerts_defaults_to_post_chaos_phase(self):
+        from krkn_lib.models.krkn import ChaosRunAlertSummary
+
+        self.prom_cli.process_prom_query_in_range.return_value = []
+        self.prom_cli.process_query.return_value = [
+            {"metric": {"alertname": "TestAlert", "alertstate": "firing", "namespace": "ns", "severity": "critical"}}
+        ]
+        self.elastic.push_alert.return_value = 0
+        summary = ChaosRunAlertSummary()
+
+        with patch.object(client, "ElasticAlert") as mock_elastic_alert:
+            client.critical_alerts(
+                self.prom_cli,
+                summary,
+                self.elastic,
+                self.run_uuid,
+                "pod-scenario",
+                self.start_time,
+                self.end_time,
+                "test-index",
+            )
+            self.assertEqual(mock_elastic_alert.call_args.kwargs["phase"], "post_chaos")
+
+    def test_critical_alerts_tags_with_pre_chaos_phase(self):
+        from krkn_lib.models.krkn import ChaosRunAlertSummary
+
+        self.prom_cli.process_prom_query_in_range.return_value = []
+        self.prom_cli.process_query.return_value = [
+            {"metric": {"alertname": "TestAlert", "alertstate": "firing", "namespace": "ns", "severity": "critical"}}
+        ]
+        self.elastic.push_alert.return_value = 0
+        summary = ChaosRunAlertSummary()
+
+        with patch.object(client, "ElasticAlert") as mock_elastic_alert:
+            client.critical_alerts(
+                self.prom_cli,
+                summary,
+                self.elastic,
+                self.run_uuid,
+                "pre_chaos_check",
+                self.start_time,
+                self.end_time,
+                "test-index",
+                phase="pre_chaos",
+            )
+            self.assertEqual(mock_elastic_alert.call_args.kwargs["phase"], "pre_chaos")
+
+    def test_metrics_tags_entries_with_phase(self):
+        import yaml
+        profile_path = self._write_yaml(
+            yaml.dump({"metrics": [{"query": "up", "metricName": "target_up", "instant": True}]})
+        )
+        try:
+            self.prom_cli.process_query.return_value = [
+                {"metric": {}, "value": (self.start_time, "1")}
+            ]
+            self.elastic.upload_metrics_to_elasticsearch.return_value = 0
+            telemetry_json = json.dumps({"scenarios": [], "health_checks": [], "virt_checks": []})
+
+            result = client.metrics(
+                self.prom_cli,
+                self.elastic,
+                self.run_uuid,
+                self.start_time,
+                self.end_time,
+                profile_path,
+                "test-metrics-index",
+                telemetry_json,
+                phase="pre_chaos",
+            )
+
+            self.assertTrue(len(result) > 0)
+            for metric in result:
+                self.assertEqual(metric["phase"], "pre_chaos")
         finally:
             os.unlink(profile_path)
 
