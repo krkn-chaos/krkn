@@ -1,0 +1,17 @@
+- id: pod_network_chaos
+  image: quay.io/krkn-chaos/krkn-network-chaos:latest
+  wait_duration: 1
+  test_duration: 20
+  label_selector: ""
+  service_account: ""
+  taints: []
+  namespace: default
+  instance_count: 1
+  target: ""
+  execution: serial
+  interfaces: []
+  ingress: true
+  egress: true
+  latency: 100ms
+  loss: "10"
+  bandwidth: 10mbit

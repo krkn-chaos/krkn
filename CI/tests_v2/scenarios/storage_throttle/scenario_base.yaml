@@ -10,4 +10,4 @@ storage_throttle_scenario:
   read_iops: 100
   write_iops: 50
   duration: 15
-  image: quay.io/krkn-chaos/krkn:tools
+  image: ubuntu:24.04

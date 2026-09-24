@@ -1,0 +1,48 @@
+# Workloads for pod_network_filter v2 tests. Namespace patched at deploy time.
+# test=pod-network-filter: deploy readiness selector (all pods must become ready).
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-pod-network-filter-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: krkn-pod-network-filter-target
+  template:
+    metadata:
+      labels:
+        app: krkn-pod-network-filter-target
+        test: pod-network-filter
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36.1
+        command: ["/bin/sh", "-c"]
+        args: ["mkdir -p /www && echo target > /www/index.html && exec httpd -f -p 8080 -h /www"]
+        ports:
+        - containerPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-filter-pool
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+        test: pod-network-filter
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36.1
+        command: ["/bin/sh", "-c"]
+        args: ["mkdir -p /www && echo pool > /www/index.html && exec httpd -f -p 8080 -h /www"]
+        ports:
+        - containerPort: 8080

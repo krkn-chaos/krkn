@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-network-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: krkn-pod-network-chaos-target}
+  template:
+    metadata:
+      labels: {app: krkn-pod-network-chaos-target}
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports: [{containerPort: 80}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: krkn-network-target
+spec:
+  selector: {app: krkn-pod-network-chaos-target}
+  ports: [{port: 80, targetPort: 80}]

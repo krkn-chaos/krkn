@@ -18,9 +18,9 @@ spec:
     spec:
       containers:
       - name: nginx
-        image: nginx:alpine
+        image: nginxinc/nginx-unprivileged:1.29.1-alpine
         ports:
-        - containerPort: 80
+        - containerPort: 8080
 ---
 apiVersion: v1
 kind: Service
@@ -30,5 +30,5 @@ spec:
   selector:
     app: nginx-outage-http
   ports:
-  - port: 80
-    targetPort: 80
+  - port: 8080
+    targetPort: 8080

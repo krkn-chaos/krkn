@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: krkn-time-target
+  labels:
+    app: krkn-time-target
+spec:
+  containers:
+  - name: app
+    image: busybox:1.36
+    command: ["sh", "-c", "while true; do date +%s; sleep 5; done"]
+    securityContext:
+      privileged: true

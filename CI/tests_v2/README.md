@@ -161,6 +161,7 @@ On failure, the namespace name is printed (e.g. `[keep-ns-on-fail] Keeping names
 
 - **Structured logging**: Use `--log-cli-level=DEBUG` to see namespace creation, workload deploy, and readiness in the console. Use `--log-file=test.log` to capture logs to a file.
 - **Require dev cluster**: To avoid running against the wrong cluster, use `--require-kind`. Tests will skip unless the current kube context cluster name contains "kind" or "minikube".
+- **Platform-scoped contracts**: Tests marked `kind_only` skip on remote clusters when their assertion requires a local KinD/Minikube node container runtime. Kubernetes API and privileged helper-pod network tests remain enabled on OpenShift.
 - **Stale namespace cleanup**: At session start, namespaces matching `krkn-test-*` that are older than 30 minutes are deleted (e.g. from a previous crashed run).
 - **Timeout overrides**: Set env vars to tune timeouts (e.g. in CI): `KRKN_TEST_READINESS_TIMEOUT`, `KRKN_TEST_DEPLOY_TIMEOUT`, `KRKN_TEST_NS_CLEANUP_TIMEOUT`, `KRKN_TEST_POLICY_WAIT_TIMEOUT`, `KRKN_TEST_KRAKEN_PROC_WAIT_TIMEOUT`, `KRKN_TEST_TIMEOUT_BUDGET`.
 
@@ -185,6 +186,8 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
   3. Asserts that chaos had an effect (UIDs changed or restart count increased).
   4. Waits for pods to be Running and all containers Ready.
   5. Asserts pod count is unchanged and all pods are healthy.
+
+  The node-selector targeting test kills a pod on a selected worker, then checks that the replacement recovers even if Kubernetes schedules it on another worker. Node selection constrains victims, not recovery placement.
 
 - **scenarios/application_outage/**  
   Application outage scenario (block Ingress/Egress to target pods, then restore). `resource.yaml` is the main workload (outage pod); `scenario_base.yaml` is loaded and patched with namespace (and duration/block as needed). Optional `nginx_http.yaml` is used by the traffic test. Tests include:
