@@ -33,6 +33,7 @@ KRAKEN_RUN_TIMEOUT = 300
 
 @pytest.mark.functional
 @pytest.mark.memory_hog
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestMemoryHog(BaseScenarioTest):
     """Memory hog scenario: deploy a memory hog pod on selected node(s), then verify success and cleanup."""
 

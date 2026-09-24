@@ -21,6 +21,7 @@ from lib.utils import (
 
 @pytest.mark.functional
 @pytest.mark.container_scenarios
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestContainerScenarios(BaseScenarioTest):
     """Container disruption scenario: kill containers and verify recovery."""
 

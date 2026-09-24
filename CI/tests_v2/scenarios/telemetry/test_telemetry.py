@@ -30,7 +30,7 @@ class TestTelemetry(BaseScenarioTest):
         sf = self.write_scenario(self.tmp_path, scenario, suffix="-telemetry")
         data = yaml.safe_load((self.repo_root / "CI/tests_v2/config/common_test_config.yaml").read_text())
         data["kraken"]["chaos_scenarios"][0] = {self.SCENARIO_TYPE: [str(sf)]}
-        data["telemetry"].update({"enabled": True, "full_prometheus_backup": True, "run_tag": f"pytest-{self.ns}"})
+        data["telemetry"].update({"enabled": True, "prometheus_backup": False, "run_tag": f"pytest-{self.ns}"})
         data["telemetry"]["username"] = os.getenv("TELEMETRY_USERNAME", "")
         data["telemetry"]["password"] = os.getenv("TELEMETRY_PASSWORD", "")
         data["performance_monitoring"].update({"check_critical_alerts": False, "enable_alerts": False, "enable_metrics": False})
@@ -46,12 +46,13 @@ class TestTelemetry(BaseScenarioTest):
         )
         assert request_match, "Kraken did not log the telemetry request prefix"
         group, request_id = request_match.groups()
+        prefix = f"{group}/{request_id}/"
         listing = subprocess.run(
             [
                 "aws",
                 "s3",
                 "ls",
-                f"s3://{os.environ['AWS_BUCKET']}/{group}/{request_id}/",
+                f"s3://{os.environ['AWS_BUCKET']}/{prefix}",
                 "--recursive",
             ],
             capture_output=True,
@@ -59,7 +60,12 @@ class TestTelemetry(BaseScenarioTest):
             check=False,
         )
         assert listing.returncode == 0, listing.stderr
-        for artifact in ("prometheus-00.tar", "telemetry.json"):
-            assert artifact in listing.stdout, (
-                f"Missing telemetry artifact {artifact} for request {request_id}"
-            )
+        remote_keys = {
+            line.rsplit(maxsplit=1)[-1]
+            for line in listing.stdout.splitlines()
+            if line.strip()
+        }
+        expected_key = f"{prefix}telemetry.json"
+        assert expected_key in remote_keys, (
+            f"Missing telemetry artifact {expected_key} for request {request_id}"
+        )

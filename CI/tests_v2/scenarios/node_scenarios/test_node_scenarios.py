@@ -43,6 +43,7 @@ NODE_READY_TIMEOUT = 180
 
 @pytest.mark.functional
 @pytest.mark.node_scenarios
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestNodeScenarios(BaseScenarioTest):
     """Node chaos scenarios: reboot and stop/start a KinD worker, plus targeting, safety, and negative cases."""
 

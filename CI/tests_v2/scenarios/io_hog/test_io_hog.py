@@ -34,6 +34,7 @@ KRAKEN_RUN_TIMEOUT = 300
 
 @pytest.mark.functional
 @pytest.mark.io_hog
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestIoHog(BaseScenarioTest):
     """I/O hog scenario: deploy an I/O hog pod on selected node(s), then verify success and cleanup."""
 

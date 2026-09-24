@@ -19,7 +19,7 @@ class _CerberusHandler(BaseHTTPRequestHandler):
 @pytest.mark.functional
 @pytest.mark.cerberus
 class TestCerberus(BaseScenarioTest):
-    """Exercise unhealthy Cerberus responses and their configured exit policy."""
+    """Exercise Cerberus health responses and their configured exit policy."""
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/pod_disruption/resource.yaml"
     LABEL_SELECTOR = "app=krkn-pod-disruption-target"
     SCENARIO_NAME = "pod_disruption"
@@ -38,8 +38,9 @@ class TestCerberus(BaseScenarioTest):
         source["performance_monitoring"].update({"check_critical_alerts": False, "enable_alerts": False, "enable_metrics": False})
         path = self.tmp_path / f"cerberus-{exit_on_failure}.yaml"; path.write_text(yaml.safe_dump(source)); return str(path)
 
-    def _run_with_mock(self, exit_on_failure):
+    def _run_with_mock(self, exit_on_failure, status):
         _CerberusHandler.requests = 0
+        _CerberusHandler.status = status
         server = ThreadingHTTPServer(("127.0.0.1", 0), _CerberusHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True); thread.start()
         try:
@@ -48,17 +49,23 @@ class TestCerberus(BaseScenarioTest):
             server.shutdown(); thread.join(timeout=5)
         return result
 
-    def test_unhealthy_probe_with_continue_policy(self):
-        """Verify unhealthy responses are reported when Krkn is configured to continue."""
-        result = self._run_with_mock(False)
+    def test_healthy_probe_with_continue_policy(self):
+        """Verify a healthy response allows the run when configured to continue."""
+        result = self._run_with_mock(False, b"True")
         assert _CerberusHandler.requests > 0
-        # Current Cerberus client exits 1 for a no-go response regardless of
-        # exit_on_failure; this pins the observed product contract.
-        assert result.returncode != 0
+        assert_kraken_success(result, context=self.ns, tmp_path=self.tmp_path)
         assert_scenario_executed(result, self.SCENARIO_NAME, context=self.ns, tmp_path=self.tmp_path)
 
-    def test_unhealthy_probe_with_abort_policy(self):
-        """Verify unhealthy responses abort the run when the configured policy requires it."""
-        result = self._run_with_mock(True)
+    def test_healthy_probe_with_abort_policy(self):
+        """Verify a healthy response still aborts when exit_on_failure is enabled."""
+        result = self._run_with_mock(True, b"True")
         assert _CerberusHandler.requests > 0
+        assert_scenario_executed(result, self.SCENARIO_NAME, context=self.ns, tmp_path=self.tmp_path)
+        assert result.returncode != 0
+
+    def test_unhealthy_probe_reports_health_failure(self):
+        """Verify an unhealthy response produces a nonzero health-check result."""
+        result = self._run_with_mock(False, b"False")
+        assert _CerberusHandler.requests > 0
+        assert_scenario_executed(result, self.SCENARIO_NAME, context=self.ns, tmp_path=self.tmp_path)
         assert result.returncode != 0

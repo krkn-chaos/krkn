@@ -2,7 +2,7 @@
 Functional tests for pod_network_filter (network_chaos_ng_scenarios).
 
 Migrated from CI/tests/test_pod_network_filter.sh. Validates filter rule lifecycle,
-Krkn exit behavior, and cleanup — not packet-level drop semantics.
+Krkn exit behavior, peer traffic blocked during an active rule, and recovery.
 """
 
 import subprocess
@@ -25,7 +25,7 @@ from lib.utils import (
 
 @pytest.mark.functional
 @pytest.mark.pod_network_filter
-@pytest.mark.xdist_group("pod_network_filter")
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestPodNetworkFilter(BaseScenarioTest):
     """pod_network_filter: iptables port/protocol filtering on pod network namespaces."""
 
@@ -91,6 +91,79 @@ class TestPodNetworkFilter(BaseScenarioTest):
         after = get_pods_list(self.k8s_core, self.ns, self.LABEL_SELECTOR)
         assert_pod_count_unchanged(before, after, namespace=self.ns)
         assert_all_pods_running_and_ready(after, namespace=self.ns)
+    def _start_traffic_pod(self, kubectl):
+        """Start a peer pod that reaches the target over its pod interface."""
+        name = f"pod-filter-traffic-{self.ns[-8:]}"
+        created = kubectl(
+            [
+                "run",
+                name,
+                "-n",
+                self.ns,
+                "--image=curlimages/curl:8.10.1",
+                "--restart=Never",
+                "--command",
+                "--",
+                "sleep",
+                "300",
+            ],
+            timeout=60,
+        )
+        assert created.returncode == 0, created.stderr
+        ready = kubectl(
+            ["wait", "--for=condition=Ready", f"pod/{name}", "-n", self.ns, "--timeout=90s"],
+            timeout=100,
+        )
+        assert ready.returncode == 0, ready.stderr
+        return name
+
+    def _target_ip(self):
+        pods = get_pods_list(
+            self.k8s_core, self.ns, "app=krkn-pod-network-filter-target"
+        )
+        assert pods.items and pods.items[0].status.pod_ip, (
+            f"Target pod has no pod IP in namespace={self.ns}"
+        )
+        return pods.items[0].status.pod_ip
+
+    def _traffic_request(self, kubectl, traffic_pod, target_ip):
+        """Make a real HTTP request from a peer pod to the target pod."""
+        response = kubectl(
+            [
+                "exec",
+                "-n",
+                self.ns,
+                traffic_pod,
+                "--",
+                "curl",
+                "-sS",
+                "-o",
+                "/dev/null",
+                "-w",
+                "%{http_code}",
+                "--connect-timeout",
+                "2",
+                "--max-time",
+                "5",
+                f"http://{target_ip}:8080/",
+            ],
+            timeout=15,
+        )
+        return response.returncode == 0 and response.stdout.strip() == "200"
+
+    @staticmethod
+    def _collect_background(proc):
+        """Collect a background Kraken process and kill it if collection times out."""
+        try:
+            stdout, stderr = proc.communicate(
+                timeout=max(KRAKEN_PROC_WAIT_TIMEOUT, 180)
+            )
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+        return subprocess.CompletedProcess(
+            proc.args, proc.returncode, stdout, stderr
+        )
 
     # -- happy path (1–8) ----------------------------------------------
 
@@ -108,6 +181,92 @@ class TestPodNetworkFilter(BaseScenarioTest):
         wait_for_pods_running(self.ns, self.LABEL_SELECTOR, timeout=90)
         self._assert_pods_healthy(before)
 
+
+    def test_tcp_port_block_traffic_and_recovery(self, kubectl):
+        """Assert a peer HTTP request is blocked during filtering and restored afterward."""
+        traffic_pod = None
+        proc = None
+        try:
+            traffic_pod = self._start_traffic_pod(kubectl)
+            target_ip = self._target_ip()
+            assert self._traffic_request(kubectl, traffic_pod, target_ip), (
+                "Peer HTTP traffic must reach the target before filtering"
+            )
+            scenario = self.load_and_patch_scenario(
+                self.repo_root,
+                self.ns,
+                target=self._target_pod(),
+                test_duration=20,
+                protocols=["tcp"],
+                ports=[8080],
+                ingress=True,
+                egress=False,
+            )
+            scenario_path = self.write_scenario(
+                self.tmp_path, scenario, suffix="_traffic"
+            )
+            config_path = self.build_config(
+                self.SCENARIO_TYPE,
+                str(scenario_path),
+                filename="pod_network_filter_traffic.yaml",
+            )
+            proc = self.run_kraken_background(config_path)
+            try:
+                deadline = time.monotonic() + 120
+                blocked = False
+                while time.monotonic() < deadline:
+                    if list_pods_by_prefix(
+                        self.k8s_core, self.ns, self.HELPER_POD_PREFIX
+                    ) and proc.poll() is None:
+                        if not self._traffic_request(
+                            kubectl, traffic_pod, target_ip
+                        ):
+                            blocked = True
+                            break
+                    if proc.poll() is not None:
+                        break
+                    time.sleep(1)
+                assert blocked, (
+                    "Expected peer HTTP traffic to be blocked while iptables "
+                    "filtering was active"
+                )
+            finally:
+                result = self._collect_background(proc)
+            assert_kraken_success(
+                result, context=f"namespace={self.ns}", tmp_path=self.tmp_path
+            )
+            assert_scenario_executed(
+                result,
+                self.SCENARIO_NAME,
+                context=f"namespace={self.ns}",
+                tmp_path=self.tmp_path,
+            )
+
+            deadline = time.monotonic() + 60
+            restored = False
+            while time.monotonic() < deadline:
+                if self._traffic_request(kubectl, traffic_pod, target_ip):
+                    restored = True
+                    break
+                time.sleep(1)
+            assert restored, "Peer HTTP traffic did not recover after iptables rollback"
+        finally:
+            if proc is not None and proc.poll() is None:
+                proc.kill()
+                proc.wait()
+            if traffic_pod:
+                kubectl(
+                    [
+                        "delete",
+                        "pod",
+                        traffic_pod,
+                        "-n",
+                        self.ns,
+                        "--ignore-not-found=true",
+                        "--wait=true",
+                    ],
+                    timeout=90,
+                )
     @pytest.mark.order(2)
     def test_udp_port_block(self):
         """Block UDP egress to port 53 without disrupting pod readiness."""

@@ -25,6 +25,7 @@ from lib.utils import (
 
 @pytest.mark.functional
 @pytest.mark.storage_throttle
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestStorageThrottle(BaseScenarioTest):
     """Storage throttle scenario: apply I/O cgroup limits on a PVC mount and verify recovery."""
 

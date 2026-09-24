@@ -33,6 +33,7 @@ KRAKEN_RUN_TIMEOUT = 300
 
 @pytest.mark.functional
 @pytest.mark.cpu_hog
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestCpuHog(BaseScenarioTest):
     """CPU hog scenario: deploy a CPU hog pod on selected node(s), then verify success and cleanup."""
 
