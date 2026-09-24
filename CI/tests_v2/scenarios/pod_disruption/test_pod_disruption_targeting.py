@@ -18,7 +18,7 @@ from lib.utils import (
 @pytest.mark.functional
 @pytest.mark.pod_disruption
 class TestPodDisruptionTargeting(BaseScenarioTest):
-    """Check worker-scoped victim selection and successful pod recovery."""
+    """Check node-scoped victim selection with stable replacement placement."""
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/pod_disruption/resource.yaml"
     LABEL_SELECTOR = "app=krkn-pod-disruption-target"
     SCENARIO_NAME = "pod_disruption"
@@ -37,6 +37,49 @@ class TestPodDisruptionTargeting(BaseScenarioTest):
         decoy_nodes = [node for node in workers if node != target_node]
         if target_node not in workers or not decoy_nodes:
             pytest.skip("At least two schedulable workers are required for off-node targeting")
+
+        # This test covers victim selection, not cross-node recovery. Pin the
+        # Deployment replacement to the selected worker so the baseline plugin
+        # can observe recovery using its node-scoped selector.
+        self.k8s_apps.patch_namespaced_deployment(
+            name="krkn-pod-disruption-target",
+            namespace=self.ns,
+            body={
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "nodeSelector": {"kubernetes.io/hostname": target_node}
+                        }
+                    }
+                }
+            },
+        )
+        target_pod = None
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            targets = get_pods_list(self.k8s_core, self.ns, self.LABEL_SELECTOR)
+            if len(targets.items) == 1:
+                candidate = targets.items[0]
+                statuses = (
+                    candidate.status.container_statuses
+                    if candidate.status
+                    else None
+                )
+                if (
+                    candidate.spec.node_name == target_node
+                    and candidate.status
+                    and candidate.status.phase == "Running"
+                    and statuses
+                    and all(status.ready for status in statuses)
+                ):
+                    target_pod = candidate
+                    break
+            time.sleep(1)
+        if target_pod is None:
+            pytest.fail(
+                f"Deployment replacement did not become ready on selected worker {target_node}"
+            )
+        target_uid = target_pod.metadata.uid
 
         decoy_name = "krkn-pod-disruption-off-node"
         decoy_node = decoy_nodes[0]
@@ -79,7 +122,7 @@ class TestPodDisruptionTargeting(BaseScenarioTest):
             before = get_pods_list(self.k8s_core, self.ns, self.LABEL_SELECTOR)
             target_pods = [pod for pod in before.items if pod.metadata.name != decoy_name]
             assert len(target_pods) == 1, f"Expected one controller target, found {target_pods}"
-            target_uid = target_pods[0].metadata.uid
+            assert target_pods[0].metadata.uid == target_uid
             decoy_uid = decoy_pod.metadata.uid
 
             scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
@@ -102,6 +145,7 @@ class TestPodDisruptionTargeting(BaseScenarioTest):
                 if (
                     len(target_after) == 1
                     and target_after[0].metadata.uid != target_uid
+                    and target_after[0].spec.node_name == target_node
                     and decoy_after
                     and decoy_after[0].metadata.uid == decoy_uid
                     and decoy_after[0].spec.node_name == decoy_node

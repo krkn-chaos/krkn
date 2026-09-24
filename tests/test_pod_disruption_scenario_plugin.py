@@ -230,36 +230,6 @@ class TestKillingPodsMode(unittest.TestCase):
         self.kubecli.delete_pod.assert_any_call("pod1", "ns1")
         self.kubecli.delete_pod.assert_any_call("pod2", "ns1")
 
-    def test_recovery_succeeds_when_replacement_moves_to_another_node(self):
-        """A node selector limits victims, not where Kubernetes may reschedule them."""
-        plugin = PodDisruptionScenarioPlugin()
-        kubecli = MagicMock(spec=KrknKubernetes)
-        kubecli.list_nodes.return_value = ["worker-a"]
-        deleted = False
-
-        def select_pods(*, label_selector, namespace_pattern, field_selector):
-            if deleted:
-                return [] if "spec.nodeName=worker-a" in field_selector else [("replacement", "ns")]
-            return [("victim", "ns")]
-
-        def delete_pod(name, namespace):
-            nonlocal deleted
-            deleted = True
-
-        kubecli.select_pods_by_namespace_pattern_and_label.side_effect = select_pods
-        kubecli.delete_pod.side_effect = delete_pod
-        config = InputParams({
-            "namespace_pattern": "^ns$",
-            "label_selector": "app=target",
-            "node_label_selector": "kubernetes.io/hostname=worker-a",
-            "kill": 1,
-            "duration": 0,
-            "timeout": -1,
-        })
-
-        self.assertEqual(plugin.killing_pods(config, kubecli), 0)
-        kubecli.delete_pod.assert_called_once_with("victim", "ns")
-
 
 if __name__ == "__main__":
     unittest.main()

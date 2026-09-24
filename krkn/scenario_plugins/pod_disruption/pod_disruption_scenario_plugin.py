@@ -237,15 +237,6 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
                         config.kill, len(pods)))
                 return 1
-            # Node constraints select victims only. A controller can replace a deleted
-            # pod on another node, so recovery must compare the cluster-wide matching
-            # count from before deletion with the cluster-wide count afterward.
-            recovery_count = pods_count
-            if config.node_label_selector or config.node_names:
-                recovery_count = len(self.get_pods(
-                    config.name_pattern, config.label_selector, namespace, kubecli,
-                    field_selector="status.phase=Running",
-                ))
             
             random.shuffle(pods)
             
@@ -269,29 +260,20 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         logging.info(f'Gracefully deleting pod {pod[0]}')
                         kubecli.delete_pod(pod[0], pod[1])
             
-            return_val = self.wait_for_pods(config.label_selector, config.name_pattern, namespace, recovery_count, config.duration, config.timeout, kubecli)
+            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         except Exception as e:
             raise(e)
 
         return return_val
 
     def wait_for_pods(
-        self, label_selector, pod_name, namespace, pod_count, duration, wait_timeout, kubecli: KrknKubernetes
+        self, label_selector, pod_name, namespace, pod_count, duration, wait_timeout, kubecli: KrknKubernetes, node_label_selector, node_names
     ):
-        """Wait for the cluster-wide matching Running pod count to recover.
-
-        Node selectors constrain which pods are disrupted, not where their
-        controller schedules replacements. Return 0 when `pod_count` is
-        restored, or 1 when `wait_timeout` expires.
-        """
         timeout = False
         start_time = datetime.now()
 
         while not timeout:
-            pods = self.get_pods(
-                name_pattern=pod_name, label_selector=label_selector, namespace=namespace,
-                field_selector="status.phase=Running", kubecli=kubecli,
-            )
+            pods = self.get_pods(name_pattern=pod_name, label_selector=label_selector,namespace=namespace, field_selector="status.phase=Running", kubecli=kubecli, node_label_selector=node_label_selector, node_names=node_names)
             if pod_count == len(pods):
                 return 0
             
