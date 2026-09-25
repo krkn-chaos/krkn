@@ -12,6 +12,7 @@ import queue
 import sys
 import os
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -87,6 +88,171 @@ class TestHealthCheckFactory(unittest.TestCase):
         self.assertIsNotNone(plugin)
         self.assertEqual(plugin.iterations, 10)
         self.assertEqual(plugin.__class__.__name__, "HttpHealthCheckPlugin")
+
+    def test_simple_plugin_run_once(self):
+        """SimpleHealthCheckPlugin run_once returns expected structure."""
+        plugin = self.factory.create_plugin("simple_health_check", iterations=1)
+        result = plugin.run_once({})
+
+        self.assertIn("passed", result)
+        self.assertIn("failures", result)
+        self.assertIn("details", result)
+        self.assertTrue(result["passed"])
+        self.assertEqual(len(result["failures"]), 0)
+
+    def test_http_plugin_run_once_no_config(self):
+        """HttpHealthCheckPlugin run_once with no config returns passed."""
+        if "http_health_check" not in self.factory.loaded_plugins:
+            self.skipTest("http_health_check plugin not loaded (missing dependencies)")
+
+        plugin = self.factory.create_plugin("http_health_check", iterations=1)
+        result = plugin.run_once({})
+
+        self.assertIn("passed", result)
+        self.assertIn("failures", result)
+        self.assertIn("details", result)
+        self.assertTrue(result["passed"])
+
+    def test_run_all_once_with_no_config(self):
+        """run_all_once with empty config returns passed with no checks."""
+        result = self.factory.run_all_once({}, check_type="pre")
+
+        self.assertIn("passed", result)
+        self.assertIn("failures", result)
+        self.assertIn("details", result)
+        self.assertIn("summary", result)
+        self.assertTrue(result["passed"])
+        self.assertEqual(len(result["failures"]), 0)
+
+    def test_run_all_once_with_simple_config(self):
+        """run_all_once with simple_health_checks config runs the check when run_during includes timing."""
+        config = {
+            "simple_health_checks": {
+                "test": "value",
+                "run_during": "pre"  # This check should run at pre timing
+            }
+        }
+        result = self.factory.run_all_once(config, check_type="pre")
+
+        self.assertIn("passed", result)
+        self.assertIn("simple_health_checks", result["details"])
+        self.assertTrue(result["passed"])
+        self.assertTrue(result["details"]["simple_health_checks"]["passed"])
+
+    def test_run_all_once_summary_format(self):
+        """run_all_once summary contains expected text."""
+        config = {
+            "simple_health_checks": {
+                "test": "value",
+                "run_during": "pre"
+            }
+        }
+        result = self.factory.run_all_once(config, check_type="pre")
+
+        # Check the summary contains expected components
+        self.assertIn("health check results", result["summary"])
+        self.assertIn("simple_health_checks", result["summary"])
+        self.assertIn("All checks passed", result["summary"])
+
+    def test_run_all_once_can_select_config_keys(self):
+        """Deferred evaluation can run only the requested health-check config."""
+        config = {
+            "simple_health_checks": {"test": "value", "run_during": "during"},
+            "performance_monitoring": {
+                "enable_alerts": False,
+                "run_during": "during",
+            },
+        }
+
+        result = self.factory.run_all_once(
+            config,
+            check_type="during",
+            config_keys={"performance_monitoring"},
+        )
+
+        self.assertIn("performance_monitoring", result["details"])
+        self.assertNotIn("simple_health_checks", result["details"])
+
+    def test_run_during_list_support(self):
+        """run_during can accept a list of timings."""
+        config = {
+            "simple_health_checks": {
+                "test": "value",
+                "run_during": ["pre", "post"]  # Should run at both pre and post
+            }
+        }
+
+        # Should run at pre
+        pre_result = self.factory.run_all_once(config, check_type="pre")
+        self.assertIn("simple_health_checks", pre_result["details"])
+
+        # Should run at post
+        post_result = self.factory.run_all_once(config, check_type="post")
+        self.assertIn("simple_health_checks", post_result["details"])
+
+    def test_run_during_skips_wrong_timing(self):
+        """Health check configured for 'post' doesn't run at 'pre'."""
+        config = {
+            "simple_health_checks": {
+                "test": "value",
+                "run_during": "post"  # Only post
+            }
+        }
+
+        # Should NOT run at pre
+        pre_result = self.factory.run_all_once(config, check_type="pre")
+        self.assertNotIn("simple_health_checks", pre_result["details"])
+
+        # Should run at post
+        post_result = self.factory.run_all_once(config, check_type="post")
+        self.assertIn("simple_health_checks", post_result["details"])
+
+    def test_run_during_blank_skips_health_check(self):
+        """Blank run_during strings and lists disable a health check."""
+        for run_during in ("", "   ", []):
+            with self.subTest(run_during=run_during):
+                config = {
+                    "simple_health_checks": {
+                        "test": "value",
+                        "run_during": run_during
+                    }
+                }
+
+                pre_result = self.factory.run_all_once(config, check_type="pre")
+                during_result = self.factory.start_all(config, iterations=1)
+
+                self.assertNotIn("simple_health_checks", pre_result["details"])
+                self.assertEqual(during_result, [])
+
+    def test_run_during_default_behavior(self):
+        """Health checks without run_during default to 'during' and don't run at pre/post."""
+        config = {
+            "simple_health_checks": {
+                "test": "value"
+                # No run_during specified - defaults to "during"
+            }
+        }
+
+        # Should NOT run at pre
+        pre_result = self.factory.run_all_once(config, check_type="pre")
+        self.assertNotIn("simple_health_checks", pre_result["details"])
+
+        # Should NOT run at post
+        post_result = self.factory.run_all_once(config, check_type="post")
+        self.assertNotIn("simple_health_checks", post_result["details"])
+
+    def test_exit_on_failure_tracking(self):
+        """exit_on_failure is tracked in run_all_once results."""
+        config = {
+            "simple_health_checks": {
+                "test": "value",
+                "run_during": "pre",
+                "exit_on_failure": True
+            }
+        }
+
+        result = self.factory.run_all_once(config, check_type="pre")
+        self.assertTrue(result.get("exit_on_failure", False))
 
 
 if __name__ == "__main__":

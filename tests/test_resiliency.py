@@ -345,13 +345,11 @@ class TestResiliencyScenarioReports(unittest.TestCase):
                 weight=1,
             )
 
-        with patch('krkn.resiliency.resiliency.calculate_resiliency_score') as mock_calc:
-            mock_calc.return_value = (100, {"passed": 1, "failed": 0})
-            self.res.finalize_report(
-                prom_cli=self.mock_prom,
-                total_start_time=start,
-                total_end_time=end,
-            )
+        self.res.finalize_report(
+            prom_cli=self.mock_prom,
+            total_start_time=start,
+            total_end_time=end,
+        )
 
         # Weighted average: (80*2 + 60*1) / (2+1) = 220/3 = 73.33... = 73
         self.assertEqual(self.res.summary["resiliency_score"], 73)
@@ -372,17 +370,45 @@ class TestResiliencyScenarioReports(unittest.TestCase):
                 start_time=start,
                 end_time=end,
             )
-            self.res.finalize_report(
-                prom_cli=self.mock_prom,
-                total_start_time=start,
-                total_end_time=end,
-            )
+
+        self.res.finalize_report(
+            prom_cli=self.mock_prom,
+            total_start_time=start,
+            total_end_time=end,
+        )
 
         self.assertIsNotNone(self.res.summary)
         self.assertIn("resiliency_score", self.res.summary)
         self.assertIn("scenarios", self.res.summary)
         self.assertIsNotNone(self.res.detailed_report)
         self.assertIn("scenarios", self.res.detailed_report)
+
+    @patch('krkn.resiliency.resiliency.evaluate_slos')
+    def test_finalize_report_does_not_call_evaluate_slos(self, mock_eval_slos):
+        """Test that finalize_report merges per-scenario results instead of re-querying Prometheus."""
+        mock_eval_slos.return_value = {"slo1": True}
+
+        start = datetime.datetime(2025, 1, 1, 0, 0, 0)
+        end = datetime.datetime(2025, 1, 1, 1, 0, 0)
+
+        with patch('krkn.resiliency.resiliency.calculate_resiliency_score') as mock_calc:
+            mock_calc.return_value = (100, {"passed": 1, "failed": 0, "total_points": 3, "points_lost": 0})
+            self.res.add_scenario_report(
+                scenario_name="s1",
+                prom_cli=self.mock_prom,
+                start_time=start,
+                end_time=end,
+            )
+
+        mock_eval_slos.reset_mock()
+
+        self.res.finalize_report(
+            prom_cli=self.mock_prom,
+            total_start_time=start,
+            total_end_time=end,
+        )
+
+        mock_eval_slos.assert_not_called()
 
     def test_finalize_report_without_scenarios_raises_error(self):
         """Test that finalize_report raises error if no scenarios added."""
@@ -608,6 +634,80 @@ class TestResiliencyAddScenarioReports(unittest.TestCase):
         self.assertEqual(self.res.scenario_reports[0]["name"], "real_scenario_name")
 
 
+class TestSLOMerging(unittest.TestCase):
+    """Test cases for _merge_scenario_slo_results used by finalize_report."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+            import yaml
+            yaml.dump([
+                {"expr": "up == 0", "severity": "critical", "description": "slo1"},
+                {"expr": "cpu > 80", "severity": "warning", "description": "slo2"},
+            ], f)
+            self.temp_file = f.name
+
+        self.res = Resiliency(alerts_yaml_path=self.temp_file)
+
+    def tearDown(self):
+        """Clean up temp files."""
+        if os.path.exists(self.temp_file):
+            os.unlink(self.temp_file)
+
+    def test_merge_single_scenario(self):
+        """Test merge with a single scenario returns its results directly."""
+        self.res.scenario_reports = [
+            {"slo_results": {"slo1": True, "slo2": False}},
+        ]
+
+        merged = self.res._merge_scenario_slo_results()
+
+        self.assertEqual(merged, {"slo1": True, "slo2": False})
+
+    def test_merge_failure_in_any_scenario_fails(self):
+        """Test that a SLO that fails in any scenario is marked as failed in the merge."""
+        self.res.scenario_reports = [
+            {"slo_results": {"slo1": True, "slo2": True}},
+            {"slo_results": {"slo1": True, "slo2": False}},
+        ]
+
+        merged = self.res._merge_scenario_slo_results()
+
+        self.assertTrue(merged["slo1"])
+        self.assertFalse(merged["slo2"])
+
+    def test_merge_disjoint_slos(self):
+        """Test merge with scenarios evaluating different SLOs."""
+        self.res.scenario_reports = [
+            {"slo_results": {"slo1": True}},
+            {"slo_results": {"slo2": False}},
+        ]
+
+        merged = self.res._merge_scenario_slo_results()
+
+        self.assertTrue(merged["slo1"])
+        self.assertFalse(merged["slo2"])
+
+    def test_merge_all_passing_across_scenarios(self):
+        """Test that all-pass across multiple scenarios yields all True."""
+        self.res.scenario_reports = [
+            {"slo_results": {"slo1": True, "slo2": True}},
+            {"slo_results": {"slo1": True, "slo2": True}},
+        ]
+
+        merged = self.res._merge_scenario_slo_results()
+
+        self.assertTrue(all(merged.values()))
+
+    def test_merge_empty_reports(self):
+        """Test merge with no scenario reports returns empty dict."""
+        self.res.scenario_reports = []
+
+        merged = self.res._merge_scenario_slo_results()
+
+        self.assertEqual(merged, {})
+
+
 class TestFinalizeAndSave(unittest.TestCase):
     """Test cases for finalize_and_save method."""
 
@@ -643,11 +743,8 @@ class TestFinalizeAndSave(unittest.TestCase):
         if os.path.exists(self.temp_file):
             os.unlink(self.temp_file)
 
-    @patch('krkn.resiliency.resiliency.evaluate_slos')
-    def test_finalize_and_save_standalone_writes_detailed_file(self, mock_eval_slos):
+    def test_finalize_and_save_standalone_writes_detailed_file(self):
         """Test that standalone mode writes a detailed JSON report to the given path."""
-        mock_eval_slos.return_value = {"slo1": True}
-
         with tempfile.TemporaryDirectory() as tmpdir:
             detailed_path = os.path.join(tmpdir, "resiliency-report.json")
 
@@ -665,11 +762,8 @@ class TestFinalizeAndSave(unittest.TestCase):
             self.assertIn("scenarios", report)
 
     @patch('builtins.print')
-    @patch('krkn.resiliency.resiliency.evaluate_slos')
-    def test_finalize_and_save_controller_mode_prints_to_stdout(self, mock_eval_slos, mock_print):
+    def test_finalize_and_save_controller_mode_prints_to_stdout(self, mock_print):
         """Test that controller mode prints the detailed report to stdout with the expected prefix."""
-        mock_eval_slos.return_value = {"slo1": True}
-
         self.res.finalize_and_save(
             prom_cli=self.mock_prom,
             total_start_time=self.start,
@@ -681,11 +775,8 @@ class TestFinalizeAndSave(unittest.TestCase):
         call_args = str(mock_print.call_args)
         self.assertIn("KRKN_RESILIENCY_REPORT_JSON", call_args)
 
-    @patch('krkn.resiliency.resiliency.evaluate_slos')
-    def test_finalize_and_save_populates_summary_after_call(self, mock_eval_slos):
+    def test_finalize_and_save_populates_summary_after_call(self):
         """Test that finalize_and_save populates summary so get_summary works afterward."""
-        mock_eval_slos.return_value = {"slo1": True}
-
         self.res.finalize_and_save(
             prom_cli=self.mock_prom,
             total_start_time=self.start,

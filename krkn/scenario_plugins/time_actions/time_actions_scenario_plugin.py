@@ -339,7 +339,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         max_retries = 30
         if object_type == "node":
             for node_name in names:
-                first_date_time = datetime.datetime.utcnow()
+                first_date_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 check_pod_name = f"time-skew-pod-{get_random_string(5)}"
                 node_datetime_string = kubecli.exec_command_on_node(
                     node_name, [skew_command], check_pod_name
@@ -347,7 +347,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_datetime = self.string_to_date(node_datetime_string)
                 counter = 0
                 while not (
-                    first_date_time < node_datetime < datetime.datetime.utcnow()
+                    first_date_time < node_datetime < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 ):
                     time.sleep(10)
                     logging.info(
@@ -372,13 +372,13 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
 
         elif object_type == "pod":
             for pod_name in names:
-                first_date_time = datetime.datetime.utcnow()
+                first_date_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 counter = 0
                 pod_datetime_string = self.pod_exec(
                     pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
                 )
                 pod_datetime = self.string_to_date(pod_datetime_string)
-                while not (first_date_time < pod_datetime < datetime.datetime.utcnow()):
+                while not (first_date_time < pod_datetime < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)):
                     time.sleep(10)
                     logging.info(
                         "Date/time on pod %s still not reset, "

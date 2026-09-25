@@ -8,7 +8,7 @@
 duration: 20
 workers: 1
 hog-type: memory
-image: quay.io/krkn-chaos/krkn-hog
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog
 namespace: default
 memory-vm-bytes: 256m
 node-selector: "node-role.kubernetes.io/worker="

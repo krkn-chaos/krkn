@@ -35,11 +35,12 @@ class HealthCheckFactory:
     AbstractHealthCheckPlugin.
     """
 
-    loaded_plugins: dict[str, Any] = {}
-    failed_plugins: list[Tuple[str, str, str]] = []
-    config_key_map: dict[str, str] = {}
-    package_name = None
-    active_plugins: list = []
+    # Class-level type hints (not actual class variables - each instance gets its own)
+    loaded_plugins: dict[str, Any]
+    failed_plugins: list[Tuple[str, str, str]]
+    config_key_map: dict[str, str]
+    package_name: Optional[str]
+    active_plugins: list
 
     def __init__(self, package_name: str = "krkn.health_checks"):
         """
@@ -50,10 +51,12 @@ class HealthCheckFactory:
         self.package_name = package_name
         self.active_plugins = []
         self.config_key_map = {}
+        self.loaded_plugins = {}
+        self.failed_plugins = []
         self.__load_plugins(AbstractHealthCheckPlugin)
 
     def create_plugin(
-        self, health_check_type: str, iterations: int = 1, **kwargs
+        self, health_check_type: str, iterations: int = 1, register_active: bool = True, **kwargs
     ) -> AbstractHealthCheckPlugin:
         """
         Creates a health check plugin instance based on the config.yaml health check type.
@@ -64,6 +67,7 @@ class HealthCheckFactory:
         :param health_check_type: the health check type defined in the config.yaml
             e.g. `http_health_check`, `vm_health_check`, etc.
         :param iterations: the number of iterations for the health check
+        :param register_active: whether to register this plugin in active_plugins (default True)
         :param kwargs: additional keyword arguments to pass to the plugin constructor
         :return: an instance of the class that implements this health check and
             inherits from the AbstractHealthCheckPlugin abstract class
@@ -72,7 +76,8 @@ class HealthCheckFactory:
             plugin = self.loaded_plugins[health_check_type](
                 health_check_type, iterations=iterations, **kwargs
             )
-            self.active_plugins.append(plugin)
+            if register_active:
+                self.active_plugins.append(plugin)
             return plugin
         else:
             raise HealthCheckPluginNotFound(
@@ -104,10 +109,12 @@ class HealthCheckFactory:
         self, config: dict[str, Any], iterations: int = 1, **kwargs
     ) -> list[tuple[AbstractHealthCheckPlugin, Any, Any]]:
         """
-        Starts all health check plugins that have a matching section in config.
+        Starts all health check plugins that have a matching section in config
+        and should run during chaos (run_during includes "during").
 
         Iterates over ``config_key_map`` and for each key present in config:
 
+        - Checks if run_during includes "during" (default if not specified)
         - Plugins where ``manages_own_threads()`` returns ``True`` (e.g. virt) have
           ``run_health_check()`` called directly and use a ``SimpleQueue``.
           ``worker=None`` is stored as the sentinel so callers can detect this case
@@ -131,6 +138,25 @@ class HealthCheckFactory:
             plugin_config = config.get(config_key)
             if not plugin_config:
                 continue
+
+            plugin_class = self.loaded_plugins.get(plugin_type)
+            if plugin_class is not None and not plugin_class(plugin_type).is_configured(plugin_config):
+                logging.debug("Skipping health check for '%s': configuration is incomplete", config_key)
+                continue
+
+            # Check if this health check should run during chaos
+            run_during = plugin_config.get("run_during", "during")
+            if not self._should_run_at_timing(run_during, "during"):
+                logging.debug(
+                    f"Skipping continuous health check for '{config_key}' "
+                    f"(run_during={run_during} does not include 'during')"
+                )
+                continue
+
+            if plugin_class is not None and getattr(plugin_class, "defer_during", False):
+                logging.info("Deferring health check '%s' until chaos teardown", config_key)
+                continue
+
             try:
                 plugin = self.create_plugin(
                     health_check_type=plugin_type,
@@ -150,7 +176,7 @@ class HealthCheckFactory:
                     worker.start()
                     checkers.append((plugin, worker, tq))
                 logging.info(
-                    f"Started health check plugin '{plugin_type}' "
+                    f"Started continuous health check plugin '{plugin_type}' "
                     f"reading from config key '{config_key}'"
                 )
             except HealthCheckPluginNotFound:
@@ -158,6 +184,199 @@ class HealthCheckFactory:
                     f"Health check plugin '{plugin_type}' not found, skipping"
                 )
         return checkers
+
+    def run_all_once(
+        self,
+        config: dict[str, Any],
+        check_type: str = "pre",
+        telemetry_queue: queue.Queue = None,
+        config_keys: set[str] = None,
+        **kwargs
+    ) -> dict[str, Any]:
+        """
+        Runs all configured health checks once (for pre/post chaos health checks).
+
+        Iterates over ``config_key_map`` and for each key present in config,
+        checks if the health check should run at this timing (based on run_during),
+        creates a plugin instance and calls ``run_once()`` to perform a
+        one-time health check.
+
+        When telemetry_queue is provided, plugins that support telemetry will
+        create telemetry records with the specified phase.
+
+        :param config: the full config dict loaded from config.yaml
+         :param check_type: "pre" or "post" to indicate check timing
+         :param telemetry_queue: optional queue for collecting telemetry from one-time checks
+         :param config_keys: optional set of config keys to run; when omitted, all matching checks run
+         :param kwargs: additional keyword arguments forwarded to each plugin constructor
+        :return: dictionary with aggregated results:
+                 {
+                   "passed": bool,           # True if all checks passed (all ran and all passed)
+                   "failures": list,         # List of failures from blocking plugins only
+                   "details": dict,          # Per-plugin details keyed by config_key
+                   "summary": str            # Human-readable summary
+                   "exit_on_failure": bool   # Whether any plugin that ran has exit_on_failure configured
+                 }
+        """
+        all_failures = []
+        all_details = {}
+        plugins_checked = []
+        blocking_failures = []
+        alerts = []
+        exit_on_failure = False
+        config_has_exit_on_failure = False
+
+        for config_key, plugin_type in self.config_key_map.items():
+            if config_keys is not None and config_key not in config_keys:
+                continue
+            plugin_config = config.get(config_key)
+            if not plugin_config:
+                continue
+
+            plugin_class = self.loaded_plugins.get(plugin_type)
+            if plugin_class is not None and not plugin_class(plugin_type).is_configured(plugin_config):
+                logging.debug("Skipping health check for '%s': configuration is incomplete", config_key)
+                continue
+
+            # Check if this health check should run at this timing
+            run_during = plugin_config.get("run_during", "during")
+            if not self._should_run_at_timing(run_during, check_type):
+                continue
+
+            plugin_exit_on_failure = plugin_config.get("exit_on_failure", False)
+
+            # Track if any plugin that will run has exit_on_failure configured
+            if plugin_exit_on_failure:
+                config_has_exit_on_failure = True
+
+            try:
+                # Create a temporary plugin instance for the one-time check
+                # Don't register in active_plugins since it's temporary
+                plugin = self.create_plugin(
+                    health_check_type=plugin_type,
+                    iterations=1,  # Not used for run_once but required by constructor
+                    register_active=False,
+                    **kwargs
+                )
+                logging.debug(
+                    f"Running {check_type}-chaos health check for '{plugin_type}' "
+                    f"(config key: '{config_key}')"
+                )
+                result = plugin.run_once(plugin_config, telemetry_queue=telemetry_queue, phase=check_type)
+                all_details[config_key] = result
+                alerts.extend(result.get("alerts", []))
+                plugins_checked.append(config_key)
+
+                if not result["passed"]:
+                    all_failures.extend(result["failures"])
+                    # Only track as blocking failure if this plugin has exit_on_failure
+                    if plugin_exit_on_failure:
+                        blocking_failures.extend(result["failures"])
+                        exit_on_failure = True
+                    logging.warning(
+                        f"{check_type.capitalize()}-chaos health check '{config_key}' "
+                        f"failed with {len(result['failures'])} failure(s)"
+                        f"{' (blocking)' if plugin_exit_on_failure else ' (non-blocking)'}"
+                    )
+                else:
+                    logging.debug(
+                        f"{check_type.capitalize()}-chaos health check '{config_key}' passed"
+                    )
+
+            except HealthCheckPluginNotFound:
+                logging.warning(
+                    f"Health check plugin '{plugin_type}' not found, skipping {check_type}-check"
+                )
+            except Exception as e:
+                logging.error(
+                    f"Exception during {check_type}-chaos health check for '{config_key}': {e}",
+                    exc_info=True
+                )
+                failure_record = {
+                    "plugin": config_key,
+                    "message": f"Exception during {check_type}-chaos health check: {str(e)}"
+                }
+                all_failures.append(failure_record)
+                # Only track as blocking if this plugin has exit_on_failure
+                if plugin_exit_on_failure:
+                    blocking_failures.append(failure_record)
+                    exit_on_failure = True
+
+        passed = len(blocking_failures) == 0
+        summary = self._build_check_summary(check_type, plugins_checked, blocking_failures, passed)
+
+        return {
+            "passed": passed,
+            "failures": blocking_failures,  # Only blocking failures trigger exit_on_failure
+            "details": all_details,
+            "alerts": alerts,
+            "summary": summary,
+            "exit_on_failure": config_has_exit_on_failure
+        }
+
+    def _should_run_at_timing(self, run_during: Any, check_type: str) -> bool:
+        """
+        Determines if a health check should run at the specified timing.
+
+        :param run_during: The run_during value from config (string or list)
+        :param check_type: The timing to check ("pre" or "post")
+        :return: True if the check should run at this timing
+        """
+        if run_during is None:
+            logging.debug("Skipping health check because run_during is blank")
+            return False
+
+        # Normalize to list
+        if isinstance(run_during, str):
+            timing = run_during.lower().strip()
+            if not timing:
+                logging.debug("Skipping health check because run_during is blank")
+                return False
+            timings = [timing]
+        elif isinstance(run_during, list):
+            timings = [t.lower().strip() for t in run_during if isinstance(t, str) and t.strip()]
+            if not timings:
+                logging.debug("Skipping health check because run_during is blank")
+                return False
+        else:
+            logging.warning(f"Invalid run_during value: {run_during}, defaulting to 'during'")
+            return False
+
+        # Check if this timing is included
+        return check_type.lower() in timings
+
+    def _build_check_summary(
+        self, check_type: str, plugins_checked: list[str], failures: list, passed: bool
+    ) -> str:
+        """
+        Build a human-readable summary of health check results.
+
+        :param check_type: "pre" or "post"
+        :param plugins_checked: list of config keys that were checked
+        :param failures: list of failure details
+        :param passed: overall pass/fail status
+        :return: summary string
+        """
+        if not plugins_checked:
+            return f"No {check_type}-chaos health checks configured"
+
+        summary_parts = [
+            f"{check_type.capitalize()}-chaos health check results:",
+            f"  Plugins checked: {', '.join(plugins_checked)}"
+        ]
+
+        if passed:
+            summary_parts.append(f"  Status: ✅ All checks passed")
+        else:
+            summary_parts.append(f"  Status: ❌ {len(failures)} failure(s) detected")
+            summary_parts.append(f"  Failures:")
+            for failure in failures[:10]:  # Limit to first 10 for brevity
+                if "message" in failure:
+                    summary_parts.append(f"    - {failure['message']}")
+            if len(failures) > 10:
+                summary_parts.append(f"    ... and {len(failures) - 10} more")
+
+        return "\n".join(summary_parts)
 
     def __load_plugins(self, base_class: Type):
         """

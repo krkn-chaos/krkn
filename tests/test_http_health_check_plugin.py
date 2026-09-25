@@ -155,6 +155,21 @@ class TestHttpHealthCheckPlugin(unittest.TestCase):
         self.assertEqual(result["status"], False)
         self.assertEqual(result["status_code"], 500)
 
+    @patch("krkn.health_checks.http_health_check_plugin.logging.debug")
+    def test_make_request_exception_is_logged_at_debug(self, mock_debug):
+        """Test request exceptions are logged at debug level."""
+        mock_session = MagicMock()
+        mock_session.get.side_effect = RuntimeError("Connection error")
+        self.plugin.http_session = mock_session
+
+        result = self.plugin.make_request("http://example.com")
+
+        self.assertEqual(result["status"], False)
+        self.assertEqual(result["status_code"], 500)
+        mock_debug.assert_called_once_with(
+            "HTTP request to http://example.com failed: Connection error"
+        )
+
     def test_make_request_with_verify_false(self):
         """Test make_request with SSL verification disabled"""
         self.plugin.http_session = self._make_mock_session()
@@ -324,6 +339,52 @@ class TestHttpHealthCheckPlugin(unittest.TestCase):
 
         # ret_value should be set to 3 on health check failure
         self.assertEqual(self.plugin.get_return_value(), 3)
+
+    @patch('krkn.health_checks.http_health_check_plugin.HttpHealthCheckPlugin.make_request')
+    @patch('time.sleep')
+    def test_run_health_check_section_exit_on_failure(self, mock_sleep, mock_make_request):
+        """Test section-level exit_on_failure applies to endpoint failures."""
+        mock_make_request.side_effect = self.make_increment_side_effect({
+            "url": "http://example.com",
+            "status": False,
+            "status_code": 500
+        })
+
+        config = {
+            "exit_on_failure": True,
+            "config": [{"url": "http://example.com"}],
+            "interval": 0.01
+        }
+
+        self.plugin.iterations = 1
+        self.plugin.run_health_check(config, self.health_check_queue)
+
+        self.assertEqual(self.plugin.get_return_value(), 3)
+
+    @patch('krkn.health_checks.http_health_check_plugin.HttpHealthCheckPlugin.make_request')
+    @patch('time.sleep')
+    def test_run_health_check_uses_boolean_status(self, mock_sleep, mock_make_request):
+        """Test status decisions do not depend on the status code type."""
+        mock_make_request.side_effect = self.make_increment_side_effect({
+            "url": "http://example.com",
+            "status": True,
+            "status_code": "200",
+        })
+
+        config = {
+            "config": [{
+                "url": "http://example.com",
+                "exit_on_failure": True,
+            }],
+            "interval": 0.01,
+        }
+
+        self.plugin.iterations = 1
+        self.plugin.run_health_check(config, self.health_check_queue)
+
+        self.assertEqual(self.plugin.get_return_value(), 0)
+        telemetry = self.health_check_queue.get()
+        self.assertTrue(telemetry[0].status)
 
     @patch('krkn.health_checks.http_health_check_plugin.HttpHealthCheckPlugin.make_request')
     @patch('time.sleep')
