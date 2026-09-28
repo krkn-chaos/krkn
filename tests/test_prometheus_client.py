@@ -39,6 +39,42 @@ class TestMetricsQueryRouting(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_missing_metrics_profile_exits(self):
+        # Regression for #1607: missing import sys used to raise NameError
+        # instead of logging and exiting with code 1.
+        with self.assertRaises(SystemExit) as cm:
+            client.metrics(
+                self.prom_cli,
+                self.elastic,
+                "run",
+                1000,
+                1060,
+                "/nao/existe.yaml",
+                "metrics",
+                self.telemetry_json,
+            )
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_invalid_metrics_profile_exits(self):
+        path = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+        path.write("metrics: {}\n")
+        path.close()
+        try:
+            with self.assertRaises(SystemExit) as cm:
+                client.metrics(
+                    self.prom_cli,
+                    self.elastic,
+                    "run",
+                    1000,
+                    1060,
+                    path.name,
+                    "metrics",
+                    self.telemetry_json,
+                )
+            self.assertEqual(cm.exception.code, 1)
+        finally:
+            os.unlink(path.name)
+
 
 if __name__ == "__main__":
     unittest.main()
