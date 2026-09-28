@@ -701,13 +701,13 @@ class TestBuildChaosReportKubevirtChecks(unittest.TestCase):
             "duration": 1.23,
         }]
         report = build_chaos_report(output)
-        self.assertIn("KUBEVIRT HEALTH CHECKS (pre-chaos)", report)
+        self.assertIn("KUBEVIRT HEALTH CHECKS (during-chaos)", report)
         self.assertIn("kubevirt/test-vm", report)
         self.assertIn("10.0.0.5", report)
 
     def test_post_virt_checks_shown(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = [{
+        output["telemetry"]["virt_checks"] = [{
             "vmi_name": "test-vmi",
             "namespace": "kubevirt",
             "node_name": "worker-2",
@@ -715,6 +715,7 @@ class TestBuildChaosReportKubevirtChecks(unittest.TestCase):
             "new_ip_address": "10.0.0.7",
             "status": True,
             "duration": 2.5,
+            "phase": "post",
         }]
         report = build_chaos_report(output)
         self.assertIn("KUBEVIRT HEALTH CHECKS (post-chaos)", report)
@@ -729,7 +730,7 @@ class TestBuildChaosReportKubevirtChecks(unittest.TestCase):
 
     def test_post_virt_string_check(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = ["raw post check"]
+        output["telemetry"]["virt_checks"] = [{"phase": "post", "vm_name": "raw post check"}]
         report = build_chaos_report(output)
         self.assertIn("raw post check", report)
 
