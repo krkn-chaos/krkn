@@ -172,6 +172,7 @@ class TestHealthCheckFactory(unittest.TestCase):
 
         self.assertIn("performance_monitoring", result["details"])
         self.assertNotIn("simple_health_checks", result["details"])
+        self.assertTrue(result["exit_on_failure"])
 
     def test_run_during_list_support(self):
         """run_during can accept a list of timings."""
