@@ -154,6 +154,25 @@ class TestHealthCheckFactory(unittest.TestCase):
         self.assertIn("simple_health_checks", result["summary"])
         self.assertIn("All checks passed", result["summary"])
 
+    def test_run_all_once_can_select_config_keys(self):
+        """Deferred evaluation can run only the requested health-check config."""
+        config = {
+            "simple_health_checks": {"test": "value", "run_during": "during"},
+            "performance_monitoring": {
+                "enable_alerts": False,
+                "run_during": "during",
+            },
+        }
+
+        result = self.factory.run_all_once(
+            config,
+            check_type="during",
+            config_keys={"performance_monitoring"},
+        )
+
+        self.assertIn("performance_monitoring", result["details"])
+        self.assertNotIn("simple_health_checks", result["details"])
+
     def test_run_during_list_support(self):
         """run_during can accept a list of timings."""
         config = {

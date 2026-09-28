@@ -95,6 +95,14 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         return "health_checks"
 
+    def is_configured(self, config: dict[str, Any]) -> bool:
+        """Run only when at least one HTTP check has a non-empty URL."""
+        checks = config.get("config", [])
+        return any(
+            isinstance(check, dict) and str(check.get("url", "")).strip()
+            for check in checks
+        )
+
     def increment_iterations(self) -> None:
         """
         Increments the current iteration counter.
@@ -151,7 +159,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
         if not config or not config.get("config") or not any(
             cfg.get("url") for cfg in config.get("config", [])
         ):
-            logging.info("HTTP health check config is not defined, skipping")
+            logging.debug("HTTP health check config is not defined, skipping")
             return
 
         health_check_telemetry = []
@@ -298,7 +306,7 @@ class HttpHealthCheckPlugin(AbstractHealthCheckPlugin):
         if not config or not config.get("config") or not any(
             cfg.get("url") for cfg in config.get("config", [])
         ):
-            logging.info("HTTP health check config is not defined, skipping one-time check")
+            logging.debug("HTTP health check config is not defined, skipping one-time check")
             return {"passed": True, "failures": [], "details": {}}
 
         failures = []

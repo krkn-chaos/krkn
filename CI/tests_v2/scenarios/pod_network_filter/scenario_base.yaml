@@ -1,6 +1,6 @@
 # Base pod_network_filter scenario (list). Tests patch namespace and per-case overrides.
 - id: pod_network_filter
-  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  image: "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos"
   wait_duration: 1
   test_duration: 10
   label_selector: ""
