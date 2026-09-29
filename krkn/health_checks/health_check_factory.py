@@ -243,7 +243,8 @@ class HealthCheckFactory:
             if not self._should_run_at_timing(run_during, check_type):
                 continue
 
-            plugin_exit_on_failure = plugin_config.get("exit_on_failure", False)
+            # Health checks are blocking by default; an explicit false opts out.
+            plugin_exit_on_failure = plugin_config.get("exit_on_failure", True)
 
             # Track if any plugin that will run has exit_on_failure configured
             if plugin_exit_on_failure:
