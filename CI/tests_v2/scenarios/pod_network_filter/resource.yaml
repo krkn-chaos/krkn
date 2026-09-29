@@ -20,7 +20,7 @@ spec:
       - name: app
         image: busybox:1.36.1
         command: ["/bin/sh", "-c"]
-        args: ["mkdir -p /www && echo target > /www/index.html && exec httpd -f -p 8080 -h /www"]
+        args: ["mkdir -p /tmp/www && echo target > /tmp/www/index.html && exec httpd -f -p 8080 -h /tmp/www"]
         ports:
         - containerPort: 8080
 ---
@@ -43,6 +43,6 @@ spec:
       - name: app
         image: busybox:1.36.1
         command: ["/bin/sh", "-c"]
-        args: ["mkdir -p /www && echo pool > /www/index.html && exec httpd -f -p 8080 -h /www"]
+        args: ["mkdir -p /tmp/www && echo pool > /tmp/www/index.html && exec httpd -f -p 8080 -h /tmp/www"]
         ports:
         - containerPort: 8080

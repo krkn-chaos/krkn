@@ -1,5 +1,6 @@
 """Kraken daemon and PAUSE/RUN control-plane integration tests."""
 import subprocess
+import socket
 import time
 import urllib.error
 import urllib.request
@@ -30,10 +31,14 @@ class TestPodServer(BaseScenarioTest):
     NAMESPACE_IS_REGEX = True
 
     def _config(self, state="RUN", daemon=False):
+        """Build a server config on a port reserved for this test process."""
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            self._server_port = sock.getsockname()[1]
         scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
         sf = self.write_scenario(self.tmp_path, scenario, suffix=f"-{state}-{daemon}")
         data = yaml.safe_load((self.repo_root / "CI/tests_v2/config/common_test_config.yaml").read_text())
-        data["kraken"].update({"signal_state": state, "publish_kraken_status": True, "port": 18081, "signal_address": "127.0.0.1", "exit_on_failure": False})
+        data["kraken"].update({"signal_state": state, "publish_kraken_status": True, "port": self._server_port, "signal_address": "127.0.0.1", "exit_on_failure": False})
         data["kraken"]["chaos_scenarios"][0] = {self.SCENARIO_TYPE: [str(sf)]}
         data["tunings"]["daemon_mode"] = daemon
         data["performance_monitoring"].update({"check_critical_alerts": False, "enable_alerts": False, "enable_metrics": False})
@@ -41,7 +46,7 @@ class TestPodServer(BaseScenarioTest):
 
     def _post(self, value):
         """Poll the status endpoint until the daemon has finished binding."""
-        request = urllib.request.Request(f"http://127.0.0.1:18081/{value}", method="POST")
+        request = urllib.request.Request(f"http://127.0.0.1:{self._server_port}/{value}", method="POST")
         deadline = time.monotonic() + 30
         last_error = None
         while time.monotonic() < deadline:

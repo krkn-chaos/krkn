@@ -12,8 +12,10 @@ spec:
     spec:
       containers:
       - name: app
-        image: nginx:alpine
-        ports: [{containerPort: 80}]
+        image: busybox:1.36.1
+        command: ["/bin/sh", "-c"]
+        args: ["mkdir -p /tmp/www && echo target > /tmp/www/index.html && exec httpd -f -p 8080 -h /tmp/www"]
+        ports: [{containerPort: 8080}]
 ---
 apiVersion: v1
 kind: Service
@@ -21,4 +23,4 @@ metadata:
   name: krkn-network-target
 spec:
   selector: {app: krkn-pod-network-chaos-target}
-  ports: [{port: 80, targetPort: 80}]
+  ports: [{port: 80, targetPort: 8080}]
