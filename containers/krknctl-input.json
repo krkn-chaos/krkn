@@ -202,7 +202,7 @@
     "description": "Phases for Prometheus alert health checks: pre, during, post, or a comma-separated combination",
     "variable": "ALERTS_RUN_DURING",
     "type": "string",
-    "default": "",
+    "default": "during",
     "required": "false",
     "group": "prometheus"
   },
