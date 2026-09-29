@@ -153,7 +153,7 @@ class TestRunDuringIntegration(unittest.TestCase):
             "health_checks": {
                 "run_during": ["during", "post"],
                 "exit_on_failure": False,
-                "config": []
+                "config": [{"url": "http://example.com/health"}]
             }
         }
 

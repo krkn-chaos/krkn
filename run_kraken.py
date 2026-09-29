@@ -85,6 +85,37 @@ warnings.filterwarnings(action='ignore', module='.*paramiko.*')
 report_file = ""
 
 
+def _get_image_signature_configuration(kraken_config: dict) -> tuple[bool, str]:
+    """Resolve image-signature settings from the Krkn configuration.
+
+    Relative public-key paths are resolved from the Krkn repository root so
+    they do not depend on the process working directory.
+    """
+    enabled = get_yaml_item_value(
+        kraken_config, "image_signature_verification_enabled", False
+    )
+    if isinstance(enabled, str):
+        enabled = enabled.lower() in {"1", "true", "yes", "on"}
+
+    configured_path = get_yaml_item_value(
+        kraken_config, "image_signature_public_key", "cosign.pub"
+    )
+    configured_path = os.path.expanduser(configured_path or "cosign.pub")
+    if not os.path.isabs(configured_path):
+        configured_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), configured_path
+        )
+    public_key_path = os.path.abspath(configured_path)
+
+    if enabled and not os.path.isfile(public_key_path):
+        raise FileNotFoundError(
+            "Image signature public key was not found: "
+            f"{public_key_path}"
+        )
+
+    return bool(enabled), public_key_path
+
+
 # Main function
 def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
     # Start kraken
@@ -98,6 +129,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
     if os.path.isfile(cfg):
         with open(cfg, "r") as f:
             config = yaml.safe_load(f)
+        try:
+            image_signature_verification_enabled, image_signature_public_key = (
+                _get_image_signature_configuration(config["kraken"])
+            )
+        except (TypeError, FileNotFoundError) as e:
+            logging.error("Invalid image signature configuration: %s", e)
+            return -1
         kubeconfig_path = os.path.expanduser(
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )
@@ -206,7 +244,6 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             config["elastic"], "telemetry_index", "krkn-telemetry"
         )
 
-        alert_profile = config["performance_monitoring"].get("alert_profile")
         metrics_profile = config["performance_monitoring"].get("metrics_profile")
         check_critical_alerts = get_yaml_item_value(
             config["performance_monitoring"], "check_critical_alerts", False
@@ -263,12 +300,36 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
             # krkn-lib-kubernetes init
-            kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
-            ocpcli = KrknOpenshift(kubeconfig_path=kubeconfig_path)
+            kubecli = KrknKubernetes(
+                kubeconfig_path=kubeconfig_path,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
+            ocpcli = KrknOpenshift(
+                kubeconfig_path=kubeconfig_path,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
         except Exception as e:
             logging.error("Failed to initialize Kubernetes clients: %s" % e)
-            kubecli = KrknKubernetes(kubeconfig_path=None)
-            ocpcli = KrknOpenshift(kubeconfig_path=None)
+            kubecli = KrknKubernetes(
+                kubeconfig_path=None,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
+            ocpcli = KrknOpenshift(
+                kubeconfig_path=None,
+                image_signature_verification_enabled=(
+                    image_signature_verification_enabled
+                ),
+                image_signature_public_key=image_signature_public_key,
+            )
 
         distribution = "kubernetes"
         if ocpcli.is_openshift():
@@ -350,7 +411,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             # Quick connectivity probe for Prometheus – disable resiliency if unreachable
             try:
                 prometheus.process_prom_query_in_range(
-                    "up", datetime.datetime.utcnow() - datetime.timedelta(seconds=60), datetime.datetime.utcnow(), granularity=60
+                    "up", datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=60), datetime.datetime.now(datetime.timezone.utc), granularity=60
                 )
             except Exception as prom_exc:  
                 logging.error("Prometheus connectivity test failed: %s. Disabling resiliency features as Prometheus is required for SLO evaluation.", prom_exc)
@@ -402,7 +463,6 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # Capture the start time
         start_time = int(time.time())
         post_critical_alerts = 0
-        profile_critical_alerts = []
         chaos_output = ChaosRunOutput()
         chaos_telemetry = ChaosRunTelemetry()
         chaos_telemetry.run_uuid = run_uuid
@@ -502,7 +562,9 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         pre_check_failed = False
 
         pre_check_results = health_check_factory.run_all_once(
-            config, check_type="pre", krkn_lib=kubecli, telemetry_queue=pre_check_telemetry_queue
+            config, check_type="pre", krkn_lib=kubecli, prometheus=prometheus,
+            elastic=elastic_search, run_uuid=run_uuid, elastic_alerts_index=elastic_alerts_index,
+            telemetry_queue=pre_check_telemetry_queue
         )
 
         if not pre_check_results["passed"]:
@@ -531,7 +593,8 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # Returns list of (plugin, worker_thread, telemetry_queue);
         # worker_thread is None for self-threading plugins (e.g. virt).
         generic_health_checkers = health_check_factory.start_all(
-            config, iterations=iterations, krkn_lib=kubecli
+            config, iterations=iterations, krkn_lib=kubecli, prometheus=prometheus,
+            elastic=elastic_search, run_uuid=run_uuid, elastic_alerts_index=elastic_alerts_index,
         )
 
         # Loop to run the chaos starts here
@@ -573,7 +636,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                             sys.exit(-1)
 
                         
-                        batch_window_start_dt = datetime.datetime.utcnow()
+                        batch_window_start_dt = datetime.datetime.now(datetime.timezone.utc)
                         failed_scenarios_current, scenario_telemetries = (
                             scenario_plugin.run_scenarios(
                                 run_uuid, scenarios_list, config, telemetry_ocp
@@ -581,7 +644,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                         )
                         failed_post_scenarios.extend(failed_scenarios_current)
                         chaos_telemetry.scenarios.extend(scenario_telemetries)
-                        batch_window_end_dt = datetime.datetime.utcnow()
+                        batch_window_end_dt = datetime.datetime.now(datetime.timezone.utc)
                         if resiliency_obj:
                             resiliency_obj.add_scenario_reports(
                                 scenario_telemetries=scenario_telemetries,
@@ -624,10 +687,39 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # Signal all health check plugins to stop (handles early exit due to STOP/alerts/daemon mode)
         health_check_factory.stop_all()
 
+        # Prometheus during checks are evaluated once, over
+        # the complete chaos window rather than on the generic check interval.
+        during_check_telemetry_queue = queue.Queue()
+        during_check_results = {"passed": True, "failures": [], "details": {}}
+        prometheus_config = config.get("performance_monitoring") or {}
+        if health_check_factory._should_run_at_timing(
+            prometheus_config.get("run_during", "during"), "during"
+        ) and prometheus_config.get("enable_alerts", False):
+            during_check_results = health_check_factory.run_all_once(
+                config,
+                check_type="during",
+                config_keys={"performance_monitoring"},
+                krkn_lib=kubecli,
+                prometheus=prometheus,
+                elastic=elastic_search,
+                run_uuid=run_uuid,
+                elastic_alerts_index=elastic_alerts_index,
+                chaos_start_time=start_time,
+                chaos_end_time=end_time,
+                telemetry_queue=during_check_telemetry_queue,
+            )
+            if not during_check_results["passed"]:
+                logging.warning(
+                    "During Prometheus health check failed with %d failure(s)",
+                    len(during_check_results["failures"]),
+                )
+
         # Post-chaos health checks
         post_check_telemetry_queue = queue.Queue()
         post_check_results = health_check_factory.run_all_once(
-            config, check_type="post", krkn_lib=kubecli, telemetry_queue=post_check_telemetry_queue
+            config, check_type="post", krkn_lib=kubecli, prometheus=prometheus,
+            elastic=elastic_search, run_uuid=run_uuid, elastic_alerts_index=elastic_alerts_index,
+            telemetry_queue=post_check_telemetry_queue
         )
 
         post_check_failed = False
@@ -643,12 +735,19 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 logging.info("✅ Post-chaos health checks passed")
 
         post_health_checks, post_object_state_checks = collect_health_check_telemetry(post_check_telemetry_queue)
+        during_health_checks, during_object_state_checks = collect_health_check_telemetry(
+            during_check_telemetry_queue
+        )
+        chaos_telemetry.alerts = (
+            pre_check_results.get("alerts", [])
+            + during_check_results.get("alerts", [])
+            + post_check_results.get("alerts", [])
+        )
 
         # Collect telemetry from all health check plugins.
         # worker=None means the plugin manages its own threads (virt); use thread_join() + SimpleQueue drain.
         # worker=Thread means it ran in an external thread; use worker.join() + Queue.get_nowait().
         all_health_check_telemetry = []
-        during_object_state_checks = []
         chaos_telemetry.virt_checks = []
         for plugin, worker, tq in generic_health_checkers:
             if worker is None:
@@ -672,7 +771,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         )
 
         # Merge pre, during, and post health check telemetry
-        all_health_checks = pre_health_checks + all_health_check_telemetry + post_health_checks
+        all_health_checks = pre_health_checks + during_health_checks + all_health_check_telemetry + post_health_checks
 
         chaos_telemetry.health_checks = all_health_checks if all_health_checks else None
         chaos_telemetry.object_state_checks = all_object_state_checks if all_object_state_checks else None
@@ -713,31 +812,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
             except Exception as e:
                 logging.error("Failed to finalize resiliency scoring: %s", e)
         
-        # Check for the alerts specified before telemetry so job_status is included in output
-        if enable_alerts:
-            logging.info("Alerts checking is enabled")
-            if alert_profile:
-                profile_critical_alerts = prometheus_plugin.alerts(
-                    prometheus,
-                    elastic_search,
-                    run_uuid,
-                    start_time,
-                    end_time,
-                    alert_profile,
-                    elastic_alerts_index
-                )
-                if profile_critical_alerts:
-                    chaos_telemetry.failed_alerts = profile_critical_alerts
-            else:
-                logging.error("Alert profile is not defined")
-                return -1
-
         # Blocking post-check failures must be reflected in telemetry before
         # reports are rendered; the exit-code guard runs after serialization.
         if (
+            (not during_check_results["passed"] and during_check_results.get("exit_on_failure", False)) or
             post_check_failed
             and post_check_results.get("exit_on_failure", False)
-        ) or post_critical_alerts > 0 or len(profile_critical_alerts) > 0:
+        ) or post_critical_alerts > 0:
             chaos_telemetry.job_status = False
 
         telemetry_json = chaos_telemetry.to_json()
@@ -763,6 +844,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         logging.info(f"Chaos data:\n{chaos_output.to_json()}")
 
         chaos_output_dict = json.loads(chaos_output.to_json())
+        chaos_output_dict["resiliency_alert_file"] = resiliency_alerts
         if resiliency_obj and hasattr(resiliency_obj, 'scenario_reports') and resiliency_obj.scenario_reports:
             chaos_output_dict["scenario_slo_details"] = resiliency_obj.get_scenario_slo_details()
             chaos_output_dict["resiliency_report"] = resiliency_obj.get_detailed_report()
@@ -905,10 +987,6 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
 
         if post_critical_alerts > 0:
             logging.error("Critical alerts are firing, please check; exiting")
-            return 2
-
-        if len(profile_critical_alerts) > 0:
-            logging.error("Critical or Error alerts from alert profile are firing, please check; exiting")
             return 2
 
         if not chaos_telemetry.job_status:
