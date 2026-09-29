@@ -115,8 +115,8 @@ class PrometheusHealthCheckPlugin(AbstractHealthCheckPlugin):
                 if phase == "during":
                     response = self.prometheus.process_prom_query_in_range(
                         expression,
-                        start_time=self.chaos_start_time,
-                        end_time=self.chaos_end_time or datetime.datetime.now(datetime.timezone.utc),
+                        start_time=self._as_datetime(self.chaos_start_time),
+                        end_time=self._as_datetime(self.chaos_end_time),
                     )
                 else:
                     response = self.prometheus.process_query(expression)
@@ -163,6 +163,17 @@ class PrometheusHealthCheckPlugin(AbstractHealthCheckPlugin):
         result = PrometheusHealthCheckPlugin._result(False)
         result["failures"].append({"message": message})
         return result
+
+    @staticmethod
+    def _as_datetime(value: Any) -> datetime.datetime:
+        """Normalize Prometheus query timestamps to timezone-aware datetimes."""
+        if value is None:
+            return datetime.datetime.now(datetime.timezone.utc)
+        if isinstance(value, datetime.datetime):
+            return value if value.tzinfo else value.replace(tzinfo=datetime.timezone.utc)
+        if isinstance(value, (int, float)):
+            return datetime.datetime.fromtimestamp(value, tz=datetime.timezone.utc)
+        raise TypeError(f"Unsupported Prometheus timestamp type: {type(value).__name__}")
 
     @staticmethod
     def _failure_from_alert(alert: Alerts) -> dict[str, str]:

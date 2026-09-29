@@ -39,6 +39,54 @@ class TestMetricsQueryRouting(unittest.TestCase):
         finally:
             os.unlink(path)
 
+    def test_elapsed_placeholder_uses_rounded_run_duration(self):
+        path = self._write_profile([
+            {"query": "rate(requests_total[.elapsed])", "metricName": "request_rate"}
+        ])
+        try:
+            self.prom_cli.process_prom_query_in_range.return_value = []
+            client.metrics(self.prom_cli, self.elastic, "run", 1000, 1432, path, "metrics", self.telemetry_json)
+            query = self.prom_cli.process_prom_query_in_range.call_args.args[0]
+            self.assertEqual(query, "rate(requests_total[8m])")
+        finally:
+            os.unlink(path)
+
+    def test_missing_metrics_profile_exits(self):
+        # Regression for #1607: missing import sys used to raise NameError
+        # instead of logging and exiting with code 1.
+        with self.assertRaises(SystemExit) as cm:
+            client.metrics(
+                self.prom_cli,
+                self.elastic,
+                "run",
+                1000,
+                1060,
+                "/nao/existe.yaml",
+                "metrics",
+                self.telemetry_json,
+            )
+        self.assertEqual(cm.exception.code, 1)
+
+    def test_invalid_metrics_profile_exits(self):
+        path = tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False)
+        path.write("metrics: {}\n")
+        path.close()
+        try:
+            with self.assertRaises(SystemExit) as cm:
+                client.metrics(
+                    self.prom_cli,
+                    self.elastic,
+                    "run",
+                    1000,
+                    1060,
+                    path.name,
+                    "metrics",
+                    self.telemetry_json,
+                )
+            self.assertEqual(cm.exception.code, 1)
+        finally:
+            os.unlink(path.name)
+
 
 if __name__ == "__main__":
     unittest.main()
