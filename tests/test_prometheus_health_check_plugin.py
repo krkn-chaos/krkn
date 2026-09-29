@@ -36,9 +36,24 @@ class TestPrometheusHealthCheckPlugin(unittest.TestCase):
 
         self.assertTrue(result["passed"])
         self.prometheus.process_prom_query_in_range.assert_called_once_with(
-            "up == 0", start_time=self.start, end_time=self.end
+            "up == 0",
+            start_time=self.start.replace(tzinfo=datetime.timezone.utc),
+            end_time=self.end.replace(tzinfo=datetime.timezone.utc),
         )
         self.prometheus.process_query.assert_not_called()
+
+    def test_during_normalizes_numeric_timestamps(self):
+        self.prometheus.process_prom_query_in_range.return_value = [{"values": [[1, "0"]]}]
+        self.plugin.chaos_start_time = 1767225600
+        self.plugin.chaos_end_time = 1767225660
+        config = {"enable_alerts": True, "config": [{"expr": "up", "name": "up"}]}
+
+        self.plugin.run_once(config, phase="during")
+
+        call = self.prometheus.process_prom_query_in_range.call_args
+        self.assertIsInstance(call.kwargs["start_time"], datetime.datetime)
+        self.assertIsInstance(call.kwargs["end_time"], datetime.datetime)
+        self.assertEqual(call.kwargs["start_time"].timestamp(), 1767225600)
 
     def test_failed_alert_is_pushed_to_elastic_with_phase(self):
         elastic = Mock()
