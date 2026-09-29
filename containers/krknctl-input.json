@@ -10,10 +10,8 @@
     "short_description": "Enable Cerberus",
     "description": "Enables Cerberus Support",
     "variable": "CERBERUS_ENABLED",
-    "type": "enum",
+    "type": "boolean",
     "default": "False",
-    "allowed_values": "True,False",
-    "separator": ",",
     "required": "false",
     "group": "cerberus"
   },
@@ -45,13 +43,21 @@
     "group": "kraken"
   },
   {
+    "name": "disable-image-signature",
+    "short_description": "Disable image signature verification",
+    "description": "Disables workload image signature verification before deployment",
+    "variable": "DISABLE_IMAGE_SIGNATURE",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
     "name": "generate-pdf-report",
     "short_description": "Generate PDF report",
     "description": "Generates a PDF report summarizing the chaos run results at the end of each scenario",
     "variable": "GENERATE_PDF_REPORT",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "True",
     "required": "false",
     "group": "kraken"
@@ -61,21 +67,17 @@
     "short_description": "Generate HTML report",
     "description": "Generate an interactive HTML summary report after the chaos run",
     "variable": "GENERATE_HTML_REPORT",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "True",
     "required": "false",
-    "group": "general"
+    "group": "kraken"
   },
   {
     "name": "krkn-debug",
     "short_description": "Krkn debug mode",
     "description": "Enables debug mode for Krkn",
     "variable": "KRKN_DEBUG",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "kraken"
@@ -109,9 +111,7 @@
     "short_description": "Sets krkn daemon mode",
     "description": "if set the scenario will execute forever",
     "variable": "DAEMON_MODE",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "tunings"
@@ -125,7 +125,7 @@
   {
     "name": "prometheus-url",
     "short_description": "Prometheus url",
-    "description": "Prometheus url for when running on kuberenetes",
+    "description": "Prometheus url for when running on kubernetes",
     "variable": "PROMETHEUS_URL",
     "type": "string",
     "default": "",
@@ -157,9 +157,7 @@
     "short_description": "Enables metrics capture",
     "description": "Enables metrics capture",
     "variable": "CAPTURE_METRICS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "prometheus"
@@ -169,9 +167,7 @@
     "short_description": "Enables cluster alerts check",
     "description": "Enables cluster alerts check",
     "variable": "ENABLE_ALERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "prometheus"
@@ -183,6 +179,36 @@
     "variable": "ALERTS_PATH",
     "type": "string",
     "default": "config/alerts.yaml",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-run-during",
+    "short_description": "Prometheus alert check phases",
+    "description": "Phases for Prometheus alert health checks: pre, during, post, or a comma-separated combination",
+    "variable": "ALERTS_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-exit-on-failure",
+    "short_description": "Prometheus alert exit on failure",
+    "description": "Fail the run when a critical or error Prometheus alert health check fails",
+    "variable": "ALERTS_EXIT_ON_FAILURE",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-only-failures",
+    "short_description": "Prometheus alerts only report failures",
+    "description": "Only include failed Prometheus alert evaluations in telemetry and reports",
+    "variable": "ALERTS_ONLY_FAILURES",
+    "type": "boolean",
+    "default": "False",
     "required": "false",
     "group": "prometheus"
   },
@@ -201,9 +227,7 @@
     "short_description": "Check critical alerts",
     "description": "Enables checking for critical alerts",
     "variable": "CHECK_CRITICAL_ALERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "prometheus"
@@ -219,9 +243,7 @@
     "short_description": "Enables elastic search data collection",
     "description": "Enables elastic search data collection",
     "variable": "ENABLE_ES",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "elasticsearch"
@@ -281,9 +303,7 @@
     "short_description": "Enables elasticsearch TLS certificate verification",
     "description": "Enables elasticsearch TLS certificate verification",
     "variable": "ES_VERIFY_CERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "elasticsearch"
@@ -329,9 +349,7 @@
     "short_description": "Enable telemetry",
     "description": "Enables telemetry support",
     "variable": "TELEMETRY_ENABLED",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "telemetry"
@@ -372,9 +390,7 @@
     "short_description": "Prometheus backup for telemetry",
     "description": "Enables Prometheus backup for telemetry",
     "variable": "TELEMETRY_PROMETHEUS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "True",
     "required": "false",
     "group": "telemetry"
@@ -384,9 +400,7 @@
     "short_description": "Full Prometheus backup",
     "description": "Enables full Prometheus backup for telemetry",
     "variable": "TELEMETRY_FULL_PROMETHEUS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "telemetry"
@@ -456,9 +470,7 @@
     "short_description": "Telemetry logs backup",
     "description": "Enables logs backup for telemetry",
     "variable": "TELEMETRY_LOGS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "telemetry"
@@ -488,9 +500,7 @@
     "short_description": "Telemetry events backup",
     "description": "Enables events backup for telemetry",
     "variable": "TELEMETRY_EVENTS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "True",
     "required": "false",
     "group": "telemetry"
@@ -503,7 +513,7 @@
   },
   {
     "name": "health-check-interval",
-    "short_description": "Heath check interval",
+    "short_description": "Health check interval",
     "description": "How often to check the health check urls (seconds)",
     "variable": "HEALTH_CHECK_INTERVAL",
     "type": "number",
@@ -546,9 +556,7 @@
     "short_description": "Health check exit on failure",
     "description": "Exit on failure when health check URL is not able to connect",
     "variable": "HEALTH_CHECK_EXIT_ON_FAILURE",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "health_check"
@@ -558,12 +566,148 @@
     "short_description": "SSL Verification of health check url",
     "description": "SSL Verification to authenticate into health check URL",
     "variable": "HEALTH_CHECK_VERIFY",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "health_check"
+  },
+  {
+    "name": "health-check-run-during",
+    "short_description": "Health check run timing",
+    "description": "When to run health checks: pre (before chaos), during (continuous), post (after chaos), or combination like [pre,post]",
+    "variable": "HEALTH_CHECK_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "health_check"
+  },
+  {
+    "name": "health-check-only-failures",
+    "short_description": "Health check only report failures",
+    "description": "Only create telemetry records for failed health checks",
+    "variable": "HEALTH_CHECK_ONLY_FAILURES",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "health_check"
+  },
+  {
+    "name": "object_state_checks",
+    "short_description": "Object state checks group",
+    "description": "Group containing Kubernetes object state monitoring configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "object-state-check-interval",
+    "short_description": "Object state check interval",
+    "description": "How often to check object states (seconds)",
+    "variable": "OBJECT_STATE_CHECK_INTERVAL",
+    "type": "number",
+    "default": "2",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-run-during",
+    "short_description": "Object state check run timing",
+    "description": "When to run checks: pre (before chaos), during (continuous), post (after chaos), or combination like [pre,during]",
+    "variable": "OBJECT_STATE_CHECK_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-exit-on-failure",
+    "short_description": "Object state check exit on failure",
+    "description": "Exit on failure when object state check fails",
+    "variable": "OBJECT_STATE_CHECK_EXIT_ON_FAILURE",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-only-failures",
+    "short_description": "Object state check only report failures",
+    "description": "Only create telemetry records for failed object state checks",
+    "variable": "OBJECT_STATE_CHECK_ONLY_FAILURES",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-name",
+    "short_description": "Object state check name",
+    "description": "Name of the object state check (e.g., etcd-ready-pods)",
+    "variable": "OBJECT_STATE_CHECK_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-kind",
+    "short_description": "Object kind to check",
+    "description": "Kubernetes resource kind to check (Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet, Service, Job, etc.)",
+    "variable": "OBJECT_STATE_CHECK_KIND",
+    "type": "string",
+    "default": "Pod",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-object-name",
+    "short_description": "Object name or pattern",
+    "description": "Name or regex pattern of objects to check (leave empty for all)",
+    "variable": "OBJECT_STATE_CHECK_OBJECT_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-namespace",
+    "short_description": "Object namespace",
+    "description": "Kubernetes namespace to check objects in",
+    "variable": "OBJECT_STATE_CHECK_NAMESPACE",
+    "type": "string",
+    "default": "default",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-label-selector",
+    "short_description": "Label selector for objects",
+    "description": "Kubernetes label selector to filter objects (e.g., app=nginx)",
+    "variable": "OBJECT_STATE_CHECK_LABEL_SELECTOR",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-condition-type",
+    "short_description": "Condition type to check",
+    "description": "Kubernetes condition type to check (Ready, Available, Progressing, etc.)",
+    "variable": "OBJECT_STATE_CHECK_CONDITION_TYPE",
+    "type": "string",
+    "default": "Ready",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-condition-status",
+    "short_description": "Expected condition status",
+    "description": "Expected status for the condition (True, False, or Unknown)",
+    "variable": "OBJECT_STATE_CHECK_CONDITION_STATUS",
+    "type": "enum",
+    "allowed_values": "True,False,Unknown",
+    "separator": ",",
+    "default": "True",
+    "required": "false",
+    "group": "object_state_checks"
   },
   {
     "name": "kubevirt",
@@ -606,9 +750,7 @@
     "short_description": "KubeVirt checks only report if failure occurs",
     "description": "KubeVirt checks only report if failure occurs",
     "variable": "KUBE_VIRT_FAILURES",
-    "type": "enum",
-    "allowed_values": "True,False,true,false",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "kubevirt"
@@ -618,9 +760,7 @@
     "short_description": "KubeVirt checks in disconnected mode",
     "description": "KubeVirt checks in disconnected mode, bypassing the cluster API",
     "variable": "KUBE_VIRT_DISCONNECTED",
-    "type": "enum",
-    "allowed_values": "True,False,true,false",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "kubevirt"
@@ -640,9 +780,7 @@
     "short_description": "KubeVirt fail if failed vms at end of run",
     "description": "KubeVirt fails run if vms still have false status",
     "variable": "KUBE_VIRT_EXIT_ON_FAIL",
-    "type": "enum",
-    "allowed_values": "True,False,true,false",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
     "required": "false",
     "group": "kubevirt"
