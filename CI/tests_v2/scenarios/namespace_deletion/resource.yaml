@@ -1,0 +1,33 @@
+# Target workload for namespace_deletion (service_disruption) scenario tests.
+# A Deployment plus a Service so the scenario has multiple object kinds to delete.
+# Namespace is patched at deploy time by the test framework.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: namespace-deletion-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: namespace-deletion-target
+  template:
+    metadata:
+      labels:
+        app: namespace-deletion-target
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: namespace-deletion-target
+spec:
+  selector:
+    app: namespace-deletion-target
+  ports:
+  - port: 80
+    targetPort: 80

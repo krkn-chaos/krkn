@@ -717,6 +717,136 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             # Should return 1 because random.choice on empty list raises IndexError
             self.assertEqual(result, 1)
 
+    def test_run_no_shell_in_container(self):
+        """Test run returns 1 when container has no usable shell (/bin/bash or /bin/sh)"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "prometheus-k8s-0",
+                    "fill_percentage": 80,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "prometheus-k8s-db-prometheus-k8s-0"
+            mock_volume.name = "prometheus-db"
+            mock_pod.volumes = [mock_volume]
+
+            mock_container = MagicMock()
+            mock_container.name = "prometheus"
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "prometheus-db"
+            mock_vol_mount.mountPath = "/prometheus"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_pod.containers = [mock_container]
+
+            mock_kubecli.get_pod_info.return_value = mock_pod
+            mock_kubecli.get_pvc_info.return_value = MagicMock()
+            mock_kubecli.get_pod_shell.return_value = None  # no shell available
+
+            mock_scenario_telemetry = MagicMock()
+
+            result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario=scenario_path,
+                lib_telemetry=mock_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            self.assertEqual(result, 1)
+            mock_kubecli.get_pod_shell.assert_called_once_with(
+                "prometheus-k8s-0", "test-ns", "prometheus"
+            )
+            # No exec_cmd_in_pod calls should happen after shell check fails
+            mock_kubecli.exec_cmd_in_pod.assert_not_called()
+
+    def test_run_shell_check_before_exec(self):
+        """Test that get_pod_shell is called before any exec_cmd_in_pod when shell exists"""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "test-pvc"
+            mock_volume.name = "test-volume"
+            mock_pod.volumes = [mock_volume]
+
+            mock_container = MagicMock()
+            mock_container.name = "test-container"
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_pod.containers = [mock_container]
+
+            mock_kubecli.get_pod_info.return_value = mock_pod
+            mock_kubecli.get_pvc_info.return_value = MagicMock()
+            mock_kubecli.get_pod_shell.return_value = "bash"
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",
+                "/usr/bin/fallocate",
+                "/usr/bin/dd",
+                "",
+                "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",
+                "",
+                "total 0",
+            ]
+
+            mock_scenario_telemetry = MagicMock()
+
+            call_order = []
+            exec_responses = iter([
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",
+                "/usr/bin/fallocate",
+                "/usr/bin/dd",
+                "",
+                "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",
+                "",
+                "total 0",
+            ])
+
+            def track_shell(*a, **kw):
+                call_order.append("get_pod_shell")
+                return "bash"
+
+            def track_exec(*a, **kw):
+                call_order.append("exec_cmd_in_pod")
+                return next(exec_responses)
+
+            mock_kubecli.get_pod_shell.side_effect = track_shell
+            mock_kubecli.exec_cmd_in_pod.side_effect = track_exec
+
+            with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=mock_scenario_telemetry,
+                )
+
+            self.assertEqual(result, 0)
+            self.assertEqual(call_order[0], "get_pod_shell")
+            self.assertTrue(all(c == "exec_cmd_in_pod" for c in call_order[1:]))
+
     def test_run_file_creation_failed(self):
         """Test run returns 1 when file creation fails and verifies cleanup is attempted"""
         with tempfile.TemporaryDirectory() as temp_dir:

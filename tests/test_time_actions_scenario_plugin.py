@@ -121,6 +121,50 @@ class TestTimeActionsScenarioPlugin(unittest.TestCase):
             # Assert failure is returned
             self.assertEqual(result, 1)
 
+    @patch('krkn.scenario_plugins.time_actions.time_actions_scenario_plugin.KrknKubernetes')
+    def test_exec_with_shell_fallback_detects_persistent_shell_error(self, mock_kubecli_class):
+        """Test that exec_with_shell_fallback returns False when both direct and shell execution fail persistently"""
+        mock_kubecli = MagicMock()
+        mock_kubecli_class.return_value = mock_kubecli
+        mock_kubecli.exec_cmd_in_pod.side_effect = Exception("Command failed")
+        
+        result = self.plugin.exec_with_shell_fallback(
+            "test", "test-pod", "default", "test-container", mock_kubecli
+        )
+        
+        self.assertFalse(result)
+
+    @patch('krkn.scenario_plugins.time_actions.time_actions_scenario_plugin.KrknKubernetes')
+    def test_exec_with_shell_fallback_fails_after_max_retries(self, mock_kubecli_class):
+        """Test that exec_with_shell_fallback returns False after exhausting all retries"""
+        mock_kubecli = MagicMock()
+        mock_kubecli_class.return_value = mock_kubecli
+        mock_kubecli.exec_cmd_in_pod.side_effect = Exception("Command failed")
+        
+        result = self.plugin.exec_with_shell_fallback(
+            "test", "test-pod", "default", "test-container", mock_kubecli, max_retries=2
+        )
+        
+        self.assertFalse(result)
+
+    @patch('krkn.scenario_plugins.time_actions.time_actions_scenario_plugin.KrknKubernetes')
+    def test_exec_with_shell_fallback_retries_on_error(self, mock_kubecli_class):
+        """Test that exec_with_shell_fallback succeeds after retrying"""
+        mock_kubecli = MagicMock()
+        mock_kubecli_class.return_value = mock_kubecli
+        # First two calls fail, third succeeds
+        mock_kubecli.exec_cmd_in_pod.side_effect = [
+            Exception("First failure"),
+            Exception("Second failure"), 
+            "success"
+        ]
+        
+        result = self.plugin.exec_with_shell_fallback(
+            "test", "test-pod", "default", "test-container", mock_kubecli, max_retries=3
+        )
+        
+        self.assertEqual(result, "success")
+
 
 if __name__ == "__main__":
     unittest.main()

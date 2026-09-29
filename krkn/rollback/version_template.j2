@@ -3,6 +3,7 @@
 
 from dataclasses import dataclass
 import os
+import sys
 import logging
 from typing import Optional
 
@@ -10,10 +11,22 @@ from krkn_lib.utils import SafeLogger
 from krkn_lib.ocp import KrknOpenshift
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
+# Ensure local checkout imports (e.g. `krkn.*`) resolve when executing from a temp dir.
+for candidate in (
+    os.getenv("KRKN_ROOT"),
+    os.getcwd(),
+    os.path.dirname(os.getcwd()),
+):
+    if candidate and os.path.isdir(os.path.join(candidate, "krkn")) and candidate not in sys.path:
+        sys.path.insert(0, candidate)
+
 @dataclass(frozen=True)
 class RollbackContent:
     resource_identifier: str
     namespace: Optional[str] = None
+    cloud_type: Optional[str] = None
+    instance_ids: Optional[tuple] = None
+    skip_kubernetes: bool = False
 
 # Actual rollback callable
 {{ rollback_callable_code }}
@@ -35,16 +48,17 @@ if __name__ == '__main__':
         ]
     )
 
-    # setup logging and get kubeconfig path
-    kubeconfig_path = os.getenv("KUBECONFIG", "~/.kube/config")
     log_directory = os.path.dirname(os.path.abspath(__file__))
     os.makedirs(os.path.join(log_directory, 'logs'), exist_ok=True)
-    # setup SafeLogger for telemetry
-    telemetry_log_path = os.path.join(log_directory, 'logs', 'telemetry.log')
-    safe_logger = SafeLogger(telemetry_log_path)
-    # setup krkn-lib objects
-    lib_openshift = KrknOpenshift(kubeconfig_path=kubeconfig_path)
-    lib_telemetry = KrknTelemetryOpenshift(safe_logger=safe_logger, lib_openshift=lib_openshift)
+    if not rollback_content.skip_kubernetes:
+        # setup logging and get kubeconfig path
+        kubeconfig_path = os.getenv("KUBECONFIG", "~/.kube/config")
+        # setup SafeLogger for telemetry
+        telemetry_log_path = os.path.join(log_directory, 'logs', 'telemetry.log')
+        safe_logger = SafeLogger(telemetry_log_path)
+        # setup krkn-lib objects
+        lib_openshift = KrknOpenshift(kubeconfig_path=kubeconfig_path)
+        lib_telemetry = KrknTelemetryOpenshift(safe_logger=safe_logger, lib_openshift=lib_openshift)
 
     # execute
     logging.info('Executing rollback callable...')

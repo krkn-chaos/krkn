@@ -1,14 +1,19 @@
 [
   {
+    "name": "cerberus",
+    "short_description": "Cerberus group",
+    "description": "Group containing cerberus-related configuration options",
+    "type": "Group"
+  },
+  {
     "name": "cerberus-enabled",
     "short_description": "Enable Cerberus",
     "description": "Enables Cerberus Support",
     "variable": "CERBERUS_ENABLED",
-    "type": "enum",
+    "type": "boolean",
     "default": "False",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "required": "false"
+    "required": "false",
+    "group": "cerberus"
   },
   {
     "name": "cerberus-url",
@@ -18,36 +23,14 @@
     "type": "string",
     "default": "http://0.0.0.0:8080",
     "validator": "^(http|https):\/\/.*",
-    "required": "false"
+    "required": "false",
+    "group": "cerberus"
   },
   {
-    "name": "distribution",
-    "short_description": "Orchestrator distribution",
-    "description": "Selects the orchestrator distribution",
-    "variable": "DISTRIBUTION",
-    "type": "enum",
-    "default": "openshift",
-    "allowed_values": "openshift,kubernetes",
-    "separator": ",",
-    "required": "false"
-  },
-  {
-    "name": "ssh-public-key",
-    "short_description": "Krkn ssh public key path",
-    "description": "Sets the path where krkn will search for ssh public key (in container)",
-    "variable": "KRKN_SSH_PUBLIC",
-    "type": "string",
-    "default": "",
-    "required": "false"
-  },
-  {
-    "name": "ssh-private-key",
-    "short_description": "Krkn ssh private key path",
-    "description": "Sets the path where krkn will search for ssh private key (in container)",
-    "variable": "KRKN_SSH_PRIVATE",
-    "type": "string",
-    "default": "",
-    "required": "false"
+    "name": "kraken",
+    "short_description": "Kraken group",
+    "description": "Group containing core krkn run configuration options",
+    "type": "Group"
   },
   {
     "name": "krkn-kubeconfig",
@@ -56,7 +39,54 @@
     "variable": "KRKN_KUBE_CONFIG",
     "type": "string",
     "default": "/home/krkn/.kube/config",
-    "required": "false"
+    "required": "false",
+    "group": "kraken"
+  },
+  {
+    "name": "disable-image-signature",
+    "short_description": "Disable image signature verification",
+    "description": "Disables workload image signature verification before deployment",
+    "variable": "DISABLE_IMAGE_SIGNATURE",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
+    "name": "generate-pdf-report",
+    "short_description": "Generate PDF report",
+    "description": "Generates a PDF report summarizing the chaos run results at the end of each scenario",
+    "variable": "GENERATE_PDF_REPORT",
+    "type": "boolean",
+    "default": "True",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
+    "name": "generate-html-report",
+    "short_description": "Generate HTML report",
+    "description": "Generate an interactive HTML summary report after the chaos run",
+    "variable": "GENERATE_HTML_REPORT",
+    "type": "boolean",
+    "default": "True",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
+    "name": "krkn-debug",
+    "short_description": "Krkn debug mode",
+    "description": "Enables debug mode for Krkn",
+    "variable": "KRKN_DEBUG",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "kraken"
+  },
+  {
+    "name": "tunings",
+    "short_description": "Tunings group",
+    "description": "Group containing chaos scenario timing and repetition configuration options",
+    "type": "Group"
   },
   {
     "name": "wait-duration",
@@ -64,7 +94,8 @@
     "description": "waits for a certain amount of time after the scenario",
     "variable": "WAIT_DURATION",
     "type": "number",
-    "default": "1"
+    "default": "1",
+    "group": "tunings"
   },
   {
     "name": "iterations",
@@ -72,27 +103,34 @@
     "description": "number of times the same chaos scenario will be executed",
     "variable": "ITERATIONS",
     "type": "number",
-    "default": "1"
+    "default": "1",
+    "group": "tunings"
   },
   {
     "name": "daemon-mode",
     "short_description": "Sets krkn daemon mode",
     "description": "if set the scenario will execute forever",
     "variable": "DAEMON_MODE",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "tunings"
+  },
+  {
+    "name": "prometheus",
+    "short_description": "Prometheus group",
+    "description": "Group containing prometheus monitoring and alerting configuration options",
+    "type": "Group"
   },
   {
     "name": "prometheus-url",
     "short_description": "Prometheus url",
-    "description": "Prometheus url for when running on kuberenetes",
+    "description": "Prometheus url for when running on kubernetes",
     "variable": "PROMETHEUS_URL",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "prometheus-token",
@@ -101,7 +139,8 @@
     "variable": "PROMETHEUS_TOKEN",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "uuid",
@@ -110,29 +149,28 @@
     "variable": "UUID",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "capture-metrics",
     "short_description": "Enables metrics capture",
     "description": "Enables metrics capture",
     "variable": "CAPTURE_METRICS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "enable-alerts",
     "short_description": "Enables cluster alerts check",
     "description": "Enables cluster alerts check",
     "variable": "ENABLE_ALERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "alerts-path",
@@ -141,7 +179,38 @@
     "variable": "ALERTS_PATH",
     "type": "string",
     "default": "config/alerts.yaml",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-run-during",
+    "short_description": "Prometheus alert check phases",
+    "description": "Phases for Prometheus alert health checks: pre, during, post, or a comma-separated combination",
+    "variable": "ALERTS_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-exit-on-failure",
+    "short_description": "Prometheus alert exit on failure",
+    "description": "Fail the run when a critical or error Prometheus alert health check fails",
+    "variable": "ALERTS_EXIT_ON_FAILURE",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "alerts-only-failures",
+    "short_description": "Prometheus alerts only report failures",
+    "description": "Only include failed Prometheus alert evaluations in telemetry and reports",
+    "variable": "ALERTS_ONLY_FAILURES",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "prometheus"
   },
   {
     "name": "metrics-path",
@@ -150,18 +219,34 @@
     "variable": "METRICS_PATH",
     "type": "string",
     "default": "config/metrics-aggregated.yaml",
-    "required": "false"
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "check-critical-alerts",
+    "short_description": "Check critical alerts",
+    "description": "Enables checking for critical alerts",
+    "variable": "CHECK_CRITICAL_ALERTS",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "prometheus"
+  },
+  {
+    "name": "elasticsearch",
+    "short_description": "Elasticsearch group",
+    "description": "Group containing elasticsearch data collection and indexing configuration options",
+    "type": "Group"
   },
   {
     "name": "enable-es",
     "short_description": "Enables elastic search data collection",
     "description": "Enables elastic search data collection",
     "variable": "ENABLE_ES",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-run-tag",
@@ -170,7 +255,8 @@
     "variable": "ES_RUN_TAG",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-server",
@@ -179,7 +265,8 @@
     "variable": "ES_SERVER",
     "type": "string",
     "default": "http://0.0.0.0",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-port",
@@ -188,7 +275,8 @@
     "variable": "ES_PORT",
     "type": "number",
     "default": "443",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-username",
@@ -197,7 +285,8 @@
     "variable": "ES_USERNAME",
     "type": "string",
     "default": "elastic",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-password",
@@ -206,18 +295,18 @@
     "variable": "ES_PASSWORD",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-verify-certs",
     "short_description": "Enables elasticsearch TLS certificate verification",
     "description": "Enables elasticsearch TLS certificate verification",
     "variable": "ES_VERIFY_CERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-metrics-index",
@@ -226,7 +315,8 @@
     "variable": "ES_METRICS_INDEX",
     "type": "string",
     "default": "krkn-metrics",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-alerts-index",
@@ -235,7 +325,8 @@
     "variable": "ES_ALERTS_INDEX",
     "type": "string",
     "default": "krkn-alerts",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
     "name": "es-telemetry-index",
@@ -244,29 +335,24 @@
     "variable": "ES_TELEMETRY_INDEX",
     "type": "string",
     "default": "krkn-telemetry",
-    "required": "false"
+    "required": "false",
+    "group": "elasticsearch"
   },
   {
-    "name": "check-critical-alerts",
-    "short_description": "Check critical alerts",
-    "description": "Enables checking for critical alerts",
-    "variable": "CHECK_CRITICAL_ALERTS",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false"
+    "name": "telemetry",
+    "short_description": "Telemetry group",
+    "description": "Group containing telemetry data collection and backup configuration options",
+    "type": "Group"
   },
   {
     "name": "telemetry-enabled",
     "short_description": "Enable telemetry",
     "description": "Enables telemetry support",
     "variable": "TELEMETRY_ENABLED",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-api-url",
@@ -276,7 +362,8 @@
     "type": "string",
     "default": "https://ulnmf9xv7j.execute-api.us-west-2.amazonaws.com/production",
     "validator": "^(http|https):\/\/.*",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-username",
@@ -285,7 +372,8 @@
     "variable": "TELEMETRY_USERNAME",
     "type": "string",
     "default": "redhat-chaos",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-password",
@@ -294,29 +382,28 @@
     "variable": "TELEMETRY_PASSWORD",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-prometheus-backup",
     "short_description": "Prometheus backup for telemetry",
     "description": "Enables Prometheus backup for telemetry",
     "variable": "TELEMETRY_PROMETHEUS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "True",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-full-prometheus-backup",
     "short_description": "Full Prometheus backup",
     "description": "Enables full Prometheus backup for telemetry",
     "variable": "TELEMETRY_FULL_PROMETHEUS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-backup-threads",
@@ -325,7 +412,8 @@
     "variable": "TELEMETRY_BACKUP_THREADS",
     "type": "number",
     "default": "5",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-archive-path",
@@ -334,7 +422,8 @@
     "variable": "TELEMETRY_ARCHIVE_PATH",
     "type": "string",
     "default": "/tmp",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-max-retries",
@@ -343,7 +432,8 @@
     "variable": "TELEMETRY_MAX_RETRIES",
     "type": "number",
     "default": "0",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-run-tag",
@@ -352,7 +442,8 @@
     "variable": "TELEMETRY_RUN_TAG",
     "type": "string",
     "default": "chaos",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-group",
@@ -361,27 +452,28 @@
     "variable": "TELEMETRY_GROUP",
     "type": "string",
     "default": "default",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-archive-size",
     "short_description": "Telemetry archive size",
-    "description": "Maximum size for telemetry archives",
+    "description": "Maximum size for telemetry archives in KB",
     "variable": "TELEMETRY_ARCHIVE_SIZE",
     "type": "number",
     "default": "1000",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-logs-backup",
     "short_description": "Telemetry logs backup",
     "description": "Enables logs backup for telemetry",
     "variable": "TELEMETRY_LOGS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-filter-pattern",
@@ -390,7 +482,8 @@
     "variable": "TELEMETRY_FILTER_PATTERN",
     "type": "string",
     "default": "[\"(\\\\w{3}\\\\s\\\\d{1,2}\\\\s\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d+).+\",\"kinit (\\\\d+/\\\\d+/\\\\d+\\\\s\\\\d{2}:\\\\d{2}:\\\\d{2})\\\\s+\",\"(\\\\d{4}-\\\\d{2}-\\\\d{2}T\\\\d{2}:\\\\d{2}:\\\\d{2}\\\\.\\\\d+Z).+\"]",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-cli-path",
@@ -399,27 +492,34 @@
     "variable": "TELEMETRY_CLI_PATH",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
   },
   {
     "name": "telemetry-events-backup",
     "short_description": "Telemetry events backup",
     "description": "Enables events backup for telemetry",
     "variable": "TELEMETRY_EVENTS_BACKUP",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "True",
-    "required": "false"
+    "required": "false",
+    "group": "telemetry"
+  },
+  {
+    "name": "health_check",
+    "short_description": "Health check group",
+    "description": "Group containing health check URL monitoring configuration options",
+    "type": "Group"
   },
   {
     "name": "health-check-interval",
-    "short_description": "Heath check interval",
-    "description": "How often to check the health check urls",
+    "short_description": "Health check interval",
+    "description": "How often to check the health check urls (seconds)",
     "variable": "HEALTH_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-url",
@@ -428,7 +528,8 @@
     "variable": "HEALTH_CHECK_URL",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-auth",
@@ -437,7 +538,8 @@
     "variable": "HEALTH_CHECK_AUTH",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-bearer-token",
@@ -446,38 +548,182 @@
     "variable": "HEALTH_CHECK_BEARER_TOKEN",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-exit",
     "short_description": "Health check exit on failure",
     "description": "Exit on failure when health check URL is not able to connect",
     "variable": "HEALTH_CHECK_EXIT_ON_FAILURE",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
   },
   {
     "name": "health-check-verify",
     "short_description": "SSL Verification of health check url",
     "description": "SSL Verification to authenticate into health check URL",
     "variable": "HEALTH_CHECK_VERIFY",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "health_check"
+  },
+  {
+    "name": "health-check-run-during",
+    "short_description": "Health check run timing",
+    "description": "When to run health checks: pre (before chaos), during (continuous), post (after chaos), or combination like [pre,post]",
+    "variable": "HEALTH_CHECK_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "health_check"
+  },
+  {
+    "name": "health-check-only-failures",
+    "short_description": "Health check only report failures",
+    "description": "Only create telemetry records for failed health checks",
+    "variable": "HEALTH_CHECK_ONLY_FAILURES",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "health_check"
+  },
+  {
+    "name": "object_state_checks",
+    "short_description": "Object state checks group",
+    "description": "Group containing Kubernetes object state monitoring configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "object-state-check-interval",
+    "short_description": "Object state check interval",
+    "description": "How often to check object states (seconds)",
+    "variable": "OBJECT_STATE_CHECK_INTERVAL",
+    "type": "number",
+    "default": "2",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-run-during",
+    "short_description": "Object state check run timing",
+    "description": "When to run checks: pre (before chaos), during (continuous), post (after chaos), or combination like [pre,during]",
+    "variable": "OBJECT_STATE_CHECK_RUN_DURING",
+    "type": "string",
+    "default": "during",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-exit-on-failure",
+    "short_description": "Object state check exit on failure",
+    "description": "Exit on failure when object state check fails",
+    "variable": "OBJECT_STATE_CHECK_EXIT_ON_FAILURE",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-only-failures",
+    "short_description": "Object state check only report failures",
+    "description": "Only create telemetry records for failed object state checks",
+    "variable": "OBJECT_STATE_CHECK_ONLY_FAILURES",
+    "type": "boolean",
+    "default": "False",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-name",
+    "short_description": "Object state check name",
+    "description": "Name of the object state check (e.g., etcd-ready-pods)",
+    "variable": "OBJECT_STATE_CHECK_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-kind",
+    "short_description": "Object kind to check",
+    "description": "Kubernetes resource kind to check (Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet, Service, Job, etc.)",
+    "variable": "OBJECT_STATE_CHECK_KIND",
+    "type": "string",
+    "default": "Pod",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-object-name",
+    "short_description": "Object name or pattern",
+    "description": "Name or regex pattern of objects to check (leave empty for all)",
+    "variable": "OBJECT_STATE_CHECK_OBJECT_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-namespace",
+    "short_description": "Object namespace",
+    "description": "Kubernetes namespace to check objects in",
+    "variable": "OBJECT_STATE_CHECK_NAMESPACE",
+    "type": "string",
+    "default": "default",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-label-selector",
+    "short_description": "Label selector for objects",
+    "description": "Kubernetes label selector to filter objects (e.g., app=nginx)",
+    "variable": "OBJECT_STATE_CHECK_LABEL_SELECTOR",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-condition-type",
+    "short_description": "Condition type to check",
+    "description": "Kubernetes condition type to check (Ready, Available, Progressing, etc.)",
+    "variable": "OBJECT_STATE_CHECK_CONDITION_TYPE",
+    "type": "string",
+    "default": "Ready",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "object-state-check-condition-status",
+    "short_description": "Expected condition status",
+    "description": "Expected status for the condition (True, False, or Unknown)",
+    "variable": "OBJECT_STATE_CHECK_CONDITION_STATUS",
+    "type": "enum",
+    "allowed_values": "True,False,Unknown",
+    "separator": ",",
+    "default": "True",
+    "required": "false",
+    "group": "object_state_checks"
+  },
+  {
+    "name": "kubevirt",
+    "short_description": "KubeVirt group",
+    "description": "Group containing KubeVirt VM monitoring and check configuration options",
+    "type": "Group"
   },
   {
     "name": "kubevirt-check-interval",
     "short_description": "Kube Virt check interval",
-    "description": "How often to check the kube virt check Vms ssh status",
+    "description": "How often to check the KubeVirt VMs SSH status (seconds)",
     "variable": "KUBE_VIRT_CHECK_INTERVAL",
     "type": "number",
     "default": "2",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-namespace",
@@ -486,7 +732,8 @@
     "variable": "KUBE_VIRT_NAMESPACE",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-name",
@@ -495,49 +742,48 @@
     "variable": "KUBE_VIRT_NAME",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-only-failures",
     "short_description": "KubeVirt checks only report if failure occurs",
     "description": "KubeVirt checks only report if failure occurs",
     "variable": "KUBE_VIRT_FAILURES",
-    "type": "enum",
-    "allowed_values": "True,False,true,false",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-disconnected",
     "short_description": "KubeVirt checks in disconnected mode",
-    "description": "KubeVirt checks in disconnected mode, bypassing the clusters Api",
+    "description": "KubeVirt checks in disconnected mode, bypassing the cluster API",
     "variable": "KUBE_VIRT_DISCONNECTED",
-    "type": "enum",
-    "allowed_values": "True,False,true,false",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-ssh-node",
     "short_description": "KubeVirt node to ssh from",
-    "description": "KubeVirt node to ssh from, should be available whole chaos run",
+    "description": "KubeVirt backup node to SSH into when checking VMI IP address status",
     "variable": "KUBE_VIRT_SSH_NODE",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-exit-on-failure",
     "short_description": "KubeVirt fail if failed vms at end of run",
     "description": "KubeVirt fails run if vms still have false status",
     "variable": "KUBE_VIRT_EXIT_ON_FAIL",
-    "type": "enum",
-    "allowed_values": "True,False,true,false",
-    "separator": ",",
+    "type": "boolean",
     "default": "False",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-node-name",
@@ -546,7 +792,8 @@
     "variable": "KUBE_VIRT_NODE_NAME",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
     "name": "kubevirt-label-selector",
@@ -555,18 +802,14 @@
     "variable": "KUBE_VIRT_LABEL_SELECTOR",
     "type": "string",
     "default": "",
-    "required": "false"
+    "required": "false",
+    "group": "kubevirt"
   },
   {
-    "name": "krkn-debug",
-    "short_description": "Krkn debug mode",
-    "description": "Enables debug mode for Krkn",
-    "variable": "KRKN_DEBUG",
-    "type": "enum",
-    "allowed_values": "True,False",
-    "separator": ",",
-    "default": "False",
-    "required": "false"
+    "name": "resiliency",
+    "short_description": "Resiliency group",
+    "description": "Group containing resiliency score calculation configuration options",
+    "type": "Group"
   },
   {
     "name": "resiliency-score",
@@ -574,23 +817,228 @@
     "description": "The system outputs a detailed resiliency score as a single-line JSON object, facilitating easy aggregation across multiple test scenarios.",
     "variable": "RESILIENCY_SCORE",
     "type": "boolean",
-    "required": "false"
+    "required": "false",
+    "group": "resiliency"
   },
   {
     "name": "disable-resiliency-score",
     "short_description": "Disable resiliency score calculation",
-    "description": "Disable resiliency score calculation",
+    "description": "Disables resiliency score calculation entirely",
     "variable": "DISABLE_RESILIENCY_SCORE",
     "type": "boolean",
-    "required": "false"
+    "required": "false",
+    "group": "resiliency"
   },
   {
     "name": "resiliency-file",
     "short_description": "Resiliency Score metrics file",
-    "description": "Custom Resiliency score file",
+    "description": "Path to a YAML file containing SLO definitions for resiliency scoring, defaults to the alerts profile or config/alerts.yaml",
     "variable": "RESILIENCY_FILE",
     "type": "file",
     "required": "false",
-    "mount_path": "/home/krkn/resiliency-file.yaml"
+    "mount_path": "/home/krkn/resiliency-file.yaml",
+    "group": "resiliency"
+  },
+  {
+    "name": "triggers",
+    "short_description": "Triggers group",
+    "description": "Group containing chaos trigger conditions and timing configuration options",
+    "type": "Group"
+  },
+  {
+    "name": "trigger-command",
+    "short_description": "Trigger command",
+    "description": "Shell command to evaluate before chaos starts. Chaos begins only after this command exits with the expected code. Leave empty to disable triggers.",
+    "variable": "TRIGGER_COMMAND",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-expected-rc",
+    "short_description": "Trigger expected exit code",
+    "description": "Expected shell command exit code for the trigger to be considered satisfied",
+    "variable": "TRIGGER_EXPECTED_RC",
+    "type": "number",
+    "default": "0",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-mode",
+    "short_description": "Triggers mode",
+    "description": "How multiple trigger conditions are combined",
+    "variable": "TRIGGERS_MODE",
+    "type": "enum",
+    "allowed_values": "all_of,any_of",
+    "separator": ",",
+    "default": "all_of",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-timeout",
+    "short_description": "Triggers timeout",
+    "description": "Maximum time in seconds to wait for trigger conditions before applying on-timeout behavior",
+    "variable": "TRIGGERS_TIMEOUT",
+    "type": "number",
+    "default": "300",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-interval",
+    "short_description": "Triggers polling interval",
+    "description": "Polling interval in seconds while waiting for trigger conditions",
+    "variable": "TRIGGERS_INTERVAL",
+    "type": "number",
+    "default": "5",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "triggers-on-timeout",
+    "short_description": "Triggers on timeout",
+    "description": "Behavior when trigger conditions are not met before timeout",
+    "variable": "TRIGGERS_ON_TIMEOUT",
+    "type": "enum",
+    "allowed_values": "skip,fail,run_anyway",
+    "separator": ",",
+    "default": "skip",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-url",
+    "short_description": "Trigger HTTP URL",
+    "description": "URL to poll for the HTTP trigger",
+    "variable": "TRIGGER_HTTP_URL",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-method",
+    "short_description": "Trigger HTTP Method",
+    "description": "HTTP method to use (GET, POST, etc.)",
+    "variable": "TRIGGER_HTTP_METHOD",
+    "type": "string",
+    "default": "GET",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-expected-status",
+    "short_description": "Trigger HTTP Expected Status",
+    "description": "Expected HTTP status code",
+    "variable": "TRIGGER_HTTP_EXPECTED_STATUS",
+    "type": "number",
+    "default": "200",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-bearer-token",
+    "short_description": "Trigger HTTP Bearer Token",
+    "description": "Bearer token for HTTP authentication",
+    "variable": "TRIGGER_HTTP_BEARER_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "secret": "true",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-http-body-contains",
+    "short_description": "Trigger HTTP Body Contains",
+    "description": "Substring expected in the HTTP response body",
+    "variable": "TRIGGER_HTTP_BODY_CONTAINS",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-api-version",
+    "short_description": "K8s trigger API version",
+    "description": "Kubernetes API version for the resource to watch (e.g. apps/v1, kubevirt.io/v1). Required when using a k8s trigger condition.",
+    "variable": "TRIGGER_K8S_API_VERSION",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-kind",
+    "short_description": "K8s trigger resource kind",
+    "description": "Kubernetes resource kind to watch (e.g. Deployment, Pod, VirtualMachineInstanceMigration)",
+    "variable": "TRIGGER_K8S_KIND",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-namespace",
+    "short_description": "K8s trigger namespace",
+    "description": "Namespace of the resource to watch. Leave empty for cluster-scoped resources like Nodes.",
+    "variable": "TRIGGER_K8S_NAMESPACE",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-name",
+    "short_description": "K8s trigger resource name",
+    "description": "Name of the specific Kubernetes resource to watch",
+    "variable": "TRIGGER_K8S_NAME",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-k8s-condition",
+    "short_description": "K8s trigger condition",
+    "description": "Condition expression to evaluate against the resource (e.g. status.phase == Running, status.readyReplicas >= 1)",
+    "variable": "TRIGGER_K8S_CONDITION",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-query",
+    "short_description": "Prometheus trigger query",
+    "description": "PromQL expression for the prometheus trigger. Chaos begins only after the query returns a non-empty result. Leave empty to disable.",
+    "variable": "TRIGGER_PROM_QUERY",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-url",
+    "short_description": "Prometheus trigger URL",
+    "description": "Prometheus API URL used by the prometheus trigger condition. Required when trigger-prom-query is set.",
+    "variable": "TRIGGER_PROM_URL",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "group": "triggers"
+  },
+  {
+    "name": "trigger-prom-token",
+    "short_description": "Prometheus trigger bearer token",
+    "description": "Optional bearer token for authenticating the prometheus trigger against prometheus-url",
+    "variable": "TRIGGER_PROM_TOKEN",
+    "type": "string",
+    "default": "",
+    "required": "false",
+    "secret": "true",
+    "group": "triggers"
   }
 ]

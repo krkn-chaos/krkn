@@ -91,34 +91,34 @@ def get_status(start_time, end_time):
     return cerberus_status
 
 
-def publish_kraken_status( start_time, end_time):
+def publish_kraken_status(start_time, end_time):
     """
-    Publish kraken status to cerberus
+    Check cerberus health status after a scenario run and act on exit_on_failure.
     """
+    if not cerberus_enabled:
+        return
+
     cerberus_status = get_status(start_time, end_time)
     if not cerberus_status:
         if exit_on_failure:
-            logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing, exiting kraken run"
+            logging.error(
+                "Cerberus reports cluster is NOT healthy, exiting kraken run"
             )
             sys.exit(1)
         else:
-            logging.info(
-                "Cerberus status is not healthy and post action scenarios "
-                "are still failing"
+            logging.warning(
+                "Cerberus reports cluster is NOT healthy"
             )
     else:
         if exit_on_failure:
-            logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing, exiting kraken run"
+            logging.warning(
+                "Cerberus reports cluster is healthy, "
+                "but exit_on_failure is set — exiting kraken run"
             )
             sys.exit(1)
         else:
             logging.info(
-                "Cerberus status is healthy but post action scenarios "
-                "are still failing"
+                "Cerberus reports cluster is healthy"
             )
 
 

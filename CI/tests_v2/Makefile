@@ -75,10 +75,10 @@ preflight:
 
 test: preflight
 	cd $(REPO_ROOT) && KRKN_TEST_COVERAGE=1 $(PYTHON) -m pytest $(TESTS_DIR)/ -v --timeout=300 --reruns=2 --reruns-delay=10 \
-		--html=$(TESTS_DIR)/report.html -n auto --junitxml=$(TESTS_DIR)/results.xml
+		--html=$(TESTS_DIR)/report.html -n auto --dist loadgroup --junitxml=$(TESTS_DIR)/results.xml
 
 test-fast: preflight
-	cd $(REPO_ROOT) && $(PYTHON) -m pytest $(TESTS_DIR)/ -v -p no:rerunfailures -n auto --timeout=120
+	cd $(REPO_ROOT) && $(PYTHON) -m pytest $(TESTS_DIR)/ -v -p no:rerunfailures -n auto --dist loadgroup --timeout=120
 
 test-debug: preflight
 	cd $(REPO_ROOT) && $(PYTHON) -m pytest $(TESTS_DIR)/ -v -s -p no:rerunfailures --timeout=300 \

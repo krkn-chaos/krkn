@@ -189,6 +189,39 @@ class TestRollbackConfig:
     def test_is_rollback_version_file_format(self, file_name, expected):
         assert RollbackConfig.is_rollback_version_file_format(file_name) == expected
 
+    def test_search_rollback_version_files_order(self, tmpdir):
+        from unittest.mock import patch
+        
+        run_uuid = "abcdefgh"
+        versions_dir = str(tmpdir.mkdir("versions_test_order"))
+        
+        with patch.object(RollbackConfig, 'versions_directory', versions_dir):
+            context_dir_name = f"123456789-{run_uuid}"
+            context_dir = os.path.join(versions_dir, context_dir_name)
+            os.makedirs(context_dir)
+
+            # Files with different timestamps
+            files = [
+                "scenario_1000_12345678.py",
+                "scenario_3000_12345678.py",
+                "scenario_2000_12345678.py",
+                "scenario_500_12345678.py",
+            ]
+            for file in files:
+                with open(os.path.join(context_dir, file), "w") as f:
+                    f.write("# dummy content")
+
+            result = RollbackConfig.search_rollback_version_files(run_uuid, "scenario")
+            result_filenames = [os.path.basename(f) for f in result]
+            
+            expected_order = [
+                "scenario_3000_12345678.py",
+                "scenario_2000_12345678.py",
+                "scenario_1000_12345678.py",
+                "scenario_500_12345678.py",
+            ]
+            assert result_filenames == expected_order
+
 class TestRollbackCommand:
 
     @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
@@ -232,6 +265,32 @@ class TestRollbackCommand:
                 "scenario",
                 ignore_auto_rollback_config=True
             )
+            
+    def test_list_rollback_requires_exact_run_uuid_match(self, tmp_path, capsys):
+        """Verify that rollback context filtering requires an exact run UUID
+        match and does not return directories for partial UUID values.""" 
+        from krkn.rollback.command import list_rollback
+        from krkn.rollback.config import RollbackConfig
+        from unittest.mock import patch
+
+        rollback_dir = tmp_path / "rollback"
+        rollback_dir.mkdir()
+        (
+            rollback_dir /"123456789-abcd1234-1111-2222-333344445555"
+        ).mkdir()
+
+        (
+            rollback_dir /"113456780-efgh5678-aaaa-bbbb-ccccddddeeee"
+        ).mkdir()
+
+        with patch.object(RollbackConfig,"versions_directory",str(rollback_dir)):
+            list_rollback(run_uuid="abcd1234")
+
+        captured = capsys.readouterr()
+
+        # Partial UUID values should not match rollback context directories.
+        assert "abcd1234-1111-2222-333344445555" not in captured.out
+        assert "efgh5678-aaaa-bbbb-ccccddddeeee" not in captured.out 
 
 class TestRollbackAbstractScenarioPlugin:
 
@@ -341,7 +400,8 @@ class TestSecureTempDirectories:
                 os.path.expanduser("~"), ".krkn", "rollback"
             )
         assert rollback_versions_dir != "/tmp/kraken-rollback"
-        assert ".krkn/rollback" in rollback_versions_dir
+        normalized = rollback_versions_dir.replace("\\", "/")
+        assert "/.krkn/rollback" in normalized
 
     def test_archive_path_uses_secure_tempdir_when_empty(self):
         """When archive_path is empty, a secure temp directory
@@ -353,7 +413,9 @@ class TestSecureTempDirectories:
             assert os.path.isdir(archive_path)
             assert archive_path != "/tmp"
             mode = oct(os.stat(archive_path).st_mode & 0o777)
-            assert mode == "0o700"
+            # Windows does not reliably expose POSIX permission bits the same way.
+            if os.name != "nt":
+                assert mode == "0o700"
         finally:
             os.rmdir(archive_path)
 

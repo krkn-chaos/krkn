@@ -20,6 +20,9 @@ class InputParams:
             self.kill = config["kill"] if "kill" in config else 1
             self.timeout = config["timeout"] if "timeout" in config else 120
             self.duration = config["duration"] if "duration" in config else 10
+            self.execution = config["execution"] if "execution" in config else "serial"
+            if self.execution not in ["serial", "parallel"]:
+                raise ValueError(f"Unknown execution '{self.execution}' in config. Supported values are: serial, parallel.")
             self.krkn_pod_recovery_time = config["krkn_pod_recovery_time"] if "krkn_pod_recovery_time" in config else 120
             self.label_selector = config["label_selector"] if "label_selector" in config else ""
             self.namespace_pattern = config["namespace_pattern"] if "namespace_pattern" in config else ""
@@ -27,14 +30,19 @@ class InputParams:
             self.node_label_selector = config["node_label_selector"] if "node_label_selector" in config else ""
             self.node_names = config["node_names"] if "node_names" in config else []
             self.exclude_label = config["exclude_label"] if "exclude_label" in config else ""
+            self.force = config["force"] if "force" in config else False
+            if not isinstance(self.force, bool):
+                raise ValueError(f"Invalid value '{self.force}' for 'force' in config. Must be a boolean (true/false).")
 
     namespace_pattern: str
     krkn_pod_recovery_time: int
     timeout: int
     duration: int
     kill: int
+    execution: str
     label_selector: str
     name_pattern: str
     node_label_selector: str
     node_names: list
     exclude_label: str
+    force: bool

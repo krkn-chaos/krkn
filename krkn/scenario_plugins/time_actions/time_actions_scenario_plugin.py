@@ -77,6 +77,44 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 break
         return response
 
+    def exec_with_shell_fallback(self, command, pod_name, namespace, container_name, kubecli: KrknKubernetes, max_retries=3):
+        """
+        Execute command in pod with shell fallback on failure.
+        
+        Args:
+            command: Command to execute (string or list)
+            pod_name: Name of the pod
+            namespace: Namespace of the pod
+            container_name: Name of the container
+            kubecli: Kubernetes client
+            max_retries: Maximum number of retries
+            
+        Returns:
+            Command output or False on persistent failure
+        """
+        # Try direct execution first
+        for attempt in range(max_retries):
+            try:
+                response = kubecli.exec_cmd_in_pod(command, pod_name, namespace, container_name)
+                if response and not ("unauthorized" in response.lower() or "authorization" in response.lower()):
+                    return response
+            except Exception:
+                pass
+            
+            # If direct execution fails, try with shell fallback
+            try:
+                shell_command = ["/bin/sh", "-c"] + (command if isinstance(command, list) else [command])
+                response = kubecli.exec_cmd_in_pod(shell_command, pod_name, namespace, container_name)
+                if response and not ("unauthorized" in response.lower() or "authorization" in response.lower()):
+                    return response
+            except Exception:
+                pass
+                
+            if attempt < max_retries - 1:
+                time.sleep(1)
+        
+        return False
+
     # krkn_lib
     def get_container_name(
         self, pod_name, namespace, kubecli: KrknKubernetes, container_name=""
@@ -301,7 +339,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         max_retries = 30
         if object_type == "node":
             for node_name in names:
-                first_date_time = datetime.datetime.utcnow()
+                first_date_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 check_pod_name = f"time-skew-pod-{get_random_string(5)}"
                 node_datetime_string = kubecli.exec_command_on_node(
                     node_name, [skew_command], check_pod_name
@@ -309,7 +347,7 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 node_datetime = self.string_to_date(node_datetime_string)
                 counter = 0
                 while not (
-                    first_date_time < node_datetime < datetime.datetime.utcnow()
+                    first_date_time < node_datetime < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 ):
                     time.sleep(10)
                     logging.info(
@@ -334,13 +372,13 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
 
         elif object_type == "pod":
             for pod_name in names:
-                first_date_time = datetime.datetime.utcnow()
+                first_date_time = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
                 counter = 0
                 pod_datetime_string = self.pod_exec(
                     pod_name[0], skew_command, pod_name[1], pod_name[2], kubecli
                 )
                 pod_datetime = self.string_to_date(pod_datetime_string)
-                while not (first_date_time < pod_datetime < datetime.datetime.utcnow()):
+                while not (first_date_time < pod_datetime < datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)):
                     time.sleep(10)
                     logging.info(
                         "Date/time on pod %s still not reset, "

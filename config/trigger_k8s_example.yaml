@@ -1,0 +1,17 @@
+kraken:
+  chaos_scenarios:
+    - pod_disruption_scenarios:
+        - scenarios/kube/pod.yml
+
+triggers:
+  mode: all_of
+  timeout: 120
+  interval: 5
+  on_timeout: fail
+  conditions:
+    - type: k8s
+      apiVersion: apps/v1
+      kind: Deployment
+      name: nginx
+      namespace: default
+      condition: "status.readyReplicas >= 1"

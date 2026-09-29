@@ -40,7 +40,7 @@ class NetworkScenarioConfig:
     )
 
     image: typing.Annotated[str, validation.min(1)]= field(
-        default="quay.io/krkn-chaos/krkn:tools",
+        default="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
         metadata={
             "name": "Image",
             "description": "Image of krkn tools to run"
@@ -185,7 +185,7 @@ def get_default_interface(node: str, pod_template, kubecli: KrknKubernetes, imag
     kubecli.create_pod(pod_body, "default", 300)
     pod_name = f"fedtools-{pod_name_regex}"
     try:
-        cmd = ["ip", "r"]
+        cmd = ["ip r"]
         output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
         if not output:
@@ -238,7 +238,7 @@ def verify_interface(
     pod_name = f"fedtools-{pod_name_regex}"
     try:
         if input_interface_list == []:
-            cmd = ["ip", "r"]
+            cmd = ["ip r"]
             output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
             if not output:
@@ -254,7 +254,7 @@ def verify_interface(
             input_interface_list = [default_route.split()[4]]
 
         else:
-            cmd = ["ip", "-br", "addr", "show"]
+            cmd = ["ip -br addr show"]
             output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
 
             if not output:
@@ -358,7 +358,7 @@ def apply_ingress_filter(
     kubecli: KrknKubernetes,
     create_interfaces: bool = True,
     param_selector: str = "all",
-    image: str = "quay.io/krkn-chaos/krkn:tools",
+    image: str = "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
 ) -> str:
     """
     Function that applies the filters to shape incoming traffic to
@@ -709,7 +709,9 @@ def network_chaos(
     job_template = env.get_template("job.j2")
     pod_interface_template = env.get_template("pod_interface.j2")
     pod_module_template = env.get_template("pod_module.j2")
-    kubecli = KrknKubernetes(kubeconfig_path=cfg.kubeconfig_path)
+    kubecli = getattr(cfg, "kubecli", None) or KrknKubernetes(
+        kubeconfig_path=cfg.kubeconfig_path
+    )
     test_image = cfg.image
     logging.info("Starting Ingress Network Chaos")
     try:

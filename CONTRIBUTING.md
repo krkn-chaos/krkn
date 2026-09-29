@@ -73,15 +73,33 @@ To get started:
 1. Find something to work on in the [open issues](https://github.com/krkn-chaos/krkn/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22), or open one of your own.
 2. Join the [#krkn channel on Kubernetes Slack](https://kubernetes.slack.com/archives/C05SFMHRWK1) to introduce yourself and ask questions.
 
-### Member
+### Dedicated Contributor
 
-Members are active contributors who review PRs and have demonstrated a solid understanding of the project's codebase and conventions.
+Dedicated Contributors are active contributors who have moved beyond one-off participation and are consistently engaging with the project. This is the first formal step on the contributor ladder and requires an application.
 
 **Requirements** — before applying, you should have:
-- Been actively contributing for **at least 3 months**
-- Submitted **at least 3 non-trivial PRs** that have been merged
-- Reviewed **at least 5 PRs** from other contributors
+- Been actively contributing for **at least 2 months**
+- Submitted **at least 2 non-trivial PRs** that have been merged
+- Reviewed **at least 3 PRs** from other contributors
 - Shown familiarity with the project's coding style, testing practices, and documentation standards
+
+**How to apply:**
+
+1. Open a [Dedicated Contributor Application issue](https://github.com/krkn-chaos/krkn/issues/new?template=dedicated_contributor_request.md) and complete all sections.
+2. Tag two current Maintainers to review your application.
+
+Maintainers will evaluate the application and respond within **two weeks**. A simple majority vote of Maintainers is required for approval. Once approved, you will be added to [MAINTAINERS.md](MAINTAINERS.md) and acknowledged in the project community.
+
+### Member
+
+Members are Dedicated Contributors who have demonstrated sustained, high-quality involvement in the project — becoming a reliable presence in reviews, discussions, and mentoring. This role recognizes community members who are on the path toward Maintainership but have not yet taken on the full responsibilities of project oversight.
+
+**Requirements** — before applying, you should have:
+- Been an active **Dedicated Contributor for at least 3 months**
+- Submitted **at least 5 non-trivial PRs** that have been merged
+- Reviewed **at least 10 PRs** from other contributors
+- Helped onboard or mentor at least one newer contributor (e.g., guided them through a PR, answered questions in Slack, or co-reviewed their work)
+- Demonstrated deep familiarity with at least one subsystem or area of the codebase
 
 **How to apply:**
 1. Open a [Member Application issue](https://github.com/krkn-chaos/krkn/issues/new?template=member_request.md) and complete all sections.

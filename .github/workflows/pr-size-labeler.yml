@@ -4,6 +4,10 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened, edited]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   pull-requests: write
   issues: write
@@ -12,6 +16,7 @@ permissions:
 jobs:
   size-label:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Label PR by size
         uses: codelytv/pr-size-labeler@095a41fca88b8764fd9e008ad269bcdb82bb38b9 # v1

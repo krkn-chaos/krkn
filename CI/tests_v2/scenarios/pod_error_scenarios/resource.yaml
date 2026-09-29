@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-pod-error-target
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: krkn-pod-error-target
+  template:
+    metadata:
+      labels:
+        app: krkn-pod-error-target
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80

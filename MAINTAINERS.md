@@ -28,7 +28,9 @@ This project follows a contributor ladder model, where contributors can take on 
 The roles are:
 * Contributor: A contributor to the community whether it be with code, docs or issues
 
-* Member: A contributor who is active in the community and reviews pull requests.
+* Dedicated Contributor: A contributor who is consistently engaging with the project and has applied for formal recognition.
+
+* Member: A Dedicated Contributor who is active in the community, reviews pull requests, and helps mentor others.
 
 * Maintainer: A contributor who is responsible for the overall health and direction of the project.
 
@@ -38,7 +40,7 @@ The roles are:
 ## Maintainer Levels
 
 ### Contributor
-Contributors contributor to the community. Anyone can become a contributor by participating in discussions, reporting bugs, or contributing code or documentation.
+Contributors contribute to the community. Anyone can become a contributor by participating in discussions, reporting bugs, or contributing code or documentation.
 
 #### Responsibilities:
 
@@ -49,8 +51,18 @@ Report bugs and suggest new features.
 Contribute high-quality code and documentation.
 
 
+### Dedicated Contributor
+Dedicated Contributors are active contributors who have moved beyond one-off participation and are consistently engaging with the project. This is the first formal role on the contributor ladder and requires an application.
+
+#### Responsibilities:
+
+Engage consistently with the project through PRs, reviews, and community discussions.
+
+Adhere to the project's coding style, testing practices, and documentation standards.
+
+
 ### Member
-Members are active contributors to the community. Members have demonstrated a strong understanding of the project's codebase and conventions.
+Members are Dedicated Contributors who have demonstrated sustained, high-quality involvement in the project — becoming a reliable presence in reviews, discussions, and mentoring.
 
 #### Responsibilities:
 
@@ -59,6 +71,8 @@ Review pull requests for correctness, quality, and adherence to project standard
 Provide constructive and timely feedback to contributors.
 
 Ensure that all contributions are well-tested and documented.
+
+Help onboard and mentor newer contributors.
 
 Work with maintainers to ensure a smooth and efficient release process.
 

@@ -146,7 +146,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                              f"{avg_node_resources.memory / node_resources_start.memory * 100} %")
             if config.type == HogType.io:
                 logging.info(f"[{node}] detected disk space allocated: "
-                             f"{(avg_node_resources.disk_space - node_resources_end.disk_space) / 1024 / 1024} MB")
+                             f"{(node_resources_start.disk_space - avg_node_resources.disk_space) / 1024 / 1024} MB")
         except Exception as e:
             exception_queue.put(e)
 
@@ -168,12 +168,17 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         for worker in workers:
             worker.join()
 
-        try:
-            while True:
-                exception = exception_queue.get_nowait()
-                raise exception
-        except queue.Empty:
-            pass
+        errors = []
+        while True:
+            try:
+                errors.append(str(exception_queue.get_nowait()))
+            except queue.Empty:
+                break
+        if errors:
+            raise Exception(
+                f"hog scenario execution failed on {len(errors)} node(s): "
+                + "; ".join(errors)
+            )
 
     @staticmethod
     def rollback_hog_pod(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):
