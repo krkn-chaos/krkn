@@ -54,7 +54,7 @@ class NetworkChaosScenarioPlugin(AbstractScenarioPlugin):
                     test_dict, "egress", {"bandwidth": "100mbit"}
                 )
                 test_image = get_yaml_item_value(
-                    test_dict, "image", "quay.io/krkn-chaos/krkn:tools"
+                    test_dict, "image", "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
                 )
                 if test_node:
                     node_name_list = test_node.split(",")

@@ -135,7 +135,7 @@ class TestParseConfig(unittest.TestCase):
             "target-port": 9200,
             "target-service-label": "",
             "number-of-pods": 2,
-            "image": "quay.io/krkn-chaos/krkn-syn-flood:v1.0.0",
+            "image": "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-syn-flood",
             "attacker-nodes": {"node-role.kubernetes.io/worker": [""]},
         }
         if config:
@@ -268,7 +268,7 @@ class TestSynFloodRun(unittest.TestCase):
             "target-port": 9200,
             "target-service-label": "",
             "number-of-pods": 1,
-            "image": "quay.io/krkn-chaos/krkn-syn-flood:v1.0.0",
+            "image": "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-syn-flood",
             "attacker-nodes": {"node-role.kubernetes.io/worker": [""]},
         }
         if config:

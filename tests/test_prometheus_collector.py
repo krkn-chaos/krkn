@@ -26,6 +26,7 @@ How to run these tests:
 import datetime
 import unittest
 from unittest.mock import Mock, patch, MagicMock
+from concurrent.futures import ThreadPoolExecutor
 
 from krkn.prometheus.collector import slo_passed, evaluate_slos
 
@@ -396,6 +397,237 @@ class TestEvaluateSLOs(unittest.TestCase):
         call_args = mock_logging.debug.call_args[0]
         self.assertIn("no data", call_args[0])
         self.assertIn("test_slo", call_args[1])
+
+    def test_evaluate_slos_respects_max_workers(self):
+        """Test that max_workers caps to slo count when slo count < max_workers."""
+        slo_list = [
+            {"name": f"slo_{i}", "expr": f"query_{i}"}
+            for i in range(8)
+        ]
+
+        self.mock_prom_cli.process_prom_query_in_range.return_value = [
+            {"values": [[1234567890, "0"]]}
+        ]
+
+        with patch('krkn.prometheus.collector.ThreadPoolExecutor', wraps=ThreadPoolExecutor) as mock_pool:
+            evaluate_slos(
+                self.mock_prom_cli,
+                slo_list,
+                self.start_time,
+                self.end_time,
+                max_workers=25
+            )
+            # min(8, 25) = 8 — pool should be capped to the SLO count
+            mock_pool.assert_called_once_with(max_workers=8)
+
+    def test_evaluate_slos_max_workers_capped_to_slo_count(self):
+        """Test that max_workers is capped to the number of SLOs."""
+        slo_list = [
+            {"name": "slo_1", "expr": "query_1"},
+            {"name": "slo_2", "expr": "query_2"},
+        ]
+
+        self.mock_prom_cli.process_prom_query_in_range.return_value = [
+            {"values": [[1234567890, "0"]]}
+        ]
+
+        with patch('krkn.prometheus.collector.ThreadPoolExecutor', wraps=ThreadPoolExecutor) as mock_pool:
+            evaluate_slos(
+                self.mock_prom_cli,
+                slo_list,
+                self.start_time,
+                self.end_time,
+                max_workers=10
+            )
+            # Should use min(2, 10) = 2 workers
+            mock_pool.assert_called_once_with(max_workers=2)
+
+    def test_evaluate_slos_parallel_all_queries_executed(self):
+        """Test that all SLOs are evaluated when running in parallel."""
+        slo_list = [
+            {"name": f"slo_{i}", "expr": f"query_{i}"}
+            for i in range(15)
+        ]
+
+        self.mock_prom_cli.process_prom_query_in_range.return_value = [
+            {"values": [[1234567890, "0"]]}
+        ]
+
+        results = evaluate_slos(
+            self.mock_prom_cli,
+            slo_list,
+            self.start_time,
+            self.end_time
+        )
+
+        self.assertEqual(len(results), 15)
+        self.assertEqual(self.mock_prom_cli.process_prom_query_in_range.call_count, 15)
+        for i in range(15):
+            self.assertTrue(results[f"slo_{i}"])
+
+    def test_evaluate_slos_parallel_mixed_results(self):
+        """Test parallel evaluation with mixed pass/fail/error results."""
+        slo_list = [
+            {"name": "slo_pass", "expr": "pass_query"},
+            {"name": "slo_fail", "expr": "fail_query"},
+            {"name": "slo_error", "expr": "error_query"},
+            {"name": "slo_nodata", "expr": "nodata_query"},
+        ]
+
+        def mock_query_side_effect(expr, start_time, end_time):
+            if expr == "pass_query":
+                return [{"values": [[1234567890, "0"]]}]
+            elif expr == "fail_query":
+                return [{"values": [[1234567890, "1"]]}]
+            elif expr == "error_query":
+                raise Exception("Connection timeout")
+            else:
+                return []
+
+        self.mock_prom_cli.process_prom_query_in_range.side_effect = mock_query_side_effect
+
+        results = evaluate_slos(
+            self.mock_prom_cli,
+            slo_list,
+            self.start_time,
+            self.end_time,
+            max_workers=4
+        )
+
+        self.assertTrue(results["slo_pass"])
+        self.assertFalse(results["slo_fail"])
+        self.assertFalse(results["slo_error"])
+        self.assertTrue(results["slo_nodata"])
+
+    def test_evaluate_slos_exception_isolation(self):
+        """Test that one SLO exception doesn't affect others."""
+        slo_list = [
+            {"name": "slo_before", "expr": "query_before"},
+            {"name": "slo_broken", "expr": "query_broken"},
+            {"name": "slo_after", "expr": "query_after"},
+        ]
+
+        def mock_query_side_effect(expr, start_time, end_time):
+            if expr == "query_broken":
+                raise RuntimeError("Prometheus unavailable")
+            return [{"values": [[1234567890, "0"]]}]
+
+        self.mock_prom_cli.process_prom_query_in_range.side_effect = mock_query_side_effect
+
+        results = evaluate_slos(
+            self.mock_prom_cli,
+            slo_list,
+            self.start_time,
+            self.end_time
+        )
+
+        self.assertTrue(results["slo_before"])
+        self.assertFalse(results["slo_broken"])
+        self.assertTrue(results["slo_after"])
+
+    def test_evaluate_slos_single_worker(self):
+        """Test that max_workers=1 (sequential fallback) works correctly."""
+        slo_list = [
+            {"name": "slo_a", "expr": "query_a"},
+            {"name": "slo_b", "expr": "query_b"},
+            {"name": "slo_c", "expr": "query_c"},
+        ]
+
+        def mock_query_side_effect(expr, start_time, end_time):
+            if expr == "query_b":
+                return [{"values": [[1234567890, "1"]]}]
+            return [{"values": [[1234567890, "0"]]}]
+
+        self.mock_prom_cli.process_prom_query_in_range.side_effect = mock_query_side_effect
+
+        with patch('krkn.prometheus.collector.ThreadPoolExecutor', wraps=ThreadPoolExecutor) as mock_pool:
+            results = evaluate_slos(
+                self.mock_prom_cli,
+                slo_list,
+                self.start_time,
+                self.end_time,
+                max_workers=1
+            )
+            mock_pool.assert_called_once_with(max_workers=1)
+
+        self.assertEqual(len(results), 3)
+        self.assertTrue(results["slo_a"])
+        self.assertFalse(results["slo_b"])
+        self.assertTrue(results["slo_c"])
+
+    def test_evaluate_slos_malformed_slo_dict(self):
+        """Test that a SLO dict missing required keys is recorded as failed."""
+        slo_list = [
+            {"name": "good_slo", "expr": "good_query"},
+            {"name": "no_expr_slo"},              # missing "expr"
+            {"expr": "orphan_query"},              # missing "name"
+            {"name": "another_good", "expr": "another_query"},
+        ]
+
+        self.mock_prom_cli.process_prom_query_in_range.return_value = [
+            {"values": [[1234567890, "0"]]}
+        ]
+
+        results = evaluate_slos(
+            self.mock_prom_cli,
+            slo_list,
+            self.start_time,
+            self.end_time
+        )
+
+        self.assertTrue(results["good_slo"])
+        self.assertTrue(results["another_good"])
+        # Malformed SLOs are recorded as failed
+        self.assertFalse(results["no_expr_slo"])
+        self.assertFalse(results["<unknown>"])
+
+    def test_evaluate_slos_zero_max_workers_clamped_to_one(self):
+        """Test that max_workers=0 is clamped to 1 instead of raising ValueError."""
+        slo_list = [
+            {"name": "slo_1", "expr": "query_1"},
+        ]
+
+        self.mock_prom_cli.process_prom_query_in_range.return_value = [
+            {"values": [[1234567890, "0"]]}
+        ]
+
+        with patch('krkn.prometheus.collector.ThreadPoolExecutor', wraps=ThreadPoolExecutor) as mock_pool:
+            results = evaluate_slos(
+                self.mock_prom_cli,
+                slo_list,
+                self.start_time,
+                self.end_time,
+                max_workers=0
+            )
+            mock_pool.assert_called_once_with(max_workers=1)
+
+        self.assertEqual(len(results), 1)
+        self.assertTrue(results["slo_1"])
+
+    def test_evaluate_slos_negative_max_workers_clamped_to_one(self):
+        """Test that negative max_workers is clamped to 1."""
+        slo_list = [
+            {"name": "slo_a", "expr": "query_a"},
+            {"name": "slo_b", "expr": "query_b"},
+        ]
+
+        self.mock_prom_cli.process_prom_query_in_range.return_value = [
+            {"values": [[1234567890, "0"]]}
+        ]
+
+        with patch('krkn.prometheus.collector.ThreadPoolExecutor', wraps=ThreadPoolExecutor) as mock_pool:
+            results = evaluate_slos(
+                self.mock_prom_cli,
+                slo_list,
+                self.start_time,
+                self.end_time,
+                max_workers=-5
+            )
+            mock_pool.assert_called_once_with(max_workers=1)
+
+        self.assertEqual(len(results), 2)
+        self.assertTrue(results["slo_a"])
+        self.assertTrue(results["slo_b"])
 
 
 if __name__ == '__main__':
