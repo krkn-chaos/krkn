@@ -127,7 +127,7 @@ class TestServiceHijackingRun(unittest.TestCase):
             "service_name": "nginx-service",
             "service_namespace": "default",
             "service_target_port": "http-web-svc",
-            "image": "quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3",
+            "image": "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-service-hijacking",
             "chaos_duration": 1,  # Use short duration for tests
             "privileged": True,
             "plan": [

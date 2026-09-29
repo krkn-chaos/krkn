@@ -6,7 +6,7 @@
 duration: 20
 workers: 1
 hog-type: cpu
-image: quay.io/krkn-chaos/krkn-hog
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog
 namespace: default
 cpu-load-percentage: 50
 cpu-method: all

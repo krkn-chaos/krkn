@@ -1,7 +1,7 @@
 # EgressIP failovr scenario - blocks OVN healthcheck port 9107 for EgressIP to move to another node
 
 - id: node_network_filter
-  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  image: "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos"
   wait_duration: 60
   test_duration: 30
   label_selector: "k8s.ovn.org/egress-assignable="
