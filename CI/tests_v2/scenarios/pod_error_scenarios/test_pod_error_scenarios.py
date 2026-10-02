@@ -110,7 +110,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
                         "containers": [{
                             "name": "app",
                             "readinessProbe": {
-                                "httpGet": {"path": "/", "port": 80},
+                                "httpGet": {"path": "/", "port": 8080},
                                 "initialDelaySeconds": READINESS_DELAY,
                                 "periodSeconds": 5,
                             },
@@ -123,9 +123,11 @@ class TestPodErrorScenarios(BaseScenarioTest):
             name="krkn-pod-error-target", namespace=ns, body=patch_body
         )
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_DELAY + 30)
-
         result = self.run_scenario(
-            self.tmp_path, ns, overrides={"krkn_pod_recovery_time": RECOVERY_TIMEOUT}
+            self.tmp_path, ns, overrides={
+                "kill": 2,
+                "krkn_pod_recovery_time": RECOVERY_TIMEOUT,
+            }
         )
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
 
