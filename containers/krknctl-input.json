@@ -53,22 +53,13 @@
     "group": "kraken"
   },
   {
-    "name": "generate-pdf-report",
-    "short_description": "Generate PDF report",
-    "description": "Generates a PDF report summarizing the chaos run results at the end of each scenario",
-    "variable": "GENERATE_PDF_REPORT",
-    "type": "boolean",
-    "default": "True",
-    "required": "false",
-    "group": "kraken"
-  },
-  {
-    "name": "generate-html-report",
-    "short_description": "Generate HTML report",
-    "description": "Generate an interactive HTML summary report after the chaos run",
-    "variable": "GENERATE_HTML_REPORT",
-    "type": "boolean",
-    "default": "True",
+    "name": "report-formats",
+    "short_description": "Report format(s)",
+    "description": "Report formats to generate after the chaos run",
+    "variable": "REPORT_FORMATS",
+    "type": "string",
+    "default": "[pdf,html]",
+    "validator": "^\\[(pdf|html)(,(pdf|html))*\\]$",
     "required": "false",
     "group": "kraken"
   },
