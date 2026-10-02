@@ -32,7 +32,7 @@ import itertools
 import unittest
 import sys
 import json
-from unittest.mock import MagicMock, patch, Mock
+from unittest.mock import MagicMock, patch, Mock, ANY
 
 # Mock paramiko and IBM SDK before importing
 sys.modules['paramiko'] = MagicMock()
@@ -554,21 +554,40 @@ class TestIbmNodeScenarios(unittest.TestCase):
         # Verify that affected nodes were not appended since exception was caught
         self.assertEqual(len(self.affected_nodes_status.affected_nodes), 0)
 
-    def test_node_terminate_scenario_success(self):
-        """Test node terminate scenario successfully"""
+    def test_node_termination_scenario_success(self):
+        """Test node termination scenario successfully"""
         # Configure mock methods
         self.mock_ibm_cloud_instance.get_instance_id.return_value = 'vpc-123'
         self.mock_ibm_cloud_instance.delete_instance.return_value = None
         self.mock_ibm_cloud_instance.wait_until_deleted.return_value = True
 
-        self.scenario.node_terminate_scenario(
+        self.scenario.node_termination_scenario(
             instance_kill_count=1,
             node='test-node',
             timeout=60,
             poll_interval=5
         )
 
+        self.mock_ibm_cloud_instance.delete_instance.assert_called_once_with('vpc-123')
+        self.mock_ibm_cloud_instance.wait_until_deleted.assert_called_once_with('vpc-123', 60, ANY)
         self.assertEqual(len(self.affected_nodes_status.affected_nodes), 1)
+
+    def test_node_termination_scenario_timeout(self):
+        """Test node termination scenario when wait_until_deleted times out"""
+        self.mock_ibm_cloud_instance.get_instance_id.return_value = 'vpc-123'
+        self.mock_ibm_cloud_instance.delete_instance.return_value = None
+        self.mock_ibm_cloud_instance.wait_until_deleted.return_value = False
+
+        self.scenario.node_termination_scenario(
+            instance_kill_count=1,
+            node='test-node',
+            timeout=60,
+            poll_interval=5
+        )
+
+        self.mock_ibm_cloud_instance.delete_instance.assert_called_once_with('vpc-123')
+        self.mock_ibm_cloud_instance.wait_until_deleted.assert_called_once_with('vpc-123', 60, ANY)
+        self.assertEqual(len(self.affected_nodes_status.affected_nodes), 0)
 
     def test_node_scenario_multiple_kill_count(self):
         """Test node scenario with multiple kill count"""
@@ -632,14 +651,14 @@ class TestIbmNodeScenarios(unittest.TestCase):
             soft_reboot=False
         )
 
-    def test_node_terminate_scenario_exception(self):
-        """Test node terminate scenario with exception"""
+    def test_node_termination_scenario_exception(self):
+        """Test node termination scenario with exception"""
         # Configure mock - get_instance_id succeeds but delete_instance fails
         self.mock_ibm_cloud_instance.get_instance_id.return_value = 'vpc-123'
         self.mock_ibm_cloud_instance.delete_instance.side_effect = Exception("API Error")
 
         # Should handle exception gracefully
-        self.scenario.node_terminate_scenario(
+        self.scenario.node_termination_scenario(
             instance_kill_count=1,
             node='test-node',
             timeout=60,
