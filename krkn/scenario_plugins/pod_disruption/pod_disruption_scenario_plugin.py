@@ -1,4 +1,4 @@
-# Copyright 2025 The Krkn Authors
+﻿# Copyright 2025 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -50,8 +50,14 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         try:
             with open(scenario, "r") as f:
                 cont_scenario_config = yaml.safe_load(f)
+                executed_scenarios = 0
                 for kill_scenario in cont_scenario_config:
                     kill_scenario_config = InputParams(kill_scenario["config"])
+                    # Validate namespace_pattern before starting monitoring so
+                    # a missing value exits cleanly without launching a future.
+                    if not kill_scenario_config.namespace_pattern:
+                        logging.error('Namespace pattern must be specified')
+                        continue
                     future_snapshot=self.start_monitoring(
                         kill_scenario_config,
                         lib_telemetry
@@ -76,7 +82,8 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
                         logging.error("PodDisruptionScenarioPlugin failed during setup" + str(result))
                         return 1
-                    
+
+                    executed_scenarios += 1
                     snapshot = future_snapshot.result()
                     result = snapshot.get_pods_status()
                     scenario_telemetry.affected_pods = result
@@ -87,7 +94,14 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     if ret > 0:
                         logging.info("PodDisruptionScenarioPlugin failed")
                         return 1
-                    
+
+                if executed_scenarios == 0:
+                    logging.error(
+                        "PodDisruptionScenarioPlugin: no scenarios were executed "
+                        "(all entries were skipped due to missing namespace_pattern)"
+                    )
+                    return 1
+
         except (RuntimeError, Exception) as e:
             logging.error("Stack trace:\n%s", traceback.format_exc())
             logging.error("PodDisruptionScenariosPlugin exiting due to Exception %s" % e)
@@ -221,13 +235,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
         # region Select target pods
         try:
             namespace = config.namespace_pattern
-            if not namespace: 
-                logging.error('Namespace pattern must be specified')
 
-            pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+            pods = self.get_pods(config.name_pattern,config.label_selector,namespace, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
             exclude_pods = set()
             if config.exclude_label:
-                _exclude_pods = self.get_pods("",config.exclude_label,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+                _exclude_pods = self.get_pods("",config.exclude_label,namespace, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
                 for pod in _exclude_pods:
                     exclude_pods.add(pod[0])
 
@@ -250,17 +262,13 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                     pods_to_kill.append(pod)
                     
             if config.execution == "parallel":
-                self._delete_pods_parallel(pods_to_kill, kubecli, config.force)
+                self._delete_pods_parallel(pods_to_kill, kubecli)
             else:
                 for pod in pods_to_kill:
-                    if config.force:
-                        logging.info(f'Force deleting pod {pod[0]} (grace_period_seconds=0)')
-                        kubecli.delete_pod(pod[0], pod[1], grace_period_seconds=0)
-                    else:
-                        logging.info(f'Gracefully deleting pod {pod[0]}')
-                        kubecli.delete_pod(pod[0], pod[1])
+                    logging.info(f'Deleting pod {pod[0]}')
+                    kubecli.delete_pod(pod[0], pod[1])
             
-            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,namespace, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
         except Exception as e:
             raise(e)
 
@@ -288,18 +296,14 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
         return 0
 
-    def _delete_pods_parallel(self, pods: list, kubecli: KrknKubernetes, force: bool = False):
+    def _delete_pods_parallel(self, pods: list, kubecli: KrknKubernetes):
         """Delete pods concurrently using a thread pool to avoid unbounded threads."""
         error_queue = queue.Queue()
 
         def _delete(pod):
             try:
-                if force:
-                    logging.info(f'[parallel] Force deleting pod {pod[0]} (grace_period_seconds=0)')
-                    kubecli.delete_pod(pod[0], pod[1], grace_period_seconds=0)
-                else:
-                    logging.info(f'[parallel] Gracefully deleting pod {pod[0]}')
-                    kubecli.delete_pod(pod[0], pod[1])
+                logging.info(f'[parallel] Deleting pod {pod[0]}')
+                kubecli.delete_pod(pod[0], pod[1])
             except Exception as exc:
                 error_queue.put(exc)
 
