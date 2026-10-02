@@ -790,8 +790,9 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_pool.assert_called_once_with(processes=3)
             mock_pool_instance.starmap.assert_called_once()
             mock_pool_instance.close.assert_called_once()
+            mock_pool_instance.join.assert_called_once()
 
-    @patch('logging.info')
+    @patch('logging.error')
     def test_multiprocess_nodes_with_exception(self, mock_logging):
         """
         Test multiprocess_nodes handles exceptions gracefully
