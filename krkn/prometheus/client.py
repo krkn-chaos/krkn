@@ -34,6 +34,13 @@ from krkn_lib.prometheus.krkn_prometheus import KrknPrometheus
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
+def _as_prometheus_datetime(value) -> datetime.datetime:
+    """Normalize Unix timestamps and datetimes for Prometheus range queries."""
+    if isinstance(value, datetime.datetime):
+        return value if value.tzinfo else value.replace(tzinfo=datetime.timezone.utc)
+    return datetime.datetime.fromtimestamp(value, tz=datetime.timezone.utc)
+
+
 def critical_alerts(
     prom_cli: KrknPrometheus,
     summary: ChaosRunAlertSummary,
@@ -50,7 +57,9 @@ def critical_alerts(
     logging.info("Checking for critical alerts firing post chaos")
 
     during_critical_alerts = prom_cli.process_prom_query_in_range(
-        query, start_time=datetime.datetime.fromtimestamp(start_time), end_time=end_time
+        query,
+        start_time=_as_prometheus_datetime(start_time),
+        end_time=_as_prometheus_datetime(end_time),
     )
 
     for alert in during_critical_alerts:
