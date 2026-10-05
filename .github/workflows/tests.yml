@@ -172,6 +172,9 @@ jobs:
         run: "! grep Fail CI/results.markdown"
 
   badge:
+    concurrency:
+      group: krkn-lib-docs-badge-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     name: Generate Coverage Badge
