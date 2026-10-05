@@ -297,7 +297,6 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         safe_logger = SafeLogger(filename=telemetry_log_file)
 
         try:
-            kubeconfig_path
             os.environ["KUBECONFIG"] = str(kubeconfig_path)
             # krkn-lib-kubernetes init
             kubecli = KrknKubernetes(
@@ -664,7 +663,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                                 run_uuid,
                                 scenario_type,
                                 start_time,
-                                datetime.datetime.now(),
+                                datetime.datetime.now(datetime.timezone.utc),
                                 elastic_alerts_index
                             )
 
@@ -695,6 +694,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         if health_check_factory._should_run_at_timing(
             prometheus_config.get("run_during", "during"), "during"
         ) and prometheus_config.get("enable_alerts", False):
+            # prometheus_api_client requires datetime values for range queries.
+            during_start_time = datetime.datetime.fromtimestamp(
+                start_time, tz=datetime.timezone.utc
+            )
+            during_end_time = datetime.datetime.fromtimestamp(
+                end_time, tz=datetime.timezone.utc
+            )
             during_check_results = health_check_factory.run_all_once(
                 config,
                 check_type="during",
@@ -704,8 +710,8 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 elastic=elastic_search,
                 run_uuid=run_uuid,
                 elastic_alerts_index=elastic_alerts_index,
-                chaos_start_time=start_time,
-                chaos_end_time=end_time,
+                chaos_start_time=during_start_time,
+                chaos_end_time=during_end_time,
                 telemetry_queue=during_check_telemetry_queue,
             )
             if not during_check_results["passed"]:
