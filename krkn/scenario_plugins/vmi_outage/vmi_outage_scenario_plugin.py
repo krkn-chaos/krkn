@@ -260,13 +260,11 @@ class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
                 time.sleep(1)
                 
             logging.error(f"Timed out waiting for VMI {vm_name} to be deleted")
-            self.vmis_status.unrecovered.append(self.affected_vmi)
             return 1
             
         except Exception as e:
             logging.error(f"Error deleting VMI {vm_name}: {e}")
             log_exception(str(e))
-            self.vmis_status.unrecovered.append(self.affected_vmi)
             return 1
 
     def wait_for_running(self, vm_name: str, namespace: str, timeout: int = 120) -> int: 

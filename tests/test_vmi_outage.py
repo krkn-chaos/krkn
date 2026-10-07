@@ -223,6 +223,7 @@ class TestVmiOutageScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
+        self.assertEqual(len(self.scenario_telemetry.affected_vmis.unrecovered), 1)
         
     def test_disable_auto_restart(self):
         """
@@ -333,6 +334,7 @@ class TestVmiOutageScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
+        self.assertEqual(len(self.plugin.vmis_status.unrecovered), 0)
 
     def test_patch_vm_spec_success(self):
         """
