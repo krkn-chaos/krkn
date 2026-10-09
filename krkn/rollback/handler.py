@@ -276,5 +276,7 @@ class RollbackHandler:
                 callable, rollback_content, version
             )
             logger.info(f"Rollback callable serialized to {version_file}")
+            return True
         except Exception as e:
             logger.error(f"Failed to serialize rollback callable: {e}")
+            return False
