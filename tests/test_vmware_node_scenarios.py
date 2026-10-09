@@ -132,9 +132,9 @@ class TestVmwareNodeScenarios(unittest.TestCase):
             )
 
     @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.vSphere')
-    def test_node_terminate_scenario(self, mock_vsphere_class):
+    def test_node_termination_scenario(self, mock_vsphere_class):
         """Test node termination scenario."""
-        node_name = "test-node-terminate"
+        node_name = "test-node-termination"
         mock_vsphere = MagicMock()
         mock_vsphere_class.return_value = mock_vsphere
         mock_vsphere.stop_instances.return_value = True
@@ -147,8 +147,8 @@ class TestVmwareNodeScenarios(unittest.TestCase):
             affected_nodes_status=AffectedNodeStatus()
         )
 
-        # Execute terminate scenario
-        scenarios.node_terminate_scenario(
+        # Execute termination scenario
+        scenarios.node_termination_scenario(
             instance_kill_count=1,
             node=node_name,
             timeout=300,
@@ -160,6 +160,63 @@ class TestVmwareNodeScenarios(unittest.TestCase):
         mock_vsphere.wait_until_stopped.assert_called_once()
         mock_vsphere.release_instances.assert_called_with(node_name)
         mock_vsphere.wait_until_released.assert_called_once()
+        self.assertEqual(len(scenarios.affected_nodes_status.affected_nodes), 1)
+
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.vSphere')
+    def test_node_termination_scenario_stop_timeout(self, mock_vsphere_class):
+        """Test node termination scenario skips release when stop wait times out."""
+        node_name = "test-node-stop-timeout"
+        mock_vsphere = MagicMock()
+        mock_vsphere_class.return_value = mock_vsphere
+        mock_vsphere.stop_instances.return_value = True
+        mock_vsphere.wait_until_stopped.return_value = False
+
+        scenarios = vmware_node_scenarios(
+            kubecli=self.mock_kubecli,
+            node_action_kube_check=False,
+            affected_nodes_status=AffectedNodeStatus()
+        )
+
+        scenarios.node_termination_scenario(
+            instance_kill_count=1,
+            node=node_name,
+            timeout=300,
+            poll_interval=5
+        )
+
+        mock_vsphere.stop_instances.assert_called_with(node_name)
+        mock_vsphere.wait_until_stopped.assert_called_once()
+        mock_vsphere.release_instances.assert_not_called()
+        self.assertEqual(len(scenarios.affected_nodes_status.affected_nodes), 0)
+
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.vSphere')
+    def test_node_termination_scenario_release_timeout(self, mock_vsphere_class):
+        """Test node termination scenario does not record success when release times out."""
+        node_name = "test-node-release-timeout"
+        mock_vsphere = MagicMock()
+        mock_vsphere_class.return_value = mock_vsphere
+        mock_vsphere.stop_instances.return_value = True
+        mock_vsphere.wait_until_stopped.return_value = True
+        mock_vsphere.wait_until_released.return_value = False
+
+        scenarios = vmware_node_scenarios(
+            kubecli=self.mock_kubecli,
+            node_action_kube_check=False,
+            affected_nodes_status=AffectedNodeStatus()
+        )
+
+        scenarios.node_termination_scenario(
+            instance_kill_count=1,
+            node=node_name,
+            timeout=300,
+            poll_interval=5
+        )
+
+        mock_vsphere.stop_instances.assert_called_with(node_name)
+        mock_vsphere.wait_until_stopped.assert_called_once()
+        mock_vsphere.release_instances.assert_called_with(node_name)
+        mock_vsphere.wait_until_released.assert_called_once()
+        self.assertEqual(len(scenarios.affected_nodes_status.affected_nodes), 0)
 
     @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.vSphere')
     def test_node_already_stopped(self, mock_vsphere_class):
@@ -330,7 +387,7 @@ class TestVmwareNodeScenarios(unittest.TestCase):
         )
 
         # Should not raise exception
-        scenarios.node_terminate_scenario(
+        scenarios.node_termination_scenario(
             instance_kill_count=1,
             node=node_name,
             timeout=300,

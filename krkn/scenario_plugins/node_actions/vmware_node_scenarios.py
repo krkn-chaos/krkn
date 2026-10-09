@@ -333,8 +333,9 @@ class vSphere:
             if time_counter >= timeout:
                 logging.info(f"VM {instance_id} is still not deleted in allotted time")
                 exit_status = False
+                break
         end_time = time.time()
-        if affected_node:
+        if exit_status and affected_node:
             affected_node.set_affected_node_status("terminated", end_time - start_time)
                 
         return exit_status
@@ -359,8 +360,9 @@ class vSphere:
             if time_counter >= timeout:
                 logging.info(f"VM {instance_id} is still not ready in allotted time")
                 exit_status = False
+                break
         end_time = time.time()
-        if affected_node:
+        if exit_status and affected_node:
             affected_node.set_affected_node_status("running", end_time - start_time)
                 
 
@@ -386,8 +388,9 @@ class vSphere:
             if time_counter >= timeout:
                 logging.info(f"VM {instance_id} is still not ready in allotted time")
                 exit_status = False
+                break
         end_time = time.time()
-        if affected_node:
+        if exit_status and affected_node:
             affected_node.set_affected_node_status("stopped", end_time - start_time)
                 
 
@@ -468,7 +471,9 @@ class vmware_node_scenarios(abstract_node_scenarios):
             )
 
 
-    def node_terminate_scenario(self, instance_kill_count, node, timeout, poll_interval):
+
+    def node_termination_scenario(self, instance_kill_count, node, timeout, poll_interval):
+        """Terminates node instance."""
         try:
             for _ in range(instance_kill_count):
                 affected_node = AffectedNode(node)
@@ -477,17 +482,26 @@ class vmware_node_scenarios(abstract_node_scenarios):
                     "by first stopping the node"
                 )
                 self.vsphere.stop_instances(node)
-                self.vsphere.wait_until_stopped(node, timeout, affected_node)
+                if not self.vsphere.wait_until_stopped(node, timeout, affected_node):
+                    logging.error(
+                        f"Node {node} failed to stop within allotted time. Skipping deletion."
+                    )
+                    return
                 logging.info(f"Releasing the node with instance ID: {node} ")
                 self.vsphere.release_instances(node)
-                self.vsphere.wait_until_released(node, timeout, affected_node)
+                if not self.vsphere.wait_until_released(node, timeout, affected_node):
+                    logging.error(f"Node {node} failed to release within allotted time.")
+                    return
                 logging.info(f"Node with instance ID: {node} has been released")
                 logging.info(
-                    "node_terminate_scenario has been " "successfully injected!"
+                    "node_termination_scenario has been " "successfully injected!"
                 )
                 self.affected_nodes_status.affected_nodes.append(affected_node)
         except Exception as e:
             logging.error("Failed to terminate node instance. Test Failed")
             logging.error(
-                f"node_terminate_scenario injection failed! " f"Error was: {str(e)}"
+                f"node_termination_scenario injection failed! " f"Error was: {str(e)}"
             )
+
+    # Alias for backward compatibility
+    node_terminate_scenario = node_termination_scenario
