@@ -21,6 +21,7 @@ from lib.utils import (
 
 @pytest.mark.functional
 @pytest.mark.container_scenarios
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestContainerScenarios(BaseScenarioTest):
     """Container disruption scenario: kill containers and verify recovery."""
 
@@ -36,6 +37,7 @@ class TestContainerScenarios(BaseScenarioTest):
     OVERRIDES_KEY_PATH = ["scenarios", 0]
 
     @pytest.mark.order(1)
+    @pytest.mark.kind_only
     def test_container_kill_and_recovery(self, wait_for_pods_running):
         """Happy path: target container is killed and the workload recovers."""
         ns = self.ns
@@ -69,6 +71,7 @@ class TestContainerScenarios(BaseScenarioTest):
         assert_all_pods_running_and_ready(after, namespace=ns)
 
     @pytest.mark.order(2)
+    @pytest.mark.kind_only
     def test_container_label_selector_targeting(self, wait_for_pods_running, deploy_workload):
         """Label selector must target only matching pods when a decoy workload shares the namespace."""
         ns = self.ns

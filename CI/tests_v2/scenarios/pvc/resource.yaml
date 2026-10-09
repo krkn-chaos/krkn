@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: krkn-test-pvc
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 100Mi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: krkn-test-pod
+  labels:
+    app: krkn-pvc-target
+spec:
+  containers:
+  - name: app
+    image: ubuntu:24.04
+    command: ["bash", "-c", "while true; do sleep 5; done"]
+    volumeMounts:
+    - name: data
+      mountPath: /data
+  volumes:
+  - name: data
+    persistentVolumeClaim:
+      claimName: krkn-test-pvc
