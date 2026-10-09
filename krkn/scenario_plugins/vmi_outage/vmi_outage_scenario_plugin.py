@@ -68,9 +68,14 @@ class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
                 if scenario_type in ["vmi_outage", "kubevirt_vm_outage"]:
                     single_vmis_status = self.execute_scenario(config, scenario_telemetry)
                     vmis_status.merge(single_vmis_status)
+                    if single_vmis_status.error:
+                        vmis_status.error = single_vmis_status.error
             
             scenario_telemetry.affected_vmis = vmis_status
-            if len(scenario_telemetry.affected_vmis.unrecovered) > 0: 
+            if (
+                scenario_telemetry.affected_vmis.error
+                or len(scenario_telemetry.affected_vmis.unrecovered) > 0
+            ):
                 return 1
             return 0
         except Exception as e:
@@ -113,7 +118,9 @@ class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
             self.vmis_list = self.k8s_client.get_vmis(name_regex, namespace, label_selector=label_selector)
             if not self.vmis_list:
                 target = f"label_selector={label_selector}" if label_selector else f"vm_name={vm_name}"
-                logging.error(f"No VMIs found matching {target} in namespace {namespace}")
+                message = f"No VMIs found matching {target} in namespace {namespace}"
+                logging.error(message)
+                self.vmis_status.error = message
                 return self.vmis_status
             for _ in range(kill_count):
 

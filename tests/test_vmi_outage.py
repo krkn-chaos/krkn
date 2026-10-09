@@ -203,6 +203,21 @@ class TestVmiOutageScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
+
+    def test_no_matching_vmis_fails_scenario(self):
+        """A target selection with no matching VMIs must fail the scenario."""
+        self.k8s_client.get_vmis.return_value = []
+
+        with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(self.config))):
+            result = self.plugin.run(
+                "test-uuid", self.scenario_file, self.telemetry, self.scenario_telemetry
+            )
+
+        self.assertEqual(result, 1)
+        self.assertIn("No VMIs found", self.scenario_telemetry.affected_vmis.error)
+        self.k8s_client.get_vmis.assert_called_once_with(
+            "test-vm", "default", label_selector=None
+        )
         
     def test_injection_failure(self):
         """
