@@ -302,6 +302,9 @@ jobs:
         COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
 
   security-badge:
+    concurrency:
+      group: krkn-lib-docs-badge-publish
+      cancel-in-progress: false
     permissions:
       contents: write
     name: Generate Security Badge
