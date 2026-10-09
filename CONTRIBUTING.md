@@ -45,8 +45,22 @@ If you have any questions that you think could be better discussed on a meeting 
 ## AI-Assisted Contributions
 We welcome contributions that use AI tools (LLMs, code generators, AI coding agents, etc.) as development assistants. If you use AI tools in your contribution, please review our [AI Contribution Policy](AI_CONTRIBUTION_POLICY.md) for disclosure requirements, safety guidelines, and quality expectations. In short: disclose AI usage in your commit trailers and make sure you understand and can explain every line of code you submit.
 
+
+### Steps to contribute
+1. Open an issue or comment on an existing issue expressing your interest in working on it, and wait for a maintainer to approve (shown by the triage/accepted label) and assign you to the issue
+2. If you have been assigned to the issue, work on your changes, open a PR, and link the issue by adding "Fixes #<issue-number>" in the description
+3. Wait for maintainers to review it, and please be patient as there are many issues/PRs that need to be approved/reviewed!!
+
+
 ## Good PR Checklist
 Here's a quick checklist for a good PR, more details below:
+- Link the PR to an approved issue with `Fixes #<issue-number>` in the PR description
+- Confirm that the linked issue is assigned to you before opening the PR
+- For feature and enhancement work, confirm that the issue has the `triage/accepted` label
+- For bug fixes, confirm that the issue has the `kind/bug` label
+- If assigned to an issue, submit a PR within 14 days or respond to the inactivity reminder within the 3-day grace period to keep the assignment
+- Address automated PR compliance feedback within 7 days; unresolved non-compliance may close the PR after 14 days
+- Respond to requested changes within 14 days; after a reminder, the PR may be closed after 7 additional days without activity
 - One feature/change per PR
 - One commit per PR ([squash your commits](https://krkn-chaos.dev/docs/contribution-guidelines/git-pointers/#squash-commits))
 - PR rebased on main ([git rebase](https://krkn-chaos.dev/docs/contribution-guidelines/git-pointers/#rebase-with-upstream), not git pull)
