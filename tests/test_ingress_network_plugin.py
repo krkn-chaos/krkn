@@ -85,7 +85,7 @@ class NetworkScenariosTest(unittest.TestCase):
             node="test-node",
             pod_template=mock_pod_template,
             kubecli=mock_kubecli,
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         self.assertEqual(result, ["eth0"])
@@ -110,7 +110,7 @@ class NetworkScenariosTest(unittest.TestCase):
             node="test-node",
             pod_template=mock_pod_template,
             kubecli=mock_kubecli,
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         self.assertEqual(result, ["eth0"])
@@ -134,7 +134,7 @@ class NetworkScenariosTest(unittest.TestCase):
             node="test-node",
             pod_template=mock_pod_template,
             kubecli=mock_kubecli,
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         self.assertEqual(result, ["eth0", "eth1"])
@@ -158,7 +158,7 @@ class NetworkScenariosTest(unittest.TestCase):
                 node="test-node",
                 pod_template=mock_pod_template,
                 kubecli=mock_kubecli,
-                image="quay.io/krkn-chaos/krkn:tools"
+                image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
             )
 
         self.assertIn("Interface eth99 not found", str(context.exception))
@@ -177,7 +177,7 @@ class NetworkScenariosTest(unittest.TestCase):
             instance_count=2,
             pod_template=mock_pod_template,
             kubecli=mock_kubecli,
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         self.assertEqual(result, {"node1": ["eth0"], "node2": ["eth0"]})
@@ -197,7 +197,7 @@ class NetworkScenariosTest(unittest.TestCase):
             instance_count=1,
             pod_template=mock_pod_template,
             kubecli=mock_kubecli,
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         self.assertEqual(result, {"node1": ["eth0", "eth1"]})
@@ -215,7 +215,7 @@ class NetworkScenariosTest(unittest.TestCase):
                 instance_count=1,
                 pod_template=mock_pod_template,
                 kubecli=mock_kubecli,
-                image="quay.io/krkn-chaos/krkn:tools"
+                image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
             )
 
         self.assertIn("label selector must be provided", str(context.exception))
@@ -442,7 +442,7 @@ class NetworkScenariosTest(unittest.TestCase):
             kubecli=mock_kubecli,
             create_interfaces=True,
             param_selector="all",
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         mock_create_virtual.assert_called_once()
@@ -465,7 +465,7 @@ class NetworkScenariosTest(unittest.TestCase):
             interface_list=["eth0", "eth1"],
             node="test-node",
             pod_template=mock_pod_template,
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         mock_kubecli.create_pod.assert_called_once()
@@ -485,7 +485,7 @@ class NetworkScenariosTest(unittest.TestCase):
             kubecli=mock_kubecli,
             node_list=["node1", "node2"],
             pod_template=mock_pod_template,
-            image="quay.io/krkn-chaos/krkn:tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
         )
 
         self.assertEqual(mock_kubecli.create_pod.call_count, 2)

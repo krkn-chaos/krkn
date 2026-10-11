@@ -15,6 +15,7 @@
 from datetime import datetime
 from xml.sax.saxutils import escape as _xml_escape
 
+from krkn.telemetry_helpers import group_checks_by_phase
 from krkn.summarized_reports.transform import (
     SCENARIO_TYPE_DOCS,
     _extract_critical_alerts,
@@ -264,14 +265,22 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
     resiliency = telemetry.get("overall_resiliency_report", {})
     total_slos = resiliency.get("total_slos", 0)
     passed_slos = resiliency.get("passed_slos", 0)
+    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
 
+    telemetry_alerts = telemetry.get("alerts") or []
     critical_alerts_raw = chaos_output.get("critical_alerts") or {}
     chaos_alerts, post_chaos_alerts = _extract_critical_alerts(critical_alerts_raw)
-    total_alert_count = len(chaos_alerts) + len(post_chaos_alerts)
+    legacy_alerts = [
+        {**alert, "phase": "during"} if isinstance(alert, dict) else alert for alert in chaos_alerts
+    ] + [
+        {**alert, "phase": "post"} if isinstance(alert, dict) else alert for alert in post_chaos_alerts
+    ]
+    evaluated_alerts = telemetry_alerts + legacy_alerts
+    using_legacy_alerts = not telemetry_alerts
+    total_alert_count = len(evaluated_alerts)
 
     error_logs = telemetry.get("error_logs") or []
 
-    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
 
     security_flags = []
     if telemetry.get("fips_enabled"):
@@ -283,8 +292,6 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
 
     node_infos = telemetry.get("node_summary_infos") or []
     health_checks = telemetry.get("health_checks")
-    virt_checks = telemetry.get("virt_checks")
-    post_virt_checks = telemetry.get("post_virt_checks")
     failed_slos = total_slos - passed_slos
     per_scenario_scores = resiliency.get("scenarios", {})
     overall_score = resiliency.get("resiliency_score", "N/A")
@@ -504,88 +511,184 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
     if metrics_body:
         parts.append(_html_section("Key Metrics", "\n".join(metrics_body)))
 
-    # 10. Health Checks
+    # 10. Health Checks (HTTP)
     if health_checks:
-        rows = []
+        # Separate string checks from dict checks
+        string_checks = []
+        checks_by_phase = {}
+
         for check in health_checks:
-            if isinstance(check, dict):
-                url = check.get("url") or check.get("name") or check.get("check_name", "")
-                status_code = str(check.get("status_code", ""))
-                duration = ""
-                if check.get("duration") is not None and check.get("duration") != "":
-                    duration = f"{float(check['duration']):.2f}s"
-                passed = check.get("status") or check.get("passed")
-                rows.append([
-                    _h(url), _h(status_code), duration,
-                    _html_badge("PASS" if passed else "FAIL", bool(passed)),
-                ])
-            else:
-                rows.append([_h(str(check)), "", "", ""])
-        parts.append(_html_section(
-            "Health Checks",
-            _html_data_table(["URL / Endpoint", "Status Code", "Duration", "Result"], rows),
-        ))
+            if isinstance(check, str):
+                string_checks.append(check)
+            elif isinstance(check, dict):
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
 
-    # 11. KubeVirt Health Checks (Pre-Chaos)
+        # Display string checks first (raw check strings)
+        if string_checks:
+            rows = [[_h(check_str)] for check_str in string_checks]
+            parts.append(_html_section(
+                "Health Checks",
+                _html_data_table(["Details"], rows),
+            ))
+
+        # Display in order: pre, during, post (HTTP health checks)
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.capitalize()
+                rows = []
+                for check in checks_by_phase[phase]:
+                    url = check.get("url") or check.get("name") or check.get("check_name", "")
+                    status_code = str(check.get("status_code", ""))
+                    duration = ""
+                    if check.get("duration") is not None and check.get("duration") != "":
+                        duration = f"{float(check['duration']):.2f}s"
+                    passed = check.get("status") or check.get("passed")
+                    rows.append([
+                        _h(url), _h(status_code), duration,
+                        _html_badge("PASS" if passed else "FAIL", bool(passed)),
+                    ])
+                parts.append(_html_section(
+                    f"Health Checks (HTTP) - {phase_label}-Chaos",
+                    _html_data_table(["URL / Endpoint", "Status Code", "Duration", "Result"], rows),
+                ))
+
+    # 10a. Object State Health Checks
+    object_state_checks = telemetry.get("object_state_checks")
+    if object_state_checks:
+        # Group by phase
+        checks_by_phase = {}
+        for check in object_state_checks:
+            if isinstance(check, dict):
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.capitalize()
+                rows = []
+                for check in checks_by_phase[phase]:
+                    check_name = check.get("check_name", "unnamed")
+                    kind = check.get("kind", "")
+                    namespace = check.get("namespace", "")
+                    condition = f"{check.get('condition_type', '')}={check.get('condition_status', '')}"
+                    objects_checked = check.get("objects_checked", 0)
+                    objects_failed = check.get("objects_failed", 0)
+                    duration = ""
+                    if check.get("duration") is not None and check.get("duration") != "":
+                        duration = f"{float(check['duration']):.2f}s"
+                    passed = check.get("passed", False)
+                    message = check.get("message", "")
+
+                    # Build objects info
+                    objects_info = f"{objects_checked} checked"
+                    if objects_failed > 0:
+                        objects_info += f", {objects_failed} failed"
+
+                    # Show failed objects if any
+                    failed_info = ""
+                    if not passed and message and message != "All objects passed":
+                        failed_info = _h(message)
+
+                    rows.append([
+                        _h(check_name),
+                        _h(kind),
+                        _h(namespace),
+                        _h(condition),
+                        _h(objects_info),
+                        duration,
+                        _html_badge("PASS" if passed else "FAIL", bool(passed)),
+                        failed_info,
+                    ])
+
+                parts.append(_html_section(
+                    f"Object State Checks ({phase_label}-Chaos)",
+                    _html_data_table(
+                        ["Check Name", "Kind", "Namespace", "Condition", "Objects", "Duration", "Result", "Failed Objects"],
+                        rows
+                    ),
+                ))
+
+    # 11. KubeVirt Health Checks
+    virt_checks = telemetry.get("virt_checks")
     if virt_checks:
-        rows = []
-        for check in virt_checks:
-            if isinstance(check, dict):
-                passed = not (check.get("status") is not None and not check.get("status"))
-                rows.append([
-                    _h(check.get("vm_name") or check.get("vmi_name") or check.get("name", "")),
-                    _h(check.get("namespace", "")),
-                    _h(check.get("node_name", "")),
-                    _h(check.get("ip_address", "")),
-                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
-                    _html_badge("PASS" if passed else "FAIL", passed),
-                ])
-            else:
-                rows.append([_h(str(check)), "", "", "", "", ""])
-        parts.append(_html_section(
-            "KubeVirt Health Checks (Pre-Chaos)",
-            _html_data_table(["VM Name", "Namespace", "Node", "IP Address", "Duration", "Result"], rows),
-        ))
+        # Separate string checks from dict checks
+        string_virt_checks = []
+        checks_by_phase = {}
 
-    # 12. KubeVirt Health Checks (Post-Chaos)
-    if post_virt_checks:
-        rows = []
-        for check in post_virt_checks:
-            if isinstance(check, dict):
-                passed = not (check.get("status") is not None and not check.get("status"))
-                new_ip = ""
-                if check.get("new_ip_address") and check.get("new_ip_address") != check.get("ip_address"):
-                    new_ip = _h(check["new_ip_address"])
-                rows.append([
-                    _h(check.get("vm_name") or check.get("vmi_name") or check.get("name", "")),
-                    _h(check.get("namespace", "")),
-                    _h(check.get("node_name", "")),
-                    _h(check.get("ip_address", "")),
-                    new_ip,
-                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
-                    _html_badge("PASS" if passed else "FAIL", passed),
-                ])
-            else:
-                rows.append([_h(str(check)), "", "", "", "", "", ""])
-        parts.append(_html_section(
-            "KubeVirt Health Checks (Post-Chaos)",
-            _html_data_table(
-                ["VM Name", "Namespace", "Node", "IP Address", "New IP", "Duration", "Result"], rows,
-            ),
-        ))
+        for check in virt_checks:
+            if isinstance(check, str):
+                string_virt_checks.append(check)
+            elif isinstance(check, dict):
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
+
+        # Display string checks first (raw virt check strings)
+        if string_virt_checks:
+            rows = [[_h(check_str)] for check_str in string_virt_checks]
+            parts.append(_html_section(
+                "KubeVirt Health Checks",
+                _html_data_table(["Details"], rows),
+            ))
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = f"{phase.capitalize()}-Chaos"
+                rows = []
+
+                # Check if any check has new_ip_address (post-chaos feature)
+                has_new_ip = any(c.get("new_ip_address") for c in checks_by_phase[phase])
+
+                for check in checks_by_phase[phase]:
+                    passed = not (check.get("status") is not None and not check.get("status"))
+                    row = [
+                        _h(check.get("vm_name") or check.get("vmi_name") or check.get("name", "")),
+                        _h(check.get("namespace", "")),
+                        _h(check.get("node_name", "")),
+                        _h(check.get("ip_address", "")),
+                    ]
+
+                    if has_new_ip:
+                        new_ip = ""
+                        if check.get("new_ip_address") and check.get("new_ip_address") != check.get("ip_address"):
+                            new_ip = _h(check["new_ip_address"])
+                        row.append(new_ip)
+
+                    row.extend([
+                        f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
+                        _html_badge("PASS" if passed else "FAIL", passed),
+                    ])
+                    rows.append(row)
+
+                headers = ["VM Name", "Namespace", "Node", "IP Address"]
+                if has_new_ip:
+                    headers.append("New IP")
+                headers.extend(["Duration", "Result"])
+
+                parts.append(_html_section(
+                    f"KubeVirt Health Checks ({phase_label})",
+                    _html_data_table(headers, rows),
+                ))
 
     # 13. Alerts & SLOs
     alerts_body = []
     failed_slo_val = _h(str(failed_slos)) if failed_slos == 0 else f'<span class="badge-fail"><b>{failed_slos}</b></span>'
-    alert_val = "None" if total_alert_count == 0 else f'<span class="badge-fail"><b>{total_alert_count}</b></span>'
+    alert_summary = [("Critical Alerts", "None" if total_alert_count == 0 else f'<span class="badge-fail"><b>{total_alert_count}</b></span>')] if using_legacy_alerts else []
     alerts_body.append(_html_kv_table([
         ("SLOs Evaluated", _h(str(total_slos))),
         ("SLOs Passed", _h(f"{passed_slos} / {total_slos}")),
         ("SLOs Failed", failed_slo_val),
-        ("Critical Alerts", alert_val),
-    ]))
+    ] + alert_summary))
 
-    def _build_html_alert_table(title, alerts):
+    def _build_html_alert_table(title, alerts, legacy=False):
         if not alerts:
             return
         alerts_body.append(f'<div class="subsection-header">{_h(title)}</div>')
@@ -593,17 +696,21 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
         for alert in alerts:
             if isinstance(alert, dict):
                 rows.append([
-                    _h(alert.get("alertname", "N/A")),
+                    _h(alert.get("alertname", "N/A") if legacy else alert.get("name", alert.get("alertname", "N/A"))),
                     _h(alert.get("severity", "N/A")),
-                    _h(alert.get("namespace", "N/A")),
-                    _h(alert.get("alertstate", "N/A")),
+                    _h(alert.get("namespace", "N/A") if legacy else ("PASS" if alert.get("status") is True else "FAIL" if alert.get("status") is False else alert.get("alertstate", "N/A"))),
+                    _h(alert.get("alertstate", "N/A") if legacy else alert.get("phase", "N/A")),
                 ])
             else:
-                rows.append([_h(str(alert)), "", "", ""])
-        alerts_body.append(_html_data_table(["Alert Name", "Severity", "Namespace", "State"], rows))
+                rows.append([_h(str(alert)), "", "", ""] if legacy else [_h(getattr(alert, "name", "N/A")), _h(getattr(alert, "severity", "N/A")), _h("PASS" if getattr(alert, "status", None) is True else "FAIL"), _h(getattr(alert, "phase", "N/A"))])
+        headers = ["Alert Name", "Severity", "Namespace", "State"] if legacy else ["Alert Name", "Severity", "Status", "Phase"]
+        alerts_body.append(_html_data_table(headers, rows))
 
-    _build_html_alert_table("Critical Alerts (During Chaos)", chaos_alerts)
-    _build_html_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts)
+    if using_legacy_alerts:
+        _build_html_alert_table("Critical Alerts (During Chaos)", chaos_alerts, True)
+        _build_html_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts, True)
+    else:
+        _build_html_alert_table("Prometheus Alerts", evaluated_alerts)
 
     # 14. Error Logs
     if error_logs:
@@ -622,23 +729,6 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             alerts_body.append(f'<p class="muted">... and {len(error_logs) - 20} more</p>')
 
     parts.append(_html_section("Alerts & SLOs", "\n".join(alerts_body)))
-
-    # 15. Failed SLOs
-    if scenario_slo_details:
-        failed_entries = []
-        for entry in scenario_slo_details:
-            failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
-            if failed:
-                failed_entries.append({"scenario": entry["scenario"], "slo_details": failed})
-        if failed_entries:
-            slo_body = []
-            for entry in failed_entries:
-                slo_body.append(f'<div class="subsection-header">{_h(entry["scenario"])}</div>')
-                rows = []
-                for slo in entry["slo_details"]:
-                    rows.append([_h(slo["name"]), _h(slo.get("severity", "unknown")), _html_badge("FAIL", False)])
-                slo_body.append(_html_data_table(["SLO", "Severity", "Status"], rows))
-            parts.append(_html_section("Failed SLOs", "\n".join(slo_body)))
 
     # 16. Resiliency Score
     score_body = []
@@ -662,14 +752,28 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             ])
         score_body.append(_html_data_table(["Scenario", "Weight", "Score"], rows))
 
-        # Add resiliency score calculation explanation
+    failed_entries = []
+    for entry in scenario_slo_details:
+        failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
+        if failed:
+            failed_entries.append((entry["scenario"], failed))
+    if failed_entries:
+        slo_body = [f'<p>Resiliency Alert File: {_h(chaos_output.get("resiliency_alert_file", "N/A"))}</p>']
+        for scenario, failed in failed_entries:
+            slo_body.append(f'<div class="subsection-header">{_h(scenario)}</div>')
+            slo_body.append(_html_data_table(
+                ["SLO", "Severity", "Status"],
+                [[_h(s["name"]), _h(s.get("severity", "unknown")), _html_badge("FAIL", False)] for s in failed],
+            ))
+        score_body.append('<div class="subsection-header">Failed SLOs</div>')
+        score_body.extend(slo_body)
+
+    if weight_map and per_scenario_scores:
         total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
-        calc_detail = (
+        score_body.append(
             f'<p><b>Resiliency Score Calculation:</b> Weighted average of scenario scores. '
-            f'Total weight: {total_weight}x. '
-            f'Formula: (Σ score × weight) ÷ total weight</p>'
+            f'Total weight: {total_weight}x. Formula: (Σ score × weight) ÷ total weight</p>'
         )
-        score_body.append(calc_detail)
 
     cls = _html_score_class(overall_score)
     score_body.append(f'<div class="overall-score {cls}">Overall: {_h(str(overall_score))} / 100</div>')

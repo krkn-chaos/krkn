@@ -602,12 +602,12 @@ class TestBuildChaosReportHtmlKubevirtChecks(unittest.TestCase):
             "duration": 1.23,
         }]
         html = _generate_html(output)
-        self.assertIn("KubeVirt Health Checks (Pre-Chaos)", html)
+        self.assertIn("KubeVirt Health Checks (During-Chaos)", html)
         self.assertIn("10.0.0.5", html)
 
     def test_post_virt_checks_shown(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = [{
+        output["telemetry"]["virt_checks"] = [{
             "vmi_name": "test-vmi",
             "namespace": "kubevirt",
             "node_name": "worker-2",
@@ -615,6 +615,7 @@ class TestBuildChaosReportHtmlKubevirtChecks(unittest.TestCase):
             "new_ip_address": "10.0.0.7",
             "status": True,
             "duration": 2.5,
+            "phase": "post",
         }]
         html = _generate_html(output)
         self.assertIn("KubeVirt Health Checks (Post-Chaos)", html)
@@ -629,9 +630,18 @@ class TestBuildChaosReportHtmlKubevirtChecks(unittest.TestCase):
 
     def test_post_virt_string_check(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = ["raw post check"]
+        output["telemetry"]["virt_checks"] = [{
+            "vmi_name": "test-vmi",
+            "namespace": "kubevirt",
+            "node_name": "worker-2",
+            "ip_address": "string",
+            "new_ip_address": "string",
+            "status": True,
+            "duration": 2.5,
+            "phase": "post",
+        }]
         html = _generate_html(output)
-        self.assertIn("raw post check", html)
+        self.assertIn("KubeVirt Health Checks (Post-Chaos)", html)
 
 
 class TestBuildChaosReportHtmlEdgeCases(unittest.TestCase):

@@ -1,6 +1,6 @@
 - id: node_interface_down
   # Container image used to run the chaos workload pod on the target node
-  image: quay.io/krkn-chaos/krkn-network-chaos:latest
+  image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos
   # Kubernetes namespace where the chaos workload pod is deployed
   namespace: default
   # Service account to use for the chaos workload pod (leave empty for default)

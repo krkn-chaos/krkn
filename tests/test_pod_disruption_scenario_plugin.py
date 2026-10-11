@@ -77,7 +77,45 @@ class TestKillingPodsMode(unittest.TestCase):
         
         self.assertIn("Unknown execution 'invalid_mode'", str(context.exception))
 
+    # --- InputParams.kill validation ---
+
+    def test_kill_invalid_negative_raises_value_error(self):
+        """kill raises ValueError when negative in config."""
+        with self.assertRaises(ValueError) as context:
+            InputParams({"kill": -1})
+
+        self.assertIn("Must be a non-negative integer", str(context.exception))
+
+    def test_kill_invalid_type_raises_value_error(self):
+        """kill raises ValueError when not an integer (e.g. string or boolean)."""
+        with self.assertRaises(ValueError) as context:
+            InputParams({"kill": "two"})
+
+        self.assertIn("Must be a non-negative integer", str(context.exception))
+
+        with self.assertRaises(ValueError) as context:
+            InputParams({"kill": True})
+
+        self.assertIn("Must be a non-negative integer", str(context.exception))
+
     # --- killing_pods() behaviour ---
+
+    def test_negative_kill_count_returns_error(self):
+        """Returns 1 and never calls delete_pod when config.kill is negative."""
+        config = MagicMock(spec=InputParams)
+        config.namespace_pattern = "ns1"
+        config.name_pattern = ""
+        config.label_selector = "app=test"
+        config.exclude_label = ""
+        config.node_label_selector = ""
+        config.node_names = []
+        config.kill = -1
+        self.plugin.get_pods.return_value = [("pod1", "ns1"), ("pod2", "ns1")]
+
+        result = self.plugin.killing_pods(config, self.kubecli)
+
+        self.assertEqual(result, 1)
+        self.kubecli.delete_pod.assert_not_called()
 
     def test_not_enough_pods_returns_error(self):
         """Returns 1 and never calls delete_pod when fewer pods exist than kill count."""
@@ -146,29 +184,62 @@ class TestKillingPodsMode(unittest.TestCase):
         config = InputParams({"kill": 2, "execution": "serial", "exclude_label": "protected=true"})
         # get_pods is called twice: first for target pods, then for excluded pods
         self.plugin.get_pods.side_effect = [
-            [("pod1", "ns1"), ("pod2", "ns1")],  # target pods
-            [("pod1", "ns1")],                    # excluded pods
+            [("pod1", "ns1"), ("pod2", "ns1"), ("pod3", "ns1")],  # target pods
+            [("pod1", "ns1")],                                    # excluded pods
         ]
 
         result = self.plugin.killing_pods(config, self.kubecli)
 
         self.assertEqual(result, 0)
-        # Only pod2 should be deleted; pod1 is excluded
-        self.kubecli.delete_pod.assert_called_once_with("pod2", "ns1")
+        self.assertEqual(self.kubecli.delete_pod.call_count, 2)
+        self.kubecli.delete_pod.assert_any_call("pod2", "ns1")
+        self.kubecli.delete_pod.assert_any_call("pod3", "ns1")
+        for call in self.kubecli.delete_pod.call_args_list:
+            self.assertNotEqual(call.args[0], "pod1")
 
     def test_excluded_pods_are_not_deleted_in_parallel_mode(self):
         """Pods matched by exclude_label are skipped and never passed to delete_pod (parallel)."""
         config = InputParams({"kill": 2, "execution": "parallel", "exclude_label": "protected=true"})
         self.plugin.get_pods.side_effect = [
-            [("pod1", "ns1"), ("pod2", "ns1")],  # target pods
+            [("pod1", "ns1"), ("pod2", "ns1"), ("pod3", "ns1")],  # target pods
+            [("pod1", "ns1")],                                    # excluded pods
+        ]
+
+        result = self.plugin.killing_pods(config, self.kubecli)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(self.kubecli.delete_pod.call_count, 2)
+        self.kubecli.delete_pod.assert_any_call("pod2", "ns1")
+        self.kubecli.delete_pod.assert_any_call("pod3", "ns1")
+        for call in self.kubecli.delete_pod.call_args_list:
+            self.assertNotEqual(call.args[0], "pod1")
+
+    def test_not_enough_eligible_pods_after_exclusion_returns_error(self):
+        """Returns 1 and never calls delete_pod when remaining eligible pods after exclusion are fewer than kill count."""
+        config = InputParams({"kill": 2, "execution": "serial", "exclude_label": "protected=true"})
+        self.plugin.get_pods.side_effect = [
+            [("pod1", "ns1"), ("pod2", "ns1"), ("pod3", "ns1")],  # target pods
+            [("pod1", "ns1"), ("pod2", "ns1")],                    # excluded pods
+        ]
+
+        result = self.plugin.killing_pods(config, self.kubecli)
+
+        self.assertEqual(result, 1)
+        self.kubecli.delete_pod.assert_not_called()
+
+    def test_same_named_pods_in_different_namespaces_not_mistakenly_excluded(self):
+        """An excluded pod in one namespace does not exclude a same-named pod in another namespace."""
+        config = InputParams({"kill": 1, "execution": "serial", "exclude_label": "protected=true"})
+        # pod1 exists in both ns1 and ns2; only the instance in ns1 matches exclude_label
+        self.plugin.get_pods.side_effect = [
+            [("pod1", "ns1"), ("pod1", "ns2")],  # target pods
             [("pod1", "ns1")],                    # excluded pods
         ]
 
         result = self.plugin.killing_pods(config, self.kubecli)
 
         self.assertEqual(result, 0)
-        # Only pod2 should be deleted; pod1 is excluded
-        self.kubecli.delete_pod.assert_called_once_with("pod2", "ns1")
+        self.kubecli.delete_pod.assert_called_once_with("pod1", "ns2")
 
     # --- force deletion tests ---
 

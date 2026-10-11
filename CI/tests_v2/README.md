@@ -1,6 +1,6 @@
 # Pytest Functional Tests (tests_v2)
 
-This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, and **node** scenarios with proper assertions, retries, and reporting.
+This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, **I/O hog**, and **node** scenarios with proper assertions, retries, and reporting.
 
 Each test runs in its **own ephemeral Kubernetes namespace** (`krkn-test-<uuid>`). Before the test, the framework creates the namespace, deploys the target workload, and waits for pods to be ready. After the test, the namespace is deleted (cascading all resources). **You do not need to deploy any workloads manually.**
 
@@ -205,6 +205,12 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
   - **test_memory_hog_success_lifecycle_and_targeting**: Happy path — a hog pod is created on the `node-selector` target with the configured memory size, the run exits 0, and the pod is cleaned up afterward.
   - **test_memory_hog_invalid_selector_fails**: A `node-selector` matching zero nodes causes Kraken to exit non-zero (no available nodes to schedule).
   - **test_memory_hog_invalid_config_fails**: Omitting the mandatory `hog-type` field causes Kraken to exit non-zero at config parsing.
+
+- **scenarios/io_hog/**
+  I/O hog scenario (`hog_scenarios`), migrated from the legacy `CI/tests/test_io_hog.sh`. I/O hog targets nodes (not workloads): Kraken deploys a short-lived hog pod (name prefix `io-hog-`) onto each selected node, runs `stress-ng` disk I/O for the configured duration, then deletes the pod. Tests use `@pytest.mark.no_workload` (no app deployment needed); `scenario_base.yaml` is a flat hog config patched per test (with a small fixed `io-write-bytes` and the krkn-lib default `hostPath: /tmp` volume instead of the production `1g` / `/root`, so the test is behavior-focused rather than disk-pressure). Tests include:
+  - **test_io_hog_success_lifecycle_and_targeting**: Happy path — a hog pod is created on the `node-selector` target, the run exits 0, and the pod is cleaned up afterward.
+  - **test_io_hog_invalid_selector_fails**: A `node-selector` matching zero nodes causes Kraken to exit non-zero (no available nodes to schedule).
+  - **test_io_hog_invalid_config_fails**: Omitting the mandatory `hog-type` field causes Kraken to exit non-zero at config parsing.
 
 - **scenarios/node_scenarios/**
   Node chaos scenario (`node_scenarios`), migrated from the legacy `CI/tests/test_node.sh`. Node scenarios are destructive at the *node* level: Kraken stops, starts, or reboots the container that backs a Kubernetes node. On KinD each node is a Docker/Podman container, so the tests use `cloud_type: docker` and target a **worker** node only (never the control plane). Tests use `@pytest.mark.no_workload` (no app deployment needed); `scenario_base.yaml` holds a single `node_scenarios` entry that each test patches per case. A finalizer ensures the targeted node container is running (starting it only if it was left stopped) and waits for the node to return `Ready`. Tests include:

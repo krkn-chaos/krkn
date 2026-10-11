@@ -32,14 +32,6 @@ RollbackCallable: TypeAlias = Callable[
 ]
 
 
-if TYPE_CHECKING:
-    from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-
-RollbackCallable: TypeAlias = Callable[
-    ["RollbackContent", "KrknTelemetryOpenshift"], None
-]
-
-
 class SingletonMeta(type):
     _instances = {}
 
