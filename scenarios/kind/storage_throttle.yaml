@@ -1,6 +1,7 @@
 storage_throttle_scenario:
   pvc_name: throttle-test-pvc     # Target PVC name
   pod_name: ""                    # Auto-resolved from PVC
+  vmi_name: ""                    # Optional VMI name; resolves its current virt-launcher pod
   namespace: nginx-test           # Namespace of the target PVC/pod
   mount_path: /data               # Mount path to throttle
   throttle_type: bandwidth        # "iops", "bandwidth", or "both"

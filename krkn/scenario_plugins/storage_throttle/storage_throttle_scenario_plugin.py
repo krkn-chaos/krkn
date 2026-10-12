@@ -37,6 +37,12 @@ from krkn.scenario_plugins.storage_throttle.storage_throttle_utils import (
     validate_maj_min,
     validate_mount_path,
 )
+from krkn.utils.pod_volumes import (
+    PodVolumeTarget,
+    read_raw_pod,
+    resolve_pvc_volume,
+    resolve_vmi_pod,
+)
 
 # Backward-compatible aliases so existing imports of the underscore-prefixed
 # names from this module continue to work (e.g. in tests).
@@ -62,6 +68,7 @@ class ThrottleParams:
     duration: int
     mount_path: str
     image: str
+    vmi_name: str = ""
 
 
 class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
@@ -96,6 +103,7 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         scenario_config = config_yaml["storage_throttle_scenario"]
         pvc_name = get_yaml_item_value(scenario_config, "pvc_name", "")
         pod_name = get_yaml_item_value(scenario_config, "pod_name", "")
+        vmi_name = get_yaml_item_value(scenario_config, "vmi_name", "")
         namespace = get_yaml_item_value(scenario_config, "namespace", "")
         throttle_type = get_yaml_item_value(
             scenario_config, "throttle_type", "bandwidth"
@@ -129,8 +137,8 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         if not namespace:
             logging.error("You must specify the namespace")
             return None
-        if not pvc_name and not pod_name:
-            logging.error("You must specify pvc_name or pod_name")
+        if not pvc_name and not pod_name and not vmi_name:
+            logging.error("You must specify pvc_name, pod_name, or vmi_name")
             return None
         if throttle_type not in ("iops", "bandwidth", "both"):
             logging.error(
@@ -168,6 +176,7 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
             duration=duration,
             mount_path=mount_path,
             image=image,
+            vmi_name=vmi_name,
         )
 
     # ------------------------------------------------------------------
@@ -190,7 +199,8 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
             lib_k8s = lib_telemetry.get_lib_kubernetes()
 
             pod_name = self._resolve_pod_name(
-                lib_k8s, params.pvc_name, params.pod_name, params.namespace
+                lib_k8s, params.pvc_name, params.pod_name, params.namespace,
+                params.vmi_name,
             )
             if not pod_name:
                 return 1
@@ -199,20 +209,26 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
                 name=pod_name, namespace=params.namespace
             )
             if pod is None:
-                logging.error(
-                    "Pod '%s' doesn't exist in namespace '%s'"
-                    % (pod_name, params.namespace)
-                )
-                return 1
+                # krkn-lib's simplified model cannot represent some KubeVirt
+                # block-only containers whose volumeMounts field is null.
+                pod = read_raw_pod(lib_k8s, pod_name, params.namespace)
+                if pod is None:
+                    logging.error(
+                        "Pod '%s' doesn't exist in namespace '%s'"
+                        % (pod_name, params.namespace)
+                    )
+                    return 1
 
-            container_name, vol_mount_path = self._find_pvc_mount(
-                pod, params.mount_path, params.pvc_name
+            volume_target = self._find_pvc_volume(
+                lib_k8s, pod, params.mount_path, params.pvc_name
             )
-            if not container_name:
+            if volume_target is None:
                 logging.error(
-                    "Pod '%s' has no PVC volume mount" % pod_name
+                    "Pod '%s' has no matching PVC mount or block device" % pod_name
                 )
                 return 1
+            container_name = volume_target.container_name
+            vol_mount_path = volume_target.path
             if not validate_mount_path(vol_mount_path):
                 logging.error(
                     "Resolved mount path is invalid or unsafe: %r"
@@ -227,7 +243,7 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
 
             maj_min = self._get_device_maj_min(
                 lib_k8s, pod_name, params.namespace,
-                container_name, vol_mount_path,
+                container_name, vol_mount_path, volume_target.mode,
             )
             if not maj_min:
                 logging.error(
@@ -243,7 +259,10 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
                 return 1
             logging.info("Block device major:minor = %s" % maj_min)
 
-            node_name = pod.nodeName
+            if isinstance(pod, dict):
+                node_name = pod.get("spec", {}).get("nodeName")
+            else:
+                node_name = pod.nodeName
             if not node_name:
                 logging.error(
                     "Pod '%s' has no nodeName yet (still pending?)"
@@ -366,7 +385,18 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         pvc_name: str,
         pod_name: str,
         namespace: str,
+        vmi_name: str = "",
     ) -> str:
+        if vmi_name:
+            pod_name = resolve_vmi_pod(lib_k8s, vmi_name, namespace)
+            if not pod_name:
+                logging.error(
+                    "No virt-launcher pod found for VMI '%s' in namespace '%s'"
+                    % (vmi_name, namespace)
+                )
+                return ""
+            logging.info("Resolved virt-launcher pod from VMI: %s" % pod_name)
+            return pod_name
         if pvc_name:
             if pod_name:
                 logging.info(
@@ -384,24 +414,25 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         return pod_name
 
     @staticmethod
+    def _find_pvc_volume(
+        lib_k8s: KrknKubernetes,
+        pod,
+        mount_path: str,
+        pvc_name: str = "",
+    ) -> Optional[PodVolumeTarget]:
+        """Find a filesystem mount or raw block device backed by a PVC."""
+        return resolve_pvc_volume(lib_k8s, pod, pvc_name, mount_path)
+
+    @staticmethod
     def _find_pvc_mount(pod, mount_path: str, pvc_name: str = ""):
         """Find the container name and mount path for a PVC volume.
 
         When *pvc_name* is set, only volumes backed by that PVC are considered.
         """
-        for volume in pod.volumes:
-            if volume.pvcName is None:
-                continue
-            if pvc_name and volume.pvcName != pvc_name:
-                continue
-            vol_name = volume.name
-            for container in pod.containers:
-                for vol_mount in container.volumeMounts:
-                    if vol_mount.name == vol_name:
-                        if mount_path and vol_mount.mountPath != mount_path:
-                            continue
-                        return container.name, vol_mount.mountPath
-        return None, None
+        target = resolve_pvc_volume(None, pod, pvc_name, mount_path)
+        if target is None:
+            return None, None
+        return target.container_name, target.path
 
     @staticmethod
     def _get_device_maj_min(
@@ -410,36 +441,62 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         namespace: str,
         container_name: str,
         mount_path: str,
+        volume_mode: str = "filesystem",
     ) -> str:
-        """Extract device major:minor from /proc/self/mountinfo."""
+        """Extract device major:minor from a filesystem mount or block device."""
         if not _validate_mount_path(mount_path):
             logging.error("Refusing to exec with invalid mount_path: %r", mount_path)
             return ""
-        cmd = "grep -F ' %s ' /proc/self/mountinfo | awk '{print $3}' | head -1"
+        if volume_mode == "block":
+            cmd = "stat -c '%%t:%%T' %s" % mount_path
+        else:
+            cmd = "grep -F ' %s ' /proc/self/mountinfo | awk '{print $3}' | head -1" % mount_path
         output = lib_k8s.exec_cmd_in_pod(
-            [cmd % mount_path], pod_name, namespace, container_name
+            [cmd], pod_name, namespace, container_name
         )
         if output:
-            return output.strip()
+            value = output.strip()
+            if volume_mode == "block":
+                try:
+                    major, minor = value.split(":", 1)
+                    return f"{int(major, 16)}:{int(minor, 16)}"
+                except (TypeError, ValueError):
+                    return ""
+            return value
         return ""
 
     @staticmethod
     def _get_container_id(pod, container_name: str) -> str:
-        """Get the container ID from krkn_lib Pod.containers, stripping runtime prefix."""
+        """Get a container ID from a krkn-lib or raw Kubernetes Pod."""
         if pod is None:
             return ""
-        for c in pod.containers:
-            if c.name == container_name:
-                cid = c.containerId or ""
-                if not cid:
-                    return ""
-                if "://" in cid:
-                    cid = cid.split("://", 1)[1]
-                if not validate_container_id(cid):
-                    logging.warning("Container ID is not valid hex: %r", cid)
-                    return ""
-                return cid
-        return ""
+        if isinstance(pod, dict):
+            containers = pod.get("spec", {}).get("containers", [])
+            statuses = pod.get("status", {}).get("containerStatuses", [])
+            status_by_name = {item.get("name"): item for item in statuses}
+            for container in containers:
+                if container.get("name") != container_name:
+                    continue
+                cid = status_by_name.get(container_name, {}).get("containerID", "")
+                break
+            else:
+                return ""
+        else:
+            for container in pod.containers:
+                if container.name != container_name:
+                    continue
+                cid = container.containerId or ""
+                break
+            else:
+                return ""
+        if not cid:
+            return ""
+        if "://" in cid:
+            cid = cid.split("://", 1)[1]
+        if not validate_container_id(cid):
+            logging.warning("Container ID is not valid hex: %r", cid)
+            return ""
+        return cid
 
     def _cleanup_privileged_pod(
         self, lib_k8s: KrknKubernetes, priv_pod_name: str, namespace: str
