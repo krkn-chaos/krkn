@@ -565,7 +565,7 @@ class TestVSphereClass(unittest.TestCase):
         mock_vm_obj = MagicMock()
         mock_vm_obj.vm = 'vm-456'
         mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj], [], [mock_vm_obj], [], []]
-        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'worker1'
+        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'worker1.ocp.example.com'
         mock_create_client.return_value = mock_client
 
         vsphere = vSphere()
@@ -576,6 +576,74 @@ class TestVSphereClass(unittest.TestCase):
         self.assertEqual(vsphere.get_vm('worker1.ocp.example.com'), 'vm-456')
 
         # deleted: neither name matches any VM
+        self.assertIsNone(vsphere.get_vm('worker1.ocp.example.com'))
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_short_hostname_reports_only_short_name(self, mock_session, mock_create_client):
+        """Test a VM whose guest hostname is only the short name is not used, as it may belong to another cluster."""
+        mock_client = MagicMock()
+        mock_vm_obj = MagicMock()
+        mock_vm_obj.vm = 'vm-456'
+        mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj]]
+        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'worker1'
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+
+        self.assertIsNone(vsphere.get_vm('worker1.ocp.example.com'))
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_short_hostname_trailing_dot(self, mock_session, mock_create_client):
+        """Test a guest hostname with a trailing dot matches the node name."""
+        mock_client = MagicMock()
+        mock_vm_obj = MagicMock()
+        mock_vm_obj.vm = 'vm-456'
+        mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj]]
+        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'Worker1.OCP.example.com.'
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+
+        self.assertEqual(vsphere.get_vm('worker1.ocp.example.com'), 'vm-456')
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_short_hostname_cached_then_ambiguous(self, mock_session, mock_create_client):
+        """Test a remembered VM is not used once a second VM with the same short name appears."""
+        mock_client = MagicMock()
+        first_vm, second_vm = MagicMock(), MagicMock()
+        first_vm.vm, second_vm.vm = 'vm-1', 'vm-2'
+        mock_client.vcenter.VM.list.side_effect = [
+            [], [first_vm],
+            [], [first_vm, second_vm],
+            [], [first_vm],
+        ]
+        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'worker1.ocp.example.com'
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+        self.assertEqual(vsphere.get_vm('worker1.ocp.example.com'), 'vm-1')
+        self.assertIsNone(vsphere.get_vm('worker1.ocp.example.com'))
+
+        # the remembered match was dropped, so the hostname must be confirmed again
+        mock_client.vcenter.vm.guest.Identity.get.side_effect = Exception('VMware Tools is not running')
         self.assertIsNone(vsphere.get_vm('worker1.ocp.example.com'))
 
     @patch.dict('os.environ', {

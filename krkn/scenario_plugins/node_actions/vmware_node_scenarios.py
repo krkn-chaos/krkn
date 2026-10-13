@@ -103,8 +103,8 @@ class vSphere:
         """
         Returns the VM ID of the VM named after the short hostname of
         'instance_id', only if exactly one VM has that name and its guest OS
-        reports the node's hostname, so an unrelated VM that shares the name
-        is never used. The match is remembered, because once the VM is
+        reports the node's full hostname, so an unrelated VM that shares the
+        short name is never used. The match is remembered, because once the VM is
         powered off VMware Tools no longer reports the hostname.
         """
 
@@ -113,14 +113,11 @@ class vSphere:
             VM.FilterSpec(names=set([short_name]))
         )
 
-        known_vm = self.short_name_vms.get(instance_id)
-        if known_vm in [vm.vm for vm in vms]:
-            return known_vm
-
         if len(vms) == 0:
             logging.info("VM with name ({}) not found".format(instance_id))
             return None
         if len(vms) > 1:
+            self.short_name_vms.pop(instance_id, None)
             logging.error(
                 f"Found {len(vms)} VMs named ({short_name}), cannot tell "
                 f"which one is node ({instance_id})"
@@ -128,6 +125,9 @@ class vSphere:
             return None
 
         vm = vms[0].vm
+        if self.short_name_vms.get(instance_id) == vm:
+            return vm
+
         try:
             host_name = self.client.vcenter.vm.guest.Identity.get(vm).host_name
         except Exception as e:
@@ -136,7 +136,7 @@ class vSphere:
                 f"its guest hostname is not available: {e}"
             )
             return None
-        if (host_name or "").lower() not in (instance_id.lower(), short_name.lower()):
+        if (host_name or "").rstrip(".").lower() != instance_id.rstrip(".").lower():
             logging.error(
                 f"VM ({short_name}) reports guest hostname ({host_name}), "
                 f"not node ({instance_id})"
