@@ -1,6 +1,7 @@
 """Kraken daemon and PAUSE/RUN control-plane integration tests."""
 import subprocess
 import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -58,21 +59,52 @@ class TestPodServer(BaseScenarioTest):
                 time.sleep(1)
         raise AssertionError(f"Status endpoint did not accept {value} within 30s: {last_error}")
 
+    def _start_with_output_capture(self, config_path):
+        """Start Kraken and record its full stdout/stderr from reader threads.
+
+        The pipes are drained line-by-line for the whole process lifetime, so
+        the test can watch for log markers while Kraken runs (e.g. the PAUSE
+        acknowledgment) and still assert on the complete output afterwards.
+        """
+        proc = self.run_kraken_background(config_path)
+        lines = {"stdout": [], "stderr": []}
+
+        def drain(stream, key):
+            for line in iter(stream.readline, ""):
+                lines[key].append(line)
+
+        for stream, key in ((proc.stdout, "stdout"), (proc.stderr, "stderr")):
+            threading.Thread(target=drain, args=(stream, key), daemon=True).start()
+        return proc, lines
+
     @staticmethod
-    def _completed(proc, timeout):
+    def _result(proc, lines, timeout):
+        """Wait for exit and assemble a CompletedProcess from recorded output."""
         proc.wait(timeout=timeout)
-        stdout, stderr = proc.communicate()
         return subprocess.CompletedProcess(
-            proc.args, proc.returncode, stdout=stdout, stderr=stderr
+            proc.args, proc.returncode,
+            stdout="".join(lines["stdout"]), stderr="".join(lines["stderr"]),
+        )
+
+    def _wait_for_output(self, lines, marker, timeout=60):
+        """Wait until `marker` appears in Kraken's live stderr output."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if any(marker in line for line in lines["stderr"]):
+                return
+            time.sleep(0.2)
+        raise AssertionError(
+            f"Kraken never logged {marker!r} within {timeout}s; "
+            f"output so far:\n{''.join(lines['stderr'])[-4000:]}"
         )
 
     def test_daemon_stop_via_status_api(self):
         """Stop a daemon-mode Kraken run through its status API."""
-        proc = self.run_kraken_background(self._config(daemon=True))
+        proc, lines = self._start_with_output_capture(self._config(daemon=True))
         try:
             time.sleep(5)
             assert self._post("STOP") == 200
-            result = self._completed(proc, timeout=60)
+            result = self._result(proc, lines, timeout=60)
             assert_kraken_success(result, context="daemon STOP", tmp_path=self.tmp_path)
         finally:
             if proc.poll() is None:
@@ -84,14 +116,18 @@ class TestPodServer(BaseScenarioTest):
         before = get_pods_list(self.k8s_core, self.ns, self.LABEL_SELECTOR)
         assert before.items, "Expected a pod-disruption target before starting PAUSE"
         before_uids = set(pod_uids(before))
-        proc = self.run_kraken_background(self._config(state="PAUSE"))
+        proc, lines = self._start_with_output_capture(self._config(state="PAUSE"))
         try:
-            time.sleep(5)
+            # Wait until Kraken itself acknowledges the pause: the status
+            # server binds during startup, but Kraken polls the signal only in
+            # its chaos loop. Posting RUN before the first poll would let the
+            # run start without Kraken ever observing PAUSE.
+            self._wait_for_output(lines, "Pausing Kraken run")
             assert proc.poll() is None
             paused = get_pods_list(self.k8s_core, self.ns, self.LABEL_SELECTOR)
             assert set(pod_uids(paused)) == before_uids, "PAUSE allowed disruption before RUN"
             assert self._post("RUN") == 200
-            result = self._completed(proc, timeout=120)
+            result = self._result(proc, lines, timeout=120)
             assert_kraken_success(result, context="RUN signal", tmp_path=self.tmp_path)
             assert_scenario_executed(
                 result, self.SCENARIO_NAME, context=f"RUN namespace={self.ns}", tmp_path=self.tmp_path
