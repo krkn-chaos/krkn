@@ -61,6 +61,8 @@ class vSphere:
             password=self.password,
             session=session,
         )
+        # node name -> VM ID for VMs found by short hostname, see get_vm_by_short_name
+        self.short_name_vms = {}
 
     def get_unverified_session(self):
         """
@@ -81,28 +83,67 @@ class vSphere:
         If there are multiple matches, this only returns the first one.
         Node names are often FQDNs while the VM is named after the short
         hostname, so if the full name has no match, the short hostname is
-        tried, as long as exactly one VM has that name.
+        tried (see get_vm_by_short_name).
         """
 
         names = set([instance_id])
         vms = self.client.vcenter.VM.list(VM.FilterSpec(names=names))
 
         if len(vms) == 0 and "." in instance_id:
-            short_name = instance_id.split(".")[0]
-            short_names = set([short_name])
-            vms = self.client.vcenter.VM.list(VM.FilterSpec(names=short_names))
-            if len(vms) > 1:
-                logging.error(
-                    f"Found {len(vms)} VMs named ({short_name}), cannot tell "
-                    f"which one is node ({instance_id})"
-                )
-                return None
+            return self.get_vm_by_short_name(instance_id)
 
         if len(vms) == 0:
             logging.info("VM with name ({}) not found".format(instance_id))
             return None
         vm = vms[0].vm
 
+        return vm
+
+    def get_vm_by_short_name(self, instance_id):
+        """
+        Returns the VM ID of the VM named after the short hostname of
+        'instance_id', only if exactly one VM has that name and its guest OS
+        reports the node's hostname, so an unrelated VM that shares the name
+        is never used. The match is remembered, because once the VM is
+        powered off VMware Tools no longer reports the hostname.
+        """
+
+        short_name = instance_id.split(".")[0]
+        vms = self.client.vcenter.VM.list(
+            VM.FilterSpec(names=set([short_name]))
+        )
+
+        known_vm = self.short_name_vms.get(instance_id)
+        if known_vm in [vm.vm for vm in vms]:
+            return known_vm
+
+        if len(vms) == 0:
+            logging.info("VM with name ({}) not found".format(instance_id))
+            return None
+        if len(vms) > 1:
+            logging.error(
+                f"Found {len(vms)} VMs named ({short_name}), cannot tell "
+                f"which one is node ({instance_id})"
+            )
+            return None
+
+        vm = vms[0].vm
+        try:
+            host_name = self.client.vcenter.vm.guest.Identity.get(vm).host_name
+        except Exception as e:
+            logging.error(
+                f"Cannot confirm VM ({short_name}) is node ({instance_id}), "
+                f"its guest hostname is not available: {e}"
+            )
+            return None
+        if (host_name or "").lower() not in (instance_id.lower(), short_name.lower()):
+            logging.error(
+                f"VM ({short_name}) reports guest hostname ({host_name}), "
+                f"not node ({instance_id})"
+            )
+            return None
+
+        self.short_name_vms[instance_id] = vm
         return vm
 
     def get_existing_vm(self, instance_id):

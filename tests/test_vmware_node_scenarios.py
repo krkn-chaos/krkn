@@ -499,6 +499,7 @@ class TestVSphereClass(unittest.TestCase):
         mock_vm_obj = MagicMock()
         mock_vm_obj.vm = 'vm-456'
         mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj]]
+        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'worker1.ocp.example.com'
         mock_create_client.return_value = mock_client
 
         vsphere = vSphere()
@@ -509,6 +510,73 @@ class TestVSphereClass(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(calls[0][0][0].names, {'worker1.ocp.example.com'})
         self.assertEqual(calls[1][0][0].names, {'worker1'})
+        mock_client.vcenter.vm.guest.Identity.get.assert_called_once_with('vm-456')
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_short_hostname_belongs_to_other_node(self, mock_session, mock_create_client):
+        """Test a VM sharing the short name but reporting another hostname is not used."""
+        mock_client = MagicMock()
+        mock_vm_obj = MagicMock()
+        mock_vm_obj.vm = 'vm-456'
+        mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj]]
+        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'worker1.other.example.com'
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+
+        self.assertIsNone(vsphere.get_vm('worker1.ocp.example.com'))
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_short_hostname_unverifiable(self, mock_session, mock_create_client):
+        """Test the short name match is not used when the guest hostname cannot be read."""
+        mock_client = MagicMock()
+        mock_vm_obj = MagicMock()
+        mock_vm_obj.vm = 'vm-456'
+        mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj]]
+        mock_client.vcenter.vm.guest.Identity.get.side_effect = Exception('VMware Tools is not running')
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+
+        self.assertIsNone(vsphere.get_vm('worker1.ocp.example.com'))
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_short_hostname_remembered_until_deleted(self, mock_session, mock_create_client):
+        """Test a confirmed VM is still found once powered off, and not after it is deleted."""
+        mock_client = MagicMock()
+        mock_vm_obj = MagicMock()
+        mock_vm_obj.vm = 'vm-456'
+        mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj], [], [mock_vm_obj], [], []]
+        mock_client.vcenter.vm.guest.Identity.get.return_value.host_name = 'worker1'
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+        self.assertEqual(vsphere.get_vm('worker1.ocp.example.com'), 'vm-456')
+
+        # powered off: VMware Tools no longer reports the hostname
+        mock_client.vcenter.vm.guest.Identity.get.side_effect = Exception('VMware Tools is not running')
+        self.assertEqual(vsphere.get_vm('worker1.ocp.example.com'), 'vm-456')
+
+        # deleted: neither name matches any VM
+        self.assertIsNone(vsphere.get_vm('worker1.ocp.example.com'))
 
     @patch.dict('os.environ', {
         'VSPHERE_IP': '192.168.1.100',
