@@ -78,11 +78,25 @@ class vSphere:
     def get_vm(self, instance_id):
         """
         Returns the VM ID corresponding to the VM Name (instance_id)
-        If there are multiple matches, this only returns the first one
+        If there are multiple matches, this only returns the first one.
+        Node names are often FQDNs while the VM is named after the short
+        hostname, so if the full name has no match, the short hostname is
+        tried, as long as exactly one VM has that name.
         """
 
         names = set([instance_id])
         vms = self.client.vcenter.VM.list(VM.FilterSpec(names=names))
+
+        if len(vms) == 0 and "." in instance_id:
+            short_name = instance_id.split(".")[0]
+            short_names = set([short_name])
+            vms = self.client.vcenter.VM.list(VM.FilterSpec(names=short_names))
+            if len(vms) > 1:
+                logging.error(
+                    f"Found {len(vms)} VMs named ({short_name}), cannot tell "
+                    f"which one is node ({instance_id})"
+                )
+                return None
 
         if len(vms) == 0:
             logging.info("VM with name ({}) not found".format(instance_id))
@@ -91,17 +105,25 @@ class vSphere:
 
         return vm
 
-    def release_instances(self, instance_id):
+    def get_existing_vm(self, instance_id):
         """
-        Deletes the VM whose name is given by 'instance_id'
+        Same as get_vm, but raises instead of returning None, so power
+        actions never run against a missing VM
         """
 
         vm = self.get_vm(instance_id)
         if not vm:
             raise Exception(
-                "VM with the name ({}) does not exist."
-                "Please create the vm first.".format(instance_id)
+                f"VM with the name ({instance_id}) does not exist in vCenter"
             )
+        return vm
+
+    def release_instances(self, instance_id):
+        """
+        Deletes the VM whose name is given by 'instance_id'
+        """
+
+        vm = self.get_existing_vm(instance_id)
         state = self.client.vcenter.vm.Power.get(vm)
         if state == Power.Info(state=Power.State.POWERED_ON):
             self.client.vcenter.vm.Power.stop(vm)
@@ -117,7 +139,7 @@ class vSphere:
         @Returns: True if successful, or False if the VM is not powered on
         """
 
-        vm = self.get_vm(instance_id)
+        vm = self.get_existing_vm(instance_id)
         try:
             self.client.vcenter.vm.Power.reset(vm)
             logging.info("Reset VM -- '{}-({})'".format(instance_id, vm))
@@ -134,7 +156,7 @@ class vSphere:
         @Returns: True if successful, or False if the VM is already powered off
         """
 
-        vm = self.get_vm(instance_id)
+        vm = self.get_existing_vm(instance_id)
         try:
             self.client.vcenter.vm.Power.stop(vm)
             logging.info(f"Stopped VM -- '{instance_id}-({vm})'")
@@ -149,7 +171,7 @@ class vSphere:
         @Returns: True if successful, or False if the VM is already powered on
         """
 
-        vm = self.get_vm(instance_id)
+        vm = self.get_existing_vm(instance_id)
         try:
             self.client.vcenter.vm.Power.start(vm)
             logging.info(f"Started VM -- '{instance_id}-({vm})'")
@@ -302,7 +324,7 @@ class vSphere:
         """
 
         try:
-            vm = self.get_vm(instance_id)
+            vm = self.get_existing_vm(instance_id)
             state = self.client.vcenter.vm.Power.get(vm).state
             logging.info(f"Check instance {instance_id} status")
             return state

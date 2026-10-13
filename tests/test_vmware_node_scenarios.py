@@ -470,6 +470,97 @@ class TestVSphereClass(unittest.TestCase):
     })
     @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
     @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_fqdn_exact_match(self, mock_session, mock_create_client):
+        """Test a VM named with the full node FQDN is used without a fallback lookup."""
+        mock_client = MagicMock()
+        mock_vm_obj = MagicMock()
+        mock_vm_obj.vm = 'vm-123'
+        mock_client.vcenter.VM.list.return_value = [mock_vm_obj]
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+        vm_id = vsphere.get_vm('worker1.ocp.example.com')
+
+        self.assertEqual(vm_id, 'vm-123')
+        mock_client.vcenter.VM.list.assert_called_once()
+        filter_spec = mock_client.vcenter.VM.list.call_args[0][0]
+        self.assertEqual(filter_spec.names, {'worker1.ocp.example.com'})
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_falls_back_to_short_hostname(self, mock_session, mock_create_client):
+        """Test a FQDN node name finds the VM named after its short hostname."""
+        mock_client = MagicMock()
+        mock_vm_obj = MagicMock()
+        mock_vm_obj.vm = 'vm-456'
+        mock_client.vcenter.VM.list.side_effect = [[], [mock_vm_obj]]
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+        vm_id = vsphere.get_vm('worker1.ocp.example.com')
+
+        self.assertEqual(vm_id, 'vm-456')
+        calls = mock_client.vcenter.VM.list.call_args_list
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0][0][0].names, {'worker1.ocp.example.com'})
+        self.assertEqual(calls[1][0][0].names, {'worker1'})
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_get_vm_ambiguous_short_hostname(self, mock_session, mock_create_client):
+        """Test the short hostname fallback refuses to pick between several VMs."""
+        mock_client = MagicMock()
+        first_vm, second_vm = MagicMock(), MagicMock()
+        first_vm.vm, second_vm.vm = 'vm-1', 'vm-2'
+        mock_client.vcenter.VM.list.side_effect = [[], [first_vm, second_vm]]
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+        vm_id = vsphere.get_vm('worker1.ocp.example.com')
+
+        self.assertIsNone(vm_id)
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
+    def test_power_actions_raise_when_vm_not_found(self, mock_session, mock_create_client):
+        """Test stop, start and reboot raise instead of calling the power API with no VM."""
+        mock_client = MagicMock()
+        mock_client.vcenter.VM.list.return_value = []
+        mock_create_client.return_value = mock_client
+
+        vsphere = vSphere()
+
+        for action in (vsphere.stop_instances, vsphere.start_instances, vsphere.reboot_instances):
+            with self.assertRaises(Exception) as context:
+                action('worker1.ocp.example.com')
+            self.assertIn("does not exist", str(context.exception))
+
+        mock_client.vcenter.vm.Power.stop.assert_not_called()
+        mock_client.vcenter.vm.Power.start.assert_not_called()
+        mock_client.vcenter.vm.Power.reset.assert_not_called()
+
+    @patch.dict('os.environ', {
+        'VSPHERE_IP': '192.168.1.100',
+        'VSPHERE_USERNAME': 'admin',
+        'VSPHERE_PASSWORD': 'password123'
+    })
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.create_vsphere_client')
+    @patch('krkn.scenario_plugins.node_actions.vmware_node_scenarios.requests.session')
     def test_reboot_instances_success(self, mock_session, mock_create_client):
         """Test successful VM reboot."""
         mock_client = MagicMock()
