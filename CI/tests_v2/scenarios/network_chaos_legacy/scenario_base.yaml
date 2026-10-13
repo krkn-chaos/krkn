@@ -1,0 +1,13 @@
+# Legacy network_chaos scenario (network_chaos_scenarios plugin — NOT network_chaos_ng).
+# Tests load this and patch the network_chaos dict per case (node targeting, egress, execution).
+# Node-level chaos: Krkn deploys privileged hostNetwork Jobs on selected node(s) to apply tc netem.
+network_chaos:
+  duration: 10
+  node_name: ""
+  label_selector: node-role.kubernetes.io/worker=
+  instance_count: 1
+  interfaces: []
+  execution: serial
+  egress:
+    bandwidth: 100mbit
+  image: quay.io/krkn-chaos/krkn:tools
