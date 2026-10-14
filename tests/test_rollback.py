@@ -295,44 +295,48 @@ class TestRollbackCommand:
 class TestRollbackAbstractScenarioPlugin:
     
     def test_rollback_callable_returns_true_on_success(self):
-        from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
         from unittest.mock import Mock
+        from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+
         class TestScenarioPlugin(AbstractScenarioPlugin):
             def run(self, run_uuid: str, scenario: str, lib_telemetry, scenario_telemetry):
                 return 0
+
             def get_scenario_types(self) -> list[str]:
                 return ["test_scenario"]
+
         plugin = TestScenarioPlugin("test_scenario")
-        plugin.serializer = Mock()
-        plugin.serializer.serialize_callable.return_value = "/tmp/version.py"
-        result = plugin.set_rollback_callable(
-            callable=Mock(),
-            rollback_content="test content",
-            version="test_version",
+        plugin.rollback_handler.serializer = Mock()
+        plugin.rollback_handler.serializer.serialize_callable.return_value = "/tmp/version.py"
+        result = plugin.rollback_handler.set_rollback_callable(
+            callable=lambda *a: None,
+            rollback_content="test content"
         )
         assert result is True
-        plugin.serializer.serialize_callable.assert_called_once()
+        plugin.rollback_handler.serializer.serialize_callable.assert_called_once()
 
     def test_rollback_callable_returns_false_on_serialization_failure(self):
-        from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
         from unittest.mock import Mock
+        from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+
         class TestScenarioPlugin(AbstractScenarioPlugin):
             def run(self, run_uuid: str, scenario: str, lib_telemetry, scenario_telemetry):
                 return 0
+
             def get_scenario_types(self) -> list[str]:
                 return ["test_scenario"]
+
         plugin = TestScenarioPlugin("test_scenario")
-        plugin.serializer = Mock()
-        plugin.serializer.serialize_callable.side_effect = Exception(
+        plugin.rollback_handler.serializer = Mock()
+        plugin.rollback_handler.serializer.serialize_callable.side_effect = Exception(
             "serialization failed"
         )
-        result = plugin.set_rollback_callable(
-            callable=Mock(),
-            rollback_content="test content",
-            version="test_version",
+        result = plugin.rollback_handler.set_rollback_callable(
+            callable=lambda *a: None,
+            rollback_content="test content"
         )
         assert result is False
-        plugin.serializer.serialize_callable.assert_called_once()
+        plugin.rollback_handler.serializer.serialize_callable.assert_called_once()
 
     @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
     @pytest.mark.parametrize("scenario_should_fail", [True, False], ids=["failing_scenario", "successful_scenario"])
