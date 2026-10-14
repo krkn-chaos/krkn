@@ -7,63 +7,12 @@ import pytest
 from kubernetes.client.rest import ApiException
 
 from lib.base import BaseScenarioTest
+from lib.network import (
+    delete_pod,
+    http_status_and_body,
+    start_traffic_pod,
+)
 from lib.utils import assert_kraken_failure, assert_kraken_success, assert_scenario_executed
-
-
-def _start_traffic_pod(kubectl, namespace):
-    """Start a curl client in-cluster so requests follow Service endpoint changes."""
-    name = f"service-hijacking-traffic-{namespace[-8:]}"
-    created = kubectl(
-        [
-            "run",
-            name,
-            "-n",
-            namespace,
-            "--image=curlimages/curl:8.10.1",
-            "--restart=Never",
-            "--command",
-            "--",
-            "sleep",
-            "300",
-        ],
-        timeout=60,
-    )
-    assert created.returncode == 0, created.stderr
-    ready = kubectl(
-        ["wait", "--for=condition=Ready", f"pod/{name}", "-n", namespace, "--timeout=90s"],
-        timeout=100,
-    )
-    assert ready.returncode == 0, ready.stderr
-    return name
-
-
-def _service_plan_response(kubectl, namespace, client_pod):
-    """Return the status/body from an in-cluster request to the hijacked Service."""
-    response = kubectl(
-        [
-            "exec",
-            "-n",
-            namespace,
-            client_pod,
-            "--",
-            "curl",
-            "-sS",
-            "-w",
-            "\n%{http_code}",
-            "--connect-timeout",
-            "2",
-            "--max-time",
-            "5",
-            "http://nginx-service:80/list/index.php",
-        ],
-        timeout=15,
-    )
-    if response.returncode != 0:
-        return None
-    body, separator, status = response.stdout.rpartition("\n")
-    if not separator or not status.isdigit():
-        return None
-    return int(status), body
 
 
 @pytest.mark.functional
@@ -90,7 +39,7 @@ class TestServiceHijacking(BaseScenarioTest):
         original_pod = original_pods[0]
         assert original_selector == {"app": "nginx"}
 
-        traffic_pod = _start_traffic_pod(kubectl, self.ns)
+        traffic_pod = start_traffic_pod(kubectl, self.ns, prefix="service-hijacking-traffic-")
         proc = None
         try:
             scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
@@ -114,8 +63,11 @@ class TestServiceHijacking(BaseScenarioTest):
                 selector = dict(current_service.spec.selector or {})
                 if selector != original_selector:
                     redirected_selector = selector
-                    response = _service_plan_response(
-                        kubectl, self.ns, traffic_pod
+                    response = http_status_and_body(
+                        kubectl,
+                        self.ns,
+                        traffic_pod,
+                        "http://nginx-service:80/list/index.php",
                     )
                     if response and (
                         (response[0] == 500 and "internal server error" in response[1])
@@ -196,18 +148,7 @@ class TestServiceHijacking(BaseScenarioTest):
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait(timeout=20)
-            kubectl(
-                [
-                    "delete",
-                    "pod",
-                    traffic_pod,
-                    "-n",
-                    self.ns,
-                    "--ignore-not-found=true",
-                    "--wait=true",
-                ],
-                timeout=90,
-            )
+            delete_pod(kubectl, self.ns, traffic_pod)
 
     def test_missing_service_fails(self):
         """Fail when the configured Service does not exist."""
@@ -217,3 +158,91 @@ class TestServiceHijacking(BaseScenarioTest):
         config = self.build_config(self.SCENARIO_TYPE, str(path), filename="missing-service.yaml")
         result = self.run_kraken(config)
         assert_kraken_failure(result, context="missing hijack service", tmp_path=self.tmp_path)
+
+    def test_interrupted_hijack_rolls_back_service(self):
+        """SIGTERM during the hijack window restores the Service selector and
+        deletes the hijacker pod via the plugin's rollback handler.
+
+        Covers the SIGTERM → SignalHandler → execute_rollback_version_files →
+        rollback_service_hijacking chain: a crash mid-hijack must not leave the
+        Service permanently pointed at a dead pod. The process dies with
+        returncode −15 (re-raised default SIGTERM); the contract is the rolled
+        -back object state, so no exit-code assertion is made.
+        """
+        service_name = "nginx-service"
+        service = self.k8s_core.read_namespaced_service(service_name, self.ns)
+        original_selector = dict(service.spec.selector or {})
+        assert original_selector == {"app": "nginx"}
+
+        scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
+        scenario["chaos_duration"] = 60  # widen the interrupt window (test-side config)
+        path = self.write_scenario(self.tmp_path, scenario, suffix="-interrupt")
+        config_path = self.build_config(
+            self.SCENARIO_TYPE, str(path), filename="interrupt.yaml"
+        )
+        proc = self.run_kraken_background(config_path)
+        try:
+            # Gate on the API-visible redirect — the selector patch precedes
+            # rollback-callable registration by microseconds, so once the
+            # selector is observed redirected the rollback path is armed.
+            # Never read proc.stdout of a live background process.
+            deadline = time.monotonic() + 150  # same cold-pull budget as the plan test
+            redirected = False
+            while time.monotonic() < deadline and proc.poll() is None:
+                current = dict(
+                    self.k8s_core.read_namespaced_service(
+                        service_name, self.ns
+                    ).spec.selector
+                    or {}
+                )
+                if current != original_selector:
+                    redirected = True
+                    break
+                time.sleep(1)
+            assert redirected, "Service selector never redirected; hijack never started"
+            time.sleep(2)  # settle: rollback callable registration
+            proc.terminate()  # SIGTERM → signal handler → rollback → re-raise
+            try:
+                proc.wait(timeout=90)
+            except subprocess.TimeoutExpired:
+                pytest.fail("Kraken did not exit within 90s of SIGTERM during hijack")
+            stdout, stderr = proc.communicate()
+            output = f"{stdout or ''}\n{stderr or ''}"
+
+            # Interruption path taken, not normal completion:
+            assert "selectors successfully restored" not in output, (
+                "SIGTERM arrived after normal completion; interrupt window missed"
+            )
+            assert "Rolling back service hijacking" in output, (
+                "Rollback handler did not run for the interrupted hijack"
+            )
+            m = re.search(r"successfully deployed pod:\s+(\S+)", output)
+            assert m, "Scenario output did not identify the hijacker pod"
+            hijacker = m.group(1)
+
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                current = dict(
+                    self.k8s_core.read_namespaced_service(
+                        service_name, self.ns
+                    ).spec.selector
+                    or {}
+                )
+                try:
+                    self.k8s_core.read_namespaced_pod(hijacker, self.ns)
+                    hijacker_present = True
+                except ApiException as error:
+                    if error.status != 404:
+                        raise
+                    hijacker_present = False
+                if current == original_selector and not hijacker_present:
+                    break
+                time.sleep(1)
+            else:
+                pytest.fail(
+                    "Selector/hijacker pod not rolled back after interruption"
+                )
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=20)

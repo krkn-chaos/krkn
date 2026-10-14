@@ -33,6 +33,17 @@ jobs:
           kind load docker-image nginx:alpine
           docker pull quay.io/krkn-chaos/krkn:tools
           kind load docker-image quay.io/krkn-chaos/krkn:tools
+          # Scenario images not otherwise cached: preload to avoid cold-pull
+          # variance inside test timeout budgets (the ~350MB service-hijacking
+          # image cold pull measured 48s; see CI/tests_v2/KRKN_ISSUES.md).
+          for image in \
+            quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3 \
+            quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos \
+            quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools \
+            quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog; do
+            docker pull "$image"
+            kind load docker-image "$image"
+          done
 
       - name: Install Python
         uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4

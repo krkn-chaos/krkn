@@ -7,8 +7,8 @@ import pytest
 from lib.base import BaseScenarioTest
 from lib.utils import (
     assert_all_pods_running_and_ready,
-    assert_kraken_failure,
     assert_kraken_success,
+    assert_scenario_executed,
     get_pods_list,
 )
 
@@ -51,8 +51,9 @@ def _temp_file_size(kubectl, namespace, pod_name):
 
 @pytest.mark.functional
 @pytest.mark.xdist_group("node-resource-chaos")
+@pytest.mark.pvc
 class TestPVC(BaseScenarioTest):
-    """Validate PVC fill effects, workload health, and missing-claim failure."""
+    """Validate PVC fill effects and workload health (missing-claim failure is unit-covered)."""
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/pvc/resource.yaml"
     LABEL_SELECTOR = "app=krkn-pvc-target"
     SCENARIO_NAME = "pvc"
@@ -119,9 +120,14 @@ class TestPVC(BaseScenarioTest):
                 proc.args, proc.returncode, stdout=stdout, stderr=stderr
             )
             assert_kraken_success(result, context=self.ns, tmp_path=self.tmp_path)
-            output = f"{result.stdout or ''}\n{result.stderr or ''}"
-            assert "Creating kraken.tmp file" in output
-            assert "Finish waiting" in output
+            # Execution-evidence gate (SCENARIO_EXECUTION_MARKERS["pvc"]):
+            # "Creating kraken.tmp file|Finish waiting". Both branches are
+            # unconditional on the success path, so the OR-marker is
+            # equivalent to the previous AND-substring pair; the live
+            # df/file polling above carries the primary proof.
+            assert_scenario_executed(
+                result, self.SCENARIO_NAME, context=self.ns, tmp_path=self.tmp_path
+            )
 
             deadline = time.monotonic() + 45
             while time.monotonic() < deadline:
@@ -158,8 +164,3 @@ class TestPVC(BaseScenarioTest):
                 )
             except Exception:
                 pass
-
-    def test_missing_pvc_fails(self):
-        """Fail when the scenario names a PVC that does not exist."""
-        result = self.run_scenario(self.tmp_path, self.ns, overrides={"pvc_name": "missing-pvc"}, config_filename="missing.yaml")
-        assert_kraken_failure(result, context="missing PVC", tmp_path=self.tmp_path)

@@ -1,4 +1,7 @@
 # Base pod_network_filter scenario (list). Tests patch namespace and per-case overrides.
+# Combined-lifecycle tests deep-copy this single entry into a multi-entry list: the
+# plugin iterates entries serially (wait_duration seconds between entries) with
+# independent per-entry validation.
 - id: pod_network_filter
   image: "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos"
   wait_duration: 1

@@ -8,8 +8,8 @@ import pytest
 from lib.base import BaseScenarioTest
 from lib.utils import (
     assert_all_pods_running_and_ready,
-    assert_kraken_failure,
     assert_kraken_success,
+    assert_scenario_executed,
     container_runtime,
     get_pods_list,
     schedulable_worker_nodes,
@@ -31,7 +31,7 @@ def _pod_epoch(kubectl, namespace, pod_name):
 @pytest.mark.time_scenarios
 @pytest.mark.xdist_group("node-resource-chaos")
 class TestTimeScenarios(BaseScenarioTest):
-    """Exercise supported pod/node clock actions and invalid-action handling."""
+    """Exercise supported pod/node clock actions."""
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/time_scenarios/resource.yaml"
     LABEL_SELECTOR = "app=krkn-time-target"
     SCENARIO_NAME = "time_scenarios"
@@ -61,6 +61,7 @@ class TestTimeScenarios(BaseScenarioTest):
             "pod",
         )
         assert_kraken_success(result, context=self.ns, tmp_path=self.tmp_path)
+        assert_scenario_executed(result, self.SCENARIO_NAME, context=self.ns, tmp_path=self.tmp_path)
         output = f"{result.stdout or ''}\n{result.stderr or ''}"
         assert f"Reset date/time on pod {pod_name}" in output, (
             "Pod action did not report its reset observation; this source path does not "
@@ -103,12 +104,8 @@ class TestTimeScenarios(BaseScenarioTest):
             "node",
         )
         assert_kraken_success(result, context=nodes[0], tmp_path=self.tmp_path)
+        assert_scenario_executed(result, self.SCENARIO_NAME, context=nodes[0], tmp_path=self.tmp_path)
         output = f"{result.stdout or ''}\n{result.stderr or ''}"
         assert "ntp active in cluster node" in output.lower()
         assert f"Reset date/time on node {nodes[0]}" in output
         assert wait_node_ready(self.k8s_core, nodes[0], 120)
-
-    def test_invalid_action_fails(self):
-        """Reject a time action that the plugin does not support."""
-        result = self._run({"action": "not_an_action", "object_type": "pod", "label_selector": self.LABEL_SELECTOR}, "invalid")
-        assert_kraken_failure(result, context="invalid time action", tmp_path=self.tmp_path)

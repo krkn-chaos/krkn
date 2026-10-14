@@ -183,6 +183,10 @@ class TestCerberusSetup(unittest.TestCase):
     @patch('krkn.cerberus.setup.get_status')
     def test_publish_kraken_status_healthy_exit_on_failure_true(self, mock_get_status):
         """Test publish_kraken_status when cluster is healthy and exit_on_failure is True"""
+        # KRKN-003 regression pin: this exits 1 even though cerberus reports
+        # the cluster healthy. Documented as a production defect (accidental
+        # regression in #710/544cac8 that dropped the failed_post_scenarios
+        # gate); this pin should be INVERTED when that defect is fixed.
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.exit_on_failure = True
         mock_get_status.return_value = True
@@ -196,6 +200,11 @@ class TestCerberusSetup(unittest.TestCase):
     @patch('krkn.cerberus.setup.get_status')
     def test_publish_kraken_status_unhealthy_exit_on_failure_false(self, mock_get_status):
         """Test publish_kraken_status when cluster is unhealthy and exit_on_failure is False"""
+        # KRKN-003 note: this "continue policy" branch is unreachable in
+        # production — get_status() itself sys.exit(1)s on an unhealthy
+        # response (krkn/cerberus/setup.py:84-85) before
+        # publish_kraken_status can evaluate exit_on_failure. The mock
+        # bypasses get_status, so this pins the intended (dead) semantics.
         cerberus_setup.cerberus_enabled = True
         cerberus_setup.exit_on_failure = False
         mock_get_status.return_value = False

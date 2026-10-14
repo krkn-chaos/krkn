@@ -1,16 +1,18 @@
 """Integration coverage for the legacy node network chaos plugin."""
 
-import subprocess
-import time
-
 import pytest
 
-from lib.base import BaseScenarioTest, KRAKEN_PROC_WAIT_TIMEOUT
+from lib.base import BaseScenarioTest
+from lib.network import (
+    collect_kraken_background,
+    node_tc_qdisc_output,
+    wait_for_netem,
+    wait_for_no_netem,
+)
 from lib.utils import (
     assert_kraken_failure,
     assert_kraken_success,
     clean_node_tc_rules,
-    container_runtime,
     schedulable_worker_nodes,
     wait_node_ready,
 )
@@ -42,85 +44,47 @@ class TestNetworkChaos(BaseScenarioTest):
         )
         return self.run_kraken_background(config)
 
-    @staticmethod
-    def _collect_background(proc):
-        """Collect a background Kraken run, killing it if collection times out."""
-        try:
-            stdout, stderr = proc.communicate(
-                timeout=max(KRAKEN_PROC_WAIT_TIMEOUT, 180)
-            )
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            stdout, stderr = proc.communicate()
-        return subprocess.CompletedProcess(
-            proc.args, proc.returncode, stdout, stderr
-        )
-
-    @staticmethod
-    def _tc_qdisc_output(node):
-        """Read effective qdisc state from a local KinD node container."""
-        runtime = container_runtime()
-        if not runtime:
-            pytest.skip("Container runtime unavailable for tc-state assertion")
-        try:
-            result = subprocess.run(
-                [runtime, "exec", node, "tc", "qdisc", "show", "dev", "eth0"],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            pytest.fail(f"Could not inspect tc state on {node}: {exc}")
-        assert result.returncode == 0, result.stderr
-        return result.stdout or ""
-
-    def _wait_for_netem(self, node, proc, timeout=120):
-        """Poll until the legacy run has installed an effective netem qdisc."""
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            output = self._tc_qdisc_output(node)
-            if "netem" in output.lower():
-                return output
-            if proc.poll() is not None:
-                break
-            time.sleep(1)
-        return ""
-
-    def _wait_for_no_netem(self, node, timeout=60):
-        """Poll until cleanup removes the effective netem qdisc."""
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            output = self._tc_qdisc_output(node)
-            if "netem" not in output.lower():
-                return output
-            time.sleep(1)
-        return ""
-
     @pytest.mark.no_workload
     @pytest.mark.kind_only
-    def test_bandwidth_targeting_worker_and_cleanup(self, kubectl):
-        """Observe an active netem qdisc, then verify jobs and tc state are cleaned."""
+    @pytest.mark.parametrize(
+        "egress_variant",
+        [
+            pytest.param({"bandwidth": "100mbit"}, id="bandwidth"),
+            pytest.param({"latency": "50ms"}, id="latency"),
+        ],
+    )
+    def test_netem_applied_and_cleaned(self, kubectl, egress_variant):
+        """Observe an active netem qdisc during chaos, then verify full cleanup.
+
+        Carries every assertion of both original variant tests: netem present
+        during chaos, exit 0, node Ready afterwards, netem gone, and no leaked
+        fedtools-/chaos- resources in the default namespace.
+        """
         nodes = schedulable_worker_nodes(self.k8s_core)
         if not nodes:
             pytest.skip("No schedulable worker node")
+        node = nodes[-1]
+        if node_tc_qdisc_output(node, dev="eth0") is None:
+            pytest.skip("Container runtime unavailable for tc-state assertion")
         before = kubectl(["get", "pods,jobs", "-n", "default", "-o", "name"])
         assert before.returncode == 0, before.stderr
-
-        node = nodes[-1]
+        variant_id = next(iter(egress_variant))
         clean_node_tc_rules(node)
         proc = self._run_background(
-            {"node_name": node, "egress": {"bandwidth": "100mbit"}}, "bandwidth"
+            {"node_name": node, "egress": egress_variant}, variant_id
         )
         try:
-            active_qdisc = self._wait_for_netem(node, proc)
+            active_qdisc = wait_for_netem(node, proc, dev="eth0")
             assert active_qdisc, (
-                f"Expected effective netem qdisc on {node} while bandwidth chaos ran"
+                f"Expected effective netem qdisc on {node} while {variant_id} chaos ran"
             )
         finally:
-            result = self._collect_background(proc)
-        assert_kraken_success(result, context=f"node={node}", tmp_path=self.tmp_path)
+            result = collect_kraken_background(proc)
+        assert_kraken_success(
+            result, context=f"node={node} variant={variant_id}", tmp_path=self.tmp_path
+        )
         assert wait_node_ready(self.k8s_core, node, 120)
-        assert self._wait_for_no_netem(node), (
+        assert wait_for_no_netem(node, dev="eth0"), (
             f"Legacy network chaos left an effective netem qdisc on {node}"
         )
 
@@ -128,34 +92,11 @@ class TestNetworkChaos(BaseScenarioTest):
         assert after.returncode == 0, after.stderr
         created = set(after.stdout.splitlines()) - set(before.stdout.splitlines())
         leaked = sorted(
-            name for name in created
+            name
+            for name in created
             if name.startswith(("pod/fedtools-", "job/chaos-"))
         )
         assert not leaked, f"Legacy network chaos resources leaked in default: {leaked}"
-
-    @pytest.mark.no_workload
-    @pytest.mark.kind_only
-    def test_latency_only_variant(self):
-        """Observe an effective netem qdisc during latency-only node chaos."""
-        nodes = schedulable_worker_nodes(self.k8s_core)
-        if not nodes:
-            pytest.skip("No schedulable worker node")
-        node = nodes[0]
-        clean_node_tc_rules(node)
-        proc = self._run_background(
-            {"node_name": node, "egress": {"latency": "50ms"}}, "latency"
-        )
-        try:
-            active_qdisc = self._wait_for_netem(node, proc)
-            assert active_qdisc, (
-                f"Expected effective netem qdisc on {node} while latency chaos ran"
-            )
-        finally:
-            result = self._collect_background(proc)
-        assert_kraken_success(result, context="latency variant", tmp_path=self.tmp_path)
-        assert self._wait_for_no_netem(node), (
-            f"Latency chaos left an effective netem qdisc on {node}"
-        )
 
     @pytest.mark.no_workload
     def test_nonexistent_node_fails(self):

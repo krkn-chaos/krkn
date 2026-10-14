@@ -30,6 +30,12 @@ SCENARIO_EXECUTION_MARKERS = {
     "namespace_deletion": r"Delete objects in selected namespace|Deleted all objects in namespace",
     "pod_network_filter": r"creating workload to filter pod|removing iptables rules",
     "pod_network_chaos": r"creating workload to inject network chaos in pod|removing tc rules",
+    "node_scenarios": r"node_\w+_scenario has been successfully injected|There is no node action that matches",
+    "time_scenarios": r"Reset date/time on (pod|node)",
+    "cpu_hog": r"running cpu hog scenario",
+    "memory_hog": r"running memory hog scenario",
+    "io_hog": r"running io hog scenario",
+    "pvc": r"Creating kraken\.tmp file|Finish waiting",
     "service_hijacking": r"hijack|hijacking|service",
 }
 

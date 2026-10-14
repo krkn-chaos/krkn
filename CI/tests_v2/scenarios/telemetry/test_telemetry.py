@@ -34,6 +34,11 @@ class TestTelemetry(BaseScenarioTest):
         data["telemetry"]["username"] = os.getenv("TELEMETRY_USERNAME", "")
         data["telemetry"]["password"] = os.getenv("TELEMETRY_PASSWORD", "")
         data["performance_monitoring"].update({"check_critical_alerts": False, "enable_alerts": False, "enable_metrics": False})
+        # Disable the status server: this test builds its config directly
+        # (not via the build_config fixture) and the common config enables
+        # it on fixed port 8081 — a latent collision with any concurrent
+        # binder on that port. Mirrors the disable in lib/kraken.py.
+        data["kraken"]["publish_kraken_status"] = False
         path = self.tmp_path / "telemetry.yaml"; path.write_text(yaml.safe_dump(data))
         result = self.run_kraken(str(path), timeout=300)
         assert_kraken_success(result, context="telemetry", tmp_path=self.tmp_path)
