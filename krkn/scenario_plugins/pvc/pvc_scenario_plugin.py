@@ -195,7 +195,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 file_name = "kraken.tmp"
 
                 full_path = "%s/%s" % (str(mount_path), str(file_name))
-                
+
                 # Set rollback callable to ensure temp file cleanup on failure or interruption
                 rollback_data = {
                     "pod_name": pod_name,
@@ -218,7 +218,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         "PvcScenarioPlugin Failed to register rollback context. Aborting scenario."
                     )
                     return 1
-                
+
                 # Create temp file in the PVC
                 logging.info(
                     "Creating %s file, %s KB size, in pod %s at %s (ns %s)"
@@ -280,7 +280,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 logging.info("\n" + str(response))
                 if str(file_name).lower() in str(response).lower():
                     logging.info("%s file successfully created" % (str(full_path)))
-                      
+
                 else:
                     logging.error(
                         "PvcScenarioPlugin Failed to create tmp file with %s size"
