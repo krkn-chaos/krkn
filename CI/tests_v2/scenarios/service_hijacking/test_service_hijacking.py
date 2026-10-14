@@ -101,7 +101,12 @@ class TestServiceHijacking(BaseScenarioTest):
             proc = self.run_kraken_background(config_path)
             redirected_selector = None
             plan_response = None
-            deadline = time.monotonic() + 45
+            # Kraken waits up to 120s for the hijacker pod to reach Running
+            # before it patches the Service selector (krkn-lib create_pod).
+            # A cold pull of the ~350MB hijacker image takes ~50s on its own,
+            # so this window must cover Kraken's whole pod-start budget, not
+            # just the warm-path redirect (~2s).
+            deadline = time.monotonic() + 150
             while time.monotonic() < deadline and proc.poll() is None:
                 current_service = self.k8s_core.read_namespaced_service(
                     service_name, self.ns
