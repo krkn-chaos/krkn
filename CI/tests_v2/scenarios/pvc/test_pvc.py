@@ -68,8 +68,15 @@ class TestPVC(BaseScenarioTest):
         pod_name = before.items[0].metadata.name
         baseline_used_kb = _df_used_kb(kubectl, self.ns, pod_name)
 
+        # fill_percentage must exceed the current usage of whatever backs the
+        # PVC (the plugin refuses targets below current fill). The default
+        # local-path provisioner backs the PV with the node disk, whose
+        # baseline usage varies by runner (observed 57.56% on a GHA runner),
+        # so 90 keeps the target above any plausible baseline while staying
+        # under the plugin's 99 cap. The assertions prove the fill via the
+        # file's existence and the df usage delta, not the absolute target.
         scenario = self.load_and_patch_scenario(
-            self.repo_root, self.ns, fill_percentage=50, duration=15
+            self.repo_root, self.ns, fill_percentage=90, duration=15
         )
         path = self.write_scenario(self.tmp_path, scenario, suffix="-active-fill")
         config_path = self.build_config(
