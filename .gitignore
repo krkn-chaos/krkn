@@ -18,6 +18,7 @@ kube-burner*
 kube_burner*
 recommender_*.json
 resiliency*.json
+containers/Dockerfile
 
 # Project files
 .ropeproject
