@@ -35,7 +35,7 @@ jobs:
           kind load docker-image quay.io/krkn-chaos/krkn:tools
           # Scenario images not otherwise cached: preload to avoid cold-pull
           # variance inside test timeout budgets (the ~350MB service-hijacking
-          # image cold pull measured 48s; see CI/tests_v2/KRKN_ISSUES.md).
+          # image cold pull measured 48s on a cold runner).
           for image in \
             quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3 \
             quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos \

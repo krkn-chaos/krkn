@@ -59,7 +59,7 @@ HOG_DURATION = 10  # test-tuned (matches the production cpu default); binding pr
 # (/stress-ng), which OpenShift mounts read-only — the pod fails with
 # "Read-only file system" even when privileged. io_hog is unaffected (its
 # STRESS_PATH hostPath is writable). Remove these marks when KRKN-009 is
-# fixed in the image/entrypoint (see CI/tests_v2/KRKN_ISSUES.md).
+# fixed in the image/entrypoint.
 HOG_PARAMS = [
     pytest.param("cpu_hog", "cpu-hog-", {}, id="cpu_hog",
                  marks=[pytest.mark.cpu_hog, pytest.mark.kind_only]),

@@ -42,8 +42,7 @@ class TestPodDisruptionTargeting(BaseScenarioTest):
         # cross-node recovery. Pin the Deployment replacement to the selected
         # worker so the baseline plugin can observe recovery using its
         # node-scoped selector (recovery wait incorrectly inherits the victim
-        # node selector — see CI/tests_v2/KRKN_ISSUES.md). Remove this pin
-        # when KRKN-001 is fixed in production.
+        # node selector). Remove this pin when KRKN-001 is fixed in production.
         self.k8s_apps.patch_namespaced_deployment(
             name="krkn-pod-disruption-target",
             namespace=self.ns,
