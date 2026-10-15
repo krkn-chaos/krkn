@@ -16,7 +16,7 @@ import json
 import logging
 import random
 import re
-import time
+import time  # retained for compatibility with existing scenario tests
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -27,6 +27,14 @@ from krkn_lib.utils import get_yaml_item_value
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
+from krkn.utils.filesystem_pvc import fill_filesystem_pvc
+
+
+def _parse_fill_percentage(value) -> float:
+    """Return a numeric fill target, using 50% for missing or blank values."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        value = 50
+    return float(value)
 
 
 class PvcScenarioPlugin(AbstractScenarioPlugin):
@@ -48,8 +56,8 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 block_size = get_yaml_item_value(
                     scenario_config, "block_size", "102400"
                 )
-                target_fill_percentage = get_yaml_item_value(
-                    scenario_config, "fill_percentage", "50"
+                target_fill_percentage = _parse_fill_percentage(
+                    get_yaml_item_value(scenario_config, "fill_percentage", 50)
                 )
                 duration = get_yaml_item_value(scenario_config, "duration", 60)
 
@@ -187,7 +195,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     return 1
                 # Calculate file size
                 file_size_kb = int(
-                    (float(target_fill_percentage / 100) * float(pvc_capacity_kb))
+                    (target_fill_percentage / 100 * float(pvc_capacity_kb))
                     - float(pvc_used_kb)
                 )
                 logging.debug("File size: %s KB" % file_size_kb)
@@ -290,23 +298,25 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         lib_telemetry.get_lib_kubernetes(),
                     )
                     return 1
+                def register_rollback(data):
+                    json_str = json.dumps(data)
+                    encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+                    self.rollback_handler.set_rollback_callable(
+                        self.rollback_temp_file,
+                        RollbackContent(namespace=namespace, resource_identifier=encoded_data),
+                    )
 
-                logging.info(
-                    "Waiting for the specified duration in the config: %ss" % duration
-                )
-                time.sleep(duration)
-                logging.info("Finish waiting")
-
-                self.remove_temp_file(
-                    file_name,
-                    full_path,
+                result, _ = fill_filesystem_pvc(
+                    lib_telemetry.get_lib_kubernetes(),
                     pod_name,
                     namespace,
-                    container_name,
-                    mount_path,
-                    file_size_kb,
-                    lib_telemetry.get_lib_kubernetes(),
+                    pvc_name,
+                    target_fill_percentage,
+                    duration,
+                    block_size,
+                    on_file_created=register_rollback,
                 )
+                return result
         except (RuntimeError, Exception) as e:
             logging.error("PvcScenarioPlugin exiting due to Exception %s" % e)
             return 1
