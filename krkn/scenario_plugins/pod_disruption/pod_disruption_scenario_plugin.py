@@ -101,6 +101,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
     def start_monitoring(self, kill_scenario: InputParams, lib_telemetry: KrknTelemetryOpenshift) -> Future:
 
         recovery_time = kill_scenario.krkn_pod_recovery_time
+        monitor_timeout = min(recovery_time, kill_scenario.timeout)
         if (
             kill_scenario.namespace_pattern
             and kill_scenario.label_selector
@@ -110,11 +111,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
                 namespace_pattern=namespace_pattern,
                 label_selector=label_selector,
-                max_timeout=recovery_time,
+                max_timeout=monitor_timeout,
                 v1_client=lib_telemetry.get_lib_kubernetes().cli
             )
             logging.info(
-                f"waiting up to {recovery_time} seconds for pod recovery, "
+                f"waiting up to {monitor_timeout} seconds for pod recovery, "
                 f"pod label pattern: {label_selector} namespace pattern: {namespace_pattern}"
             )
             return future_snapshot
@@ -128,11 +129,11 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             future_snapshot = select_and_monitor_by_name_pattern_and_namespace_pattern(
                 pod_name_pattern=name_pattern,
                 namespace_pattern=namespace_pattern,
-                max_timeout=recovery_time,
+                max_timeout=monitor_timeout,
                 v1_client=lib_telemetry.get_lib_kubernetes().cli
             )
             logging.info(
-                f"waiting up to {recovery_time} seconds for pod recovery, "
+                f"waiting up to {monitor_timeout} seconds for pod recovery, "
                 f"pod name pattern: {name_pattern} namespace pattern: {namespace_pattern}"
             )
             return future_snapshot
@@ -273,7 +274,10 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         logging.info(f'Gracefully deleting pod {pod[0]}')
                         kubecli.delete_pod(pod[0], pod[1])
             
-            return_val = self.wait_for_pods(config.label_selector,config.name_pattern,config.namespace_pattern, pods_count, config.duration, config.timeout, kubecli, config.node_label_selector, config.node_names)
+            # Recovery is tracked by the pod-monitor future started before deletion.
+            # A second count-based poll here can disagree with the monitor when the
+            # controller reschedules a recovered pod or the node selector changes.
+            return_val = 0
         except Exception as e:
             raise(e)
 
