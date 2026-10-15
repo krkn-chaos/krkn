@@ -1,0 +1,41 @@
+# KubeVirt fixture with a filesystem-mode PVC attached as a data disk.
+# The container disk provides the guest boot device; the PVC is mounted by the
+# guest and can be handled by the filesystem PVC-fill path.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: krkn-vmi-filesystem-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachineInstance
+metadata:
+  name: krkn-vmi-filesystem
+  namespace: default
+spec:
+  domain:
+    devices:
+      disks:
+        - name: containerdisk
+          disk:
+            bus: virtio
+        - name: filesystemdisk
+          disk:
+            bus: virtio
+    resources:
+      requests:
+        memory: 512Mi
+  volumes:
+    - name: containerdisk
+      containerDisk:
+        image: quay.io/kubevirt/cirros-container-disk-demo:latest
+    - name: filesystemdisk
+      persistentVolumeClaim:
+        claimName: krkn-vmi-filesystem-pvc
