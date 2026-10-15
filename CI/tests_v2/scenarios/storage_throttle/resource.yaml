@@ -28,7 +28,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: nginx:alpine
+        image: ubuntu:24.04
         command: ["/bin/sh", "-c", "trap : TERM INT; sleep infinity & wait"]
         volumeMounts:
         - name: data
