@@ -16,7 +16,7 @@ import json
 import logging
 import random
 import re
-import time
+import time  # retained for compatibility with existing scenario tests
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -27,6 +27,7 @@ from krkn_lib.utils import get_yaml_item_value
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
+from krkn.utils.filesystem_pvc import fill_filesystem_pvc
 
 
 class PvcScenarioPlugin(AbstractScenarioPlugin):
@@ -107,206 +108,25 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         )
                         return 1
 
-                # Get volume name
-                pod = lib_telemetry.get_lib_kubernetes().get_pod_info(
-                    name=pod_name, namespace=namespace
-                )
-
-                if pod is None:
-                    logging.error(
-                        "PvcScenarioPlugin Exiting as pod '%s' doesn't exist "
-                        "in namespace '%s'" % (str(pod_name), str(namespace))
-                    )
-                    return 1
-
-                for volume in pod.volumes:
-                    if volume.pvcName is not None:
-                        volume_name = volume.name
-                        pvc_name = volume.pvcName
-                        pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
-                            pvc_name, namespace
-                        )
-                        break
-                if "pvc" not in locals():
-                    logging.error(
-                        "PvcScenarioPlugin Pod '%s' in namespace '%s' does not use a pvc"
-                        % (str(pod_name), str(namespace))
-                    )
-                    return 1
-                logging.info("Volume name: %s" % volume_name)
-                logging.info("PVC name: %s" % pvc_name)
-
-                # Get container name and mount path
-                for container in pod.containers:
-                    for vol in container.volumeMounts:
-                        if vol.name == volume_name:
-                            mount_path = vol.mountPath
-                            container_name = container.name
-                            break
-                logging.info("Container path: %s" % container_name)
-                logging.info("Mount path: %s" % mount_path)
-
-                # Validate that the container has a usable shell before proceeding
-                shell = lib_telemetry.get_lib_kubernetes().get_pod_shell(
-                    pod_name, namespace, container_name
-                )
-                if shell is None:
-                    logging.error(
-                        "PvcScenarioPlugin container '%s' in pod '%s' has no "
-                        "usable shell (/bin/bash or /bin/sh); cannot execute "
-                        "commands inside the container" % (str(container_name), str(pod_name))
-                    )
-                    return 1
-
-                # Get PVC capacity and used bytes
-                command = "df %s -B 1024 | sed 1d" % (str(mount_path))
-                command_output = (
-                    lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
-                        [command], pod_name, namespace, container_name
-                    )
-                ).split()
-                pvc_used_kb = int(command_output[2])
-                pvc_capacity_kb = pvc_used_kb + int(command_output[3])
-                logging.info("PVC used: %s KB" % pvc_used_kb)
-                logging.info("PVC capacity: %s KB" % pvc_capacity_kb)
-
-                # Check valid fill percentage
-                current_fill_percentage = pvc_used_kb / pvc_capacity_kb
-                if not (
-                    current_fill_percentage * 100 < float(target_fill_percentage) <= 99
-                ):
-                    logging.error(
-                        "PvcScenarioPlugin Target fill percentage (%.2f%%) is lower than "
-                        "current fill percentage (%.2f%%) "
-                        "or higher than 99%%"
-                        % (
-                            target_fill_percentage,
-                            current_fill_percentage * 100,
-                        )
-                    )
-                    return 1
-                # Calculate file size
-                file_size_kb = int(
-                    (float(target_fill_percentage / 100) * float(pvc_capacity_kb))
-                    - float(pvc_used_kb)
-                )
-                logging.debug("File size: %s KB" % file_size_kb)
-
-                file_name = "kraken.tmp"
-                logging.info(
-                    "Creating %s file, %s KB size, in pod %s at %s (ns %s)"
-                    % (
-                        str(file_name),
-                        str(file_size_kb),
-                        str(pod_name),
-                        str(mount_path),
-                        str(namespace),
-                    )
-                )
-
-                # Create temp file in the PVC
-                full_path = "%s/%s" % (str(mount_path), str(file_name))
-
-                fallocate = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
-                    ["command -v fallocate"],
-                    pod_name,
-                    namespace,
-                    container_name,
-                )
-
-                dd = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
-                    ["command -v dd"],
-                    pod_name,
-                    namespace,
-                    container_name,
-                )
-
-                if fallocate:
-                    command = "fallocate -l $((%s*1024)) %s" % (
-                        str(file_size_kb),
-                        str(full_path),
-                    )
-                elif dd is not None:
-                    block_size = int(block_size)
-                    blocks = int(file_size_kb / int(block_size / 1024))
-                    logging.warning(
-                        "fallocate not found, using dd, it may take longer based on the amount of data, please wait..."
-                    )
-                    command = f"dd if=/dev/urandom of={str(full_path)} bs={str(block_size)} count={str(blocks)} oflag=direct"
-                else:
-                    logging.error(
-                        "failed to locate required binaries fallocate or dd to execute the scenario"
-                    )
-                    return 1
-
-                logging.debug("Create temp file in the PVC command:\n %s" % command)
-                lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
-                    [command],
-                    pod_name,
-                    namespace,
-                    container_name,
-                )
-
-                # Check if file is created
-                command = "ls -lh %s" % (str(mount_path))
-                logging.debug("Check file is created command:\n %s" % command)
-                response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
-                    [command], pod_name, namespace, container_name
-                )
-                logging.info("\n" + str(response))
-                if str(file_name).lower() in str(response).lower():
-                    logging.info("%s file successfully created" % (str(full_path)))
-                    
-                    # Set rollback callable to ensure temp file cleanup on failure or interruption
-                    rollback_data = {
-                        "pod_name": pod_name,
-                        "container_name": container_name,
-                        "mount_path": mount_path,
-                        "file_name": file_name,
-                        "full_path": full_path,
-                    }
-                    json_str = json.dumps(rollback_data)
-                    encoded_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+                def register_rollback(data):
+                    json_str = json.dumps(data)
+                    encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
                     self.rollback_handler.set_rollback_callable(
                         self.rollback_temp_file,
-                        RollbackContent(
-                            namespace=namespace,
-                            resource_identifier=encoded_data,
-                        ),
+                        RollbackContent(namespace=namespace, resource_identifier=encoded_data),
                     )
-                else:
-                    logging.error(
-                        "PvcScenarioPlugin Failed to create tmp file with %s size"
-                        % (str(file_size_kb))
-                    )
-                    self.remove_temp_file(
-                        file_name,
-                        full_path,
-                        pod_name,
-                        namespace,
-                        container_name,
-                        mount_path,
-                        file_size_kb,
-                        lib_telemetry.get_lib_kubernetes(),
-                    )
-                    return 1
 
-                logging.info(
-                    "Waiting for the specified duration in the config: %ss" % duration
-                )
-                time.sleep(duration)
-                logging.info("Finish waiting")
-
-                self.remove_temp_file(
-                    file_name,
-                    full_path,
+                result, _ = fill_filesystem_pvc(
+                    lib_telemetry.get_lib_kubernetes(),
                     pod_name,
                     namespace,
-                    container_name,
-                    mount_path,
-                    file_size_kb,
-                    lib_telemetry.get_lib_kubernetes(),
+                    pvc_name,
+                    target_fill_percentage,
+                    duration,
+                    block_size,
+                    on_file_created=register_rollback,
                 )
+                return result
         except (RuntimeError, Exception) as e:
             logging.error("PvcScenarioPlugin exiting due to Exception %s" % e)
             return 1
