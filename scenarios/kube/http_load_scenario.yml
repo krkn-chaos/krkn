@@ -2,7 +2,7 @@
     runs: 1                                            # number of times to execute the scenario
     number-of-pods: 2                                  # number of attacker pods instantiated
     namespace: default                                 # namespace to deploy load testing pods
-    image: quay.io/krkn-chaos/krkn-http-load:latest    # http load attacker container image
+    image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-http-load    # http load attacker container image
     attacker-nodes:                                    # node affinity to schedule the attacker pods, per each node label selector
       node-role.kubernetes.io/worker:                  # can be specified multiple values so the kube scheduler will schedule the attacker pods
         - ""                                           # in the best way possible based on the provided labels. Multiple labels can be specified

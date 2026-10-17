@@ -468,9 +468,11 @@ class TestBuildChaosReportSLOs(unittest.TestCase):
             "scenarios": {"etcd.yml": 100},
         }
         report = build_chaos_report(output)
-        self.assertIn("SLOs Evaluated  : 27", report)
-        self.assertIn("SLOs Passed     : 13 / 27", report)
-        self.assertIn("SLOs Failed     : 14", report)
+        self.assertIn("Resiliency SLOs Evaluated  : 27", report)
+        self.assertIn("Resiliency SLOs Passed     : 13 / 27", report)
+        self.assertIn("Resiliency SLOs Failed     : 14", report)
+        self.assertLess(report.index("RESILIENCY SCORE"), report.index("Resiliency SLOs Evaluated"))
+        self.assertNotIn("Resiliency SLOs Evaluated", report[report.index("ALERTS & SLOs"):report.index("RESILIENCY SCORE")])
 
     def test_failed_slos_listed(self):
         output = _minimal_chaos_output()
@@ -482,9 +484,25 @@ class TestBuildChaosReportSLOs(unittest.TestCase):
             ],
         }]
         report = build_chaos_report(output)
-        self.assertIn("FAILED SLOs (per scenario)", report)
+        self.assertIn("Resiliency Score SLO Failures", report)
         self.assertIn("etcd latency too high", report)
         self.assertNotIn("api latency ok", report)
+
+        self.assertGreater(report.index("Resiliency Score SLO Failures"), report.index("RESILIENCY SCORE"))
+
+    def test_slo_validation_failures_are_separate(self):
+        """Report health-check failures separately from resiliency-score failures."""
+        output = _minimal_chaos_output()
+        output["telemetry"]["alerts"] = [{
+            "name": "API validation failed",
+            "severity": "error",
+            "status": False,
+            "phase": "post",
+        }]
+        report = build_chaos_report(output)
+        self.assertIn("SLO Validation Failures", report)
+        self.assertIn("API validation failed", report)
+        self.assertNotIn("Resiliency Score SLO Failures", report)
 
     def test_no_failed_slos_section_when_all_pass(self):
         output = _minimal_chaos_output()
@@ -495,7 +513,7 @@ class TestBuildChaosReportSLOs(unittest.TestCase):
             ],
         }]
         report = build_chaos_report(output)
-        self.assertNotIn("FAILED SLOs", report)
+        self.assertNotIn("Resiliency Score SLO Failures", report)
 
 
 class TestBuildChaosReportResiliencyScore(unittest.TestCase):
@@ -610,7 +628,8 @@ class TestBuildChaosReportClusterOverview(unittest.TestCase):
         report = build_chaos_report(output)
         self.assertIn("CLUSTER OVERVIEW", report)
         overview_start = report.index("CLUSTER OVERVIEW")
-        overview_section = report[overview_start:overview_start + 200]
+        overview_end = report.index("ALERTS & SLOs", overview_start)
+        overview_section = report[overview_start:overview_end]
         self.assertIn("N/A", overview_section)
         self.assertNotIn("None", overview_section)
 
@@ -701,13 +720,13 @@ class TestBuildChaosReportKubevirtChecks(unittest.TestCase):
             "duration": 1.23,
         }]
         report = build_chaos_report(output)
-        self.assertIn("KUBEVIRT HEALTH CHECKS (pre-chaos)", report)
+        self.assertIn("KUBEVIRT HEALTH CHECKS (during-chaos)", report)
         self.assertIn("kubevirt/test-vm", report)
         self.assertIn("10.0.0.5", report)
 
     def test_post_virt_checks_shown(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = [{
+        output["telemetry"]["virt_checks"] = [{
             "vmi_name": "test-vmi",
             "namespace": "kubevirt",
             "node_name": "worker-2",
@@ -715,6 +734,7 @@ class TestBuildChaosReportKubevirtChecks(unittest.TestCase):
             "new_ip_address": "10.0.0.7",
             "status": True,
             "duration": 2.5,
+            "phase": "post",
         }]
         report = build_chaos_report(output)
         self.assertIn("KUBEVIRT HEALTH CHECKS (post-chaos)", report)
@@ -729,7 +749,7 @@ class TestBuildChaosReportKubevirtChecks(unittest.TestCase):
 
     def test_post_virt_string_check(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = ["raw post check"]
+        output["telemetry"]["virt_checks"] = [{"phase": "post", "vm_name": "raw post check"}]
         report = build_chaos_report(output)
         self.assertIn("raw post check", report)
 

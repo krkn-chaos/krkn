@@ -224,31 +224,44 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             if not namespace: 
                 logging.error('Namespace pattern must be specified')
 
+            if config.kill < 0:
+                logging.error(
+                    f"Kill count must be a non-negative integer, got {config.kill} (exit code: 1)"
+                )
+                return 1
+
             pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
             exclude_pods = set()
             if config.exclude_label:
-                _exclude_pods = self.get_pods("",config.exclude_label,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+                _exclude_pods = self.get_pods(
+                    "",
+                    config.exclude_label,
+                    config.namespace_pattern,
+                    kubecli,
+                    field_selector="status.phase=Running",
+                    node_label_selector=config.node_label_selector,
+                    node_names=config.node_names,
+                )
                 for pod in _exclude_pods:
-                    exclude_pods.add(pod[0])
+                    exclude_pods.add((pod[0], pod[1]))
 
+            eligible_pods = []
+            for pod in pods:
+                if (pod[0], pod[1]) in exclude_pods:
+                    logging.info(f"Excluding pod {pod[0]} in namespace {pod[1]} from chaos")
+                else:
+                    eligible_pods.append(pod)
 
             pods_count = len(pods)
-            if len(pods) < config.kill:
-                logging.error("Not enough pods match the criteria, expected {} but found only {} pods".format(
-                        config.kill, len(pods)))
+            if len(eligible_pods) < config.kill:
+                logging.error(
+                    f"Not enough pods match the criteria, expected {config.kill} but found only {len(eligible_pods)} pods (exit code: 1)"
+                )
                 return 1
-            
-            random.shuffle(pods)
-            
-            pods_to_kill = []
-            for i in range(config.kill):
-                pod = pods[i]
-                logging.info(pod)
-                if pod[0] in exclude_pods:
-                    logging.info(f"Excluding {pod[0]} from chaos")
-                else:
-                    pods_to_kill.append(pod)
-                    
+
+            random.shuffle(eligible_pods)
+            pods_to_kill = eligible_pods[:config.kill]
+
             if config.execution == "parallel":
                 self._delete_pods_parallel(pods_to_kill, kubecli, config.force)
             else:

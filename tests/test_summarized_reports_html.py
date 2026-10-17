@@ -367,6 +367,7 @@ class TestBuildChaosReportHtmlSLOs(unittest.TestCase):
         self.assertIn("27", html)
         self.assertIn("13 / 27", html)
         self.assertIn("14", html)
+        self.assertLess(html.index("Resiliency Score"), html.index("Resiliency SLOs Evaluated"))
 
     def test_failed_slos_listed(self):
         output = _minimal_chaos_output()
@@ -378,9 +379,26 @@ class TestBuildChaosReportHtmlSLOs(unittest.TestCase):
             ],
         }]
         html = _generate_html(output)
-        self.assertIn("Failed SLOs", html)
+        self.assertIn("Resiliency Score SLO Failures", html)
         self.assertIn("etcd latency too high", html)
         self.assertNotIn("api latency ok", html)
+
+        score_section = html.index('class="section-header">Resiliency Score</div>')
+        self.assertGreater(html.index("Resiliency Score SLO Failures"), score_section)
+
+    def test_slo_validation_failures_are_separate(self):
+        """Render health-check failures separately from resiliency-score failures."""
+        output = _minimal_chaos_output()
+        output["telemetry"]["alerts"] = [{
+            "name": "API validation failed",
+            "severity": "error",
+            "status": False,
+            "phase": "post",
+        }]
+        html = _generate_html(output)
+        self.assertIn("SLO Validation Failures", html)
+        self.assertIn("API validation failed", html)
+        self.assertNotIn("Resiliency Score SLO Failures", html)
 
     def test_no_failed_slos_section_when_all_pass(self):
         output = _minimal_chaos_output()
@@ -391,7 +409,7 @@ class TestBuildChaosReportHtmlSLOs(unittest.TestCase):
             ],
         }]
         html = _generate_html(output)
-        self.assertNotIn("Failed SLOs", html)
+        self.assertNotIn("Resiliency Score SLO Failures", html)
 
 
 class TestBuildChaosReportHtmlResiliencyScore(unittest.TestCase):
@@ -602,12 +620,12 @@ class TestBuildChaosReportHtmlKubevirtChecks(unittest.TestCase):
             "duration": 1.23,
         }]
         html = _generate_html(output)
-        self.assertIn("KubeVirt Health Checks (Pre-Chaos)", html)
+        self.assertIn("KubeVirt Health Checks (During-Chaos)", html)
         self.assertIn("10.0.0.5", html)
 
     def test_post_virt_checks_shown(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = [{
+        output["telemetry"]["virt_checks"] = [{
             "vmi_name": "test-vmi",
             "namespace": "kubevirt",
             "node_name": "worker-2",
@@ -615,6 +633,7 @@ class TestBuildChaosReportHtmlKubevirtChecks(unittest.TestCase):
             "new_ip_address": "10.0.0.7",
             "status": True,
             "duration": 2.5,
+            "phase": "post",
         }]
         html = _generate_html(output)
         self.assertIn("KubeVirt Health Checks (Post-Chaos)", html)
@@ -629,9 +648,18 @@ class TestBuildChaosReportHtmlKubevirtChecks(unittest.TestCase):
 
     def test_post_virt_string_check(self):
         output = _minimal_chaos_output()
-        output["telemetry"]["post_virt_checks"] = ["raw post check"]
+        output["telemetry"]["virt_checks"] = [{
+            "vmi_name": "test-vmi",
+            "namespace": "kubevirt",
+            "node_name": "worker-2",
+            "ip_address": "string",
+            "new_ip_address": "string",
+            "status": True,
+            "duration": 2.5,
+            "phase": "post",
+        }]
         html = _generate_html(output)
-        self.assertIn("raw post check", html)
+        self.assertIn("KubeVirt Health Checks (Post-Chaos)", html)
 
 
 class TestBuildChaosReportHtmlEdgeCases(unittest.TestCase):

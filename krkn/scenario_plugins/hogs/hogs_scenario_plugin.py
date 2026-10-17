@@ -168,12 +168,17 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         for worker in workers:
             worker.join()
 
-        try:
-            while True:
-                exception = exception_queue.get_nowait()
-                raise exception
-        except queue.Empty:
-            pass
+        errors = []
+        while True:
+            try:
+                errors.append(str(exception_queue.get_nowait()))
+            except queue.Empty:
+                break
+        if errors:
+            raise Exception(
+                f"hog scenario execution failed on {len(errors)} node(s): "
+                + "; ".join(errors)
+            )
 
     @staticmethod
     def rollback_hog_pod(rollback_content: RollbackContent, lib_telemetry: KrknTelemetryOpenshift):

@@ -2,11 +2,12 @@
 # number-of-nodes, duration, etc. The CPU hog targets nodes (not workloads): Krkn deploys a
 # short-lived hog pod (name prefix "cpu-hog-") on each selected node, runs for `duration`
 # seconds, then deletes the pod. Values here are tuned for functional testing (light load,
-# short duration), not performance benchmarking.
-duration: 20
+# short duration), not performance benchmarking; duration 10s matches the production cpu
+# default — binding precedes stress start and the pod object persists until plugin delete.
+duration: 10
 workers: 1
 hog-type: cpu
-image: quay.io/krkn-chaos/krkn-hog
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog
 namespace: default
 cpu-load-percentage: 50
 cpu-method: all
