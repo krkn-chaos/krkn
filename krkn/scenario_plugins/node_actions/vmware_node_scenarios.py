@@ -155,8 +155,8 @@ class vSphere:
         vm = self.get_vm(instance_id)
         if not vm:
             raise Exception(
-                f"VM for node ({instance_id}) was not found or could not be "
-                f"confirmed in vCenter, see the error above"
+                f"VM for node ({instance_id}) does not exist in vCenter or "
+                f"could not be confirmed, see the error above"
             )
         return vm
 
