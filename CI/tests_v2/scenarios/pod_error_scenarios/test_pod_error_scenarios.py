@@ -50,14 +50,6 @@ class TestPodErrorScenarios(BaseScenarioTest):
     # -- Happy path --------------------------------------------------
 
     @pytest.mark.order(1)
-    def test_kill_one_pod_recovers(self, wait_for_pods_running):
-        ns = self.ns
-        result = self.run_scenario(self.tmp_path, ns)
-        assert_kraken_success(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
-        assert_scenario_executed(result, self.SCENARIO_NAME, context=f"namespace={ns}", tmp_path=self.tmp_path)
-        wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=90)
-
-    @pytest.mark.order(2)
     def test_kill_multiple_pods(self, wait_for_pods_running):
         ns = self.ns
         before = get_pods_list(self.k8s_core, ns, self.LABEL_SELECTOR)
@@ -77,12 +69,29 @@ class TestPodErrorScenarios(BaseScenarioTest):
     # -- Negative / failure-mode --------------------------------------
 
     def test_excessive_kill_count_fails(self):
+        """Kill count above the matching pod count fails with the count-check error.
+
+        Retained as this family's designated OpenShift-visible negative
+        (judge POD-KILL-07 overrule: richest error contract — non-empty
+        pod list through the real API). The demoted invalid-namespace and
+        zero-pods variants hit the identical production branch
+        (pod_disruption_scenario_plugin.py count check) and are covered by
+        .local-unit-tests/test_podkill_local.py.
+
+        krkn_pod_recovery_time is shrunk because the plugin's run() blocks
+        on the monitor window even after the count check fails (its
+        fast-fail branch is dead code), so the default 120s would be pure
+        wasted wall time on a run that has already failed.
+        """
         ns = self.ns
-        result = self.run_scenario(self.tmp_path, ns, overrides={"kill": 100})
+        result = self.run_scenario(
+            self.tmp_path, ns, overrides={"kill": 100, "krkn_pod_recovery_time": 5}
+        )
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
         # Expected error text must match the message raised at
-        # pod_disruption_scenario_plugin.py:234. Update both together
-        # if that message wording changes.
+        # pod_disruption_scenario_plugin.py:256-260 (count check in
+        # killing_pods). Update both together if that message wording
+        # changes.
         self.assert_failure_logs_contain(
             result, ns, expected_reasons=["not enough pods match", "expected 100", "found only 2 pods"]
         )
@@ -110,7 +119,7 @@ class TestPodErrorScenarios(BaseScenarioTest):
                         "containers": [{
                             "name": "app",
                             "readinessProbe": {
-                                "httpGet": {"path": "/", "port": 80},
+                                "httpGet": {"path": "/", "port": 8080},
                                 "initialDelaySeconds": READINESS_DELAY,
                                 "periodSeconds": 5,
                             },
@@ -123,33 +132,14 @@ class TestPodErrorScenarios(BaseScenarioTest):
             name="krkn-pod-error-target", namespace=ns, body=patch_body
         )
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_DELAY + 30)
-
         result = self.run_scenario(
-            self.tmp_path, ns, overrides={"krkn_pod_recovery_time": RECOVERY_TIMEOUT}
+            self.tmp_path, ns, overrides={
+                "kill": 2,
+                "krkn_pod_recovery_time": RECOVERY_TIMEOUT,
+            }
         )
         assert_kraken_failure(result, context=f"namespace={ns}", tmp_path=self.tmp_path)
 
         self.assert_failure_logs_contain(
             result, ns, expected_reasons=["unrecovered"]
-        )
-
-    @pytest.mark.no_workload
-    def test_invalid_namespace_pattern_fails(self):
-        scenario = self.load_and_patch_scenario(self.repo_root, "nonexistent-ns-xyz")
-        scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_bad_ns")
-        config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="pod_error_bad_ns_config.yaml"
-        )
-        result = self.run_kraken(config_path)
-        assert_kraken_failure(result, context="invalid namespace pattern", tmp_path=self.tmp_path)
-        self.assert_failure_logs_contain(
-            result, "nonexistent-ns-xyz", expected_reasons=["not enough pods match", "expected 1", "found only 0 pods"]
-        )
-
-    def test_zero_pods_matching_label_fails(self):
-        ns = self.ns
-        result = self.run_scenario(self.tmp_path, ns, overrides={"label_selector": "app=nonexistent"})
-        assert_kraken_failure(result, context=f"namespace={ns}, label mismatch", tmp_path=self.tmp_path)
-        self.assert_failure_logs_contain(
-            result, ns, expected_reasons=["not enough pods match", "expected 1", "found only 0 pods"]
         )

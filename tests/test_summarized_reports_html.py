@@ -367,6 +367,7 @@ class TestBuildChaosReportHtmlSLOs(unittest.TestCase):
         self.assertIn("27", html)
         self.assertIn("13 / 27", html)
         self.assertIn("14", html)
+        self.assertLess(html.index("Resiliency Score"), html.index("Resiliency SLOs Evaluated"))
 
     def test_failed_slos_listed(self):
         output = _minimal_chaos_output()
@@ -378,9 +379,26 @@ class TestBuildChaosReportHtmlSLOs(unittest.TestCase):
             ],
         }]
         html = _generate_html(output)
-        self.assertIn("Failed SLOs", html)
+        self.assertIn("Resiliency Score SLO Failures", html)
         self.assertIn("etcd latency too high", html)
         self.assertNotIn("api latency ok", html)
+
+        score_section = html.index('class="section-header">Resiliency Score</div>')
+        self.assertGreater(html.index("Resiliency Score SLO Failures"), score_section)
+
+    def test_slo_validation_failures_are_separate(self):
+        """Render health-check failures separately from resiliency-score failures."""
+        output = _minimal_chaos_output()
+        output["telemetry"]["alerts"] = [{
+            "name": "API validation failed",
+            "severity": "error",
+            "status": False,
+            "phase": "post",
+        }]
+        html = _generate_html(output)
+        self.assertIn("SLO Validation Failures", html)
+        self.assertIn("API validation failed", html)
+        self.assertNotIn("Resiliency Score SLO Failures", html)
 
     def test_no_failed_slos_section_when_all_pass(self):
         output = _minimal_chaos_output()
@@ -391,7 +409,7 @@ class TestBuildChaosReportHtmlSLOs(unittest.TestCase):
             ],
         }]
         html = _generate_html(output)
-        self.assertNotIn("Failed SLOs", html)
+        self.assertNotIn("Resiliency Score SLO Failures", html)
 
 
 class TestBuildChaosReportHtmlResiliencyScore(unittest.TestCase):
