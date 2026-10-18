@@ -68,6 +68,20 @@ class TestServiceDisruptionScenarioPlugin(unittest.TestCase):
         )
 
     @patch("time.sleep")
+    def test_run_deletes_objects_in_matching_namespace(self, _):
+        """
+        Test a successful run deletes objects in the matching namespace and returns 0
+        """
+        with patch.object(
+            self.plugin, "delete_objects", return_value={}
+        ) as mock_delete:
+            result = self._run_with(["test-ns"])
+
+        self.assertEqual(result, 0)
+        mock_delete.assert_called_once()
+        self.assertEqual(mock_delete.call_args[0][1], "test-ns")
+
+    @patch("time.sleep")
     def test_run_logs_error_when_delete_fails(self, _):
         """
         Test a failed namespace delete is logged at ERROR with the namespace and the cause
