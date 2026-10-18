@@ -109,12 +109,12 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                                     % str(selected_namespace)
                                 )
                             except Exception as e:
-                                logging.info(
+                                logging.error(
                                     "ServiceDisruptionScenarioPlugin Delete all "
                                     "objects in namespace %s was unsuccessful"
                                     % str(selected_namespace)
                                 )
-                                logging.info("Namespace action error: " + str(e))
+                                logging.error("Namespace action error: " + str(e))
                                 return 1
                             namespaces.remove(selected_namespace)
                             logging.info(
