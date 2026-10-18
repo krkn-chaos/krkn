@@ -9,9 +9,12 @@ Usage:
 Assisted By: Claude Code
 """
 
+import os
+import tempfile
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -34,6 +37,51 @@ class TestServiceDisruptionScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, ["service_disruption_scenarios"])
         self.assertEqual(len(result), 1)
+
+    def _run_with(self, namespaces, delete_count=1, runs=1):
+        scenario = {
+            "scenarios": [
+                {
+                    "namespace": "test-ns",
+                    "label_selector": "",
+                    "delete_count": delete_count,
+                    "runs": runs,
+                    "sleep": 0,
+                }
+            ]
+        }
+        fd, path = tempfile.mkstemp(suffix=".yaml")
+        with os.fdopen(fd, "w") as f:
+            yaml.dump(scenario, f)
+        self.addCleanup(os.remove, path)
+
+        lib_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.check_namespaces.return_value = namespaces
+        lib_telemetry.get_lib_kubernetes.return_value = kubecli
+
+        return self.plugin.run(
+            run_uuid="test-uuid",
+            scenario=path,
+            lib_telemetry=lib_telemetry,
+            scenario_telemetry=MagicMock(),
+        )
+
+    @patch("time.sleep")
+    def test_run_logs_error_when_delete_fails(self, _):
+        """
+        Test a failed namespace delete is logged at ERROR with the namespace and the cause
+        """
+        with patch.object(
+            self.plugin, "delete_objects", side_effect=Exception("forbidden")
+        ):
+            with self.assertLogs(level="ERROR") as logs:
+                result = self._run_with(["test-ns"])
+
+        self.assertEqual(result, 1)
+        errors = "\n".join(logs.output)
+        self.assertIn("test-ns", errors)
+        self.assertIn("forbidden", errors)
 
 if __name__ == "__main__":
     unittest.main()
