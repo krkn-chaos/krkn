@@ -541,6 +541,7 @@ class TestZoneOutageRun(unittest.TestCase):
 
         self.assertEqual(result, 1)
         mock_pool_instance.close.assert_called_once()
+        mock_pool_instance.join.assert_called_once()
 
 
 if __name__ == "__main__":
