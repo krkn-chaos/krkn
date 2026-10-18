@@ -107,11 +107,14 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
 
             # stop nodes in parallel
             pool = ThreadPool(processes=len(nodes))
-            pool.starmap(
-                self.cloud_object.node_stop_scenario,
-                zip(repeat(1), nodes, repeat(timeout), repeat(None)),
-            )
-            pool.close()
+            try:
+                pool.starmap(
+                    self.cloud_object.node_stop_scenario,
+                    zip(repeat(1), nodes, repeat(timeout), repeat(None)),
+                )
+            finally:
+                pool.close()
+                pool.join()
 
             logging.info(
                 "Waiting for the specified duration " "in the config: %s" % duration
@@ -120,13 +123,16 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
 
             # start nodes in parallel
             pool = ThreadPool(processes=len(nodes))
-            pool.starmap(
-                self.cloud_object.node_start_scenario,
-                zip(repeat(1), nodes, repeat(timeout), repeat(None)),
-            )
-            pool.close()
+            try:
+                pool.starmap(
+                    self.cloud_object.node_start_scenario,
+                    zip(repeat(1), nodes, repeat(timeout), repeat(None)),
+                )
+            finally:
+                pool.close()
+                pool.join()
         except Exception as e:
-            logging.info(
+            logging.error(
                 f"Node based zone outage scenario failed with exception: {e}"
             )
             return 1
