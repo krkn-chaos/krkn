@@ -134,13 +134,30 @@ import sys
 report_path, updates_path, unresolved_path = sys.argv[1:]
 messages = []
 with open(report_path, encoding="utf-8") as report:
-    for line_number, line in enumerate(report, 1):
-        if not line.strip():
-            continue
-        try:
-            messages.append(json.loads(line))
-        except json.JSONDecodeError as error:
-            raise SystemExit(f"invalid govulncheck JSON at line {line_number}: {error}")
+    raw_report = report.read()
+
+decoder = json.JSONDecoder()
+position = 0
+while position < len(raw_report):
+    while position < len(raw_report) and raw_report[position].isspace():
+        position += 1
+    if position == len(raw_report):
+        break
+    try:
+        message, position = decoder.raw_decode(raw_report, position)
+    except json.JSONDecodeError as error:
+        line_number = raw_report.count("\n", 0, error.pos) + 1
+        raise SystemExit(
+            f"invalid govulncheck JSON at line {line_number}: {error.msg}"
+        )
+    if isinstance(message, list):
+        if not all(isinstance(item, dict) for item in message):
+            raise SystemExit("govulncheck JSON array contains a non-object entry")
+        messages.extend(message)
+    elif isinstance(message, dict):
+        messages.append(message)
+    else:
+        raise SystemExit("govulncheck JSON stream contains a non-object entry")
 
 if not any(message.get("config") for message in messages):
     raise SystemExit("govulncheck returned no JSON configuration; scan output is incomplete")
