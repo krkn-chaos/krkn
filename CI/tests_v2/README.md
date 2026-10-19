@@ -86,11 +86,11 @@ is specified for either Compose build, so the local builder chooses its default
 platform. Results are written to `CI/tests_v2/report.html` and
 `CI/tests_v2/results.xml`.
 
-This workflow requires Docker Engine and the Docker Compose plugin on Linux. It
-mounts `/var/run/docker.sock` into the Kind and test containers so Kind can
-create its nodes and the node scenarios can stop and restart those node
-containers. Run it only with a Docker daemon dedicated to this disposable test
-cluster.
+This workflow requires Docker Engine and either the Docker Compose plugin or
+standalone Compose CLI on Linux. Both services mount `/var/run/docker.sock`:
+Kind uses it to create its nodes, and node scenarios use it to stop and restart
+those node containers. Run it only with a Docker daemon dedicated to this
+disposable test cluster.
 
 ## Dependency Management
 

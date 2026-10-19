@@ -33,9 +33,19 @@ export COMPOSE_PROJECT_NAME=$project_name
 export KIND_CLUSTER_NAME=$project_name
 export KRKN_RUNTIME_IMAGE=$runtime_image
 
+if docker compose version >/dev/null 2>&1; then
+  compose_command=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  compose_command=(docker-compose)
+else
+  echo "error: Docker Compose was not found" >&2
+  echo "install the Docker Compose plugin ('docker compose') or CLI ('docker-compose')" >&2
+  exit 127
+fi
+
 compose_args=(
-  --project-name "$project_name"
-  --file "$repo_root/CI/tests_v2/compose.yaml"
+  -p "$project_name"
+  -f "$repo_root/CI/tests_v2/compose.yaml"
 )
 
 if ! docker image inspect "$runtime_image" >/dev/null 2>&1; then
@@ -47,14 +57,14 @@ fi
 cleanup() {
   status=$?
   trap - EXIT
-  if ! docker compose "${compose_args[@]}" down --volumes --remove-orphans; then
+  if ! "${compose_command[@]}" "${compose_args[@]}" down --volumes --remove-orphans; then
     echo "warning: Compose cleanup failed for project $project_name" >&2
   fi
   exit "$status"
 }
 trap cleanup EXIT
 
-docker compose "${compose_args[@]}" build kind functional-tests
+"${compose_command[@]}" "${compose_args[@]}" build kind functional-tests
 
 pytest_args=(
   CI/tests_v2/
@@ -69,4 +79,4 @@ pytest_args=(
 )
 pytest_args+=("$@")
 
-docker compose "${compose_args[@]}" run --rm functional-tests "${pytest_args[@]}"
+"${compose_command[@]}" "${compose_args[@]}" run --rm functional-tests "${pytest_args[@]}"
