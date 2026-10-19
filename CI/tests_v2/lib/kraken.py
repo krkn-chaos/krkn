@@ -109,6 +109,9 @@ def build_config(repo_root, tmp_path):
 
         config = yaml.safe_load(content)
         if "kraken" in config:
+            kubeconfig_path = os.environ.get("KUBECONFIG")
+            if kubeconfig_path:
+                config["kraken"]["kubeconfig_path"] = kubeconfig_path
             # Disable status server so parallel test workers don't all bind to port 8081
             config["kraken"]["publish_kraken_status"] = False
         if "performance_monitoring" in config:
