@@ -12,8 +12,8 @@ import yaml
 
 
 def _kraken_cmd(config_path: str, repo_root: Path):
-    """Use the same Python as the test process so venv/.venv and coverage match."""
-    python = sys.executable
+    """Use the test Python unless a container runner selects the runtime Python."""
+    python = os.environ.get("KRKN_TEST_KRAKEN_PYTHON", sys.executable)
     if os.environ.get("KRKN_TEST_COVERAGE", "0") == "1":
         return [
             python, "-m", "coverage", "run", "-a",

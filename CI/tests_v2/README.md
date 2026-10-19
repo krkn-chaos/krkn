@@ -61,6 +61,37 @@ pip install -r CI/tests_v2/requirements.txt
 
 This adds `pytest-rerunfailures`, `pytest-html`, `pytest-timeout`, and `pytest-order` (pytest and coverage come from the main `requirements.txt`).
 
+## Run tests against a patched Krkn image
+
+After building and patching a Krkn runtime image locally, run the v2 functional
+tests against that image with:
+
+```bash
+./scripts/test-patched-image.sh localhost/krkn:local-copa
+```
+
+Pass the patched image reference as the first argument. Any arguments after it
+are passed to pytest, for example:
+
+```bash
+./scripts/test-patched-image.sh localhost/krkn:local-copa -m pod_disruption -v
+```
+
+The script builds a test runner image from the patched runtime, starts an
+ephemeral two-node KinD cluster with Docker Compose, and removes the cluster
+when pytest exits. The test-only Python plugins are installed in a separate
+virtual environment that can see the patched image's site packages. Kraken
+scenarios are launched with the runtime image's Python interpreter. No platform
+is specified for either Compose build, so the local builder chooses its default
+platform. Results are written to `CI/tests_v2/report.html` and
+`CI/tests_v2/results.xml`.
+
+This workflow requires Docker Engine and the Docker Compose plugin on Linux. It
+mounts `/var/run/docker.sock` into the Kind and test containers so Kind can
+create its nodes and the node scenarios can stop and restart those node
+containers. Run it only with a Docker daemon dedicated to this disposable test
+cluster.
+
 ## Dependency Management
 
 Dependencies are split into two files:

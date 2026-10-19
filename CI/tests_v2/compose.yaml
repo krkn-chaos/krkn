@@ -1,0 +1,63 @@
+services:
+  kind:
+    build:
+      context: ../..
+      dockerfile: CI/tests_v2/docker/Kind.Dockerfile
+    image: krkn-kind:${COMPOSE_PROJECT_NAME:-local}
+    network_mode: host
+    stop_grace_period: 60s
+    environment:
+      KIND_CLUSTER_NAME: ${KIND_CLUSTER_NAME:-krkn-tests-local}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kind-kubeconfig:/shared-kubeconfig
+      - ./:/repo/CI/tests_v2:ro
+    entrypoint: ["/bin/sh", "-ec"]
+    command: |
+      cleanup() { kind delete cluster --name "$${KIND_CLUSTER_NAME}" || true; }
+      trap cleanup EXIT
+      trap 'exit 0' TERM INT
+      kind create cluster \
+        --name "$${KIND_CLUSTER_NAME}" \
+        --config /repo/CI/tests_v2/kind-config-dev.yml \
+        --kubeconfig /shared-kubeconfig/config \
+        --wait 180s
+      chmod 0644 /shared-kubeconfig/config
+      docker pull nginx:alpine
+      kind load docker-image nginx:alpine --name "$${KIND_CLUSTER_NAME}"
+      docker pull quay.io/krkn-chaos/krkn:tools
+      kind load docker-image quay.io/krkn-chaos/krkn:tools --name "$${KIND_CLUSTER_NAME}"
+      while :; do sleep 2; done
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -s /shared-kubeconfig/config && kind get clusters | grep -qx "$${KIND_CLUSTER_NAME}"
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 20s
+
+  functional-tests:
+    build:
+      context: ../..
+      dockerfile: CI/tests_v2/docker/FunctionalTests.Dockerfile
+      args:
+        KRKN_RUNTIME_IMAGE: ${KRKN_RUNTIME_IMAGE:?run scripts/test-patched-image.sh with a local patched image}
+        PYTHON_VERSION: "3.11"
+    image: krkn-functional-tests:${COMPOSE_PROJECT_NAME:-local}
+    network_mode: host
+    user: "0:0"
+    depends_on:
+      kind:
+        condition: service_healthy
+    environment:
+      KUBECONFIG: /home/krkn/.kube/config
+      KRKN_TEST_KRAKEN_PYTHON: python3.11
+      KRKN_TEST_COVERAGE: "1"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - kind-kubeconfig:/home/krkn/.kube:ro
+      - ./:/home/krkn/kraken/CI/tests_v2
+
+volumes:
+  kind-kubeconfig:
