@@ -15,6 +15,7 @@ services:
     entrypoint: ["/bin/sh", "-ec"]
     command:
       - |
+        rm -f /shared-kubeconfig/config /shared-kubeconfig/ready
         cleanup() { kind delete cluster --name "$${KIND_CLUSTER_NAME}" || true; }
         trap cleanup EXIT
         trap 'exit 0' TERM INT
@@ -39,11 +40,17 @@ services:
         }
         load_image nginx:alpine
         load_image quay.io/krkn-chaos/krkn:tools
+        touch /shared-kubeconfig/ready
         while :; do sleep 2; done
     healthcheck:
       test:
         - CMD-SHELL
-        - test -s /shared-kubeconfig/config && kind get clusters | grep -qx "$${KIND_CLUSTER_NAME}"
+        - >-
+          test -s /shared-kubeconfig/config &&
+          test -f /shared-kubeconfig/ready &&
+          kind get clusters | grep -qx "$${KIND_CLUSTER_NAME}" &&
+          server=$$(sed -n 's/^[[:space:]]*server: //p' /shared-kubeconfig/config | head -n 1) &&
+          curl --silent --output /dev/null --insecure --connect-timeout 1 --max-time 2 "$${server}/readyz"
       interval: 5s
       timeout: 3s
       retries: 60
