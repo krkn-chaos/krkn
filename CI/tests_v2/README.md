@@ -71,7 +71,7 @@ tests against that image with:
 ```
 
 Pass the patched image reference as the first argument. Any arguments after it
-are passed to pytest, for example:
+are appended to the default tests v2 pytest command, for example:
 
 ```bash
 ./scripts/test-patched-image.sh localhost/krkn:local-copa -m pod_disruption -v

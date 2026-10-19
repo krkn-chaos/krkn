@@ -56,8 +56,17 @@ trap cleanup EXIT
 
 docker compose "${compose_args[@]}" build kind functional-tests
 
-if [[ $# -eq 0 ]]; then
-  docker compose "${compose_args[@]}" run --rm functional-tests
-else
-  docker compose "${compose_args[@]}" run --rm functional-tests "$@"
-fi
+pytest_args=(
+  CI/tests_v2/
+  -v
+  --timeout=300
+  --reruns=1
+  --reruns-delay=5
+  --html=CI/tests_v2/report.html
+  -n auto
+  --dist loadgroup
+  --junitxml=CI/tests_v2/results.xml
+)
+pytest_args+=("$@")
+
+docker compose "${compose_args[@]}" run --rm functional-tests "${pytest_args[@]}"
