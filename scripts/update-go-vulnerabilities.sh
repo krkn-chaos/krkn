@@ -12,6 +12,7 @@ when present, and scan again. The default mode applies updates.
 Options:
   --dry-run              Report proposed go get updates without changing files.
   --pattern PATTERN      Go package pattern to scan (default: ./...).
+  --tags TAGS            Comma-separated Go build tags (default: none).
   --max-passes N         Maximum scan/update cycles (default: 5).
   -h, --help             Show this help.
 
@@ -23,6 +24,7 @@ EOF
 
 DRY_RUN=0
 PATTERN='./...'
+BUILD_TAGS=''
 MAX_PASSES=5
 MODULE_DIR='.'
 POSITIONAL_SET=0
@@ -39,6 +41,14 @@ while (($#)); do
         exit 2
       fi
       PATTERN=$2
+      shift 2
+      ;;
+    --tags)
+      if (($# < 2)); then
+        echo "error: --tags requires a value" >&2
+        exit 2
+      fi
+      BUILD_TAGS=$2
       shift 2
       ;;
     --max-passes)
@@ -104,7 +114,13 @@ scan_and_plan() {
   local updates_path=$3
   local unresolved_path=$4
 
-  if ! (cd "$MODULE_DIR" && govulncheck -json "$PATTERN") >"$report_path" 2>"$stderr_path"; then
+  local scan_args=(-json)
+  if [[ -n "$BUILD_TAGS" ]]; then
+    scan_args+=(-tags "$BUILD_TAGS")
+  fi
+  scan_args+=("$PATTERN")
+
+  if ! (cd "$MODULE_DIR" && govulncheck "${scan_args[@]}") >"$report_path" 2>"$stderr_path"; then
     cat "$stderr_path" >&2
     echo "error: govulncheck failed while scanning $MODULE_DIR" >&2
     return 1
@@ -219,6 +235,9 @@ printf 'Go toolchain: '
 go version
 printf 'Scanning module: %s\n' "$MODULE_DIR"
 printf 'Package pattern: %s\n' "$PATTERN"
+if [[ -n "$BUILD_TAGS" ]]; then
+  printf 'Build tags: %s\n' "$BUILD_TAGS"
+fi
 
 pass=1
 while ((pass <= MAX_PASSES)); do
