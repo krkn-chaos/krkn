@@ -24,10 +24,21 @@ services:
           --kubeconfig /shared-kubeconfig/config \
           --wait 180s
         chmod 0644 /shared-kubeconfig/config
-        docker pull nginx:alpine
-        kind load docker-image nginx:alpine --name "$${KIND_CLUSTER_NAME}"
-        docker pull quay.io/krkn-chaos/krkn:tools
-        kind load docker-image quay.io/krkn-chaos/krkn:tools --name "$${KIND_CLUSTER_NAME}"
+        case "$$(uname -m)" in
+          x86_64) image_platform=linux/amd64 ;;
+          aarch64|arm64) image_platform=linux/arm64 ;;
+          *) echo "Unsupported host architecture: $$(uname -m)" >&2; exit 1 ;;
+        esac
+        load_image() {
+          image="$$1"
+          archive=/tmp/krkn-test-image.tar
+          docker pull "$$image"
+          docker image save --platform "$$image_platform" --output "$$archive" "$$image"
+          kind load image-archive "$$archive" --name "$${KIND_CLUSTER_NAME}"
+          rm -f "$$archive"
+        }
+        load_image nginx:alpine
+        load_image quay.io/krkn-chaos/krkn:tools
         while :; do sleep 2; done
     healthcheck:
       test:
