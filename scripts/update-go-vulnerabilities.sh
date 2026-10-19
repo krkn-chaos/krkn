@@ -13,6 +13,8 @@ Options:
   --dry-run              Report proposed go get updates without changing files.
   --pattern PATTERN      Go package pattern to scan (default: ./...).
   --tags TAGS            Comma-separated Go build tags (default: none).
+  --exclude-module MOD   Do not update this module; can be repeated. Its fixed
+                         findings remain reported and make the final scan fail.
   --max-passes N         Maximum scan/update cycles (default: 5).
   -h, --help             Show this help.
 
@@ -26,6 +28,7 @@ DRY_RUN=0
 PATTERN='./...'
 BUILD_TAGS=''
 MAX_PASSES=5
+EXCLUDED_MODULES=()
 MODULE_DIR='.'
 POSITIONAL_SET=0
 
@@ -57,6 +60,14 @@ while (($#)); do
         exit 2
       fi
       MAX_PASSES=$2
+      shift 2
+      ;;
+    --exclude-module)
+      if (($# < 2)) || [[ -z "$2" ]]; then
+        echo "error: --exclude-module requires a module path" >&2
+        exit 2
+      fi
+      EXCLUDED_MODULES+=("$2")
       shift 2
       ;;
     -h|--help)
@@ -126,12 +137,17 @@ scan_and_plan() {
     return 1
   fi
 
-  python3 - "$report_path" "$updates_path" "$unresolved_path" <<'PY'
+  local python_args=("$report_path" "$updates_path" "$unresolved_path")
+  if ((${#EXCLUDED_MODULES[@]})); then
+    python_args+=("${EXCLUDED_MODULES[@]}")
+  fi
+  python3 - "${python_args[@]}" <<'PY'
 import json
 import re
 import sys
 
-report_path, updates_path, unresolved_path = sys.argv[1:]
+report_path, updates_path, unresolved_path, *excluded_modules = sys.argv[1:]
+excluded_modules = set(excluded_modules)
 messages = []
 with open(report_path, encoding="utf-8") as report:
     raw_report = report.read()
@@ -165,6 +181,7 @@ if not any(message.get("config") for message in messages):
 updates = {}
 update_ids = {}
 unresolved = set()
+excluded = set()
 finding_count = 0
 
 version_re = re.compile(
@@ -224,6 +241,9 @@ for message in messages:
     except ValueError as error:
         unresolved.add(f"{osv_id}: {module} fix cannot be applied automatically ({error})")
         continue
+    if module in excluded_modules:
+        excluded.add(f"{osv_id}: {module}@{frame['version']} has fix {fixed}, excluded by --exclude-module")
+        continue
     current = updates.get(module)
     if current is None or compare_versions(fixed, current) > 0:
         updates[module] = fixed
@@ -233,7 +253,7 @@ with open(updates_path, "w", encoding="utf-8") as output:
     for module, version in sorted(updates.items()):
         output.write(f"{module}\t{version}\n")
 with open(unresolved_path, "w", encoding="utf-8") as output:
-    for item in sorted(unresolved):
+    for item in sorted(unresolved | excluded):
         output.write(item + "\n")
 
 print(f"govulncheck findings: {finding_count}")
@@ -241,6 +261,10 @@ print(f"modules with fixed versions: {len(updates)}")
 for module, version in sorted(updates.items()):
     ids = ", ".join(sorted(update_ids[module]))
     print(f"  {module}@{version} (findings: {ids})")
+if excluded:
+    print("fixed findings excluded by policy:")
+    for item in sorted(excluded):
+        print(f"  {item}")
 if unresolved:
     print("findings requiring separate action:")
     for item in sorted(unresolved):
@@ -254,6 +278,9 @@ printf 'Scanning module: %s\n' "$MODULE_DIR"
 printf 'Package pattern: %s\n' "$PATTERN"
 if [[ -n "$BUILD_TAGS" ]]; then
   printf 'Build tags: %s\n' "$BUILD_TAGS"
+fi
+if ((${#EXCLUDED_MODULES[@]})); then
+  printf 'Excluded modules from automatic updates: %s\n' "${EXCLUDED_MODULES[*]}"
 fi
 
 pass=1
