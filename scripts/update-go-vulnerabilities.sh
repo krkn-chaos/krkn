@@ -281,17 +281,23 @@ while ((pass <= MAX_PASSES)); do
   fi
 
   if ((DRY_RUN)); then
-    printf 'Dry run; would run:\n  go get'
-    printf ' %q' "${updates[@]}"
-    printf '\n'
+    printf 'Dry run; would run these go get commands sequentially:\n'
+    for update in "${updates[@]}"; do
+      printf '  go get %q\n' "$update"
+    done
     exit 0
   fi
 
-  printf 'Applying fixed module versions:\n'
-  printf '  %s\n' "${updates[@]}"
+  printf 'Applying fixed module versions sequentially:\n'
   (
     cd "$MODULE_DIR"
-    go get "${updates[@]}"
+    for update in "${updates[@]}"; do
+      printf '  go get %s\n' "$update"
+      if ! go get "$update"; then
+        echo "error: go get failed for $update" >&2
+        exit 1
+      fi
+    done
     go mod tidy
     if [[ -d vendor ]]; then
       go mod vendor
