@@ -5,62 +5,19 @@ on:
     branches:
       - main
   pull_request:
+  workflow_dispatch:
+    inputs:
+      publish_to_beta_quay:
+        description: Publish the validated multi-architecture image to quay.io/krkn-chaos/krkn-beta
+        type: boolean
+        required: true
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  security-scan-source:
-    name: Security Scan - Source Code & Dependencies
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    if: github.event_name == 'pull_request'
-    steps:
-    - name: Check out code
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
-
-    - name: Install Grype
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-
-    - name: Scan source code and dependencies
-      run: |
-        echo "🔍 Scanning source code and dependencies for vulnerabilities..."
-        grype dir:. --only-fixed -o table > /tmp/grype-source.txt || true
-
-        SCAN_OUTPUT=$(grype dir:. --only-fixed -o json)
-        CRITICAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length')
-        HIGH=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "High")] | length')
-        MEDIUM=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length')
-
-        # Create Job Summary with table
-        echo "## 🔒 Security Scan - Source Code & Dependencies" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Severity | Count | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔴 Critical | $CRITICAL | $([ $CRITICAL -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🟠 High | $HIGH | $([ $HIGH -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🟡 Medium | $MEDIUM | $([ $MEDIUM -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
-        if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-          echo "⚠️ **Found $CRITICAL Critical and $HIGH High vulnerabilities with available fixes**" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "✅ **No Critical or High vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        # Add collapsible full scan results
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "<details>" >> $GITHUB_STEP_SUMMARY
-        echo "<summary>📋 Full Scan Results</summary>" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        cat /tmp/grype-source.txt >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "</details>" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
   build-tools:
     name: Build ${{ matrix.tool }} (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
@@ -105,7 +62,46 @@ jobs:
       run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libkrb5-dev
 
     - name: Build tool binary
-      run: ./scripts/build-container-tool.sh "${{ matrix.tool }}"
+      run: |
+        mkdir -p "$RUNNER_TEMP/go-mod-artifacts"
+        ./scripts/build-container-tool.sh \
+          "${{ matrix.tool }}" \
+          containers/tools \
+          "$RUNNER_TEMP/go-mod-artifacts"
+
+    - name: Summarize Go module updates
+      if: always()
+      env:
+        TOOL: ${{ matrix.tool }}
+        PLATFORM: ${{ matrix.platform }}
+      run: |
+        set -euo pipefail
+        diff_file="$RUNNER_TEMP/go-mod-artifacts/$TOOL/go-mod-updates.diff"
+        {
+          echo "## Go module updates: $TOOL ($PLATFORM)"
+          if [[ -s "$diff_file" ]]; then
+            echo ""
+            echo '<details><summary>go.mod / go.work changes</summary>'
+            echo ''
+            echo '```diff'
+            cat "$diff_file"
+            echo '```'
+            echo '</details>'
+          elif [[ -f "$RUNNER_TEMP/go-mod-artifacts/$TOOL/go.mod" ]]; then
+            echo "No go.mod or go.work changes were made."
+          else
+            echo "No Go module files were captured; the build may have failed before cloning the source."
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload Go module files
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: krkn-go-mod-${{ matrix.tool }}-${{ matrix.platform }}
+        path: ${{ runner.temp }}/go-mod-artifacts/${{ matrix.tool }}/
+        if-no-files-found: ignore
+        retention-days: 30
 
     - name: Upload tool binary
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -255,47 +251,14 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
 
-    - name: Install Grype
-      if: github.event_name == 'pull_request'
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-
-    - name: Scan patched Docker image with Grype
-      if: github.event_name == 'pull_request'
-      env:
-        PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
-      run: |
-        echo "🔍 Scanning Docker image: $PATCHED_IMAGE"
-        grype "$PATCHED_IMAGE" --only-fixed -o table > "$RUNNER_TEMP/grype-image-${{ matrix.platform }}.txt" || true
-        scan_output=$(grype "$PATCHED_IMAGE" --only-fixed -o json)
-        critical=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' <<< "$scan_output")
-        high=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' <<< "$scan_output")
-        medium=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' <<< "$scan_output")
-        {
-          echo "## 🐳 Docker Image Security Scan - ${{ matrix.platform }}"
-          echo ""
-          echo "| Severity | Count | Status |"
-          echo "|----------|-------|--------|"
-          echo "| 🔴 Critical | $critical | $([ "$critical" -eq 0 ] && echo '✅' || echo '⚠️') |"
-          echo "| 🟠 High | $high | $([ "$high" -eq 0 ] && echo '✅' || echo '⚠️') |"
-          echo "| 🟡 Medium | $medium | $([ "$medium" -eq 0 ] && echo '✅' || echo '⚠️') |"
-          echo ""
-          echo '<details><summary>Full scan results</summary>'
-          echo ''
-          echo '```'
-          cat "$RUNNER_TEMP/grype-image-${{ matrix.platform }}.txt"
-          echo '```'
-          echo '</details>'
-        } >> "$GITHUB_STEP_SUMMARY"
-
     - name: Save validated image for the publish job
-      if: startsWith(github.ref, 'refs/tags')
+      if: startsWith(github.ref, 'refs/tags') || github.event_name == 'workflow_dispatch'
       env:
         IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}-patched
       run: docker image save --platform "linux/${{ matrix.platform }}" "$IMAGE_NAME" | gzip -1 > "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz"
 
     - name: Upload validated image artifact
-      if: startsWith(github.ref, 'refs/tags')
+      if: startsWith(github.ref, 'refs/tags') || github.event_name == 'workflow_dispatch'
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: krkn-image-${{ matrix.platform }}
@@ -308,7 +271,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     needs: build
-    if: startsWith(github.ref, 'refs/tags')
+    if: startsWith(github.ref, 'refs/tags') || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -426,6 +389,90 @@ jobs:
         docker tag "$source" quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
         docker push "quay.io/redhat-chaos/krkn:${tag}-${{ matrix.platform }}"
         docker push "quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}"
+
+  publish-beta-platforms:
+    name: Publish beta image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    needs: [build, functional-tests]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_to_beta_quay && github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+    - name: Set up Docker with the containerd image store
+      uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+      with:
+        set-host: true
+        daemon-config: |
+          {
+            "features": {
+              "containerd-snapshotter": true
+            }
+          }
+
+    - name: Download validated image artifact
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-image-${{ matrix.platform }}
+        path: ${{ runner.temp }}
+
+    - name: Load validated image
+      run: gzip -dc "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz" | docker image load
+
+    - name: Login to Quay
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USERNAME }}
+        password: ${{ secrets.QUAY_PASSWORD }}
+
+    - name: Push validated beta platform image
+      env:
+        PLATFORM: ${{ matrix.platform }}
+        BETA_TAG: manual-${{ github.run_number }}-${{ github.sha }}
+      run: |
+        set -euo pipefail
+        repo=quay.io/krkn-chaos/krkn-beta
+        source="localhost/krkn:ci-${PLATFORM}-patched"
+        target="${repo}:${BETA_TAG}-${PLATFORM}"
+        docker tag "$source" "$target"
+        docker push "$target"
+
+  publish-beta-manifest:
+    name: Publish beta multi-architecture manifest
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: publish-beta-platforms
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_to_beta_quay && github.ref == 'refs/heads/main'
+    steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+    - name: Login to Quay
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USERNAME }}
+        password: ${{ secrets.QUAY_PASSWORD }}
+
+    - name: Create and push beta manifest
+      env:
+        BETA_TAG: manual-${{ github.run_number }}-${{ github.sha }}
+      run: |
+        set -euo pipefail
+        repo=quay.io/krkn-chaos/krkn-beta
+        docker buildx imagetools create \
+          --tag "${repo}:${BETA_TAG}" \
+          "${repo}:${BETA_TAG}-amd64" \
+          "${repo}:${BETA_TAG}-arm64"
+        echo "## Manual beta image published" >> "$GITHUB_STEP_SUMMARY"
+        echo "Validated multi-architecture image: \`${repo}:${BETA_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
 
   manifest:
     runs-on: ubuntu-latest
@@ -561,6 +608,8 @@ jobs:
     name: Generate Security Badge
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      TRIVY_VERSION: 0.76.0
     needs:
       - build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -605,20 +654,23 @@ jobs:
             containers/ \
             --load
 
-      - name: Install Grype
+      - name: Install Trivy
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
 
       - name: Scan and generate security badge
         run: |
-          # Scan with grype (no --only-fixed to get all CVEs for baseline)
-          SCAN_OUTPUT=$(grype krkn-chaos/krkn:security-scan -o json)
+          # Scan all known vulnerabilities to keep the existing baseline badge semantics.
+          trivy image --scanners vuln --format json \
+            --output "$RUNNER_TEMP/trivy-security-scan.json" \
+            krkn-chaos/krkn:security-scan
 
           # Count vulnerabilities by severity
-          CRITICAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length')
-          HIGH=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "High")] | length')
-          MEDIUM=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length')
-          TOTAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[]] | length')
+          CRITICAL=$(jq '[.Results[]?.Vulnerabilities[]? | select((.Severity | ascii_upcase) == "CRITICAL")] | length' "$RUNNER_TEMP/trivy-security-scan.json")
+          HIGH=$(jq '[.Results[]?.Vulnerabilities[]? | select((.Severity | ascii_upcase) == "HIGH")] | length' "$RUNNER_TEMP/trivy-security-scan.json")
+          MEDIUM=$(jq '[.Results[]?.Vulnerabilities[]? | select((.Severity | ascii_upcase) == "MEDIUM")] | length' "$RUNNER_TEMP/trivy-security-scan.json")
+          TOTAL=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$RUNNER_TEMP/trivy-security-scan.json")
 
           # Determine badge color based on severity
           if [ $CRITICAL -gt 0 ]; then

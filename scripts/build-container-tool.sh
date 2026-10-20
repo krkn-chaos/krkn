@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'USAGE'
-Usage: scripts/build-container-tool.sh TOOL [OUTPUT_DIR]
+Usage: scripts/build-container-tool.sh TOOL [OUTPUT_DIR] [GO_MOD_ARTIFACT_DIR]
 
 Build one of the Go tools shipped in the Krkn runtime image. Run on the target
 architecture with the Go toolchain installed. The default output directory is
@@ -13,7 +13,7 @@ Tools: oc, virtctl, yq
 USAGE
 }
 
-if [[ $# -lt 1 || $# -gt 2 || $1 == -h || $1 == --help ]]; then
+if [[ $# -lt 1 || $# -gt 3 || $1 == -h || $1 == --help ]]; then
   usage >&2
   exit 2
 fi
@@ -21,8 +21,31 @@ fi
 tool=$1
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 output_dir=${2:-"$repo_root/containers/tools"}
+go_mod_artifact_dir=${3:-}
 work_dir=$(mktemp -d)
-trap 'rm -rf "$work_dir"' EXIT
+source_dir=''
+
+capture_go_mod_artifacts() {
+  [[ -n "$go_mod_artifact_dir" && -n "$source_dir" && -f "$source_dir/go.mod" ]] || return 0
+
+  local artifact_dir="$go_mod_artifact_dir/$tool"
+  mkdir -p "$artifact_dir"
+  cp "$source_dir/go.mod" "$artifact_dir/go.mod"
+  [[ ! -f "$source_dir/go.sum" ]] || cp "$source_dir/go.sum" "$artifact_dir/go.sum"
+  [[ ! -f "$source_dir/go.work" ]] || cp "$source_dir/go.work" "$artifact_dir/go.work"
+  [[ ! -f "$source_dir/go.work.sum" ]] || cp "$source_dir/go.work.sum" "$artifact_dir/go.work.sum"
+  git -C "$source_dir" diff -- go.mod go.work > "$artifact_dir/go-mod-updates.diff" || true
+}
+
+cleanup() {
+  local exit_code=$?
+  trap - EXIT
+  capture_go_mod_artifacts || echo "warning: could not save Go module artifacts" >&2
+  rm -rf "$work_dir"
+  exit "$exit_code"
+}
+
+trap cleanup EXIT
 mkdir -p "$output_dir"
 
 case "$tool" in
