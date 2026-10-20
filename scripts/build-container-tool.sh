@@ -21,6 +21,9 @@ fi
 tool=$1
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 output_dir=${2:-"$repo_root/containers/tools"}
+if [[ "$output_dir" != /* ]]; then
+  output_dir="$repo_root/$output_dir"
+fi
 go_mod_artifact_dir=${3:-}
 work_dir=$(mktemp -d)
 source_dir=''
@@ -94,8 +97,8 @@ case "$tool" in
     go mod edit -replace golang.org/x/net=golang.org/x/net@v0.38.0
     go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1
     go mod tidy
-    go build -ldflags='-s -w' -o "$work_dir/yq" .
-    binary="$work_dir/yq"
+    go build -ldflags='-s -w' -o "$work_dir/yq-bin" .
+    binary="$work_dir/yq-bin"
     ;;
   *)
     echo "error: unsupported tool '$tool'" >&2
