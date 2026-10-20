@@ -200,42 +200,72 @@ jobs:
         trivy --version
         copa version
 
-    - name: Scan and patch Python libraries with Copa
+    - name: Scan and patch OS and Python packages with Copa
       env:
         IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}
+        OS_PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-os-patched
         PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
       run: |
         set -euo pipefail
-        report="$RUNNER_TEMP/trivy-before.json"
+        os_before_report="$RUNNER_TEMP/trivy-os-before.json"
+        library_before_report="$RUNNER_TEMP/trivy-before.json"
         python_report="$RUNNER_TEMP/trivy-python-before.json"
-        after_report="$RUNNER_TEMP/trivy-after.json"
-        trivy image --scanners vuln --pkg-types library --ignore-unfixed \
-          --format json --output "$report" "$IMAGE_NAME"
-        jq '.Results |= map(select(.Type == "python-pkg"))' "$report" > "$python_report"
-        before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_report")
-        echo "Python vulnerabilities with fixes before Copa: $before_count"
-        if (( before_count > 0 )); then
-          COPA_EXPERIMENTAL=1 copa patch \
+        os_after_report="$RUNNER_TEMP/trivy-os-after.json"
+        library_after_report="$RUNNER_TEMP/trivy-after.json"
+
+        trivy image --scanners vuln --pkg-types os --ignore-unfixed \
+          --format json --output "$os_before_report" "$IMAGE_NAME"
+        os_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$os_before_report")
+        echo "OS vulnerabilities with fixes before Copa: $os_before_count"
+        if (( os_before_count > 0 )); then
+          copa patch \
             -i "$IMAGE_NAME" \
+            -r "$os_before_report" \
+            -t "$OS_PATCHED_IMAGE" \
+            -a docker:// \
+            --pkg-types os
+        else
+          docker tag "$IMAGE_NAME" "$OS_PATCHED_IMAGE"
+        fi
+        docker image inspect "$OS_PATCHED_IMAGE" >/dev/null
+
+        trivy image --scanners vuln --pkg-types library --ignore-unfixed \
+          --format json --output "$library_before_report" "$OS_PATCHED_IMAGE"
+        jq '.Results |= map(select(.Type == "python-pkg"))' "$library_before_report" > "$python_report"
+        python_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_report")
+        echo "Python vulnerabilities with fixes before Copa: $python_before_count"
+        if (( python_before_count > 0 )); then
+          COPA_EXPERIMENTAL=1 copa patch \
+            -i "$OS_PATCHED_IMAGE" \
             -r "$python_report" \
             -t "$PATCHED_IMAGE" \
             -a docker:// \
             --pkg-types library \
             --library-patch-level minor
         else
-          docker tag "$IMAGE_NAME" "$PATCHED_IMAGE"
+          docker tag "$OS_PATCHED_IMAGE" "$PATCHED_IMAGE"
         fi
         docker image inspect "$PATCHED_IMAGE" >/dev/null
+
+        trivy image --scanners vuln --pkg-types os --ignore-unfixed \
+          --format json --output "$os_after_report" "$PATCHED_IMAGE"
+        os_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$os_after_report")
         trivy image --scanners vuln --pkg-types library --ignore-unfixed \
-          --format json --output "$after_report" "$PATCHED_IMAGE"
-        remaining=$(jq '[.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length' "$after_report")
+          --format json --output "$library_after_report" "$PATCHED_IMAGE"
+        python_remaining=$(jq '[.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length' "$library_after_report")
         {
-          echo "## Python dependency patching (${{ matrix.platform }})"
-          echo "- Fixable Python vulnerabilities before Copa: $before_count"
-          echo "- Fixable Python vulnerabilities after Copa: $remaining"
+          echo "## Image vulnerability patching (${{ matrix.platform }})"
+          echo "- Fixable OS vulnerabilities before Copa: $os_before_count"
+          echo "- Fixable OS vulnerabilities after Copa: $os_remaining"
+          echo "- Fixable Python vulnerabilities before Copa: $python_before_count"
+          echo "- Fixable Python vulnerabilities after Copa: $python_remaining"
         } >> "$GITHUB_STEP_SUMMARY"
-        if (( remaining > 0 )); then
-          echo "error: $remaining fixable Python vulnerabilities remain after Copa" >&2
+        if (( os_remaining > 0 )); then
+          echo "error: $os_remaining fixable OS vulnerabilities remain after Copa" >&2
+          exit 1
+        fi
+        if (( python_remaining > 0 )); then
+          echo "error: $python_remaining fixable Python vulnerabilities remain after Copa" >&2
           exit 1
         fi
 
@@ -245,8 +275,10 @@ jobs:
       with:
         name: trivy-reports-${{ matrix.platform }}
         path: |
+          ${{ runner.temp }}/trivy-os-before.json
           ${{ runner.temp }}/trivy-before.json
           ${{ runner.temp }}/trivy-python-before.json
+          ${{ runner.temp }}/trivy-os-after.json
           ${{ runner.temp }}/trivy-after.json
         if-no-files-found: ignore
         retention-days: 7

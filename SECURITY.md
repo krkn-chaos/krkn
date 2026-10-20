@@ -9,7 +9,7 @@ Krkn follows a proactive security strategy based on continuous vulnerability sca
 
 ### Vulnerability Scanning with Trivy
 
-We use [Trivy](https://trivy.dev/) in the Docker image workflow to scan runtime image libraries. The build scans Python package findings, uses the Trivy report as input to Copa for eligible minor-version patches, then scans the candidate image again. On pushes to the main branch, Trivy also generates the image security badge from the full vulnerability report.
+We use [Trivy](https://trivy.dev/) in the Docker image workflow to scan runtime image OS packages and libraries. The build uses the OS package report as input to Copa to patch supported system packages, including RPM packages managed by `dnf`, then scans Python package findings and uses that report for eligible minor-version patches. It scans the candidate image again and blocks publishing when fixable OS or Python vulnerabilities remain. On pushes to the main branch, Trivy also generates the image security badge from the full vulnerability report.
 
 ### Security Baseline
 
@@ -162,7 +162,7 @@ We conducted a comprehensive security audit and dependency upgrade, fixing all C
 
 Krkn uses multiple security checks:
 
-- **[Trivy](https://trivy.dev/)**: Runtime image vulnerability scanning and Python library patch verification in the Docker image workflow
+- **[Trivy](https://trivy.dev/)**: Runtime image OS and library vulnerability scanning, with Copa patch verification in the Docker image workflow
 - **[Snyk](https://snyk.io/)**: Additional dependency scanning with curated vulnerability database
 - **GitHub Dependabot**: Automated dependency update alerts for Python and Go modules
 
