@@ -7,16 +7,9 @@ We attach great importance to code security. We are very grateful to the users, 
 
 Krkn follows a proactive security strategy based on continuous vulnerability scanning and risk assessment. Our approach ensures that security issues are identified, evaluated, and remediated as part of our development and release process.
 
-### Vulnerability Scanning with Grype
+### Vulnerability Scanning with Trivy
 
-We use [Grype](https://github.com/anchore/grype), an industry-standard vulnerability scanner, to detect known vulnerabilities in our container images and dependencies. Grype scans are integrated into our CI/CD pipeline and run automatically on:
-
-- **Every pull request**: Scans detect newly introduced vulnerabilities before code is merged
-- **Every commit to main branch**: Ensures the main branch maintains our security baseline
-- **Container image builds**: Multi-architecture images (amd64, arm64) are scanned before publication
-- **Regular scheduled scans**: Weekly scans of published images to detect newly disclosed CVEs
-
-All scan results are published in GitHub Actions summaries with severity breakdowns (Critical, High, Medium, Low) and include both fixed and unfixed vulnerabilities.
+We use [Trivy](https://trivy.dev/) in the Docker image workflow to scan runtime image OS packages and libraries. The build uses the OS package report as input to Copa to patch supported system packages, including RPM packages managed by `dnf`, then scans Python package findings and uses that report for eligible minor-version patches. It scans the candidate image again and blocks publishing when fixable OS or Python vulnerabilities remain. On pushes to the main branch, Trivy also generates the image security badge from the full vulnerability report.
 
 ### Security Baseline
 
@@ -167,13 +160,13 @@ We conducted a comprehensive security audit and dependency upgrade, fixing all C
 
 ## Security Checks
 
-Krkn leverages multiple security scanning tools to ensure comprehensive vulnerability detection:
+Krkn uses multiple security checks:
 
-- **[Grype](https://github.com/anchore/grype)**: Primary vulnerability scanner for container images and dependencies, integrated into CI/CD
+- **[Trivy](https://trivy.dev/)**: Runtime image OS and library vulnerability scanning, with Copa patch verification in the Docker image workflow
 - **[Snyk](https://snyk.io/)**: Additional dependency scanning with curated vulnerability database
 - **GitHub Dependabot**: Automated dependency update alerts for Python and Go modules
 
-Security vulnerability checks are enabled for each pull request, giving developers immediate feedback on newly introduced vulnerabilities. All security scan results are published in GitHub Actions job summaries for transparency.
+Trivy scan and patch results are published in GitHub Actions job summaries. The repository also contains a local Grype/Copa helper script for manual experiments; it is not part of the GitHub Actions image pipeline.
 
  
 ## Reporting a Vulnerability

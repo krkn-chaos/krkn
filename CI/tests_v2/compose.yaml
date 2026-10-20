@@ -1,0 +1,81 @@
+services:
+  kind:
+    build:
+      context: ../..
+      dockerfile: CI/tests_v2/docker/Kind.Dockerfile
+    image: krkn-kind:${COMPOSE_PROJECT_NAME:-local}
+    network_mode: host
+    stop_grace_period: 60s
+    environment:
+      KIND_CLUSTER_NAME: ${KIND_CLUSTER_NAME:-krkn-tests-local}
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      - kind-kubeconfig:/shared-kubeconfig
+      - ./:/repo/CI/tests_v2:ro
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        rm -f /shared-kubeconfig/config /shared-kubeconfig/ready
+        cleanup() { kind delete cluster --name "$${KIND_CLUSTER_NAME}" || true; }
+        trap cleanup EXIT
+        trap 'exit 0' TERM INT
+        kind create cluster \
+          --name "$${KIND_CLUSTER_NAME}" \
+          --config /repo/CI/tests_v2/kind-config-dev.yml \
+          --kubeconfig /shared-kubeconfig/config \
+          --wait 180s
+        chmod 0644 /shared-kubeconfig/config
+        case "$$(uname -m)" in
+          x86_64) image_platform=linux/amd64 ;;
+          aarch64|arm64) image_platform=linux/arm64 ;;
+          *) echo "Unsupported host architecture: $$(uname -m)" >&2; exit 1 ;;
+        esac
+        load_image() {
+          image="$$1"
+          archive=/tmp/krkn-test-image.tar
+          docker pull "$$image"
+          docker image save --platform "$$image_platform" --output "$$archive" "$$image"
+          kind load image-archive "$$archive" --name "$${KIND_CLUSTER_NAME}"
+          rm -f "$$archive"
+        }
+        load_image nginx:alpine
+        touch /shared-kubeconfig/ready
+        while :; do sleep 2; done
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          test -s /shared-kubeconfig/config &&
+          test -f /shared-kubeconfig/ready &&
+          kind get clusters | grep -qx "$${KIND_CLUSTER_NAME}" &&
+          server=$$(sed -n 's/^[[:space:]]*server: //p' /shared-kubeconfig/config | head -n 1) &&
+          curl --silent --output /dev/null --insecure --connect-timeout 1 --max-time 2 "$${server}/readyz"
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 20s
+
+  functional-tests:
+    build:
+      context: ../..
+      dockerfile: CI/tests_v2/docker/FunctionalTests.Dockerfile
+      args:
+        KRKN_RUNTIME_IMAGE: ${KRKN_RUNTIME_IMAGE:?run scripts/test-patched-image.sh with a local patched image}
+        PYTHON_VERSION: "3.11"
+    image: krkn-functional-tests:${COMPOSE_PROJECT_NAME:-local}
+    network_mode: host
+    user: "0:0"
+    depends_on:
+      kind:
+        condition: service_healthy
+    environment:
+      KUBECONFIG: /home/krkn/.kube/config
+      KRKN_TEST_KRAKEN_PYTHON: python3.11
+      KRKN_TEST_COVERAGE: "1"
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+      - kind-kubeconfig:/home/krkn/.kube:ro
+      - ./:/home/krkn/kraken/CI/tests_v2
+
+volumes:
+  kind-kubeconfig:
