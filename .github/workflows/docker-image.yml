@@ -198,7 +198,7 @@ jobs:
         tar -xzf "$copa_archive" -C "$RUNNER_TEMP" copa
         sudo install -m 0755 "$RUNNER_TEMP/copa" /usr/local/bin/copa
         trivy --version
-        copa version
+        copa --version
 
     - name: Scan and patch OS and Python packages with Copa
       env:
