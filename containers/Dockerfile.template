@@ -1,7 +1,22 @@
 # oc, virtctl, and yq are built in parallel by the Docker image workflow and
 # downloaded into tools/ before this runtime image is built.
 
-FROM fedora:45
+# Build ipmitool from source because UBI9's public repositories do not provide it.
+# Keep the release pinned so runtime contents are reproducible.
+FROM rockylinux:9 AS ipmitool-build
+ARG IPMITOOL_VERSION=IPMITOOL_1_8_19
+RUN dnf install -y --setopt=install_weak_deps=False \
+    autoconf automake gcc git libtool make openssl-devel pkgconf-pkg-config && \
+    dnf clean all && rm -rf /var/cache/dnf
+WORKDIR /tmp
+RUN git clone --depth 1 --branch "${IPMITOOL_VERSION}" https://github.com/ipmitool/ipmitool.git
+WORKDIR /tmp/ipmitool
+RUN ./bootstrap && \
+    ./configure --prefix=/usr/local --disable-ipmishell && \
+    make -j"$(nproc)" && \
+    make DESTDIR=/stage install
+
+FROM registry.access.redhat.com/ubi9/ubi:latest
 ARG PR_NUMBER
 ARG TAG
 ARG PYTHON_VERSION=3.11
@@ -14,8 +29,12 @@ ENV KUBECONFIG /home/krkn/.kube/config
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
 RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
-    git python${PYTHON_VERSION} jq gettext wget which ipmitool openssh-server &&\
+    git python${PYTHON_VERSION} jq gettext wget which openssh-server &&\
     dnf clean all
+
+# Install the ipmitool binary built from source for the UBI runtime.
+COPY --from=ipmitool-build /stage/usr/local/bin/ipmitool /usr/local/bin/ipmitool
+RUN ipmitool -V
 
 # Copy architecture-matched binaries produced by the parallel Go build jobs.
 COPY tools/oc /usr/bin/oc
