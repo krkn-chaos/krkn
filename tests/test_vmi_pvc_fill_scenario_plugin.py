@@ -92,12 +92,40 @@ class TestVmiPvcFillScenarioPlugin(unittest.TestCase):
         self.assertIn("root@vmi/vm1", args)
         self.assertIn("--namespace", args)
         self.assertIn("default", args)
+        self.assertIn("--local-ssh-opts=-o StrictHostKeyChecking=no", args)
+        self.assertIn("--local-ssh-opts=-o UserKnownHostsFile=/dev/null", args)
+        self.assertIn("--local-ssh-opts=-o BatchMode=yes", args)
+        self.assertIn("--local-ssh-opts=-o PasswordAuthentication=no", args)
         self.assertIn("--command", args)
         self.assertIn("true", args)
+
+    @patch("krkn.scenario_plugins.vmi_pvc_fill.vmi_pvc_fill_scenario_plugin.subprocess.run")
+    def test_virtctl_error_omits_informational_ssh_warnings(self, mock_run):
+        params = self.plugin._parse_config(self._scenario_file())
+        mock_run.return_value = MagicMock(
+            returncode=255,
+            stdout="",
+            stderr=(
+                "Warning: Permanently added 'vmi' to known hosts.\n"
+                "WARNING: connection is not using a post-quantum key exchange algorithm.\n"
+                "Permission denied (publickey,password).\n"
+                "exit status 255"
+            ),
+        )
+
+        with self.assertRaises(RuntimeError) as context:
+            _run_virtctl(params, "true", timeout=30)
+
+        message = str(context.exception)
+        self.assertIn("Permission denied", message)
+        self.assertIn("exit status 255", message)
+        self.assertNotIn("Permanently added", message)
+        self.assertNotIn("post-quantum", message)
 
     @patch("krkn.scenario_plugins.vmi_pvc_fill.vmi_pvc_fill_scenario_plugin._run_virtctl")
     def test_run_returns_success(self, mock_virtctl):
         lib_k8s = MagicMock()
+        lib_k8s.get_kubeconfig_path.return_value = "/tmp/test-kubeconfig"
         lib_k8s.get_vmi.return_value = {
             "status": {"phase": "Running", "nodeName": "worker-1"}
         }
@@ -127,7 +155,7 @@ class TestVmiPvcFillScenarioPlugin(unittest.TestCase):
             "run-id", self._scenario_file(), telemetry, MagicMock()
         )
         self.assertEqual(result, 0)
-        mock_virtctl.assert_called_once()
+        self.assertEqual(mock_virtctl.call_count, 2)
 
     @patch("krkn.scenario_plugins.vmi_pvc_fill.vmi_pvc_fill_scenario_plugin.fill_filesystem_pvc")
     def test_filesystem_pvc_uses_shared_filesystem_service(self, mock_fill):

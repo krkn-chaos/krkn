@@ -1,0 +1,55 @@
+# KubeVirt fixture with a raw block-mode PVC attached as a data disk.
+# The container disk provides the guest boot device; the PVC is exposed to the
+# virt-launcher compute container through volumeDevices.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: krkn-vmi-block-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Block
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachineInstance
+metadata:
+  name: krkn-vmi-block
+  namespace: default
+spec:
+  domain:
+    devices:
+      disks:
+        - name: containerdisk
+          disk:
+            bus: virtio
+        - name: blockdisk
+          disk:
+            bus: virtio
+        - name: cloudinitdisk
+          disk:
+            bus: virtio
+    resources:
+      requests:
+        memory: 512Mi
+  volumes:
+    - name: containerdisk
+      containerDisk:
+        image: quay.io/kubevirt/cirros-container-disk-demo:latest
+    - name: blockdisk
+      persistentVolumeClaim:
+        claimName: krkn-vmi-block-pvc
+    - name: cloudinitdisk
+      cloudInitNoCloud:
+        userData: |-
+          #cloud-config
+          users:
+            - name: cirros
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              lock_passwd: true
+              ssh_authorized_keys:
+                # Replace with the contents of ~/.ssh/krkn-cirros.pub.
+                - REPLACE_WITH_KRKN_CIRROS_PUBLIC_KEY

@@ -8,7 +8,7 @@ vmi_pvc_fill_scenario:
   # Formatting is destructive. Use only with a disposable data disk.
   format_device: true
   fill_percentage: 50
-  duration: 60
-  username: root
-  identity_file: ""
+  duration: 20
+  username: cirros
+  identity_file: "/Users/prubenda/.ssh/krkn-cirros"
   pod_name: ""

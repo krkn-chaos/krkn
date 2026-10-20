@@ -20,7 +20,7 @@ import json
 import re
 import shlex
 import subprocess
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 import yaml
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
@@ -52,6 +52,7 @@ class GuestStorageParams:
     identity_file: str
     pvc_name: str = ""
     pod_name: str = ""
+    kubeconfig_path: str = ""
 
 
 def _run_virtctl(
@@ -61,14 +62,22 @@ def _run_virtctl(
     args = [
         "virtctl",
         "ssh",
+        "--local-ssh=false",
+        "--known-hosts=/dev/null",
         f"{params.username}@vmi/{params.vmi_name}",
         "--namespace",
         params.namespace,
+        "--local-ssh-opts=-o StrictHostKeyChecking=no",
+        "--local-ssh-opts=-o UserKnownHostsFile=/dev/null",
+        "--local-ssh-opts=-o BatchMode=yes",
+        "--local-ssh-opts=-o PasswordAuthentication=no",
         "--command",
         command,
     ]
     if params.identity_file:
         args.extend(["--identity-file", params.identity_file])
+    if params.kubeconfig_path:
+        args.extend(["--kubeconfig", params.kubeconfig_path])
 
     result = subprocess.run(
         args,
@@ -78,9 +87,19 @@ def _run_virtctl(
         check=False,
     )
     if result.returncode != 0:
+        informational = (
+            "Permanently added",
+            "post-quantum key exchange algorithm",
+            "store now, decrypt later",
+            "openssh.com/pq",
+        )
+        error_lines = [
+            line for line in (result.stderr or result.stdout).splitlines()
+            if not any(message in line for message in informational)
+        ]
         raise RuntimeError(
             "virtctl guest command failed for VMI %s: %s"
-            % (params.vmi_name, (result.stderr or result.stdout).strip())
+            % (params.vmi_name, "\n".join(error_lines).strip())
         )
     return result
 
@@ -226,6 +245,10 @@ sleep {params.duration}
         try:
             params = self._parse_config(scenario)
             lib_k8s = lib_telemetry.get_lib_kubernetes()
+            params = replace(
+                params,
+                kubeconfig_path=lib_k8s.get_kubeconfig_path(),
+            )
             pod_name = self._resolve_pod_name(lib_k8s, params)
             raw_pod = read_raw_pod(lib_k8s, pod_name, params.namespace)
             if raw_pod is None:
@@ -259,11 +282,14 @@ sleep {params.duration}
                 params.device_path,
                 params.mount_path,
             )
+            # Verify guest authentication before registering rollback. If SSH
+            # cannot authenticate, there is no guest-side change to clean up.
+            _run_virtctl(params, "true", timeout=60)
             self.rollback_handler.set_rollback_callable(
                 self.rollback_guest_storage,
                 RollbackContent(
                     namespace=params.namespace,
-                    resource_identifier=yaml.safe_dump(asdict(params)),
+                    resource_identifier=encode_rollback_data(asdict(params)),
                 ),
             )
             _run_virtctl(
@@ -326,21 +352,49 @@ sleep {params.duration}
     ) -> None:
         """Best-effort cleanup for an interrupted guest storage scenario."""
         try:
+            import base64
+            import json
+            import logging
+            import shlex
+            import subprocess
+
             values = json.loads(
                 base64.b64decode(
                     rollback_content.resource_identifier.encode("ascii")
                 ).decode("utf-8")
             )
-            params = GuestStorageParams(**values)
             cleanup = (
                 "set -eu; rm -f %s; "
                 "if [ -f /tmp/krkn-vmi-pvc-fill-mounted ]; then "
                 "umount %s; rm -f /tmp/krkn-vmi-pvc-fill-mounted; fi"
                 % (
-                    shlex.quote(f"{params.mount_path}/krkn-vmi-storage.tmp"),
-                    shlex.quote(params.mount_path),
+                    shlex.quote(f"{values['mount_path']}/krkn-vmi-storage.tmp"),
+                    shlex.quote(values["mount_path"]),
                 )
             )
-            _run_virtctl(params, cleanup, timeout=60)
+            args = [
+                "virtctl",
+                "ssh",
+                "--local-ssh=false",
+                "--known-hosts=/dev/null",
+                f"{values['username']}@vmi/{values['vmi_name']}",
+                "--namespace",
+                values["namespace"],
+                "--local-ssh-opts=-o StrictHostKeyChecking=no",
+                "--local-ssh-opts=-o UserKnownHostsFile=/dev/null",
+                "--local-ssh-opts=-o BatchMode=yes",
+                "--local-ssh-opts=-o PasswordAuthentication=no",
+                "--command",
+                cleanup,
+            ]
+            if values.get("kubeconfig_path"):
+                args.extend(["--kubeconfig", values["kubeconfig_path"]])
+            if values.get("identity_file"):
+                args.extend(["--identity-file", values["identity_file"]])
+            result = subprocess.run(
+                args, capture_output=True, text=True, timeout=60, check=False
+            )
+            if result.returncode != 0:
+                raise RuntimeError((result.stderr or result.stdout).strip())
         except Exception as exc:
             logging.error("VMI guest storage rollback failed: %s", exc)
