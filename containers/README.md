@@ -26,3 +26,22 @@ docker run --rm -e KRKN_DEPENDENCY_CHECK=1 quay.io/redhat-chaos/krkn:latest
 Use the same command with the candidate image tag in CI after building or
 patching it. This is a smoke check; functional tests still need a separate
 disposable Kubernetes cluster.
+
+### Build the base image locally
+
+The Dockerfile expects architecture-matched `oc`, `virtctl`, and `yq` binaries in
+`containers/tools/`. Build them before compiling the Dockerfile; `oc` requires
+`libkrb5-dev` on Debian/Ubuntu. Use the latest stable Go toolchain supported by
+the cloned sources.
+
+```sh
+scripts/build-container-tool.sh oc
+scripts/build-container-tool.sh virtctl
+scripts/build-container-tool.sh yq
+./containers/compile_dockerfile.sh
+docker build -t localhost/krkn:local containers/
+```
+
+The CI workflow builds these binaries in parallel, uploads them as artifacts,
+then downloads them for each architecture before building and patching the local
+base image.

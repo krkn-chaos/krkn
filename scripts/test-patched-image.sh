@@ -33,6 +33,14 @@ export COMPOSE_PROJECT_NAME=$project_name
 export KIND_CLUSTER_NAME=$project_name
 export KRKN_RUNTIME_IMAGE=$runtime_image
 
+# setup-docker-action may expose its daemon on a runner-local Unix socket.
+# Pass that socket through to the KinD service, which starts nested containers.
+if [[ ${DOCKER_SOCKET:-} == unix://* ]]; then
+  export DOCKER_SOCKET=${DOCKER_SOCKET#unix://}
+elif [[ -z ${DOCKER_SOCKET:-} && ${DOCKER_HOST:-} == unix://* ]]; then
+  export DOCKER_SOCKET=${DOCKER_HOST#unix://}
+fi
+
 if docker compose version >/dev/null 2>&1; then
   compose_command=(docker compose)
 elif command -v docker-compose >/dev/null 2>&1; then

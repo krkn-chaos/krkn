@@ -9,7 +9,7 @@ services:
     environment:
       KIND_CLUSTER_NAME: ${KIND_CLUSTER_NAME:-krkn-tests-local}
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       - kind-kubeconfig:/shared-kubeconfig
       - ./:/repo/CI/tests_v2:ro
     entrypoint: ["/bin/sh", "-ec"]
@@ -73,7 +73,7 @@ services:
       KRKN_TEST_KRAKEN_PYTHON: python3.11
       KRKN_TEST_COVERAGE: "1"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       - kind-kubeconfig:/home/krkn/.kube:ro
       - ./:/home/krkn/kraken/CI/tests_v2
 

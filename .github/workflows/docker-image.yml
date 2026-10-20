@@ -61,10 +61,256 @@ jobs:
         echo "</details>" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
-  build:
+  build-tools:
+    name: Build ${{ matrix.tool }} (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: oc
+            platform: amd64
+            runner: ubuntu-latest
+          - tool: virtctl
+            platform: amd64
+            runner: ubuntu-latest
+          - tool: yq
+            platform: amd64
+            runner: ubuntu-latest
+          - tool: oc
+            platform: arm64
+            runner: ubuntu-24.04-arm
+          - tool: virtctl
+            platform: arm64
+            runner: ubuntu-24.04-arm
+          - tool: yq
+            platform: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      GOTOOLCHAIN: local
+    steps:
+    - name: Check out code
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+    - name: Set up the latest stable Go toolchain
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: stable
+        check-latest: true
+        cache: false
+
+    - name: Install oc build dependencies
+      if: matrix.tool == 'oc'
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libkrb5-dev
+
+    - name: Build tool binary
+      run: ./scripts/build-container-tool.sh "${{ matrix.tool }}"
+
+    - name: Upload tool binary
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: krkn-tool-${{ matrix.tool }}-${{ matrix.platform }}
+        path: containers/tools/${{ matrix.tool }}
+        if-no-files-found: error
+        retention-days: 1
+
+  build:
+    name: Build, patch and validate (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    needs: build-tools
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      TRIVY_VERSION: 0.76.0
+      COPA_VERSION: 0.15.0
+    steps:
+    - name: Check out code
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+    - name: Set up Docker with the containerd image store
+      id: docker
+      uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+      with:
+        set-host: true
+        daemon-config: |
+          {
+            "features": {
+              "containerd-snapshotter": true
+            }
+          }
+
+    - name: Download oc binary
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-tool-oc-${{ matrix.platform }}
+        path: containers/tools
+
+    - name: Download virtctl binary
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-tool-virtctl-${{ matrix.platform }}
+        path: containers/tools
+
+    - name: Download yq binary
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-tool-yq-${{ matrix.platform }}
+        path: containers/tools
+
+    - name: Materialize Dockerfile
+      run: ./containers/compile_dockerfile.sh
+
+    - name: Build the local base image
+      env:
+        IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}
+      run: |
+        set -euo pipefail
+        build_args=()
+        if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          build_args+=(--build-arg "PR_NUMBER=${{ github.event.pull_request.number }}")
+        fi
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          build_args+=(--build-arg "TAG=${GITHUB_REF#refs/tags/}")
+        fi
+        docker build --pull --no-cache \
+          --tag "$IMAGE_NAME" \
+          "${build_args[@]}" \
+          containers/
+
+    - name: Install Trivy and Copa
+      run: |
+        set -euo pipefail
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+          | sudo sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
+        case "$(uname -m)" in
+          x86_64) copa_arch=amd64 ;;
+          aarch64|arm64) copa_arch=arm64 ;;
+          *) echo "Unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
+        esac
+        copa_archive="$RUNNER_TEMP/copa.tar.gz"
+        curl -fsSL \
+          "https://github.com/project-copacetic/copacetic/releases/download/v${COPA_VERSION}/copa_${COPA_VERSION}_linux_${copa_arch}.tar.gz" \
+          -o "$copa_archive"
+        tar -xzf "$copa_archive" -C "$RUNNER_TEMP" copa
+        sudo install -m 0755 "$RUNNER_TEMP/copa" /usr/local/bin/copa
+        trivy --version
+        copa version
+
+    - name: Scan and patch Python libraries with Copa
+      env:
+        IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}
+        PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
+      run: |
+        set -euo pipefail
+        report="$RUNNER_TEMP/trivy-before.json"
+        python_report="$RUNNER_TEMP/trivy-python-before.json"
+        after_report="$RUNNER_TEMP/trivy-after.json"
+        trivy image --scanners vuln --pkg-types library --ignore-unfixed \
+          --format json --output "$report" "$IMAGE_NAME"
+        jq '.Results |= map(select(.Type == "python-pkg"))' "$report" > "$python_report"
+        before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_report")
+        echo "Python vulnerabilities with fixes before Copa: $before_count"
+        if (( before_count > 0 )); then
+          COPA_EXPERIMENTAL=1 copa patch \
+            -i "$IMAGE_NAME" \
+            -r "$python_report" \
+            -t "$PATCHED_IMAGE" \
+            -a docker:// \
+            --pkg-types library \
+            --library-patch-level minor
+        else
+          docker tag "$IMAGE_NAME" "$PATCHED_IMAGE"
+        fi
+        docker image inspect "$PATCHED_IMAGE" >/dev/null
+        trivy image --scanners vuln --pkg-types library --ignore-unfixed \
+          --format json --output "$after_report" "$PATCHED_IMAGE"
+        remaining=$(jq '[.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length' "$after_report")
+        {
+          echo "## Python dependency patching (${{ matrix.platform }})"
+          echo "- Fixable Python vulnerabilities before Copa: $before_count"
+          echo "- Fixable Python vulnerabilities after Copa: $remaining"
+        } >> "$GITHUB_STEP_SUMMARY"
+        if (( remaining > 0 )); then
+          echo "error: $remaining fixable Python vulnerabilities remain after Copa" >&2
+          exit 1
+        fi
+
+    - name: Upload Trivy reports
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: trivy-reports-${{ matrix.platform }}
+        path: |
+          ${{ runner.temp }}/trivy-before.json
+          ${{ runner.temp }}/trivy-python-before.json
+          ${{ runner.temp }}/trivy-after.json
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Install Grype
+      if: github.event_name == 'pull_request'
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+    - name: Scan patched Docker image with Grype
+      if: github.event_name == 'pull_request'
+      env:
+        PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
+      run: |
+        echo "🔍 Scanning Docker image: $PATCHED_IMAGE"
+        grype "$PATCHED_IMAGE" --only-fixed -o table > "$RUNNER_TEMP/grype-image-${{ matrix.platform }}.txt" || true
+        scan_output=$(grype "$PATCHED_IMAGE" --only-fixed -o json)
+        critical=$(jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length' <<< "$scan_output")
+        high=$(jq '[.matches[] | select(.vulnerability.severity == "High")] | length' <<< "$scan_output")
+        medium=$(jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length' <<< "$scan_output")
+        {
+          echo "## 🐳 Docker Image Security Scan - ${{ matrix.platform }}"
+          echo ""
+          echo "| Severity | Count | Status |"
+          echo "|----------|-------|--------|"
+          echo "| 🔴 Critical | $critical | $([ "$critical" -eq 0 ] && echo '✅' || echo '⚠️') |"
+          echo "| 🟠 High | $high | $([ "$high" -eq 0 ] && echo '✅' || echo '⚠️') |"
+          echo "| 🟡 Medium | $medium | $([ "$medium" -eq 0 ] && echo '✅' || echo '⚠️') |"
+          echo ""
+          echo '<details><summary>Full scan results</summary>'
+          echo ''
+          echo '```'
+          cat "$RUNNER_TEMP/grype-image-${{ matrix.platform }}.txt"
+          echo '```'
+          echo '</details>'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Save validated image for the publish job
+      if: startsWith(github.ref, 'refs/tags')
+      env:
+        IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}-patched
+      run: docker image save --platform "linux/${{ matrix.platform }}" "$IMAGE_NAME" | gzip -1 > "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz"
+
+    - name: Upload validated image artifact
+      if: startsWith(github.ref, 'refs/tags')
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: krkn-image-${{ matrix.platform }}
+        path: ${{ runner.temp }}/krkn-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1
+
+  functional-tests:
+    name: Functional tests (patched ${{ matrix.platform }} image)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    needs: build
+    if: startsWith(github.ref, 'refs/tags')
+    strategy:
+      fail-fast: false
       matrix:
         include:
           - platform: amd64
@@ -75,108 +321,116 @@ jobs:
     - name: Check out code
       uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+    - name: Set up Docker with the containerd image store
+      id: docker
+      uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+      with:
+        set-host: true
+        daemon-config: |
+          {
+            "features": {
+              "containerd-snapshotter": true
+            }
+          }
 
-    - name: Test Build the Docker images
-      if: github.event_name == 'pull_request'
-      run: |
-        ./containers/compile_dockerfile.sh
-        docker buildx build --no-cache \
-          --platform linux/${{ matrix.platform }} \
-          -t quay.io/krkn-chaos/krkn:pr-${{ github.event.pull_request.number }}-${{ matrix.platform }} \
-          -t quay.io/redhat-chaos/krkn:pr-${{ github.event.pull_request.number }}-${{ matrix.platform }} \
-          containers/ \
-          --build-arg PR_NUMBER=${{ github.event.pull_request.number }} \
-          --load
+    - name: Download validated image
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-image-${{ matrix.platform }}
+        path: ${{ runner.temp }}
 
-    - name: Install Grype
-      if: github.event_name == 'pull_request'
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+    - name: Load patched image
+      run: gzip -dc "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz" | docker image load
 
-    - name: Scan Docker image for vulnerabilities
-      if: github.event_name == 'pull_request'
-      run: |
-        IMAGE_NAME="quay.io/krkn-chaos/krkn:pr-${{ github.event.pull_request.number }}-${{ matrix.platform }}"
-        echo "🔍 Scanning Docker image: $IMAGE_NAME"
-        grype "$IMAGE_NAME" --only-fixed -o table > /tmp/grype-image-${{ matrix.platform }}.txt || true
+    - name: Run functional tests v2 against the patched image
+      env:
+        DOCKER_SOCKET: ${{ steps.docker.outputs.sock }}
+      run: ./scripts/test-patched-image.sh "localhost/krkn:ci-${{ matrix.platform }}-patched"
 
-        SCAN_OUTPUT=$(grype "$IMAGE_NAME" --only-fixed -o json)
-        CRITICAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length')
-        HIGH=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "High")] | length')
-        MEDIUM=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length')
+    - name: Upload patched-image functional test results
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: tests-v2-patched-image-${{ matrix.platform }}
+        path: |
+          CI/tests_v2/report.html
+          CI/tests_v2/results.xml
+        if-no-files-found: ignore
+        retention-days: 7
 
-        # Create Job Summary with table
-        echo "## 🐳 Docker Image Security Scan - ${{ matrix.platform }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Severity | Count | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔴 Critical | $CRITICAL | $([ $CRITICAL -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🟠 High | $HIGH | $([ $HIGH -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🟡 Medium | $MEDIUM | $([ $MEDIUM -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+  publish-platforms:
+    name: Publish validated image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    needs: [build, functional-tests]
+    if: startsWith(github.ref, 'refs/tags')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+    - name: Set up Docker
+      uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+      with:
+        set-host: true
+        daemon-config: |
+          {
+            "features": {
+              "containerd-snapshotter": true
+            }
+          }
 
-        if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-          echo "⚠️ **Found $CRITICAL Critical and $HIGH High vulnerabilities with available fixes**" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "✅ **No Critical or High vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
-        fi
+    - name: Download validated image artifact
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-image-${{ matrix.platform }}
+        path: ${{ runner.temp }}
 
-        # Add collapsible full scan results
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "<details>" >> $GITHUB_STEP_SUMMARY
-        echo "<summary>📋 Full Scan Results</summary>" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        cat /tmp/grype-image-${{ matrix.platform }}.txt >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "</details>" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+    - name: Load validated image
+      run: gzip -dc "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz" | docker image load
 
     - name: Login to krkn-chaos quay
-      if: startsWith(github.ref, 'refs/tags')
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
 
-    - name: Build and push krkn-chaos images
-      if: startsWith(github.ref, 'refs/tags')
+    - name: Push validated krkn-chaos platform tags
       run: |
-        ./containers/compile_dockerfile.sh
-        TAG=${GITHUB_REF#refs/tags/}
-        docker buildx build --no-cache \
-          --platform linux/${{ matrix.platform }} \
-          --provenance=false \
-          -t quay.io/krkn-chaos/krkn:latest-${{ matrix.platform }} \
-          -t quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} \
-          containers/ \
-          --build-arg TAG=${TAG} \
-          --push --load
+        set -euo pipefail
+        tag=${GITHUB_REF#refs/tags/}
+        source=localhost/krkn:ci-${{ matrix.platform }}-patched
+        docker tag "$source" "quay.io/krkn-chaos/krkn:${tag}-${{ matrix.platform }}"
+        docker tag "$source" quay.io/krkn-chaos/krkn:latest-${{ matrix.platform }}
+        docker push "quay.io/krkn-chaos/krkn:${tag}-${{ matrix.platform }}"
+        docker push "quay.io/krkn-chaos/krkn:latest-${{ matrix.platform }}"
 
     - name: Login to redhat-chaos quay
-      if: startsWith(github.ref, 'refs/tags')
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USER_1 }}
         password: ${{ secrets.QUAY_TOKEN_1 }}
 
-    - name: Push redhat-chaos images
-      if: startsWith(github.ref, 'refs/tags')
+    - name: Push validated redhat-chaos platform tags
       run: |
-        TAG=${GITHUB_REF#refs/tags/}
-        docker tag quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} quay.io/redhat-chaos/krkn:${TAG}-${{ matrix.platform }}
-        docker tag quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
-        docker push quay.io/redhat-chaos/krkn:${TAG}-${{ matrix.platform }}
-        docker push quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
+        set -euo pipefail
+        tag=${GITHUB_REF#refs/tags/}
+        source=localhost/krkn:ci-${{ matrix.platform }}-patched
+        docker tag "$source" "quay.io/redhat-chaos/krkn:${tag}-${{ matrix.platform }}"
+        docker tag "$source" quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
+        docker push "quay.io/redhat-chaos/krkn:${tag}-${{ matrix.platform }}"
+        docker push "quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}"
 
   manifest:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: build
+    needs: publish-platforms
     if: startsWith(github.ref, 'refs/tags')
     steps:
     # Check out the repo so the vendored cosign signing-config is on the runner.
@@ -320,6 +574,24 @@ jobs:
           repository: krkn-chaos/krkn-lib-docs
           path: krkn-lib-docs
           ssh-key: ${{ secrets.KRKN_LIB_DOCS_PRIV_KEY }}
+
+      - name: Download oc binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: krkn-tool-oc-amd64
+          path: containers/tools
+
+      - name: Download virtctl binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: krkn-tool-virtctl-amd64
+          path: containers/tools
+
+      - name: Download yq binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: krkn-tool-yq-amd64
+          path: containers/tools
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
