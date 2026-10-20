@@ -246,8 +246,24 @@ jobs:
           ' "$1"
         }
 
+        assert_os_scan_covered() {
+          local report="$1"
+          local phase="$2"
+          local result_count
+          result_count=$(jq '[.Results[]? | select(.Class == "os-pkgs")] | length' "$report")
+          if (( result_count == 0 )); then
+            local os_family
+            local os_version
+            os_family=$(jq -r '.Metadata.OS.Family // "unknown"' "$report")
+            os_version=$(jq -r '.Metadata.OS.Name // "unknown"' "$report")
+            echo "error: Trivy detected $os_family $os_version but returned no OS package results $phase; refusing to treat the image as vulnerability-free" >&2
+            exit 1
+          fi
+        }
+
         trivy image --scanners vuln --pkg-types os --ignore-unfixed \
           --format json --output "$os_before_report" "$IMAGE_NAME"
+        assert_os_scan_covered "$os_before_report" "before Copa"
         os_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$os_before_report")
         echo "OS vulnerabilities with fixes before Copa: $os_before_count"
         if (( os_before_count > 0 )); then
@@ -284,6 +300,7 @@ jobs:
 
         trivy image --scanners vuln --pkg-types os --ignore-unfixed \
           --format json --output "$os_after_report" "$PATCHED_IMAGE"
+        assert_os_scan_covered "$os_after_report" "after Copa"
         os_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$os_after_report")
         trivy image --scanners vuln --pkg-types library --ignore-unfixed \
           --format json --output "$library_after_report" "$PATCHED_IMAGE"
