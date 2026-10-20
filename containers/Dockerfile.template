@@ -42,7 +42,7 @@ RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 RUN ${PYTHON_CMD} -m ensurepip --upgrade --default-pip
 RUN ${PYTHON_CMD} -m pip install --upgrade \
     pip \
-    setuptools==81.0.0 \
+    setuptools==83.0.0 \
     "poetry-core>=1.1.0"
 
 # removes the the vulnerable versions of setuptools and pip
@@ -51,8 +51,8 @@ RUN rm -rf /tmp/*
 RUN rm -rf /usr/local/lib/${PYTHON_CMD}/ensurepip/_bundled
 RUN ${PYTHON_CMD} -m pip install --no-build-isolation -r requirements.txt
 RUN ${PYTHON_CMD} -m pip install jsonschema
-# Force setuptools==81.0.0 after all deps (some may try to upgrade it to 82+)
-RUN ${PYTHON_CMD} -m pip install --force-reinstall --no-deps setuptools==81.0.0
+# Force the patched setuptools version after all dependencies.
+RUN ${PYTHON_CMD} -m pip install --force-reinstall --no-deps setuptools==83.0.0
 
 LABEL krknctl.title.global="Krkn Base Image"
 LABEL krknctl.description.global="This is the krkn base image."

@@ -212,6 +212,39 @@ jobs:
         python_report="$RUNNER_TEMP/trivy-python-before.json"
         os_after_report="$RUNNER_TEMP/trivy-os-after.json"
         library_after_report="$RUNNER_TEMP/trivy-after.json"
+        python_after_report="$RUNNER_TEMP/trivy-python-after.json"
+
+        filter_python_vulnerabilities() {
+          jq '
+            .Results |= map(
+              select(.Type == "python-pkg")
+              | . as $result
+              | .Vulnerabilities |= [
+                  .[] as $vulnerability
+                  | [$result.Packages[]? | select(.Identifier.UID == $vulnerability.PkgIdentifier.UID)] as $matches
+                  | select(
+                      ($matches | length) == 0
+                      or any($matches[]; .AnalyzedBy == "python-pkg")
+                      or any($matches[]; .AnalyzedBy != "sbom")
+                    )
+                  | $vulnerability
+                ]
+            )
+          ' "$1" > "$2"
+        }
+
+        count_embedded_sbom_findings() {
+          jq '
+            [
+              .Results[]?
+              | select(.Type == "python-pkg") as $result
+              | $result.Vulnerabilities[]? as $vulnerability
+              | [$result.Packages[]? | select(.Identifier.UID == $vulnerability.PkgIdentifier.UID)] as $matches
+              | select(($matches | length) > 0 and all($matches[]; .AnalyzedBy == "sbom"))
+            ]
+            | length
+          ' "$1"
+        }
 
         trivy image --scanners vuln --pkg-types os --ignore-unfixed \
           --format json --output "$os_before_report" "$IMAGE_NAME"
@@ -231,9 +264,11 @@ jobs:
 
         trivy image --scanners vuln --pkg-types library --ignore-unfixed \
           --format json --output "$library_before_report" "$OS_PATCHED_IMAGE"
-        jq '.Results |= map(select(.Type == "python-pkg"))' "$library_before_report" > "$python_report"
+        filter_python_vulnerabilities "$library_before_report" "$python_report"
         python_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_report")
-        echo "Python vulnerabilities with fixes before Copa: $python_before_count"
+        python_sbom_before_count=$(count_embedded_sbom_findings "$library_before_report")
+        echo "Installed Python vulnerabilities with fixes before Copa: $python_before_count"
+        echo "Python findings from embedded SBOMs without an installed package: $python_sbom_before_count"
         if (( python_before_count > 0 )); then
           COPA_EXPERIMENTAL=1 copa patch \
             -i "$OS_PATCHED_IMAGE" \
@@ -252,20 +287,24 @@ jobs:
         os_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$os_after_report")
         trivy image --scanners vuln --pkg-types library --ignore-unfixed \
           --format json --output "$library_after_report" "$PATCHED_IMAGE"
-        python_remaining=$(jq '[.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length' "$library_after_report")
+        filter_python_vulnerabilities "$library_after_report" "$python_after_report"
+        python_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_after_report")
+        python_sbom_after_count=$(count_embedded_sbom_findings "$library_after_report")
         {
           echo "## Image vulnerability patching (${{ matrix.platform }})"
           echo "- Fixable OS vulnerabilities before Copa: $os_before_count"
           echo "- Fixable OS vulnerabilities after Copa: $os_remaining"
-          echo "- Fixable Python vulnerabilities before Copa: $python_before_count"
-          echo "- Fixable Python vulnerabilities after Copa: $python_remaining"
+          echo "- Installed Python vulnerabilities with fixes before Copa: $python_before_count"
+          echo "- Installed Python vulnerabilities with fixes after Copa: $python_remaining"
+          echo "- Python findings from embedded SBOMs without an installed package (excluded): $python_sbom_after_count"
         } >> "$GITHUB_STEP_SUMMARY"
         if (( os_remaining > 0 )); then
           echo "error: $os_remaining fixable OS vulnerabilities remain after Copa" >&2
           exit 1
         fi
         if (( python_remaining > 0 )); then
-          echo "error: $python_remaining fixable Python vulnerabilities remain after Copa" >&2
+          echo "error: $python_remaining fixable Python vulnerabilities remain in installed packages after Copa" >&2
+          jq -r '.Results[]?.Vulnerabilities[]? | "  \(.PkgName)@\(.InstalledVersion): \(.VulnerabilityID), fixed in \(.FixedVersion)"' "$python_after_report" >&2
           exit 1
         fi
 
@@ -280,6 +319,7 @@ jobs:
           ${{ runner.temp }}/trivy-python-before.json
           ${{ runner.temp }}/trivy-os-after.json
           ${{ runner.temp }}/trivy-after.json
+          ${{ runner.temp }}/trivy-python-after.json
         if-no-files-found: ignore
         retention-days: 7
 
