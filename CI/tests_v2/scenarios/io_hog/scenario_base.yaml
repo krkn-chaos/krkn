@@ -4,11 +4,13 @@
 # for the configured duration, then deletes the pod. Values here are tuned for functional
 # testing (light, short) rather than disk-pressure benchmarking; in particular io-write-bytes
 # is a small fixed size and io-target-pod-volume uses the krkn-lib default hostPath /tmp
-# (kubelet-writable on kind) instead of the production /root.
-duration: 20
+# (kubelet-writable on kind) instead of the production /root. duration 10s matches the
+# production cpu default — binding precedes stress start and the pod object persists until
+# plugin delete.
+duration: 10
 workers: 1
 hog-type: io
-image: quay.io/krkn-chaos/krkn-hog
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog
 namespace: default
 io-block-size: 1m
 io-write-bytes: 10m
