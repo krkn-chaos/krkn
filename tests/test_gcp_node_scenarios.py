@@ -93,23 +93,44 @@ class TestGCP(unittest.TestCase):
         self.assertEqual(result, mock_instance)
         self.assertEqual(result.name, 'gke-cluster-node-1')
 
-    def test_get_node_instance_partial_match(self):
-        """Test getting node instance with partial name match"""
-        mock_instance = MagicMock()
-        mock_instance.name = 'node-1'
-
+    def _set_instances(self, *names):
+        instances = []
+        for name in names:
+            instance = MagicMock()
+            instance.name = name
+            instances.append(instance)
         mock_response = MagicMock()
-        mock_response.instances = [mock_instance]
-
+        mock_response.instances = instances
         self.gcp.instance_client.aggregated_list = MagicMock(
             return_value=[('zones/us-central1-a', mock_response)]
         )
+        return instances
 
-        # instance.name ('node-1') in node ('gke-cluster-node-1-abc') == True
-        result = self.gcp.get_node_instance('gke-cluster-node-1-abc')
+    def test_get_node_instance_fqdn_node_name(self):
+        """A node named <instance>.c.<project>.internal maps to <instance>"""
+        instances = self._set_instances('node-1')
 
-        self.assertIsNotNone(result)
-        self.assertEqual(result.name, 'node-1')
+        result = self.gcp.get_node_instance('node-1.c.test-project-123.internal')
+
+        self.assertEqual(result, instances[0])
+
+    def test_get_node_instance_does_not_match_name_prefix(self):
+        """An instance whose name is a prefix of the node name is a different VM"""
+        self._set_instances('worker-1')
+
+        self.assertIsNone(self.gcp.get_node_instance('worker-10'))
+        self.assertIsNone(self.gcp.get_node_instance('worker-10.c.test-project-123.internal'))
+
+    def test_get_node_instance_picks_exact_name_among_prefix_siblings(self):
+        """worker-1 listed before worker-10 must not capture worker-10"""
+        instances = self._set_instances('worker-1', 'worker-10', 'worker-100')
+
+        self.assertEqual(self.gcp.get_node_instance('worker-1'), instances[0])
+        self.assertEqual(self.gcp.get_node_instance('worker-10'), instances[1])
+        self.assertEqual(
+            self.gcp.get_node_instance('worker-100.c.test-project-123.internal'),
+            instances[2],
+        )
 
     def test_get_node_instance_not_found(self):
         """Test getting node instance when not found"""

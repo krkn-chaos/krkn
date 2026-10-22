@@ -39,10 +39,13 @@ class GCP:
                 project = self.project_id
             )
             agg_list = self.instance_client.aggregated_list(request=request)
+            # A node is named after its instance, either as is or as an FQDN
+            # (<instance>.c.<project>.internal). Instance names have no dots.
+            instance_name = node.split(".")[0]
             for _, response in agg_list:
                 if response.instances:
                     for instance in response.instances:
-                        if instance.name in node:
+                        if instance.name == instance_name:
                             return instance
             logging.info("no instances ")
         except Exception as e:
