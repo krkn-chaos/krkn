@@ -196,41 +196,6 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
 
                 full_path = "%s/%s" % (str(mount_path), str(file_name))
 
-                # Set rollback callable to ensure temp file cleanup on failure or interruption
-                rollback_data = {
-                    "pod_name": pod_name,
-                    "container_name": container_name,
-                    "mount_path": mount_path,
-                    "file_name": file_name,
-                    "full_path": full_path,
-                }
-                json_str = json.dumps(rollback_data)
-                encoded_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
-                success = self.rollback_handler.set_rollback_callable(
-                    self.rollback_temp_file,
-                    RollbackContent(
-                        namespace=namespace,
-                        resource_identifier=encoded_data,
-                    ),
-                )
-                if not success:
-                    logging.error(
-                        "PvcScenarioPlugin Failed to register rollback context. Aborting scenario."
-                    )
-                    return 1
-
-                # Create temp file in the PVC
-                logging.info(
-                    "Creating %s file, %s KB size, in pod %s at %s (ns %s)"
-                    % (
-                        str(file_name),
-                        str(file_size_kb),
-                        str(pod_name),
-                        str(mount_path),
-                        str(namespace),
-                    )
-                )
-
                 fallocate = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
                     ["command -v fallocate"],
                     pod_name,
@@ -262,6 +227,34 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         "failed to locate required binaries fallocate or dd to execute the scenario"
                     )
                     return 1
+
+                # Set rollback callable to ensure temp file cleanup on failure or interruption
+                rollback_data = {
+                    "pod_name": pod_name,
+                    "container_name": container_name,
+                    "mount_path": mount_path,
+                    "file_name": file_name,
+                    "full_path": full_path,
+                }
+                json_str = json.dumps(rollback_data)
+                encoded_data = base64.b64encode(json_str.encode('utf-8')).decode('utf-8')
+                success = self.rollback_handler.set_rollback_callable(
+                    self.rollback_temp_file,
+                    RollbackContent(
+                        namespace=namespace,
+                        resource_identifier=encoded_data,
+                    ),
+                )
+                if not success:
+                    logging.error(
+                        "PvcScenarioPlugin Failed to register rollback context. Aborting scenario."
+                    )
+                    return 1
+
+                # Create temp file in the PVC
+                logging.info(
+                    "Creating %s file, %s KB size, in pod %s at %s (ns %s)" % (str(file_name), str(file_size_kb), str(pod_name), str(mount_path), str(namespace),)
+                )
 
                 logging.debug("Create temp file in the PVC command:\n %s" % command)
                 lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
