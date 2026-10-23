@@ -1097,7 +1097,8 @@ if __name__ == "__main__":
         "--past-resiliency-score",
         dest="past_resiliency_score",
         help="Query historical resiliency score over a trailing window (e.g. 1h, 24h, 7d) "
-             "without running chaos scenarios. Mutually exclusive with --start-time/--end-time.",
+             "without running chaos scenarios. Supported units: s (seconds), m (minutes), h (hours), "
+             "d (days), w (weeks). Mutually exclusive with --start-time/--end-time.",
         default=None,
     )
 
