@@ -24,6 +24,7 @@ from __future__ import annotations
 import datetime
 import logging
 from dataclasses import dataclass
+import math
 from typing import Optional
 
 from krkn_lib.models.k8s import ResiliencyReport
@@ -64,8 +65,8 @@ def parse_duration(duration_str: str) -> datetime.timedelta:
         value = float(s[:-1])
     except ValueError:
         raise ValueError(f"Invalid numeric value '{s[:-1]}' in '{duration_str}'")
-    if value <= 0:
-        raise ValueError(f"Duration must be positive, got '{duration_str}'")
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"Duration must be a finite positive number, got '{duration_str}'")
     return datetime.timedelta(**{units[unit]: value})
 
 
