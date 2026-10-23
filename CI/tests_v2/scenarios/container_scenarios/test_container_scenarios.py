@@ -21,6 +21,7 @@ from lib.utils import (
 
 @pytest.mark.functional
 @pytest.mark.container_scenarios
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestContainerScenarios(BaseScenarioTest):
     """Container disruption scenario: kill containers and verify recovery."""
 
@@ -36,6 +37,7 @@ class TestContainerScenarios(BaseScenarioTest):
     OVERRIDES_KEY_PATH = ["scenarios", 0]
 
     @pytest.mark.order(1)
+    @pytest.mark.kind_only
     def test_container_kill_and_recovery(self, wait_for_pods_running):
         """Happy path: target container is killed and the workload recovers."""
         ns = self.ns
@@ -69,6 +71,7 @@ class TestContainerScenarios(BaseScenarioTest):
         assert_all_pods_running_and_ready(after, namespace=ns)
 
     @pytest.mark.order(2)
+    @pytest.mark.kind_only
     def test_container_label_selector_targeting(self, wait_for_pods_running, deploy_workload):
         """Label selector must target only matching pods when a decoy workload shares the namespace."""
         ns = self.ns
@@ -120,14 +123,25 @@ class TestContainerScenarios(BaseScenarioTest):
 
     @pytest.mark.order(3)
     def test_invalid_container_name_fails(self):
-        """Negative: invalid container name must fail when kill count exceeds matches."""
+        """Negative: nonexistent container name fails with the not-found error."""
         ns = self.ns
+        # expected_recovery_time is shrunk because the plugin's error path
+        # orphans its monitor future (never cancelled on RuntimeError), so
+        # the default 120s monitor window would be pure wasted wall time.
         result = self.run_scenario(self.tmp_path, ns, overrides={
             "container_name": "nonexistent-container",
             "count": 2,
+            "expected_recovery_time": 5,
         })
         assert_kraken_failure(
             result, context=f"invalid_container namespace={ns}", tmp_path=self.tmp_path
+        )
+        # Error contract: matching pods exist but none contains the named
+        # container (container_scenario_plugin.py "Container 'X' not found
+        # in any matching pod" branch).
+        combined = ((result.stdout or "") + "\n" + (result.stderr or "")).lower()
+        assert "container 'nonexistent-container' not found" in combined, (
+            f"Expected container-not-found error in logs (namespace={ns})"
         )
 
     @pytest.mark.order(4)
@@ -136,10 +150,19 @@ class TestContainerScenarios(BaseScenarioTest):
         ns = self.ns
         wait_for_pods_running(ns, self.LABEL_SELECTOR, timeout=READINESS_TIMEOUT)
 
+        # Same monitor-window rationale as test_invalid_container_name_fails.
         result = self.run_scenario(self.tmp_path, ns, overrides={
             "container_name": "fedtools",
             "label_selector": "nonexistent=label",
+            "expected_recovery_time": 5,
         })
         assert_kraken_failure(
             result, context=f"invalid_selector namespace={ns}", tmp_path=self.tmp_path
+        )
+        # Error contract: the selector matches zero pods, so the kill loop
+        # exhausts the (empty) pod list first — the "more containers than
+        # were found" branch fires before any not-found check can.
+        combined = ((result.stdout or "") + "\n" + (result.stderr or "")).lower()
+        assert "trying to kill more containers than were found" in combined, (
+            f"Expected pod-list-exhausted error in logs (namespace={ns})"
         )

@@ -17,6 +17,7 @@ import time
 from abc import ABC, abstractmethod
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+from krkn_lib.utils.functions import get_yaml_item_value
 
 from krkn import utils, cerberus
 from krkn.rollback.handler import (
@@ -85,8 +86,9 @@ class AbstractScenarioPlugin(ABC):
 
         scenario_telemetries: list[ScenarioTelemetry] = []
         failed_scenarios = []
-        wait_duration = krkn_config["tunings"]["wait_duration"]
-        events_backup = krkn_config["telemetry"]["events_backup"]
+        wait_duration = get_yaml_item_value(krkn_config["tunings"], "wait_duration", 30)
+        events_backup = get_yaml_item_value(krkn_config["telemetry"], "events_backup", True)
+
         for scenario_config in scenarios_list:
             if isinstance(scenario_config, list):
                 logging.error(
@@ -123,7 +125,6 @@ class AbstractScenarioPlugin(ABC):
                     logging.info(
                         f"Running {self.__class__.__name__}: {self.get_scenario_types()} -> {scenario_config}"
                     )
-                    # pass all the parameters by kwargs to make `set_rollback_context_decorator` get the `run_uuid` and `scenario_type`
                     return_value = self.run(
                         run_uuid=run_uuid,
                         scenario=scenario_config,
@@ -142,38 +143,53 @@ class AbstractScenarioPlugin(ABC):
                     run_uuid, scenario_telemetry.scenario_type
                 )
             else:
-                # execute rollback files based on the return value
                 execute_rollback_version_files(
                     telemetry, run_uuid, scenario_telemetry.scenario_type
                 )
             scenario_telemetry.exit_status = return_value
+
+            logging.info(
+                f"waiting {wait_duration}s for cluster to stabilize "
+                f"before collecting metrics"
+            )
+            time.sleep(wait_duration)
             scenario_telemetry.end_timestamp = time.time()
             start_time = int(scenario_telemetry.start_timestamp)
             end_time = int(scenario_telemetry.end_timestamp)
-            utils.collect_and_put_ocp_logs(
-                telemetry,
-                parsed_scenario_config,
-                telemetry.get_telemetry_request_id(),
-                start_time,
-                end_time
-            )
-
-            if events_backup:
-                utils.populate_cluster_events(
-                    krkn_config,
+            try:
+                utils.collect_and_put_ocp_logs(
+                    telemetry,
                     parsed_scenario_config,
-                    telemetry.get_lib_kubernetes(),
+                    telemetry.get_telemetry_request_id(),
                     start_time,
                     end_time
                 )
+            except Exception as e:
+                logging.error(
+                    f"failed to collect OCP logs for scenario "
+                    f"'{scenario_config}': {e}"
+                )
+
+            if events_backup:
+                try:
+                    utils.populate_cluster_events(
+                        krkn_config,
+                        parsed_scenario_config,
+                        telemetry.get_lib_kubernetes(),
+                        start_time,
+                        end_time
+                    )
+                except Exception as e:
+                    logging.error(
+                        f"failed to collect cluster events for scenario "
+                        f"'{scenario_config}': {e}"
+                    )
 
             if scenario_telemetry.exit_status != 0:
                 failed_scenarios.append(scenario_config)
             scenario_telemetries.append(scenario_telemetry)
-            cerberus.publish_kraken_status(start_time,end_time)
-            logging.info(f"waiting {wait_duration} before running the next scenario")
-            time.sleep(wait_duration)
-            
+            cerberus.publish_kraken_status(start_time, end_time)
+
         return failed_scenarios, scenario_telemetries
 
     

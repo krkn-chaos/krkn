@@ -1,5 +1,5 @@
 - id: vmi_network_chaos
-  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  image: "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos"
   wait_duration: 300
   test_duration: 120
   label_selector: ""

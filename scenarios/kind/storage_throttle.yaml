@@ -9,4 +9,4 @@ storage_throttle_scenario:
   read_bps: 1048576               # Max read bytes/sec (1 MB/s)
   write_bps: 524288               # Max write bytes/sec (512 KB/s)
   duration: 30                    # How long to hold the throttle in seconds
-  image: quay.io/krkn-chaos/krkn:tools
+  image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools

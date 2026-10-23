@@ -178,7 +178,7 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
             number_of_pods = config.get("number-of-pods", 1)
             
             # Get container image
-            image = config.get("image", "quay.io/krkn-chaos/krkn-http-load:latest")
+            image = config.get("image", "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-http-load")
             
             # Get endpoints
             endpoints = config.get("targets", {}).get("endpoints", [])

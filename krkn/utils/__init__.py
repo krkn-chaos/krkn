@@ -22,3 +22,4 @@ from .functions import (
     ScenarioTelemetry,
     KrknTelemetryOpenshift
 )
+from .junit import validate_junit_options, write_junit_file

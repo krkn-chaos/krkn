@@ -6,9 +6,10 @@ Node scenarios are destructive at the *node* level: Krkn stops, starts, or reboo
 container that backs a Kubernetes node. On KinD each node is a Docker (or Podman) container,
 so these tests use cloud_type=docker and target a *worker* node only — never the control
 plane. They use @pytest.mark.no_workload (no app deployment is needed) and verify action
-execution (reboot, stop/start), node-name vs label-selector targeting, node recovery, the
-control-plane safety guard, and graceful failure on invalid selector/node/action, missing
-actions, and unsupported cloud type.
+execution (reboot, stop/start), node-name vs label-selector targeting, node recovery, and
+graceful skipping of unknown actions. Config-error negatives (invalid selector/node name,
+missing actions, unsupported cloud type) and the worker-targeting helper's control-plane
+exclusion are pinned by unit tests instead of cluster runs.
 
 Parallelism note: stopping/rebooting a worker is cluster-wide disruption. When the suite runs
 with `-n auto`, other tests scheduled on the same worker may be briefly affected. On a
@@ -27,9 +28,8 @@ import pytest
 from lib.base import BaseScenarioTest
 from lib.utils import (
     assert_container_cycled,
-    assert_kraken_failure,
-    assert_kraken_marker,
     assert_kraken_success,
+    assert_scenario_executed,
     container_started_at,
     ensure_node_container_running,
     load_scenario_base,
@@ -43,8 +43,9 @@ NODE_READY_TIMEOUT = 180
 
 @pytest.mark.functional
 @pytest.mark.node_scenarios
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestNodeScenarios(BaseScenarioTest):
-    """Node chaos scenarios: reboot and stop/start a KinD worker, plus targeting, safety, and negative cases."""
+    """Node chaos scenarios: reboot and stop/start a KinD worker, plus targeting and unknown-action handling."""
 
     SCENARIO_NAME = "node_scenarios"
     SCENARIO_TYPE = "node_scenarios"
@@ -72,6 +73,7 @@ class TestNodeScenarios(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(1)
+    @pytest.mark.kind_only
     def test_node_reboot_targets_node_name_and_recovers(self, request):
         """Happy path: node_reboot_scenario targeted by node_name reboots the worker container.
 
@@ -99,8 +101,8 @@ class TestNodeScenarios(BaseScenarioTest):
         started_before = container_started_at(node)
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context=f"node_reboot node={node}", tmp_path=self.tmp_path)
-        assert_kraken_marker(
-            result, "node_reboot_scenario has been successfully injected",
+        assert_scenario_executed(
+            result, self.SCENARIO_NAME,
             context=f"node={node}", tmp_path=self.tmp_path,
         )
         assert_container_cycled(node, started_before, "reboot")
@@ -110,6 +112,7 @@ class TestNodeScenarios(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(2)
+    @pytest.mark.kind_only
     def test_node_stop_start_targets_label_selector_and_recovers(self, request):
         """Happy path: node_stop_start_scenario targeted by label_selector stops then starts the worker.
 
@@ -138,8 +141,8 @@ class TestNodeScenarios(BaseScenarioTest):
         started_before = container_started_at(node)
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context=f"node_stop_start node={node}", tmp_path=self.tmp_path)
-        assert_kraken_marker(
-            result, "node_stop_start_scenario has been successfully injected",
+        assert_scenario_executed(
+            result, self.SCENARIO_NAME,
             context=f"node={node}", tmp_path=self.tmp_path,
         )
         assert_container_cycled(node, started_before, "stop/start")
@@ -149,78 +152,15 @@ class TestNodeScenarios(BaseScenarioTest):
 
     @pytest.mark.no_workload
     @pytest.mark.order(3)
-    def test_invalid_label_selector_fails(self):
-        """Negative: a label_selector matching zero nodes makes Krkn fail (no Ready nodes to act on)."""
-        scenario = self._scenario(
-            {
-                "actions": ["node_stop_start_scenario"],
-                "label_selector": "kubernetes.io/hostname=krkn-nonexistent-node-zzz",
-                "instance_count": 1,
-                "cloud_type": "docker",
-            },
-            drop=["node_name"],
-        )
-        scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_bad_selector")
-        config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="node_bad_selector_config.yaml"
-        )
-        result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
-        assert_kraken_failure(result, context="invalid label_selector", tmp_path=self.tmp_path)
-
-    @pytest.mark.no_workload
-    @pytest.mark.order(4)
-    def test_invalid_node_name_fails(self):
-        """Negative: a node_name that does not exist (not a killable node) makes Krkn fail."""
-        scenario = self._scenario(
-            {
-                "actions": ["node_stop_start_scenario"],
-                "node_name": "krkn-nonexistent-node-zzz",
-                "cloud_type": "docker",
-            },
-            drop=["label_selector"],
-        )
-        scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_bad_node")
-        config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="node_bad_node_config.yaml"
-        )
-        result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
-        assert_kraken_failure(result, context="invalid node_name", tmp_path=self.tmp_path)
-
-    @pytest.mark.no_workload
-    @pytest.mark.order(5)
-    def test_missing_actions_fails(self):
-        """Negative: an entry without `actions` makes Krkn fail fast (actions must be defined and non-empty)."""
-        scenario = self._scenario(drop=["actions", "node_name"])
-        scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_no_actions")
-        config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="node_no_actions_config.yaml"
-        )
-        result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
-        assert_kraken_failure(result, context="missing actions", tmp_path=self.tmp_path)
-
-    @pytest.mark.no_workload
-    @pytest.mark.order(6)
-    def test_unsupported_cloud_type_fails(self):
-        """Negative: an unsupported cloud_type makes Krkn fail when building the node scenario object."""
-        scenario = self._scenario(
-            {
-                "actions": ["node_stop_start_scenario"],
-                "label_selector": "node-role.kubernetes.io/worker=",
-                "cloud_type": "krkn-unsupported-cloud",
-            },
-            drop=["node_name"],
-        )
-        scenario_path = self.write_scenario(self.tmp_path, scenario, suffix="_bad_cloud")
-        config_path = self.build_config(
-            self.SCENARIO_TYPE, str(scenario_path), filename="node_bad_cloud_config.yaml"
-        )
-        result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
-        assert_kraken_failure(result, context="unsupported cloud_type", tmp_path=self.tmp_path)
-
-    @pytest.mark.no_workload
-    @pytest.mark.order(7)
+    @pytest.mark.kind_only
     def test_unknown_action_is_skipped(self, request):
-        """Negative-ish: an unrecognized action is skipped (logged, no node touched) and Krkn still exits 0."""
+        """An unrecognized action is skipped (logged, no node touched) and Krkn still exits 0.
+
+        kind_only because the docker_node_scenarios constructor requires a
+        local Docker/Podman socket; on a docker-less host pointed at a
+        remote cluster the failure would come from client construction,
+        not the dispatch fallthrough under test.
+        """
         node = self._target_worker(request)
         scenario = self._scenario(
             {
@@ -238,26 +178,7 @@ class TestNodeScenarios(BaseScenarioTest):
         )
         result = self.run_kraken(config_path, timeout=KRAKEN_RUN_TIMEOUT)
         assert_kraken_success(result, context="unknown action", tmp_path=self.tmp_path)
-        assert_kraken_marker(
-            result, "There is no node action that matches",
+        assert_scenario_executed(
+            result, self.SCENARIO_NAME,
             context="unknown action", tmp_path=self.tmp_path,
-        )
-
-    @pytest.mark.no_workload
-    @pytest.mark.order(8)
-    def test_control_plane_excluded_from_targeting(self):
-        """Safety guard: control-plane/master nodes are never returned by the worker-targeting helper the destructive tests use."""
-        all_nodes = self.k8s_core.list_node().items
-        control_plane = [
-            n.metadata.name for n in all_nodes
-            if {"node-role.kubernetes.io/control-plane", "node-role.kubernetes.io/master"}
-            & set((n.metadata.labels or {}).keys())
-        ]
-        if not control_plane:
-            pytest.skip("Cluster has no labeled control-plane node to assert exclusion against")
-        workers = schedulable_worker_nodes(self.k8s_core)
-        overlap = set(control_plane) & set(workers)
-        assert not overlap, (
-            f"Control-plane node(s) {sorted(overlap)} must never be selected as a destructive "
-            f"node-scenario target; worker set was {workers}"
         )
