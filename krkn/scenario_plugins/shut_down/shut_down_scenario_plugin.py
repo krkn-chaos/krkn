@@ -158,6 +158,10 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                         # need to add in time that is passing while waiting for other nodes to be stopped
                         affected_node.set_cloud_stopping_time(time.time() - start_time)
                         stopped_nodes.remove(node)
+                    else:
+                        raise RuntimeError(
+                            "node %s did not stop within %s seconds" % (node, timeout)
+                        )
 
                 stopping_nodes = stopped_nodes.copy()
 
@@ -186,6 +190,11 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                     if node_status:
                         affected_node.set_cloud_running_time(time.time() - start_time)
                         restarted_nodes.remove(node)
+                    else:
+                        raise RuntimeError(
+                            "node %s did not reach running state within %s seconds"
+                            % (node, timeout)
+                        )
                 not_running_nodes = restarted_nodes.copy()
 
             logging.info("Waiting for 150s to allow cluster component initialization")

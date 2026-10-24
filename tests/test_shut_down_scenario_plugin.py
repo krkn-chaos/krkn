@@ -11,6 +11,8 @@ Assisted By: Claude Code
 
 import itertools
 import unittest
+import yaml
+
 from unittest.mock import Mock, patch, mock_open
 
 from krkn_lib.k8s import KrknKubernetes
@@ -526,6 +528,114 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         sleep_calls = [call_args[0][0] for call_args in mock_sleep.call_args_list]
         self.assertIn(60, sleep_calls)  # shut_down_duration
         self.assertIn(150, sleep_calls)  # component initialization wait
+
+
+    def _run_with_wait_that_never_succeeds(self, mock_aws_class, phase):
+        """
+        Drive cluster_shut_down with a provider whose wait_until_<phase> keeps
+        returning False, which is what every provider returns once its own
+        `timeout` has elapsed. Bails out with _StillLooping after 10 calls so a
+        regression shows up as a test failure instead of a hung test run.
+        """
+        shut_down_config = {
+            "runs": 1,
+            "shut_down_duration": 0,
+            "cloud_type": "aws",
+            "timeout": 60,
+        }
+        calls = {"n": 0}
+
+        def never(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] > 10:
+                raise _StillLooping()
+            return False
+
+        mock_cloud_object = Mock()
+        mock_aws_class.return_value = mock_cloud_object
+        mock_cloud_object.get_instance_id.side_effect = lambda node: "i-" + node
+        if phase == "stopped":
+            mock_cloud_object.wait_until_stopped.side_effect = never
+            mock_cloud_object.wait_until_running.return_value = True
+        else:
+            mock_cloud_object.wait_until_stopped.return_value = True
+            mock_cloud_object.wait_until_running.side_effect = never
+        self.mock_kubecli.list_nodes.return_value = ["node1"]
+
+        with patch.object(self.plugin, "multiprocess_nodes"):
+            try:
+                self.plugin.cluster_shut_down(
+                    shut_down_config, self.mock_kubecli, AffectedNodeStatus()
+                )
+            except _StillLooping:
+                self.fail(
+                    f"cluster_shut_down kept calling wait_until_{phase} after it "
+                    f"returned False {calls['n'] - 1} times (would hang forever)"
+                )
+            except RuntimeError as e:
+                return calls["n"], e
+        self.fail("cluster_shut_down returned normally although a node never reached " + phase)
+
+    @patch("krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS")
+    @patch("time.sleep")
+    def test_cluster_shut_down_fails_when_node_never_stops(self, mock_sleep, mock_aws_class):
+        calls, error = self._run_with_wait_that_never_succeeds(mock_aws_class, "stopped")
+        self.assertEqual(calls, 1)
+        self.assertIn("i-node1", str(error))
+
+    @patch("krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS")
+    @patch("time.sleep")
+    def test_cluster_shut_down_fails_when_node_never_runs(self, mock_sleep, mock_aws_class):
+        calls, error = self._run_with_wait_that_never_succeeds(mock_aws_class, "running")
+        self.assertEqual(calls, 1)
+        self.assertIn("i-node1", str(error))
+
+    @patch("krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS")
+    @patch("time.sleep")
+    def test_run_returns_1_when_node_never_runs(self, mock_sleep, mock_aws_class):
+        scenario_yaml = {
+            "cluster_shut_down_scenario": {
+                "runs": 1,
+                "shut_down_duration": 0,
+                "cloud_type": "aws",
+                "timeout": 60,
+            }
+        }
+        calls = {"n": 0}
+
+        def never(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] > 10:
+                raise _StillLooping()
+            return False
+
+        mock_cloud_object = Mock()
+        mock_aws_class.return_value = mock_cloud_object
+        mock_cloud_object.get_instance_id.return_value = "i-123"
+        mock_cloud_object.wait_until_stopped.return_value = True
+        mock_cloud_object.wait_until_running.side_effect = never
+        self.mock_kubecli.list_nodes.return_value = ["node1"]
+        self.plugin.rollback_handler = Mock()
+
+        with patch("builtins.open", mock_open(read_data=yaml.dump(scenario_yaml))), \
+                patch.object(self.plugin, "multiprocess_nodes"):
+            try:
+                result = self.plugin.run(
+                    "test-uuid", "scenario.yaml", self.mock_lib_telemetry, self.mock_scenario_telemetry
+                )
+            except _StillLooping:
+                self.fail("run() never returned: wait_until_running retried forever")
+        self.assertEqual(result, 1)
+        # the rollback that restarts the nodes is registered before the failure
+        self.plugin.rollback_handler.set_rollback_callable.assert_called_once()
+        callback, content = self.plugin.rollback_handler.set_rollback_callable.call_args.args
+        self.assertEqual(callback, self.plugin.rollback_shutdown_nodes)
+        self.assertEqual(content.instance_ids, ("i-123",))
+
+
+class _StillLooping(BaseException):
+    """Raised by test doubles to break out of a loop that would otherwise never end."""
+
 
 
 if __name__ == "__main__":
