@@ -147,11 +147,12 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
         )
         status_command = ["timedatectl"]
         param = "2001-01-01"
-        skew_command = ["timedatectl", "set-time"]
+        # krkn-lib runs node commands as `bash -c <command>`, so the
+        # whole invocation must be a single string
         if action == "skew_time":
-            skew_command.append("01:01:01")
+            skew_command = ["timedatectl set-time 01:01:01"]
         else:
-            skew_command.append("2001-01-01")
+            skew_command = ["timedatectl set-time 2001-01-01"]
 
         try:
             status_response = kubecli.exec_command_on_node(
@@ -163,7 +164,9 @@ class TimeActionsScenarioPlugin(AbstractScenarioPlugin):
                 logging.warning(
                     f'ntp unactive on node {node_name} skewing {"time" if action == "skew_time" else "date"} to {param}'
                 )
-                self.pod_exec(skew_pod_name, skew_command, pod_namespace, None, kubecli)
+                kubecli.exec_command_on_node(
+                    node_name, skew_command, skew_pod_name, pod_namespace
+                )
             else:
                 logging.info(
                     f'ntp active in cluster node, {"time" if action == "skew_time" else "date"} skewing will have no effect, skipping'

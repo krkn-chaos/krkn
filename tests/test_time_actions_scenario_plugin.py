@@ -165,6 +165,38 @@ class TestTimeActionsScenarioPlugin(unittest.TestCase):
         
         self.assertEqual(result, "success")
 
+    def test_skew_node_runs_set_time_on_node_when_ntp_off(self):
+        """
+        With NTP off, skew_node runs timedatectl set-time through
+        exec_command_on_node, which creates the pod on the node
+        """
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.exec_command_on_node.return_value = "Network time on: no\n"
+
+        self.plugin.skew_node("worker-1", "skew_time", kubecli)
+
+        commands = [c.args[1] for c in kubecli.exec_command_on_node.call_args_list]
+        self.assertEqual(commands, [["timedatectl"], ["timedatectl set-time 01:01:01"]])
+        status_call, skew_call = kubecli.exec_command_on_node.call_args_list
+        self.assertEqual(skew_call.args[0], "worker-1")
+        self.assertNotEqual(skew_call.args[2], status_call.args[2])
+        skew_pod = skew_call.args[2]
+        kubecli.delete_pod.assert_any_call(skew_pod, "default")
+        kubecli.exec_cmd_in_pod.assert_not_called()
+
+    def test_skew_node_skips_set_time_when_ntp_on(self):
+        """
+        With NTP on, skew_node only reads the status and skips the skew
+        """
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.exec_command_on_node.return_value = "Network time on: yes\n"
+
+        self.plugin.skew_node("worker-1", "skew_date", kubecli)
+
+        commands = [c.args[1] for c in kubecli.exec_command_on_node.call_args_list]
+        self.assertEqual(commands, [["timedatectl"]])
+        self.assertEqual(kubecli.delete_pod.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
