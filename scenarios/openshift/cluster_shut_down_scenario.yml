@@ -2,4 +2,4 @@ cluster_shut_down_scenario:                          # Scenario to stop all the 
   runs: 1                                            # Number of times to execute the cluster_shut_down scenario
   shut_down_duration: 150                            # duration in seconds to shut down the cluster
   cloud_type: aws                                    # cloud type on which Kubernetes/OpenShift runs
-  timeout: 60                                        # Number of seconds to wait for each node to be stopped or running
+  timeout: 600                                       # Number of seconds to wait for each node to be stopped or running
