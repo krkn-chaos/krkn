@@ -9,8 +9,11 @@ Usage:
 Assisted By: Claude Code
 """
 
+import os
+import tempfile
 import unittest
 from unittest.mock import Mock, patch, call
+import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -402,6 +405,115 @@ class TestCommonFunctions(unittest.TestCase):
         self.mock_kubecli.watch_managedcluster_status.assert_called_once_with(
             "test-cluster", "Unknown", 300
         )
+
+    def test_wait_for_available_status_raises_on_timeout(self):
+        """
+        watch_managedcluster_status returns False when the timeout expires;
+        that must surface as a failure, not be ignored
+        """
+        self.mock_kubecli.watch_managedcluster_status.return_value = False
+
+        with self.assertRaisesRegex(Exception, "did not become Available"):
+            common_functions.wait_for_available_status(
+                "test-cluster", 300, self.mock_kubecli
+            )
+
+    def test_wait_for_unavailable_status_raises_on_timeout(self):
+        """
+        A managedcluster that never becomes unavailable means the stop did
+        not take effect; that must surface as a failure
+        """
+        self.mock_kubecli.watch_managedcluster_status.return_value = False
+
+        with self.assertRaisesRegex(Exception, "did not become unavailable"):
+            common_functions.wait_for_unavailable_status(
+                "test-cluster", 300, self.mock_kubecli
+            )
+
+    @patch("krkn.scenario_plugins.managed_cluster.scenarios.time.sleep")
+    def test_run_returns_1_when_managedcluster_does_not_recover(self, _mock_sleep):
+        """
+        managedcluster_stop_start_scenario: the cluster goes unavailable but
+        never becomes available again within the timeout, so run() must fail
+        """
+        scenario = {
+            "managedcluster_scenarios": [
+                {
+                    "actions": ["managedcluster_stop_start_scenario"],
+                    "managedcluster_name": "test-cluster",
+                    "instance_count": 1,
+                    "runs": 1,
+                    "timeout": 420,
+                }
+            ]
+        }
+        self.mock_kubecli.list_killable_managedclusters.return_value = ["test-cluster"]
+        # unavailable is reached, available never is
+        self.mock_kubecli.watch_managedcluster_status.side_effect = (
+            lambda name, status, timeout: status == "Unknown"
+        )
+        mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
+        mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scenario_file = os.path.join(tmp, "managedcluster.yaml")
+            with open(scenario_file, "w") as f:
+                yaml.safe_dump(scenario, f)
+            result = ManagedClusterScenarioPlugin().run(
+                run_uuid="test-uuid",
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=Mock(),
+            )
+
+        self.assertEqual(result, 1)
+        # the manifestworks are still cleaned up
+        self.assertEqual(self.mock_kubecli.delete_manifestwork.call_count, 2)
+
+    @patch("krkn.scenario_plugins.managed_cluster.scenarios.time.sleep")
+    def test_run_still_starts_managedcluster_when_stop_wait_times_out(self, _mock_sleep):
+        """
+        managedcluster_stop_start_scenario: the stop wait times out, but the
+        klusterlet was already scaled to 0, so the start must still run to
+        bring the cluster back, and run() must still fail
+        """
+        scenario = {
+            "managedcluster_scenarios": [
+                {
+                    "actions": ["managedcluster_stop_start_scenario"],
+                    "managedcluster_name": "test-cluster",
+                    "instance_count": 1,
+                    "runs": 1,
+                    "timeout": 120,
+                }
+            ]
+        }
+        self.mock_kubecli.list_killable_managedclusters.return_value = ["test-cluster"]
+        # unavailable is never reached, available is
+        self.mock_kubecli.watch_managedcluster_status.side_effect = (
+            lambda name, status, timeout: status == "True"
+        )
+        mock_lib_telemetry = Mock(spec=KrknTelemetryOpenshift)
+        mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scenario_file = os.path.join(tmp, "managedcluster.yaml")
+            with open(scenario_file, "w") as f:
+                yaml.safe_dump(scenario, f)
+            result = ManagedClusterScenarioPlugin().run(
+                run_uuid="test-uuid",
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=Mock(),
+            )
+
+        self.assertEqual(result, 1)
+        bodies = [c.args[0] for c in self.mock_kubecli.create_manifestwork.call_args_list]
+        self.assertEqual(len(bodies), 2)
+        start_args = yaml.safe_dump(bodies[1])
+        self.assertIn("klusterlet --replicas 3", start_args)
+        self.assertIn("klusterlet-registration-agent --replicas 1", start_args)
+        self.assertEqual(self.mock_kubecli.delete_manifestwork.call_count, 2)
 
 
 class TestManifestWorkTemplate(unittest.TestCase):

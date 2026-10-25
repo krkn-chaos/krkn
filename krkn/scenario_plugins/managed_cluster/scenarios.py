@@ -106,9 +106,18 @@ class Scenarios:
         self, instance_kill_count, managedcluster, timeout
     ):
         logging.info("Starting managedcluster_stop_start_scenario injection")
-        self.managedcluster_stop_scenario(instance_kill_count, managedcluster, timeout)
-        time.sleep(10)
-        self.managedcluster_start_scenario(instance_kill_count, managedcluster, timeout)
+        try:
+            self.managedcluster_stop_scenario(
+                instance_kill_count, managedcluster, timeout
+            )
+        finally:
+            # the klusterlet may already be scaled down even when the stop
+            # wait fails, so always start it again; the stop error still
+            # propagates
+            time.sleep(10)
+            self.managedcluster_start_scenario(
+                instance_kill_count, managedcluster, timeout
+            )
         logging.info(
             "managedcluster_stop_start_scenario has been successfully injected!"
         )

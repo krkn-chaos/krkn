@@ -54,10 +54,18 @@ def get_managedcluster(
 # Wait until the managedcluster status becomes Available
 # krkn_lib
 def wait_for_available_status(managedcluster, timeout, kubecli: KrknKubernetes):
-    kubecli.watch_managedcluster_status(managedcluster, "True", timeout)
+    if not kubecli.watch_managedcluster_status(managedcluster, "True", timeout):
+        raise Exception(
+            "managedcluster %s did not become Available within %s seconds"
+            % (managedcluster, timeout)
+        )
 
 
 # Wait until the managedcluster status becomes Not Available
 # krkn_lib
 def wait_for_unavailable_status(managedcluster, timeout, kubecli: KrknKubernetes):
-    kubecli.watch_managedcluster_status(managedcluster, "Unknown", timeout)
+    if not kubecli.watch_managedcluster_status(managedcluster, "Unknown", timeout):
+        raise Exception(
+            "managedcluster %s did not become unavailable within %s seconds"
+            % (managedcluster, timeout)
+        )
