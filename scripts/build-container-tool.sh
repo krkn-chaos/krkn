@@ -67,7 +67,6 @@ case "$tool" in
     go mod edit -require golang.org/x/text@v0.39.0
     go mod edit -require github.com/moby/buildkit@v0.31.1
     go mod edit -require github.com/moby/go-archive@v0.3.0
-    go mod edit -require github.com/distribution/distribution/v3@v3.1.2
     go mod edit -require github.com/Azure/go-ntlmssp@v0.1.1
     go mod edit -require github.com/sigstore/fulcio@v1.8.5
     go mod edit -require github.com/sigstore/sigstore@v1.10.4
@@ -75,7 +74,6 @@ case "$tool" in
     go mod edit -replace golang.org/x/text=golang.org/x/text@v0.39.0
     go mod edit -replace github.com/moby/buildkit=github.com/moby/buildkit@v0.31.1
     go mod edit -replace github.com/moby/go-archive=github.com/moby/go-archive@v0.3.0
-    go mod edit -replace github.com/distribution/distribution/v3=github.com/distribution/distribution/v3@v3.1.2
     go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1
     go mod edit -replace github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream=github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream@v1.7.8
     go mod edit -replace github.com/aws/aws-sdk-go-v2/service/s3=github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
