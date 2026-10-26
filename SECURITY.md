@@ -9,7 +9,7 @@ Krkn follows a proactive security strategy based on continuous vulnerability sca
 
 ### Vulnerability Scanning with Grype and Trivy
 
-The Docker image workflow uses [Grype](https://github.com/anchore/grype) to scan Fedora 45 packages and Go binaries. The Dockerfile runs `dnf upgrade --refresh` on every build. [Trivy](https://trivy.dev/) supplies installed Python package findings to Copa for eligible minor-version patches. The candidate is scanned again and publication is blocked for fixable OS, Go or Python findings outside the explicitly documented exceptions below. The raw scanner reports are retained as run artifacts. Grype also generates the image security badge on main.
+The Docker image workflow uses [Grype](https://github.com/anchore/grype) to scan Fedora 45 packages and Go binaries. The Dockerfile runs `dnf upgrade --refresh` on every build. [Trivy](https://trivy.dev/) supplies installed Python package findings to Copa for eligible minor-version patches. The candidate is scanned again; remaining CVEs are reported in the run summary, downloadable JSON reports and Slack when configured, but do not block publication. Scanner failures and functional test failures still stop publication. Grype also generates the image security badge on main.
 
 ### Security Baseline
 
@@ -94,7 +94,8 @@ The vSphere SDK still imports `pkg_resources`, which setuptools removed in
 GHSA-xmj3-9gf7-h52w (Windows wheel installation) and CVE-2026-59890
 (macOS APFS/HFS+ source distribution creation) separately for this Fedora
 Linux image. It accepts only those two advisory IDs at that exact version;
-the raw reports retain both. Other setuptools findings still block publication.
+the raw reports retain both. Other setuptools findings are reported and remain
+eligible for Copa patching.
 
 ---
 
@@ -132,8 +133,8 @@ The OpenShift CLI (`oc`) binary is compiled from source with vendored Go depende
 **moby/go-archive v0.1.0** - GHSA-hfg8-hc9c-6c3h is fixed in v0.3.0.
 Forcing that version into the current `oc` build breaks the vendored Docker
 archive API (`undefined: archive.Compression`). The workflow records this
-exact `oc` finding as an accepted exception and continues to block any new
-advisory or different version.
+exact `oc` finding as a documented exception. Any new advisory or different
+version is reported separately.
 
 ---
 
@@ -196,7 +197,7 @@ Krkn uses multiple security checks:
 - **[Snyk](https://snyk.io/)**: Additional dependency scanning with curated vulnerability database
 - **GitHub Dependabot**: Automated dependency update alerts for Python and Go modules
 
-Grype and Trivy scan results are published in GitHub Actions job summaries and JSON artifacts. The repository also contains a local Grype/Copa helper script for manual experiments.
+Grype and Trivy scan results are published in GitHub Actions job summaries and JSON artifacts. Scheduled scans, manual refreshes and releases also send a concise report and a link to the full results to Slack when the `SLACK_WEBHOOK_URL` repository secret is configured. The repository also contains a local Grype/Copa helper script for manual experiments.
 
  
 ## Reporting a Vulnerability

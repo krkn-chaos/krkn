@@ -88,6 +88,7 @@ jobs:
           if [[ -n "$INPUT_SOURCE_TAG" && "$INPUT_SOURCE_TAG" != "$current_tag" ]]; then
             echo "Refreshing $INPUT_SOURCE_TAG instead of the current source $current_tag" >> "$GITHUB_STEP_SUMMARY"
           fi
+          echo "source_tag=$tag" >> "$GITHUB_OUTPUT"
 
           grype_archive="$RUNNER_TEMP/grype.tar.gz"
           curl -fsSL 'https://github.com/anchore/grype/releases/download/v0.121.0/grype_0.121.0_linux_amd64.tar.gz' -o "$grype_archive"
@@ -118,7 +119,6 @@ jobs:
           fi
           echo should_build=true >> "$GITHUB_OUTPUT"
           echo should_publish=true >> "$GITHUB_OUTPUT"
-          echo "source_tag=$tag" >> "$GITHUB_OUTPUT"
           echo "publish_tag=${tag}-patch-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
       - name: Upload published image scan
@@ -499,6 +499,7 @@ jobs:
         os_remaining=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
         go_remaining=$(jq '[.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
         total_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed")] | length' "$os_after_report")
+        all_remaining=$(jq '[.matches[]?] | length' "$os_after_report")
         grype_policy=$(jq -c -f scripts/grype-scan-policy.jq "$os_after_report")
         critical_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed" and .vulnerability.severity == "Critical")] | length' "$os_after_report")
         high_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed" and .vulnerability.severity == "High")] | length' "$os_after_report")
@@ -522,28 +523,31 @@ jobs:
           echo "- Windows/macOS-only setuptools advisories on this Linux image (reported separately): $non_linux_setuptools"
           echo "- Accepted cbor2 findings constrained by arcaflow-plugin-sdk 0.14.3 (reported separately): $accepted_cbor2"
           echo "- Total Grype fixable matches in final image: $total_remaining"
+          echo "- All Grype matches in final image (including those without a fix): $all_remaining"
           echo "- Actionable Grype matches in final image: $(jq -r .actionable <<< "$grype_policy")"
           echo "- Critical / high fixable matches: $critical_remaining / $high_remaining"
-          if (( total_remaining > 0 )); then
+          echo "- Remaining CVEs are reported and do not block publication. See the uploaded JSON reports for every finding."
+          if (( all_remaining > 0 )); then
             echo ''
-            echo '<details><summary>Remaining fixable Grype matches (first 50)</summary>'
+            echo '<details><summary>Remaining Grype matches (first 50)</summary>'
             echo ''
-            echo '| CVE | Package | Installed | Severity | Fix |'
-            echo '|---|---|---|---|---|'
-            jq -r '[.matches[]? | select(.vulnerability.fix.state == "fixed")][:50][] | "| \(.vulnerability.id) | \(.artifact.name) | \(.artifact.version) | \(.vulnerability.severity) | \(.vulnerability.fix.versions | join(", ")) |"' "$os_after_report"
+            echo '| CVE | Package | Installed | Severity | Fix state | Fix |'
+            echo '|---|---|---|---|---|---|'
+            jq -r '[.matches[]?][:50][] | "| \(.vulnerability.id) | \(.artifact.name) | \(.artifact.version) | \(.vulnerability.severity) | \(.vulnerability.fix.state) | \((.vulnerability.fix.versions // []) | join(", ")) |"' "$os_after_report"
+            echo ''
+            echo '</details>'
+          fi
+          if (( python_remaining > 0 )); then
+            echo ''
+            echo '<details><summary>Remaining installed Python findings eligible for Copa (first 50)</summary>'
+            echo ''
+            echo '| CVE | Package | Installed | Fixed version |'
+            echo '|---|---|---|---|'
+            jq -r '[.Results[]?.Vulnerabilities[]?][:50][] | "| \(.VulnerabilityID) | \(.PkgName) | \(.InstalledVersion) | \(.FixedVersion) |"' "$python_after_report"
             echo ''
             echo '</details>'
           fi
         } >> "$GITHUB_STEP_SUMMARY"
-        if (( os_remaining > 0 )); then
-          echo "error: $os_remaining fixable Fedora vulnerabilities remain after dnf upgrade" >&2
-          exit 1
-        fi
-        if (( python_remaining > 0 )); then
-          echo "error: $python_remaining fixable Python vulnerabilities remain in installed packages after Copa" >&2
-          jq -r '.Results[]?.Vulnerabilities[]? | "  \(.PkgName)@\(.InstalledVersion): \(.VulnerabilityID), fixed in \(.FixedVersion)"' "$python_after_report" >&2
-          exit 1
-        fi
     - name: Check patched image source and Python dependencies
       env:
         PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
@@ -555,18 +559,6 @@ jobs:
           [[ "$actual_tag" == "$SOURCE_TAG" ]] || { echo "Patched image lost its source tag: $actual_tag" >&2; exit 1; }
         fi
         docker run --rm -e KRKN_DEPENDENCY_CHECK=1 "$PATCHED_IMAGE"
-
-    - name: Enforce remaining Grype vulnerability gate
-      run: |
-        set -euo pipefail
-        report="$RUNNER_TEMP/grype-os-after.json"
-        policy=$(jq -c -f scripts/grype-scan-policy.jq "$report")
-        actionable=$(jq -r .actionable <<< "$policy")
-        if (( actionable > 0 )); then
-          echo "error: $actionable fixable Grype findings outside documented exceptions remain" >&2
-          jq -r '.actionable_findings[] | "  \(.id): \(.name)@\(.version) in \(.location)"' <<< "$policy" >&2
-          exit 1
-        fi
 
     - name: Upload vulnerability reports
       if: always()
@@ -930,6 +922,98 @@ jobs:
           AUTOPUSH: ${{ secrets.AUTOPUSH }}
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+  notify:
+    name: Report image vulnerabilities to Slack
+    runs-on: ubuntu-latest
+    needs: [prepare, build-tools, build, functional-tests, publish-platforms, manifest, rollback]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
+    steps:
+      - name: Download candidate vulnerability reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: vulnerability-reports-*
+          path: ${{ runner.temp }}/reports
+
+      - name: Download published image scan
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: current-image-grype
+          path: ${{ runner.temp }}/current
+
+      - name: Summarize and notify
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          JOB_RESULTS: ${{ toJSON(needs) }}
+          SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
+          PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
+          ROLLBACK_TAG: ${{ needs.prepare.outputs.rollback_tag }}
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if jq -e '[.[] | .result] | any(. == "failure")' <<< "$JOB_RESULTS" >/dev/null; then
+            status=failed
+          elif jq -e '[.[] | .result] | any(. == "cancelled")' <<< "$JOB_RESULTS" >/dev/null; then
+            status=cancelled
+          else
+            status=completed
+          fi
+          {
+            echo '## Image vulnerability report and Slack notification'
+            echo "- Workflow: $status ($GITHUB_EVENT_NAME)"
+            echo "- Source: \`${SOURCE_TAG:-unknown}\`; target tag: \`${PUBLISH_TAG:-none}\`; rollback: \`${ROLLBACK_TAG:-none}\`"
+            echo "- [Full run and downloadable scanner reports]($run_url)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          message="Krkn image workflow $status ($GITHUB_EVENT_NAME). Source: ${SOURCE_TAG:-unknown}; target tag: ${PUBLISH_TAG:-none}; rollback: ${ROLLBACK_TAG:-none}."
+          for platform in amd64 arm64; do
+            report="$RUNNER_TEMP/reports/vulnerability-reports-$platform/grype-os-after.json"
+            python="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-python-after.json"
+            phase='candidate after patch'
+            if [[ ! -s "$report" ]]; then
+              report="$RUNNER_TEMP/current/current-$platform.json"
+              python=''
+              phase='currently published image'
+            fi
+            if [[ -s "$report" ]]; then
+              counts=$(jq -r '[
+                ([.matches[]?] | length),
+                ([.matches[]? | select(.vulnerability.fix.state == "fixed")] | length),
+                ([.matches[]? | select(.vulnerability.severity == "Critical")] | length),
+                ([.matches[]? | select(.vulnerability.severity == "High")] | length),
+                ([.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length),
+                ([.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length)
+              ] | join(" ")' "$report")
+              read -r total fixable critical high os go <<< "$counts"
+              python_fixable='unavailable'
+              if [[ -n "$python" && -s "$python" ]]; then
+                python_fixable=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python")
+              fi
+              line="$platform ($phase): $total Grype matches, $fixable fixable (OS $os, Go $go), $critical critical, $high high; Trivy Python eligible for Copa: $python_fixable."
+            else
+              line="$platform: scanner report unavailable."
+            fi
+            echo "- $line" >> "$GITHUB_STEP_SUMMARY"
+            message+=$'\n'"$line"
+          done
+          message+=$'\n'"Details and full JSON reports: $run_url"
+          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+            echo '- Slack notification not sent: configure the `SLACK_WEBHOOK_URL` repository secret.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          jq -n --arg text "$message" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
+          curl -fsS --retry 3 --retry-all-errors --max-time 20 \
+            -H 'Content-type: application/json' \
+            --data-binary "@$RUNNER_TEMP/slack-payload.json" \
+            "$SLACK_WEBHOOK_URL" > "$RUNNER_TEMP/slack-response.txt"
+          if [[ "$(cat "$RUNNER_TEMP/slack-response.txt")" != ok ]]; then
+            echo 'Slack webhook did not acknowledge the report.' >&2
+            exit 1
+          fi
+          echo '- Slack notification sent.' >> "$GITHUB_STEP_SUMMARY"
 
   security-badge:
     permissions:

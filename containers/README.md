@@ -53,8 +53,9 @@ security refreshes build the `oc`, `virtctl`, and `yq` binaries for amd64 and
 arm64 outside the Dockerfile. The Fedora 45 Dockerfile runs `dnf upgrade
 --refresh` before installing Krkn; after the image build, Copa applies available
 Python dependency fixes. Grype checks Fedora and Go packages, Trivy supplies
-the Python report for Copa, and both platforms must pass the image scans and
-functional tests before publication. The run summary records vulnerability
+the Python report for Copa, and both platforms must complete the image scans and
+pass functional tests before publication. Remaining CVEs do not block
+publication. The run summary records vulnerability
 counts and the source commits of the Go tools; JSON reports are downloadable
 as run artifacts.
 The image labels record the Krkn release tag and the workflow source commit.
@@ -63,15 +64,21 @@ The image labels record the Krkn release tag and the workflow source commit.
 The scanner's [GHSA-xmj3-9gf7-h52w](https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w)
 and [CVE-2026-59890](https://github.com/pypa/setuptools/security/advisories/GHSA-h35f-9h28-mq5c)
 findings affect Windows wheel installation and macOS source distributions,
-respectively. They are shown separately in the run summary for this Linux image; all other
-fixable Python findings block publication. The raw reports retain the finding.
+respectively. They are shown separately in the run summary for this Linux image.
+All findings remain in the raw reports.
 The existing `arcaflow-plugin-sdk 0.14.3` constraint also keeps `cbor2` at
 5.6.5 on Python 3.11. Its three documented findings are shown separately and
 kept out of the Copa input: forcing `cbor2` to 5.9.0 makes `pip check` fail.
-New findings outside these exact accepted versions and advisory IDs still block
-the build. See [SECURITY.md](../SECURITY.md) for the risk assessment.
+New findings outside these exact accepted versions and advisory IDs are
+reported separately and remain eligible for Copa patching. See
+[SECURITY.md](../SECURITY.md) for the risk assessment.
 The same exact-match Grype policy is used by the daily scan, so accepted
 findings alone do not schedule a rebuild. The raw reports always include them.
+Add a `SLACK_WEBHOOK_URL` repository secret with an incoming webhook for the
+desired channel to receive a concise report after each scheduled scan, manual
+refresh or release, including scans that find CVEs but do not publish an image.
+The message links to the run summary and downloadable full JSON reports. If the
+secret is absent, the run summary records that Slack delivery was skipped.
 
 Every day, the workflow scans both platforms of
 `quay.io/krkn-chaos/krkn:latest`. If Grype reports a vulnerability with an
