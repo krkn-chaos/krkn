@@ -126,7 +126,7 @@ jobs:
             runner: ubuntu-24.04-arm
     env:
       TRIVY_VERSION: 0.76.0
-      COPA_VERSION: 0.15.0
+      COPA_VERSION: krkn-v0.1.0
     steps:
     - name: Check out code
       uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
@@ -187,14 +187,21 @@ jobs:
         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
           | sudo sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
         case "$(uname -m)" in
-          x86_64) copa_arch=amd64 ;;
-          aarch64|arm64) copa_arch=arm64 ;;
+          x86_64)
+            copa_arch=amd64
+            copa_sha256=649a9fc3f09da3b2918e98ac258616eb44ac91e78a043ac008f8908bb80cf220
+            ;;
+          aarch64|arm64)
+            copa_arch=arm64
+            copa_sha256=a0d2fc2e264896c3426c893468be3ffe5d7ae0a6ffc1757c23a0429b1ca4b8f2
+            ;;
           *) echo "Unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
         esac
         copa_archive="$RUNNER_TEMP/copa.tar.gz"
         curl -fsSL \
-          "https://github.com/project-copacetic/copacetic/releases/download/v${COPA_VERSION}/copa_${COPA_VERSION}_linux_${copa_arch}.tar.gz" \
+          "https://github.com/krkn-chaos/copacetic/releases/download/${COPA_VERSION}/copa_${COPA_VERSION}_linux_${copa_arch}.tar.gz" \
           -o "$copa_archive"
+        printf '%s  %s\n' "$copa_sha256" "$copa_archive" | sha256sum -c -
         tar -xzf "$copa_archive" -C "$RUNNER_TEMP" copa
         sudo install -m 0755 "$RUNNER_TEMP/copa" /usr/local/bin/copa
         trivy --version
