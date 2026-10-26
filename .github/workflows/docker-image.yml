@@ -275,21 +275,27 @@ jobs:
 
         assert_os_scan_covered() {
           local report="$1"
-          local phase="$2"
+          local image="$2"
+          local phase="$3"
           if ! jq -e --arg arch "${{ matrix.platform }}" '
             .descriptor.name == "grype"
             and .distro.name == "fedora"
             and .distro.version == "45"
             and .source.target.architecture == $arch
-            and ([.artifacts[]? | select(.type == "rpm")] | length > 0)
           ' "$report" >/dev/null; then
-            echo "error: Grype did not identify Fedora 45 RPM packages for $phase; refusing to treat the image as vulnerability-free" >&2
+            echo "error: Grype did not identify Fedora 45 on $phase; refusing to treat the image as vulnerability-free" >&2
+            exit 1
+          fi
+          local rpm_count
+          rpm_count=$(docker run --rm --user 0 --entrypoint /usr/bin/rpm "$image" -qa | wc -l)
+          if (( rpm_count == 0 )); then
+            echo "error: no installed RPM packages found in $image on $phase" >&2
             exit 1
           fi
         }
 
         grype "docker:$IMAGE_NAME" --output json --file "$os_before_report"
-        assert_os_scan_covered "$os_before_report" "before Copa"
+        assert_os_scan_covered "$os_before_report" "$IMAGE_NAME" "before Copa"
         os_before_count=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_before_report")
         echo "OS vulnerabilities with fixes before Copa: $os_before_count"
         if (( os_before_count > 0 )); then
@@ -326,7 +332,7 @@ jobs:
         docker image inspect "$PATCHED_IMAGE" >/dev/null
 
         grype "docker:$PATCHED_IMAGE" --output json --file "$os_after_report"
-        assert_os_scan_covered "$os_after_report" "after Copa"
+        assert_os_scan_covered "$os_after_report" "$PATCHED_IMAGE" "after Copa"
         os_remaining=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
         trivy image --scanners vuln --pkg-types library --ignore-unfixed \
           --format json --output "$library_after_report" "$PATCHED_IMAGE"

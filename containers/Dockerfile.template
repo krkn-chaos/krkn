@@ -7,13 +7,12 @@ ARG TAG
 ARG PYTHON_VERSION=3.11
 ENV PYTHON_CMD=python${PYTHON_VERSION}
 RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
-RUN dnf update -y
 
 ENV KUBECONFIG /home/krkn/.kube/config
 
 
 # This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
-RUN dnf update && dnf install -y --setopt=install_weak_deps=False \
+RUN dnf install -y --setopt=install_weak_deps=False \
     git python${PYTHON_VERSION} jq gettext wget which ipmitool openssh-server &&\
     dnf clean all
 
