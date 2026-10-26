@@ -526,12 +526,6 @@ jobs:
           jq -r '.Results[]?.Vulnerabilities[]? | "  \(.PkgName)@\(.InstalledVersion): \(.VulnerabilityID), fixed in \(.FixedVersion)"' "$python_after_report" >&2
           exit 1
         fi
-        if (( go_remaining > 0 )); then
-          echo "error: $go_remaining fixable vulnerabilities remain in rebuilt Go tools" >&2
-          jq -r '.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed") | "  \(.artifact.name)@\(.artifact.version): \(.vulnerability.id), fixed in \(.vulnerability.fix.versions | join(", "))"' "$os_after_report" >&2
-          exit 1
-        fi
-
     - name: Check patched image source and Python dependencies
       env:
         PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
@@ -543,6 +537,17 @@ jobs:
           [[ "$actual_tag" == "$SOURCE_TAG" ]] || { echo "Patched image lost its source tag: $actual_tag" >&2; exit 1; }
         fi
         docker run --rm -e KRKN_DEPENDENCY_CHECK=1 "$PATCHED_IMAGE"
+
+    - name: Enforce Go vulnerability gate
+      run: |
+        set -euo pipefail
+        report="$RUNNER_TEMP/grype-os-after.json"
+        go_remaining=$(jq '[.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length' "$report")
+        if (( go_remaining > 0 )); then
+          echo "error: $go_remaining fixable vulnerabilities remain in rebuilt Go tools" >&2
+          jq -r '.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed") | "  \(.artifact.name)@\(.artifact.version): \(.vulnerability.id), fixed in \(.vulnerability.fix.versions | join(", "))"' "$report" >&2
+          exit 1
+        fi
 
     - name: Upload vulnerability reports
       if: always()
