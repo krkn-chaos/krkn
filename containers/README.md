@@ -65,6 +65,13 @@ and [CVE-2026-59890](https://github.com/pypa/setuptools/security/advisories/GHSA
 findings affect Windows wheel installation and macOS source distributions,
 respectively. They are shown separately in the run summary for this Linux image; all other
 fixable Python findings block publication. The raw reports retain the finding.
+The existing `arcaflow-plugin-sdk 0.14.3` constraint also keeps `cbor2` at
+5.6.5 on Python 3.11. Its three documented findings are shown separately and
+kept out of the Copa input: forcing `cbor2` to 5.9.0 makes `pip check` fail.
+New findings outside these exact accepted versions and advisory IDs still block
+the build. See [SECURITY.md](../SECURITY.md) for the risk assessment.
+The same exact-match Grype policy is used by the daily scan, so accepted
+findings alone do not schedule a rebuild. The raw reports always include them.
 
 Every day, the workflow scans both platforms of
 `quay.io/krkn-chaos/krkn:latest`. If Grype reports a vulnerability with an

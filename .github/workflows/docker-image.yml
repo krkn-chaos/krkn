@@ -38,6 +38,9 @@ jobs:
       publish_tag: ${{ steps.select.outputs.publish_tag }}
       rollback_tag: ${{ steps.select.outputs.rollback_tag }}
     steps:
+      - name: Check out scan policy
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
       - name: Select release or refresh
         id: select
         env:
@@ -96,14 +99,16 @@ jobs:
           docker tag "$image" localhost/krkn:published-arm64
           "$RUNNER_TEMP/grype" docker:localhost/krkn:published-arm64 -o json --file "$RUNNER_TEMP/current-arm64.json"
           jq -e '.distro.name == "fedora" and .distro.version == "45" and .source.target.architecture == "arm64"' "$RUNNER_TEMP/current-arm64.json" >/dev/null
-          amd64_fixable=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed")] | length' "$RUNNER_TEMP/current-amd64.json")
-          arm64_fixable=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed")] | length' "$RUNNER_TEMP/current-arm64.json")
+          amd64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-amd64.json")
+          arm64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-arm64.json")
+          amd64_fixable=$(jq -r .actionable <<< "$amd64_policy")
+          arm64_fixable=$(jq -r .actionable <<< "$arm64_policy")
           fixable=$((amd64_fixable + arm64_fixable))
           {
             echo '## Published image scan'
             echo "- Source release: \`$tag\`"
-            echo "- Fixable vulnerability matches on amd64: $amd64_fixable"
-            echo "- Fixable vulnerability matches on arm64: $arm64_fixable"
+            echo "- amd64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$amd64_policy")"
+            echo "- arm64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$arm64_policy")"
           } >> "$GITHUB_STEP_SUMMARY"
           if (( fixable == 0 )) && [[ "$FORCE_REFRESH" != true ]]; then
             echo should_build=false >> "$GITHUB_OUTPUT"
@@ -405,10 +410,17 @@ jobs:
               | .Vulnerabilities |= [
                   .[] as $vulnerability
                 | select(
-                    ($vulnerability.VulnerabilityID != "GHSA-xmj3-9gf7-h52w"
-                      and $vulnerability.VulnerabilityID != "CVE-2026-59890")
-                    or $vulnerability.PkgName != "setuptools"
-                    or $vulnerability.InstalledVersion != "81.0.0"
+                    (
+                      ($vulnerability.PkgName == "setuptools"
+                        and $vulnerability.InstalledVersion == "81.0.0"
+                        and ($vulnerability.VulnerabilityID == "GHSA-xmj3-9gf7-h52w"
+                          or $vulnerability.VulnerabilityID == "CVE-2026-59890"))
+                      or ($vulnerability.PkgName == "cbor2"
+                        and $vulnerability.InstalledVersion == "5.6.5"
+                        and ($vulnerability.VulnerabilityID == "CVE-2025-64076"
+                          or $vulnerability.VulnerabilityID == "CVE-2026-26209"
+                          or $vulnerability.VulnerabilityID == "CVE-2025-68131"))
+                    ) | not
                   )
                   | [$result.Packages[]? | select(.Identifier.UID == $vulnerability.PkgIdentifier.UID)] as $matches
                   | select(
@@ -487,6 +499,7 @@ jobs:
         os_remaining=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
         go_remaining=$(jq '[.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
         total_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed")] | length' "$os_after_report")
+        grype_policy=$(jq -c -f scripts/grype-scan-policy.jq "$os_after_report")
         critical_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed" and .vulnerability.severity == "Critical")] | length' "$os_after_report")
         high_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed" and .vulnerability.severity == "High")] | length' "$os_after_report")
         trivy image --scanners vuln --pkg-types library --ignore-unfixed \
@@ -495,16 +508,21 @@ jobs:
         python_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_after_report")
         python_sbom_after_count=$(count_embedded_sbom_findings "$library_after_report")
         non_linux_setuptools=$(jq '[.Results[]?.Vulnerabilities[]? | select((.VulnerabilityID == "GHSA-xmj3-9gf7-h52w" or .VulnerabilityID == "CVE-2026-59890") and .PkgName == "setuptools" and .InstalledVersion == "81.0.0")] | length' "$library_after_report")
+        accepted_cbor2=$(jq '[.Results[]?.Vulnerabilities[]? | select((.VulnerabilityID == "CVE-2025-64076" or .VulnerabilityID == "CVE-2026-26209" or .VulnerabilityID == "CVE-2025-68131") and .PkgName == "cbor2" and .InstalledVersion == "5.6.5")] | length' "$library_after_report")
         {
           echo "## Image vulnerability patching (${{ matrix.platform }})"
           echo "- Fixable Fedora vulnerabilities after dnf upgrade: $os_before_count"
           echo "- Fixable Fedora vulnerabilities in final image: $os_remaining"
           echo "- Fixable Go tool vulnerabilities before/after: $go_before_count / $go_remaining"
+          echo "- Documented Go exceptions in oc: $(jq -r .go_accepted <<< "$grype_policy")"
+          echo "- Actionable Go findings: $(jq -r .go_actionable <<< "$grype_policy")"
           echo "- Installed Python vulnerabilities with fixes before Copa: $python_before_count"
           echo "- Installed Python vulnerabilities with fixes after Copa: $python_remaining"
           echo "- Python findings from embedded SBOMs without an installed package (excluded): $python_sbom_after_count"
           echo "- Windows/macOS-only setuptools advisories on this Linux image (reported separately): $non_linux_setuptools"
+          echo "- Accepted cbor2 findings constrained by arcaflow-plugin-sdk 0.14.3 (reported separately): $accepted_cbor2"
           echo "- Total Grype fixable matches in final image: $total_remaining"
+          echo "- Actionable Grype matches in final image: $(jq -r .actionable <<< "$grype_policy")"
           echo "- Critical / high fixable matches: $critical_remaining / $high_remaining"
           if (( total_remaining > 0 )); then
             echo ''
@@ -538,14 +556,15 @@ jobs:
         fi
         docker run --rm -e KRKN_DEPENDENCY_CHECK=1 "$PATCHED_IMAGE"
 
-    - name: Enforce Go vulnerability gate
+    - name: Enforce remaining Grype vulnerability gate
       run: |
         set -euo pipefail
         report="$RUNNER_TEMP/grype-os-after.json"
-        go_remaining=$(jq '[.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length' "$report")
-        if (( go_remaining > 0 )); then
-          echo "error: $go_remaining fixable vulnerabilities remain in rebuilt Go tools" >&2
-          jq -r '.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed") | "  \(.artifact.name)@\(.artifact.version): \(.vulnerability.id), fixed in \(.vulnerability.fix.versions | join(", "))"' "$report" >&2
+        policy=$(jq -c -f scripts/grype-scan-policy.jq "$report")
+        actionable=$(jq -r .actionable <<< "$policy")
+        if (( actionable > 0 )); then
+          echo "error: $actionable fixable Grype findings outside documented exceptions remain" >&2
+          jq -r '.actionable_findings[] | "  \(.id): \(.name)@\(.version) in \(.location)"' <<< "$policy" >&2
           exit 1
         fi
 

@@ -7,9 +7,9 @@ We attach great importance to code security. We are very grateful to the users, 
 
 Krkn follows a proactive security strategy based on continuous vulnerability scanning and risk assessment. Our approach ensures that security issues are identified, evaluated, and remediated as part of our development and release process.
 
-### Vulnerability Scanning with Trivy
+### Vulnerability Scanning with Grype and Trivy
 
-We use [Trivy](https://trivy.dev/) in the Docker image workflow to scan runtime image OS packages and libraries. The build uses the OS package report as input to Copa to patch supported system packages, including RPM packages managed by `dnf`, then scans Python package findings and uses that report for eligible minor-version patches. It scans the candidate image again and blocks publishing when fixable OS or Python vulnerabilities remain. On pushes to the main branch, Trivy also generates the image security badge from the full vulnerability report.
+The Docker image workflow uses [Grype](https://github.com/anchore/grype) to scan Fedora 45 packages and Go binaries. The Dockerfile runs `dnf upgrade --refresh` on every build. [Trivy](https://trivy.dev/) supplies installed Python package findings to Copa for eligible minor-version patches. The candidate is scanned again and publication is blocked for fixable OS, Go or Python findings outside the explicitly documented exceptions below. The raw scanner reports are retained as run artifacts. Grype also generates the image security badge on main.
 
 ### Security Baseline
 
@@ -42,7 +42,10 @@ We accept vulnerabilities **only when**:
 All accepted risks are documented below and will be remediated as soon as compatible upstream versions are available.
 
 
-## Current Security Baseline
+## May 2026 Security Baseline (historical)
+
+Current counts depend on the scanner database and are recorded in each image
+workflow run. The following figures describe the May 2026 baseline.
 
 **Total Vulnerabilities**: 12 CVEs (reduced from 130+ in previous baseline - 91% reduction)
 
@@ -64,17 +67,34 @@ All accepted risks are documented below and will be remediated as soon as compat
 
 The following vulnerabilities are **accepted risks** due to dependency constraints in essential third-party binaries. These are **not vulnerabilities in Krkn code**, but rather in transitive dependencies of tools we depend on. We are actively monitoring upstream projects and will upgrade as soon as compatible versions are available.
 
-### Python Transitive Dependencies (2 CVEs)
+### Python Transitive Dependencies (3 currently reported CVEs)
 
 **cbor2 5.6.5** - Pinned by arcaflow-plugin-sdk==0.14.3
-- GHSA-3c37-wwvx-h642 (High): Buffer overflow in CBOR decoder
-- GHSA-wcj4-jw5j-44wh (Medium): Uncontrolled resource consumption
+- CVE-2025-64076 (High)
+- CVE-2026-26209 (High)
+- CVE-2025-68131 (Medium)
+
+The workflow keeps only these exact findings out of the Copa patch input. Copa
+otherwise installs cbor2 5.9.0, which violates the SDK's `<5.7.0` requirement
+and fails `pip check`. They remain visible in the raw Trivy report and run
+summary. New cbor2 advisories are not accepted automatically.
 
 **Why Accepted**: The arcaflow-plugin-sdk dependency requires cbor2 <5.7.0. Upgrading arcaflow-plugin-sdk to a version compatible with cbor2 >=5.9.0 would require Python 3.12+, but Krkn maintains Python 3.11 compatibility for broader platform support.
 
 **Mitigation**: CBOR decoding is not used in Krkn's core chaos scenarios. The vulnerability is isolated to optional arcaflow plugin integration.
 
 **Remediation Plan**: Upgrade to Python 3.12 and arcaflow-plugin-sdk 0.14.4+ in the next major version release.
+
+---
+
+### Platform-specific setuptools findings
+
+The vSphere SDK still imports `pkg_resources`, which setuptools removed in
+82.0.0. The image therefore pins setuptools 81.0.0. The workflow reports
+GHSA-xmj3-9gf7-h52w (Windows wheel installation) and CVE-2026-59890
+(macOS APFS/HFS+ source distribution creation) separately for this Fedora
+Linux image. It accepts only those two advisory IDs at that exact version;
+the raw reports retain both. Other setuptools findings still block publication.
 
 ---
 
@@ -85,6 +105,7 @@ The OpenShift CLI (`oc`) binary is compiled from source with vendored Go depende
 **moby/buildkit v0.12.5** - Requires v0.28.1 for CVE fixes
 - GHSA-4c29-8rgm-jvjj (High): Buildkit mount cache race condition
 - GHSA-4vrq-3vrq-g6gg (High): Privilege escalation in buildkit
+- GHSA-7236-3392-c5c6 (reported by Grype in October 2026)
 
 **Why Accepted**: Upgrading to moby/buildkit v0.28.1 introduces breaking API changes (`undefined: archive.Compression`) incompatible with docker/docker v28.5.2 vendored in `oc`. The `oc` CLI uses these APIs for image layer manipulation.
 
@@ -98,12 +119,21 @@ The OpenShift CLI (`oc`) binary is compiled from source with vendored Go depende
 - GHSA-f2g3-hh2r-cwgc (High): Registry API authentication bypass
 - GHSA-3p65-76g6-3w7r (High): Path traversal in image layers
 - GHSA-6pjf-3r9x-m592 (Medium): Denial of service in manifest parsing
+- GHSA-685w-q87j-wqw3 (reported by Grype in October 2026)
 
 **Why Accepted**: The distribution/distribution v3.1.0+ release removed several packages (`registry/client`, `manifest/schema1`, `reference`) that `oc` depends on for OCI image operations. Upgrading breaks `oc` compilation.
 
 **Mitigation**: Krkn does not expose container registry APIs. The `oc` CLI usage in Krkn is limited to Kubernetes/OpenShift cluster operations, not image distribution.
 
 **Remediation Plan**: Will upgrade when OpenShift `oc` migrates to distribution/distribution v3.1.0+ API.
+
+---
+
+**moby/go-archive v0.1.0** - GHSA-hfg8-hc9c-6c3h is fixed in v0.3.0.
+Forcing that version into the current `oc` build breaks the vendored Docker
+archive API (`undefined: archive.Compression`). The workflow records this
+exact `oc` finding as an accepted exception and continues to block any new
+advisory or different version.
 
 ---
 
@@ -166,7 +196,7 @@ Krkn uses multiple security checks:
 - **[Snyk](https://snyk.io/)**: Additional dependency scanning with curated vulnerability database
 - **GitHub Dependabot**: Automated dependency update alerts for Python and Go modules
 
-Trivy scan and patch results are published in GitHub Actions job summaries. The repository also contains a local Grype/Copa helper script for manual experiments; it is not part of the GitHub Actions image pipeline.
+Grype and Trivy scan results are published in GitHub Actions job summaries and JSON artifacts. The repository also contains a local Grype/Copa helper script for manual experiments.
 
  
 ## Reporting a Vulnerability
