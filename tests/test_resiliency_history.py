@@ -46,6 +46,22 @@ class TestParseDuration(unittest.TestCase):
     def test_fractional_value(self):
         self.assertEqual(parse_duration("1.5h"), datetime.timedelta(hours=1.5))
 
+    def test_nan_raises(self):
+        with self.assertRaises(ValueError):
+            parse_duration("nanh")
+
+    def test_infinity_raises(self):
+        with self.assertRaises(ValueError):
+            parse_duration("infh")
+
+    def test_overflow_raises(self):
+        with self.assertRaises(ValueError):
+            parse_duration("1e10w")
+
+    def test_tiny_duration_raises(self):
+        with self.assertRaises(ValueError):
+            parse_duration("1e-7s")
+
     def test_unknown_unit_raises(self):
         with self.assertRaises(ValueError) as ctx:
             parse_duration("5x")
@@ -174,6 +190,26 @@ class TestParseHistoryWindow(unittest.TestCase):
     def test_invalid_duration_raises(self):
         with self.assertRaises(ValueError):
             parse_history_window("badvalue", None, None)
+
+    def test_large_duration_raises(self):
+        with self.assertRaises(ValueError):
+            parse_history_window("1000000d", None, None)
+
+    def test_overflow_duration_raises(self):
+        with self.assertRaises(ValueError):
+            parse_history_window("1e10w", None, None)
+
+    def test_nan_duration_raises(self):
+        with self.assertRaises(ValueError):
+            parse_history_window("nanh", None, None)
+
+    def test_infinite_duration_raises(self):
+        with self.assertRaises(ValueError):
+            parse_history_window("infh", None, None)
+
+    def test_tiny_duration_raises(self):
+        with self.assertRaises(ValueError):
+            parse_history_window("1e-7s", None, None)
 
     def test_invalid_start_time_raises(self):
         with self.assertRaises(ValueError):
