@@ -126,6 +126,7 @@ jobs:
             runner: ubuntu-24.04-arm
     env:
       TRIVY_VERSION: 0.76.0
+      GRYPE_VERSION: 0.121.0
       COPA_VERSION: krkn-v0.1.0
     steps:
     - name: Check out code
@@ -181,7 +182,14 @@ jobs:
           "${build_args[@]}" \
           containers/
 
-    - name: Install Trivy and Copa
+    - name: Set up Go for the Grype scanner plugin
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: stable
+        check-latest: true
+        cache: false
+
+    - name: Install Trivy, Grype, Copa and the Grype plugin
       run: |
         set -euo pipefail
         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
@@ -190,10 +198,12 @@ jobs:
           x86_64)
             copa_arch=amd64
             copa_sha256=649a9fc3f09da3b2918e98ac258616eb44ac91e78a043ac008f8908bb80cf220
+            grype_sha256=64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519
             ;;
           aarch64|arm64)
             copa_arch=arm64
             copa_sha256=a0d2fc2e264896c3426c893468be3ffe5d7ae0a6ffc1757c23a0429b1ca4b8f2
+            grype_sha256=86f570f75ca947ea3dd6486309232bcff6d78e44ba081ae75ab14eab72be3dae
             ;;
           *) echo "Unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
         esac
@@ -204,7 +214,17 @@ jobs:
         printf '%s  %s\n' "$copa_sha256" "$copa_archive" | sha256sum -c -
         tar -xzf "$copa_archive" -C "$RUNNER_TEMP" copa
         sudo install -m 0755 "$RUNNER_TEMP/copa" /usr/local/bin/copa
+        grype_archive="$RUNNER_TEMP/grype.tar.gz"
+        curl -fsSL \
+          "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_${copa_arch}.tar.gz" \
+          -o "$grype_archive"
+        printf '%s  %s\n' "$grype_sha256" "$grype_archive" | sha256sum -c -
+        tar -xzf "$grype_archive" -C "$RUNNER_TEMP" grype
+        sudo install -m 0755 "$RUNNER_TEMP/grype" /usr/local/bin/grype
+        GOBIN="$RUNNER_TEMP" CGO_ENABLED=0 go install github.com/anubhav06/copa-grype@v1.0.4-alpha.1
+        sudo install -m 0755 "$RUNNER_TEMP/copa-grype" /usr/local/bin/copa-grype
         trivy --version
+        grype version
         copa --version
 
     - name: Scan and patch OS and Python packages with Copa
@@ -214,10 +234,10 @@ jobs:
         PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
       run: |
         set -euo pipefail
-        os_before_report="$RUNNER_TEMP/trivy-os-before.json"
+        os_before_report="$RUNNER_TEMP/grype-os-before.json"
         library_before_report="$RUNNER_TEMP/trivy-before.json"
         python_report="$RUNNER_TEMP/trivy-python-before.json"
-        os_after_report="$RUNNER_TEMP/trivy-os-after.json"
+        os_after_report="$RUNNER_TEMP/grype-os-after.json"
         library_after_report="$RUNNER_TEMP/trivy-after.json"
         python_after_report="$RUNNER_TEMP/trivy-python-after.json"
 
@@ -256,27 +276,27 @@ jobs:
         assert_os_scan_covered() {
           local report="$1"
           local phase="$2"
-          local result_count
-          result_count=$(jq '[.Results[]? | select(.Class == "os-pkgs")] | length' "$report")
-          if (( result_count == 0 )); then
-            local os_family
-            local os_version
-            os_family=$(jq -r '.Metadata.OS.Family // "unknown"' "$report")
-            os_version=$(jq -r '.Metadata.OS.Name // "unknown"' "$report")
-            echo "error: Trivy detected $os_family $os_version but returned no OS package results $phase; refusing to treat the image as vulnerability-free" >&2
+          if ! jq -e --arg arch "${{ matrix.platform }}" '
+            .descriptor.name == "grype"
+            and .distro.name == "fedora"
+            and .distro.version == "45"
+            and .source.target.architecture == $arch
+            and ([.artifacts[]? | select(.type == "rpm")] | length > 0)
+          ' "$report" >/dev/null; then
+            echo "error: Grype did not identify Fedora 45 RPM packages for $phase; refusing to treat the image as vulnerability-free" >&2
             exit 1
           fi
         }
 
-        trivy image --scanners vuln --pkg-types os --ignore-unfixed \
-          --format json --output "$os_before_report" "$IMAGE_NAME"
+        grype "docker:$IMAGE_NAME" --output json --file "$os_before_report"
         assert_os_scan_covered "$os_before_report" "before Copa"
-        os_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$os_before_report")
+        os_before_count=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_before_report")
         echo "OS vulnerabilities with fixes before Copa: $os_before_count"
         if (( os_before_count > 0 )); then
           copa patch \
             -i "$IMAGE_NAME" \
             -r "$os_before_report" \
+            --scanner grype \
             -t "$OS_PATCHED_IMAGE" \
             -a docker:// \
             --pkg-types os
@@ -305,10 +325,9 @@ jobs:
         fi
         docker image inspect "$PATCHED_IMAGE" >/dev/null
 
-        trivy image --scanners vuln --pkg-types os --ignore-unfixed \
-          --format json --output "$os_after_report" "$PATCHED_IMAGE"
+        grype "docker:$PATCHED_IMAGE" --output json --file "$os_after_report"
         assert_os_scan_covered "$os_after_report" "after Copa"
-        os_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$os_after_report")
+        os_remaining=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
         trivy image --scanners vuln --pkg-types library --ignore-unfixed \
           --format json --output "$library_after_report" "$PATCHED_IMAGE"
         filter_python_vulnerabilities "$library_after_report" "$python_after_report"
@@ -332,16 +351,16 @@ jobs:
           exit 1
         fi
 
-    - name: Upload Trivy reports
+    - name: Upload vulnerability reports
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: trivy-reports-${{ matrix.platform }}
+        name: vulnerability-reports-${{ matrix.platform }}
         path: |
-          ${{ runner.temp }}/trivy-os-before.json
+          ${{ runner.temp }}/grype-os-before.json
           ${{ runner.temp }}/trivy-before.json
           ${{ runner.temp }}/trivy-python-before.json
-          ${{ runner.temp }}/trivy-os-after.json
+          ${{ runner.temp }}/grype-os-after.json
           ${{ runner.temp }}/trivy-after.json
           ${{ runner.temp }}/trivy-python-after.json
         if-no-files-found: ignore
