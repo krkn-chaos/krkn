@@ -45,3 +45,34 @@ docker build -t localhost/krkn:local containers/
 The CI workflow builds these binaries in parallel, uploads them as artifacts,
 then downloads them for each architecture before building and patching the local
 base image.
+
+### Release and security refresh
+
+The Docker image workflow keeps the normal tag release path. Both releases and
+security refreshes build the `oc`, `virtctl`, and `yq` binaries for amd64 and
+arm64 outside the Dockerfile. The Fedora 45 Dockerfile runs `dnf upgrade
+--refresh` before installing Krkn; after the image build, Copa applies available
+Python dependency fixes. Grype checks Fedora and Go packages, Trivy supplies
+the Python report for Copa, and both platforms must pass the image scans and
+functional tests before publication. The run summary records vulnerability
+counts and the source commits of the Go tools; JSON reports are downloadable
+as run artifacts.
+The image labels record the Krkn release tag and the workflow source commit.
+
+Every day, the workflow scans both platforms of
+`quay.io/krkn-chaos/krkn:latest`. If Grype reports a vulnerability with an
+available fix, it rebuilds the recorded Krkn release tag and publishes a signed
+multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID`. The release tag remains
+unchanged; `latest` moves to the validated patch tag, followed by a krkn-hub
+rebuild. A refresh can also be started with **Run workflow** on `main`. Set
+`force_refresh` to rebuild without scanner findings, or `source_tag` to select
+a release explicitly. The first tagged image built by this workflow records
+its source version in `org.opencontainers.image.version`; before that first
+release, a manual refresh needs `source_tag`.
+
+To restore a prior signed release or patch, run the workflow on `main` with
+`rollback_tag`. It verifies the manifest signatures in both Quay repositories,
+repoints both `latest` tags to those digests, and rebuilds krkn-hub. Keep
+`source_tag` empty and `force_refresh` off when rolling back. Release and
+refresh runs share one concurrency group so they cannot promote `latest` at
+the same time.

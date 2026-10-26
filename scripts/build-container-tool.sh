@@ -33,6 +33,8 @@ capture_go_mod_artifacts() {
 
   local artifact_dir="$go_mod_artifact_dir/$tool"
   mkdir -p "$artifact_dir"
+  git -C "$source_dir" rev-parse HEAD > "$artifact_dir/source-commit.txt"
+  git -C "$source_dir" remote get-url origin > "$artifact_dir/source-url.txt"
   cp "$source_dir/go.mod" "$artifact_dir/go.mod"
   [[ ! -f "$source_dir/go.sum" ]] || cp "$source_dir/go.sum" "$artifact_dir/go.sum"
   [[ ! -f "$source_dir/go.work" ]] || cp "$source_dir/go.work" "$artifact_dir/go.work"

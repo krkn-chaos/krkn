@@ -4,17 +4,20 @@
 FROM fedora:45
 ARG PR_NUMBER
 ARG TAG
+ARG BUILD_WORKFLOW_REVISION
 ARG PYTHON_VERSION=3.11
 ENV PYTHON_CMD=python${PYTHON_VERSION}
+LABEL org.opencontainers.image.version="${TAG}"
+LABEL io.krkn.build-workflow-revision="${BUILD_WORKFLOW_REVISION}"
+# Refresh Fedora before installing application packages, including on the first release build.
+RUN dnf upgrade --refresh -y && \
+    dnf install -y --setopt=install_weak_deps=False \
+      git python${PYTHON_VERSION} jq gettext wget which ipmitool openssh-server && \
+    dnf clean all
 RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
 
 ENV KUBECONFIG /home/krkn/.kube/config
 
-
-# This overwrites any existing configuration in /etc/yum.repos.d/kubernetes.repo
-RUN dnf install -y --setopt=install_weak_deps=False \
-    git python${PYTHON_VERSION} jq gettext wget which ipmitool openssh-server &&\
-    dnf clean all
 
 # Copy architecture-matched binaries produced by the parallel Go build jobs.
 COPY tools/oc /usr/bin/oc
