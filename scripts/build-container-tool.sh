@@ -63,11 +63,19 @@ case "$tool" in
     go mod edit -require github.com/go-git/go-billy/v5@v5.9.0
     go mod edit -require go.opentelemetry.io/otel@v1.41.0
     go mod edit -require github.com/moby/spdystream@v0.5.1
-    go mod edit -require golang.org/x/net@v0.38.0
+    go mod edit -require golang.org/x/net@v0.60.0
+    go mod edit -require golang.org/x/text@v0.39.0
+    go mod edit -require github.com/moby/buildkit@v0.31.1
+    go mod edit -require github.com/moby/go-archive@v0.3.0
+    go mod edit -require github.com/distribution/distribution/v3@v3.1.2
     go mod edit -require github.com/Azure/go-ntlmssp@v0.1.1
     go mod edit -require github.com/sigstore/fulcio@v1.8.5
     go mod edit -require github.com/sigstore/sigstore@v1.10.4
-    go mod edit -replace golang.org/x/net=golang.org/x/net@v0.38.0
+    go mod edit -replace golang.org/x/net=golang.org/x/net@v0.60.0
+    go mod edit -replace golang.org/x/text=golang.org/x/text@v0.39.0
+    go mod edit -replace github.com/moby/buildkit=github.com/moby/buildkit@v0.31.1
+    go mod edit -replace github.com/moby/go-archive=github.com/moby/go-archive@v0.3.0
+    go mod edit -replace github.com/distribution/distribution/v3=github.com/distribution/distribution/v3@v3.1.2
     go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1
     go mod edit -replace github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream=github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream@v1.7.8
     go mod edit -replace github.com/aws/aws-sdk-go-v2/service/s3=github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
@@ -82,10 +90,13 @@ case "$tool" in
     git clone https://github.com/kubevirt/kubevirt.git "$source_dir"
     cd "$source_dir"
     go mod edit -go 1.26
+    go mod edit -require golang.org/x/net@v0.60.0
+    go mod edit -replace golang.org/x/net=golang.org/x/net@v0.60.0
     go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1
     go mod edit -replace github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream=github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream@v1.7.8
     go mod edit -replace github.com/aws/aws-sdk-go-v2/service/s3=github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
     go work edit -go 1.26
+    go work edit -replace golang.org/x/net=golang.org/x/net@v0.60.0
     go mod tidy
     go work use
     go work vendor
@@ -96,7 +107,10 @@ case "$tool" in
     source_dir="$work_dir/yq"
     git clone --depth 1 --branch v4.44.6 https://github.com/mikefarah/yq.git "$source_dir"
     cd "$source_dir"
-    go mod edit -replace golang.org/x/net=golang.org/x/net@v0.38.0
+    go mod edit -require golang.org/x/net@v0.60.0
+    go mod edit -require golang.org/x/text@v0.39.0
+    go mod edit -replace golang.org/x/net=golang.org/x/net@v0.60.0
+    go mod edit -replace golang.org/x/text=golang.org/x/text@v0.39.0
     go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1
     go mod tidy
     go build -ldflags='-s -w' -o "$work_dir/yq-bin" .

@@ -61,8 +61,9 @@ The image labels record the Krkn release tag and the workflow source commit.
 `setuptools` stays at 81.0.0 because the vSphere SDK still imports the
 [`pkg_resources` module removed in 82.0.0](https://setuptools.pypa.io/en/stable/deprecated/pkg_resources.html).
 The scanner's [GHSA-xmj3-9gf7-h52w](https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w)
-finding is specific to Windows wheel installation and
-is shown separately in the run summary for this Linux image; all other
+and [CVE-2026-59890](https://github.com/pypa/setuptools/security/advisories/GHSA-h35f-9h28-mq5c)
+findings affect Windows wheel installation and macOS source distributions,
+respectively. They are shown separately in the run summary for this Linux image; all other
 fixable Python findings block publication. The raw reports retain the finding.
 
 Every day, the workflow scans both platforms of
