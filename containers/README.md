@@ -74,9 +74,10 @@ reported separately and remain eligible for Copa patching. See
 [SECURITY.md](../SECURITY.md) for the risk assessment.
 The same exact-match Grype policy is used by the daily scan, so accepted
 findings alone do not schedule a rebuild. The raw reports always include them.
-Add a `SLACK_WEBHOOK_URL` repository secret with an incoming webhook for the
-desired channel to receive a concise report after each scheduled scan, manual
-refresh or release, including scans that find CVEs but do not publish an image.
+Add a `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret with an
+incoming webhook for the desired channel to receive a concise report after
+each scheduled scan, manual refresh or release, including scans that find CVEs
+but do not publish an image.
 The message links to the run summary and downloadable full JSON reports. If the
 secret is absent, the run summary records that Slack delivery was skipped.
 

@@ -946,7 +946,7 @@ jobs:
 
       - name: Summarize and notify
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
           JOB_RESULTS: ${{ toJSON(needs) }}
           SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
           PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
@@ -1000,15 +1000,15 @@ jobs:
             message+=$'\n'"$line"
           done
           message+=$'\n'"Details and full JSON reports: $run_url"
-          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
-            echo '- Slack notification not sent: configure the `SLACK_WEBHOOK_URL` repository secret.' >> "$GITHUB_STEP_SUMMARY"
+          if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
+            echo '- Slack notification not sent: configure the `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           jq -n --arg text "$message" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
           curl -fsS --retry 3 --retry-all-errors --max-time 20 \
             -H 'Content-type: application/json' \
             --data-binary "@$RUNNER_TEMP/slack-payload.json" \
-            "$SLACK_WEBHOOK_URL" > "$RUNNER_TEMP/slack-response.txt"
+            "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" > "$RUNNER_TEMP/slack-response.txt"
           if [[ "$(cat "$RUNNER_TEMP/slack-response.txt")" != ok ]]; then
             echo 'Slack webhook did not acknowledge the report.' >&2
             exit 1
