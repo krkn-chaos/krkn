@@ -404,6 +404,11 @@ jobs:
               | . as $result
               | .Vulnerabilities |= [
                   .[] as $vulnerability
+                | select(
+                    $vulnerability.VulnerabilityID != "GHSA-xmj3-9gf7-h52w"
+                    or $vulnerability.PkgName != "setuptools"
+                    or $vulnerability.InstalledVersion != "81.0.0"
+                  )
                   | [$result.Packages[]? | select(.Identifier.UID == $vulnerability.PkgIdentifier.UID)] as $matches
                   | select(
                       ($matches | length) == 0
@@ -488,6 +493,7 @@ jobs:
         filter_python_vulnerabilities "$library_after_report" "$python_after_report"
         python_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_after_report")
         python_sbom_after_count=$(count_embedded_sbom_findings "$library_after_report")
+        windows_only_setuptools=$(jq '[.Results[]?.Vulnerabilities[]? | select(.VulnerabilityID == "GHSA-xmj3-9gf7-h52w" and .PkgName == "setuptools" and .InstalledVersion == "81.0.0")] | length' "$library_after_report")
         {
           echo "## Image vulnerability patching (${{ matrix.platform }})"
           echo "- Fixable Fedora vulnerabilities after dnf upgrade: $os_before_count"
@@ -496,6 +502,7 @@ jobs:
           echo "- Installed Python vulnerabilities with fixes before Copa: $python_before_count"
           echo "- Installed Python vulnerabilities with fixes after Copa: $python_remaining"
           echo "- Python findings from embedded SBOMs without an installed package (excluded): $python_sbom_after_count"
+          echo "- Windows-only setuptools advisory on this Linux image (reported separately): $windows_only_setuptools"
           echo "- Total Grype fixable matches in final image: $total_remaining"
           echo "- Critical / high fixable matches: $critical_remaining / $high_remaining"
           if (( total_remaining > 0 )); then
@@ -523,6 +530,18 @@ jobs:
           jq -r '.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed") | "  \(.artifact.name)@\(.artifact.version): \(.vulnerability.id), fixed in \(.vulnerability.fix.versions | join(", "))"' "$os_after_report" >&2
           exit 1
         fi
+
+    - name: Check patched image source and Python dependencies
+      env:
+        PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
+        SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
+      run: |
+        set -euo pipefail
+        if [[ -n "$SOURCE_TAG" ]]; then
+          actual_tag=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$PATCHED_IMAGE")
+          [[ "$actual_tag" == "$SOURCE_TAG" ]] || { echo "Patched image lost its source tag: $actual_tag" >&2; exit 1; }
+        fi
+        docker run --rm -e KRKN_DEPENDENCY_CHECK=1 "$PATCHED_IMAGE"
 
     - name: Upload vulnerability reports
       if: always()

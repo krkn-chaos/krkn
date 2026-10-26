@@ -58,6 +58,12 @@ functional tests before publication. The run summary records vulnerability
 counts and the source commits of the Go tools; JSON reports are downloadable
 as run artifacts.
 The image labels record the Krkn release tag and the workflow source commit.
+`setuptools` stays at 81.0.0 because the vSphere SDK still imports the
+[`pkg_resources` module removed in 82.0.0](https://setuptools.pypa.io/en/stable/deprecated/pkg_resources.html).
+The scanner's [GHSA-xmj3-9gf7-h52w](https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w)
+finding is specific to Windows wheel installation and
+is shown separately in the run summary for this Linux image; all other
+fixable Python findings block publication. The raw reports retain the finding.
 
 Every day, the workflow scans both platforms of
 `quay.io/krkn-chaos/krkn:latest`. If Grype reports a vulnerability with an

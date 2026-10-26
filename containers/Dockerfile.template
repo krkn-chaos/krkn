@@ -44,7 +44,7 @@ RUN if [ -n "$TAG" ]; then git checkout "$TAG";fi
 RUN ${PYTHON_CMD} -m ensurepip --upgrade --default-pip
 RUN ${PYTHON_CMD} -m pip install --upgrade \
     pip \
-    setuptools==83.0.0 \
+    setuptools==81.0.0 \
     "poetry-core>=1.1.0"
 
 # removes the the vulnerable versions of setuptools and pip
@@ -53,8 +53,9 @@ RUN rm -rf /tmp/*
 RUN rm -rf /usr/local/lib/${PYTHON_CMD}/ensurepip/_bundled
 RUN ${PYTHON_CMD} -m pip install --no-build-isolation -r requirements.txt
 RUN ${PYTHON_CMD} -m pip install jsonschema
-# Force the patched setuptools version after all dependencies.
-RUN ${PYTHON_CMD} -m pip install --force-reinstall --no-deps setuptools==83.0.0
+# Keep pkg_resources for the vSphere SDK; update GitPython past its fixed CVE version.
+RUN ${PYTHON_CMD} -m pip install --no-deps --upgrade GitPython==3.2.1 && \
+    ${PYTHON_CMD} -m pip install --force-reinstall --no-deps setuptools==81.0.0
 
 LABEL krknctl.title.global="Krkn Base Image"
 LABEL krknctl.description.global="This is the krkn base image."
