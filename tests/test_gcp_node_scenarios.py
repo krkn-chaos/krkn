@@ -93,26 +93,46 @@ class TestGCP(unittest.TestCase):
         self.assertEqual(result, mock_instance)
         self.assertEqual(result.name, 'gke-cluster-node-1')
 
-    def _set_instances(self, *names):
+    def _set_instances(self, *names, zone='us-central1-a'):
         instances = []
         for name in names:
             instance = MagicMock()
             instance.name = name
+            instance.zone = (
+                'https://www.googleapis.com/compute/v1/projects/test-project-123/zones/' + zone
+            )
             instances.append(instance)
         mock_response = MagicMock()
         mock_response.instances = instances
         self.gcp.instance_client.aggregated_list = MagicMock(
-            return_value=[('zones/us-central1-a', mock_response)]
+            return_value=[('zones/' + zone, mock_response)]
         )
         return instances
 
-    def test_get_node_instance_fqdn_node_name(self):
-        """A node named <instance>.c.<project>.internal maps to <instance>"""
+    def test_get_node_instance_internal_dns_node_names(self):
+        """Global and zonal internal DNS names of the instance in this project match"""
         instances = self._set_instances('node-1')
 
-        result = self.gcp.get_node_instance('node-1.c.test-project-123.internal')
+        self.assertEqual(
+            self.gcp.get_node_instance('node-1.c.test-project-123.internal'),
+            instances[0],
+        )
+        self.assertEqual(
+            self.gcp.get_node_instance('node-1.us-central1-a.c.test-project-123.internal'),
+            instances[0],
+        )
 
-        self.assertEqual(result, instances[0])
+    def test_get_node_instance_rejects_other_project_or_domain(self):
+        """A node with the same short name from another project or domain is not this VM"""
+        self._set_instances('node-1')
+
+        for node in (
+            'node-1.c.other-project.internal',
+            'node-1.us-east1-b.c.test-project-123.internal',
+            'node-1.unrelated.local',
+            'node-1.c.test-project-123.internal.example.com',
+        ):
+            self.assertIsNone(self.gcp.get_node_instance(node), node)
 
     def test_get_node_instance_does_not_match_name_prefix(self):
         """An instance whose name is a prefix of the node name is a different VM"""

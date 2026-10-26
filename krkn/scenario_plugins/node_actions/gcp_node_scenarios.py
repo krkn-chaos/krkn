@@ -32,6 +32,17 @@ class GCP:
 
             raise e
 
+    # A node is named after its instance: as is, or as one of the internal DNS
+    # names of the instance in this project.
+    def _node_is_instance(self, node, instance):
+        if node == instance.name:
+            return True
+        zone = self.get_instance_zone(instance)
+        return node in (
+            f"{instance.name}.c.{self.project_id}.internal",
+            f"{instance.name}.{zone}.c.{self.project_id}.internal",
+        )
+
     # Get the instance of the node
     def get_node_instance(self, node):
         try:
@@ -39,13 +50,10 @@ class GCP:
                 project = self.project_id
             )
             agg_list = self.instance_client.aggregated_list(request=request)
-            # A node is named after its instance, either as is or as an FQDN
-            # (<instance>.c.<project>.internal). Instance names have no dots.
-            instance_name = node.split(".")[0]
             for _, response in agg_list:
                 if response.instances:
                     for instance in response.instances:
-                        if instance.name == instance_name:
+                        if self._node_is_instance(node, instance):
                             return instance
             logging.info("no instances ")
         except Exception as e:
