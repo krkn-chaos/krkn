@@ -76,7 +76,7 @@ findings alone do not schedule a rebuild. The raw reports always include them.
 Every day, the workflow scans both platforms of
 `quay.io/krkn-chaos/krkn:latest`. If Grype reports a vulnerability with an
 available fix, it rebuilds the recorded Krkn release tag and publishes a signed
-multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID`. The release tag remains
+multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag remains
 unchanged; `latest` moves to the validated patch tag, followed by a krkn-hub
 rebuild. A refresh can also be started with **Run workflow** on `main`. Set
 `force_refresh` to rebuild without scanner findings, or `source_tag` to select

@@ -66,7 +66,7 @@ jobs:
             exit 1
           fi
           if [[ -n "$ROLLBACK_TAG" ]]; then
-            if [[ -n "$INPUT_SOURCE_TAG" || "$FORCE_REFRESH" == true || ! "$ROLLBACK_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-patch-[0-9]{8}-[0-9]+)?$ ]]; then
+            if [[ -n "$INPUT_SOURCE_TAG" || "$FORCE_REFRESH" == true || ! "$ROLLBACK_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-patch-[0-9]{8}-[0-9]+-[0-9]+)?$ ]]; then
               echo 'rollback_tag must be a release or patch tag and cannot be combined with refresh inputs.' >&2
               exit 1
             fi
@@ -119,7 +119,7 @@ jobs:
           echo should_build=true >> "$GITHUB_OUTPUT"
           echo should_publish=true >> "$GITHUB_OUTPUT"
           echo "source_tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "publish_tag=${tag}-patch-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}" >> "$GITHUB_OUTPUT"
+          echo "publish_tag=${tag}-patch-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
       - name: Upload published image scan
         if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && always()
