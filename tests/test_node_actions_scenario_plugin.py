@@ -790,8 +790,9 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
             mock_pool.assert_called_once_with(processes=3)
             mock_pool_instance.starmap.assert_called_once()
             mock_pool_instance.close.assert_called_once()
+            mock_pool_instance.join.assert_called_once()
 
-    @patch('logging.info')
+    @patch('logging.error')
     def test_multiprocess_nodes_with_exception(self, mock_logging):
         """
         Test multiprocess_nodes handles exceptions gracefully
@@ -808,6 +809,27 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
 
             mock_logging.assert_called()
             self.assertIn("Error on pool multiprocessing", str(mock_logging.call_args))
+
+    @patch('logging.error')
+    def test_multiprocess_nodes_closes_pool_when_starmap_fails(self, mock_logging):
+        """
+        Test multiprocess_nodes still closes and joins the pool when starmap raises
+        """
+        nodes = ["node1", "node2", "node3"]
+        mock_scenario_object = Mock()
+        action = "node_stop_scenario"
+        node_scenario = {}
+
+        with patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
+            mock_pool_instance = Mock()
+            mock_pool_instance.starmap.side_effect = RuntimeError("node failed")
+            mock_pool.return_value = mock_pool_instance
+
+            self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
+
+            mock_pool_instance.close.assert_called_once()
+            mock_pool_instance.join.assert_called_once()
+            self.assertIn("node failed", str(mock_logging.call_args))
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
     def test_inject_node_scenario_excludes_consecutive_nodes(self, mock_common_funcs):
