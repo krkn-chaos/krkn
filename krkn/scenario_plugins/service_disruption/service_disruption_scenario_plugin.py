@@ -80,10 +80,11 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                         for j in range(delete_count):
                             if len(namespaces) == 0:
                                 logging.error(
-                                    "ServiceDisruptionScenarioPlugin Couldn't delete %s namespaces, ù"
-                                    "not enough namespaces matching %s with label %s"
+                                    "ServiceDisruptionScenarioPlugin Couldn't delete %s namespaces, "
+                                    "not enough namespaces matching %s with label %s "
+                                    "(exit code: 1)"
                                     % (
-                                        str(run_count),
+                                        str(delete_count),
                                         scenario_namespace,
                                         str(scenario_label),
                                     )
@@ -109,12 +110,11 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                                     % str(selected_namespace)
                                 )
                             except Exception as e:
-                                logging.info(
+                                logging.error(
                                     "ServiceDisruptionScenarioPlugin Delete all "
-                                    "objects in namespace %s was unsuccessful"
-                                    % str(selected_namespace)
+                                    "objects in namespace %s was unsuccessful: %s "
+                                    "(exit code: 1)" % (str(selected_namespace), e)
                                 )
-                                logging.info("Namespace action error: " + str(e))
                                 return 1
                             namespaces.remove(selected_namespace)
                             logging.info(
