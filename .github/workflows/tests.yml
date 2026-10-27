@@ -13,7 +13,7 @@ jobs:
   tests:
     # Common steps
     name: Functional & Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - name: Check out code
