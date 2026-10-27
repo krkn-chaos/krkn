@@ -111,6 +111,12 @@ jobs:
             echo "- amd64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$amd64_policy")"
             echo "- arm64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$arm64_policy")"
           } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+            echo should_build=false >> "$GITHUB_OUTPUT"
+            echo should_publish=false >> "$GITHUB_OUTPUT"
+            echo '- Daily scan only; use the Slack rebuild button to start a refresh.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if (( fixable == 0 )) && [[ "$FORCE_REFRESH" != true ]]; then
             echo should_build=false >> "$GITHUB_OUTPUT"
             echo should_publish=false >> "$GITHUB_OUTPUT"
@@ -946,6 +952,7 @@ jobs:
 
       - name: Summarize and notify
         env:
+          KRKN_IMAGE_SECURITY_REPORT_SLACK_TRIGGER_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_TRIGGER_URL }}
           KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
           JOB_RESULTS: ${{ toJSON(needs) }}
           SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
@@ -993,6 +1000,17 @@ jobs:
                 python_fixable=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python")
               fi
               line="$platform ($phase): $total Grype matches, $fixable fixable (OS $os, Go $go), $critical critical, $high high; Trivy Python eligible for Copa: $python_fixable."
+              before="$RUNNER_TEMP/current/current-$platform.json"
+              if [[ "$phase" == 'candidate after patch' && -s "$before" ]]; then
+                before_counts=$(jq -r '[(.matches | length), ([.matches[]? | select(.vulnerability.fix.state == "fixed")] | length)] | join(" ")' "$before")
+                read -r before_total before_fixable <<< "$before_counts"
+                change_counts=$(jq -nr --slurpfile before "$before" --slurpfile after "$report" '
+                  [$before[0].matches[]? | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $old |
+                  [$after[0].matches[]? | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $new |
+                  [($old - $new | length), ($new - $old | length)] | join(" ")')
+                read -r resolved introduced <<< "$change_counts"
+                line+=" Published baseline: $before_total matches, $before_fixable fixable; $resolved resolved, $introduced new."
+              fi
             else
               line="$platform: scanner report unavailable."
             fi
@@ -1000,8 +1018,26 @@ jobs:
             message+=$'\n'"$line"
           done
           message+=$'\n'"Details and full JSON reports: $run_url"
+          if [[ -n "$KRKN_IMAGE_SECURITY_REPORT_SLACK_TRIGGER_URL" ]]; then
+            report_type=rebuild
+            if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+              report_type=daily
+            fi
+            jq -n --arg report_type "$report_type" --arg summary "$message" --arg run_url "$run_url" \
+              '{report_type: $report_type, summary: $summary, run_url: $run_url}' > "$RUNNER_TEMP/slack-payload.json"
+            curl -fsS --retry 3 --retry-all-errors --max-time 20 \
+              -H 'Content-type: application/json' \
+              --data-binary "@$RUNNER_TEMP/slack-payload.json" \
+              "$KRKN_IMAGE_SECURITY_REPORT_SLACK_TRIGGER_URL" > "$RUNNER_TEMP/slack-response.json"
+            if ! jq -e '.ok == true' "$RUNNER_TEMP/slack-response.json" >/dev/null; then
+              echo 'Slack workflow trigger did not acknowledge the report.' >&2
+              exit 1
+            fi
+            echo '- Slack workflow trigger accepted the report.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
-            echo '- Slack notification not sent: configure the `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret.' >> "$GITHUB_STEP_SUMMARY"
+            echo '- Slack notification not sent: configure the `KRKN_IMAGE_SECURITY_REPORT_SLACK_TRIGGER_URL` secret.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           jq -n --arg text "$message" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
