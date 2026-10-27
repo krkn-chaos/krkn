@@ -1,0 +1,15 @@
+kraken:
+  chaos_scenarios:
+    - pod_disruption_scenarios:
+        - scenarios/kube/pod.yml
+
+triggers:
+  mode: all_of
+  timeout: 300
+  interval: 5
+  on_timeout: skip
+  conditions:
+    - type: http
+      url: "http://nginx.default.svc:8080/health"
+      method: GET
+      expected_status: 200

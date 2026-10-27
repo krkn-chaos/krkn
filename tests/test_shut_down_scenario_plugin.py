@@ -409,7 +409,7 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         self.assertEqual(call_args[0], mock_cloud_function)
         mock_pool_instance.close.assert_called_once()
 
-    @patch('logging.info')
+    @patch('logging.error')
     @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.ThreadPool')
     def test_multiprocess_nodes_with_exception(self, mock_threadpool, mock_logging):
         """
@@ -425,6 +425,44 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         mock_logging.assert_called()
         logged_args, logged_kwargs = mock_logging.call_args  
         self.assertIn("Error on pool multiprocessing", logged_args[0])
+
+    @patch('logging.error')
+    @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.ThreadPool')
+    def test_multiprocess_nodes_pool_close_on_exception(self, mock_threadpool, mock_logging):
+        """
+        Test pool.close() and pool.join() are called even when map raises
+        """
+        mock_pool_instance = Mock()
+        mock_threadpool.return_value = mock_pool_instance
+        mock_pool_instance.map.side_effect = Exception("map failed")
+
+        nodes = ["node1", "node2"]
+        mock_cloud_function = Mock()
+
+        self.plugin.multiprocess_nodes(mock_cloud_function, nodes, processes=0)
+
+        mock_pool_instance.close.assert_called_once()
+        mock_pool_instance.join.assert_called_once()
+
+    @patch('logging.error')
+    @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.ThreadPool')
+    def test_multiprocess_nodes_logs_error_on_exception(self, mock_threadpool, mock_logging):
+        """
+        Test logging.error is used when an exception occurs
+        """
+        mock_pool_instance = Mock()
+        mock_threadpool.return_value = mock_pool_instance
+        mock_pool_instance.map.side_effect = Exception("map failed")
+
+        nodes = ["node1", "node2"]
+        mock_cloud_function = Mock()
+
+        self.plugin.multiprocess_nodes(mock_cloud_function, nodes, processes=0)
+
+        mock_logging.assert_called()
+        logged_message = mock_logging.call_args[0][0]
+        self.assertIn("Error on pool multiprocessing", logged_message)
+
     @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS')
     @patch('time.sleep')
     @patch('time.time')

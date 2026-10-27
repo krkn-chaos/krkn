@@ -4,13 +4,19 @@ on:
   push:
     branches:
       - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests-v2:
     name: Tests v2 (pytest functional)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
       - name: Free up disk space
         run: |
@@ -19,7 +25,7 @@ jobs:
           df -h
 
       - name: Create KinD cluster
-        uses: redhat-chaos/actions/kind@main
+        uses: redhat-chaos/actions/kind@aa421229ca6d4ad13785039d0736611c6439fc3e # main
 
       - name: Pre-load test images into KinD
         run: |
@@ -27,9 +33,20 @@ jobs:
           kind load docker-image nginx:alpine
           docker pull quay.io/krkn-chaos/krkn:tools
           kind load docker-image quay.io/krkn-chaos/krkn:tools
+          # Scenario images not otherwise cached: preload to avoid cold-pull
+          # variance inside test timeout budgets (the ~350MB service-hijacking
+          # image cold pull measured 48s on a cold runner).
+          for image in \
+            quay.io/krkn-chaos/krkn-service-hijacking:v0.1.3 \
+            quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos \
+            quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools \
+            quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog; do
+            docker pull "$image"
+            kind load docker-image "$image"
+          done
 
       - name: Install Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
         with:
           python-version: '3.11'
           architecture: 'x64'
@@ -47,11 +64,11 @@ jobs:
       - name: Run tests_v2
         run: |
           KRKN_TEST_COVERAGE=1 python -m pytest CI/tests_v2/ -v --timeout=300 --reruns=1 --reruns-delay=5 \
-            --html=CI/tests_v2/report.html -n auto --junitxml=CI/tests_v2/results.xml
+            --html=CI/tests_v2/report.html -n auto --dist loadgroup --junitxml=CI/tests_v2/results.xml
 
       - name: Upload tests_v2 artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tests-v2-results
           path: |

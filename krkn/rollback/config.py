@@ -32,14 +32,6 @@ RollbackCallable: TypeAlias = Callable[
 ]
 
 
-if TYPE_CHECKING:
-    from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
-
-RollbackCallable: TypeAlias = Callable[
-    ["RollbackContent", "KrknTelemetryOpenshift"], None
-]
-
-
 class SingletonMeta(type):
     _instances = {}
 
@@ -221,14 +213,19 @@ class RollbackConfig(metaclass=SingletonMeta):
             return []
 
         rollback_context_directories = []
+        skipped_count = 0
         for dir in os.listdir(cls().versions_directory):
             if cls.is_rollback_context_directory_format(dir, run_uuid):
                 rollback_context_directories.append(dir)
             else:
-                logger.warning(f"Directory {dir} does not match expected pattern of <timestamp>-<run_uuid>")
+                skipped_count += 1
+                logger.debug(f"Directory {dir} does not match expected pattern of <timestamp>-<run_uuid>")
+
+        if skipped_count > 0:
+            logger.info(f"Skipped {skipped_count} non-matching entries in rollback versions directory")
 
         if not rollback_context_directories:
-            logger.warning(f"No rollback context directories found for run UUID {run_uuid}")
+            logger.debug(f"No rollback context directories found for run UUID {run_uuid}")
             return []
 
 
@@ -249,6 +246,15 @@ class RollbackConfig(metaclass=SingletonMeta):
                     logger.warning(
                         f"File {file} does not match expected pattern of <{scenario_type or '*'}>_<timestamp>_<hash_suffix>.py"
                     )
+        def get_rollback_timestamp(filepath: str) -> int:
+            filename = os.path.basename(filepath)
+            parts = filename.rsplit("_", 2)
+            try:
+                return int(parts[-2])
+            except (IndexError, ValueError):
+                return 0
+        # Execute rollback version files in reverse chronological order (LIFO).
+        version_files.sort(key=get_rollback_timestamp, reverse=True)
         return version_files
 
 @dataclass(frozen=True)

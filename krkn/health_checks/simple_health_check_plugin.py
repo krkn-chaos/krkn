@@ -56,3 +56,23 @@ class SimpleHealthCheckPlugin(AbstractHealthCheckPlugin):
     ) -> None:
         logging.info("Running simple health check")
         telemetry_queue.put({"status": "healthy"})
+
+    def run_once(
+        self,
+        config: dict[str, Any],
+        telemetry_queue: queue.Queue = None,
+        phase: str = None
+    ) -> dict[str, Any]:
+        """
+        Runs a one-time simple health check.
+
+        :param config: the health check configuration dictionary
+        :return: dictionary with results
+        """
+        logging.info("Running one-time simple health check")
+        # Simple plugin always passes
+        return {
+            "passed": True,
+            "failures": [],
+            "details": {"status": "healthy"}
+        }

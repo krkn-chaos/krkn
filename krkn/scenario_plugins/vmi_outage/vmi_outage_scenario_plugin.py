@@ -1,4 +1,4 @@
-# Copyright 2025 The Krkn Authors
+# Copyright 2026 The Krkn Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ from krkn_lib.models.k8s import AffectedVMI, VmisStatus
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
 
-class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
+class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
     """
     A scenario plugin that injects chaos by deleting a KubeVirt Virtual Machine Instance (VMI).
     This plugin simulates a VM crash or outage scenario and supports automated or manual recovery.
@@ -39,10 +39,11 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
         self.k8s_client = None
         self.original_vmi = None
         self.vmis_list = []
-        
+
     # Scenario type is handled directly in execute_scenario
     def get_scenario_types(self) -> list[str]:
-        return ["kubevirt_vm_outage"]
+        # Support both new name and legacy name for backwards compatibility
+        return ["vmi_outage", "kubevirt_vm_outage"]
 
     def run(
         self,
@@ -62,16 +63,23 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             self.init_clients(lib_telemetry.get_lib_kubernetes())
             vmis_status = VmisStatus()
             for config in scenario_config["scenarios"]:
-                if config.get("scenario") == "kubevirt_vm_outage":
+                # Support both new name and legacy name for backwards compatibility
+                scenario_type = config.get("scenario")
+                if scenario_type in ["vmi_outage", "kubevirt_vm_outage"]:
                     single_vmis_status = self.execute_scenario(config, scenario_telemetry)
                     vmis_status.merge(single_vmis_status)
+                    if single_vmis_status.error:
+                        vmis_status.error = single_vmis_status.error
             
             scenario_telemetry.affected_vmis = vmis_status
-            if len(scenario_telemetry.affected_vmis.unrecovered) > 0: 
+            if (
+                scenario_telemetry.affected_vmis.error
+                or len(scenario_telemetry.affected_vmis.unrecovered) > 0
+            ):
                 return 1
             return 0
         except Exception as e:
-            logging.error(f"KubeVirt VM Outage scenario failed: {e}")
+            logging.error(f"VMI Outage scenario failed: {e}")
             log_exception(str(e))
             return 1
 
@@ -86,7 +94,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
     
     def execute_scenario(self, config: Dict[str, Any], scenario_telemetry: ScenarioTelemetry) -> VmisStatus:
         """
-        Execute a KubeVirt VM outage scenario based on the provided configuration.
+        Execute a VMI outage scenario based on the provided configuration.
 
         :param config: The scenario configuration
         :param scenario_telemetry: The telemetry object for recording metrics
@@ -110,7 +118,9 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
             self.vmis_list = self.k8s_client.get_vmis(name_regex, namespace, label_selector=label_selector)
             if not self.vmis_list:
                 target = f"label_selector={label_selector}" if label_selector else f"vm_name={vm_name}"
-                logging.error(f"No VMIs found matching {target} in namespace {namespace}")
+                message = f"No VMIs found matching {target} in namespace {namespace}"
+                logging.error(message)
+                self.vmis_status.error = message
                 return self.vmis_status
             for _ in range(kill_count):
 
@@ -118,7 +128,7 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 vmi = self.vmis_list[rand_int]
 
                 target = f"label_selector={label_selector}" if label_selector else f"vm_name={vm_name}"
-                logging.info(f"Starting KubeVirt VM outage scenario for {target} in namespace: {namespace}")
+                logging.info(f"Starting VMI outage scenario for {target} in namespace: {namespace}")
                 vmi_name = vmi.get("metadata").get("name")
                 vmi_namespace = vmi.get("metadata").get("namespace")
 
@@ -156,12 +166,12 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 )
 
                 self.vmis_status.recovered.append(self.affected_vmi)
-                logging.info(f"Successfully completed KubeVirt VM outage scenario for VM: {vmi_name}")
-            
+                logging.info(f"Successfully completed VMI outage scenario for VM: {vmi_name}")
+
             return self.vmis_status
-            
+
         except Exception as e:
-            logging.error(f"Error executing KubeVirt VM outage scenario: {e}")
+            logging.error(f"Error executing VMI outage scenario: {e}")
             log_exception(str(e))
             return self.vmis_status
 
@@ -257,13 +267,11 @@ class KubevirtVmOutageScenarioPlugin(AbstractScenarioPlugin):
                 time.sleep(1)
                 
             logging.error(f"Timed out waiting for VMI {vm_name} to be deleted")
-            self.vmis_status.unrecovered.append(self.affected_vmi)
             return 1
             
         except Exception as e:
             logging.error(f"Error deleting VMI {vm_name}: {e}")
             log_exception(str(e))
-            self.vmis_status.unrecovered.append(self.affected_vmi)
             return 1
 
     def wait_for_running(self, vm_name: str, namespace: str, timeout: int = 120) -> int: 

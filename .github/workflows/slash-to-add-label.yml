@@ -1,0 +1,13 @@
+name: Label via slash
+
+on:
+  issue_comment:
+    types: [created]
+
+
+jobs: 
+    add-label:
+      permissions:
+        issues: write
+        pull-requests: write
+      uses: krkn-chaos/actions/.github/workflows/slash-to-add-label.yml@main

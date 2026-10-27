@@ -34,6 +34,7 @@ class NativeScenarioPlugin(AbstractScenarioPlugin):
                 scenario,
                 lib_telemetry.get_lib_kubernetes().get_kubeconfig_path(),
                 run_uuid,
+                kubecli=lib_telemetry.get_lib_kubernetes(),
             )
 
         except Exception as e:

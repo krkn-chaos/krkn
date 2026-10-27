@@ -24,6 +24,11 @@ Kraken injects deliberate failures into Kubernetes clusters to check if it is re
 ### How to Get Started
 Instructions on how to setup, configure and run Kraken can be found in the [documentation](https://krkn-chaos.dev/docs/).
 
+### Try it in your browser
+[![Try with Killercoda](https://img.shields.io/badge/Try%20it%20now-Killercoda-orange?logo=killercoda&logoColor=white)](https://killercoda.com/krkn-chaos)
+
+Want to try Krkn without setting up a cluster? Run the [interactive hands-on tutorial](https://killercoda.com/krkn-chaos) on Killercoda: deploy a target app on a real 2-node Kubernetes cluster, inject pod and node chaos with `krknctl`, and watch the cluster heal itself - all in your browser, in about 20 minutes.
+
 
 ### Blogs, podcasts and interviews
 Additional resources, including blog posts, podcasts, and community interviews, can be found on the [website](https://krkn-chaos.dev/blog)

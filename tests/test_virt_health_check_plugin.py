@@ -113,7 +113,7 @@ class TestVirtHealthCheckPlugin(unittest.TestCase):
         # Should skip initialization and not crash
         self.assertTrue(telemetry_queue.empty())
 
-    @patch('krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin')
+    @patch('krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin')
     def test_initialization_with_vmis(self, mock_plugin_class):
         """Test plugin initialization discovers VMIs"""
         # Mock the plugin instance
@@ -275,7 +275,7 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
 
     # --- _initialize_from_config ---
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_from_config_exception(self, mock_plugin_class):
         """Test _initialize_from_config returns False on exception"""
         mock_plugin_class.side_effect = Exception("connection error")
@@ -283,7 +283,7 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         result = self.plugin._initialize_from_config(config)
         self.assertFalse(result)
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_from_config_vmi_no_interfaces(self, mock_plugin_class):
         """Test VMIs with no interfaces are skipped"""
         mock_plugin = MagicMock()
@@ -300,7 +300,7 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         self.assertTrue(result)
         self.assertEqual(len(self.plugin.vm_list), 0)
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_from_config_node_name_filter_match(self, mock_plugin_class):
         """Test VMIs are filtered by node_names when specified and matching"""
         mock_plugin = MagicMock()
@@ -322,7 +322,7 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         self.assertEqual(len(self.plugin.vm_list), 1)
         self.assertEqual(self.plugin.vm_list[0].vm_name, "vm1")
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_from_config_node_name_filter_no_match(self, mock_plugin_class):
         """Test VMIs are excluded when node_names is set but node doesn't match"""
         mock_plugin = MagicMock()
@@ -871,7 +871,7 @@ class TestVirtHealthCheckPluginCoverage(unittest.TestCase):
         self.plugin.run_health_check(None, telemetry_queue)
         self.assertTrue(telemetry_queue.empty())
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_run_health_check_valid_config_starts_batch(self, mock_plugin_class):
         """Test run_health_check starts batch threads on valid config"""
         mock_plugin = MagicMock()
@@ -962,7 +962,7 @@ class TestVirtHealthCheckPluginLabelSelector(unittest.TestCase):
             },
         }
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_with_label_selector_only(self, mock_plugin_class):
         """Test _initialize_from_config filters VMIs by label_selector when name is not set"""
         mock_plugin = MagicMock()
@@ -980,7 +980,7 @@ class TestVirtHealthCheckPluginLabelSelector(unittest.TestCase):
             ".*", "default", label_selector="app=myvm"
         )
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_with_name_and_label_selector(self, mock_plugin_class):
         """Test _initialize_from_config passes both name and label_selector to get_vmis"""
         mock_plugin = MagicMock()
@@ -1002,7 +1002,7 @@ class TestVirtHealthCheckPluginLabelSelector(unittest.TestCase):
             "test-vm", "default", label_selector="env=chaos"
         )
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_no_name_no_label_selector_defaults_to_match_all(self, mock_plugin_class):
         """Test _initialize_from_config falls back to '.*' when neither name nor label_selector is set"""
         mock_plugin = MagicMock()
@@ -1019,7 +1019,7 @@ class TestVirtHealthCheckPluginLabelSelector(unittest.TestCase):
             ".*", "default", label_selector=None
         )
 
-    @patch("krkn.health_checks.virt_health_check_plugin.KubevirtVmOutageScenarioPlugin")
+    @patch("krkn.health_checks.virt_health_check_plugin.VmiOutageScenarioPlugin")
     def test_initialize_empty_label_selector_treated_as_none(self, mock_plugin_class):
         """Test that an empty string label_selector is treated as not set, falling back to '.*'"""
         mock_plugin = MagicMock()

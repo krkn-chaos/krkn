@@ -15,7 +15,6 @@ from unittest.mock import MagicMock, patch, call
 from krkn.scenario_plugins.network_chaos_ng.modules.utils_network_chaos import (
     get_build_tc_tree_commands,
     namespaced_tc_commands,
-    get_egress_shaping_comand,
     get_clear_egress_shaping_commands,
     get_ingress_shaping_commands,
     get_clear_ingress_shaping_commands,
@@ -74,7 +73,7 @@ class TestBuildTcTreeCommands(unittest.TestCase):
 
     def test_build_tc_tree_single_interface(self):
         """
-        Test building tc tree commands for a single interface
+        Test building tc tree commands for a single interface with default values
         """
         devices = ["eth0"]
         result = get_build_tc_tree_commands(devices)
@@ -86,6 +85,43 @@ class TestBuildTcTreeCommands(unittest.TestCase):
         )
         self.assertIn(
             "tc qdisc add dev eth0 parent 100:1 handle 101: netem delay 0ms loss 0%",
+            result,
+        )
+
+    def test_build_tc_tree_with_actual_values(self):
+        """
+        Test building tc tree commands with explicit rate, delay, and loss values
+        """
+        devices = ["eth0"]
+        result = get_build_tc_tree_commands(
+            devices, rate="100", delay="50", loss="10"
+        )
+
+        self.assertEqual(len(result), 3)
+        self.assertIn("tc qdisc add dev eth0 root handle 100: htb default 1", result)
+        self.assertIn(
+            "tc class add dev eth0 parent 100: classid 100:1 htb rate 100mbit", result
+        )
+        self.assertIn(
+            "tc qdisc add dev eth0 parent 100:1 handle 101: netem delay 50ms loss 10%",
+            result,
+        )
+
+    def test_build_tc_tree_with_suffixed_values(self):
+        """
+        Test building tc tree commands with pre-suffixed values
+        """
+        devices = ["eth0"]
+        result = get_build_tc_tree_commands(
+            devices, rate="1gbit", delay="100ms", loss="30%"
+        )
+
+        self.assertEqual(len(result), 3)
+        self.assertIn(
+            "tc class add dev eth0 parent 100: classid 100:1 htb rate 1gbit", result
+        )
+        self.assertIn(
+            "tc qdisc add dev eth0 parent 100:1 handle 101: netem delay 100ms loss 30%",
             result,
         )
 
@@ -153,67 +189,6 @@ class TestNamespacedTcCommands(unittest.TestCase):
         pids = ["1234", "5678"]
         commands = ["tc qdisc add dev eth0 root", "tc class add dev eth0"]
         result = namespaced_tc_commands(pids, commands)
-
-        self.assertEqual(len(result), 4)
-
-
-class TestEgressShapingCommands(unittest.TestCase):
-
-    def test_egress_shaping_with_all_params(self):
-        """
-        Test egress shaping commands with bandwidth, latency and loss
-        """
-        devices = ["eth0"]
-        result = get_egress_shaping_comand(devices, "100", "50", "10")
-
-        self.assertEqual(len(result), 2)
-        self.assertIn(
-            "tc class change dev eth0 parent 100: classid 100:1 htb rate 100mbit",
-            result,
-        )
-        self.assertIn(
-            "tc qdisc change dev eth0 parent 100:1 handle 101: netem delay 50ms loss 10%",
-            result,
-        )
-
-    def test_egress_shaping_with_defaults(self):
-        """
-        Test egress shaping commands with None values defaults to 1gbit, 0ms, 0%
-        """
-        devices = ["eth0"]
-        result = get_egress_shaping_comand(devices, None, None, None)
-
-        self.assertEqual(len(result), 2)
-        self.assertIn(
-            "tc class change dev eth0 parent 100: classid 100:1 htb rate 1gbit", result
-        )
-        self.assertIn(
-            "tc qdisc change dev eth0 parent 100:1 handle 101: netem delay 0ms loss 0%",
-            result,
-        )
-
-    def test_egress_shaping_with_suffixed_params(self):
-        """
-        Test that pre-suffixed values (e.g. "100mbit", "50ms", "10%") are passed through unchanged.
-        """
-        devices = ["eth0"]
-        result = get_egress_shaping_comand(devices, "100mbit", "50ms", "10%")
-
-        self.assertIn(
-            "tc class change dev eth0 parent 100: classid 100:1 htb rate 100mbit",
-            result,
-        )
-        self.assertIn(
-            "tc qdisc change dev eth0 parent 100:1 handle 101: netem delay 50ms loss 10%",
-            result,
-        )
-
-    def test_egress_shaping_multiple_interfaces(self):
-        """
-        Test egress shaping for multiple interfaces
-        """
-        devices = ["eth0", "eth1"]
-        result = get_egress_shaping_comand(devices, "100", "50", "10")
 
         self.assertEqual(len(result), 4)
 
@@ -433,8 +408,8 @@ class TestCommonSetLimitRules(unittest.TestCase):
             pids=None,
         )
 
-        # Should call exec_cmd_in_pod for egress rules (3 build + 2 shaping)
-        self.assertGreaterEqual(self.mock_kubecli.exec_cmd_in_pod.call_count, 5)
+        # Should call exec_cmd_in_pod for egress tree only (3 commands, no shaping step)
+        self.assertEqual(self.mock_kubecli.exec_cmd_in_pod.call_count, 3)
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils_network_chaos.log_info")
     def test_set_ingress_only(self, mock_log_info):
@@ -479,8 +454,9 @@ class TestCommonSetLimitRules(unittest.TestCase):
             pids=None,
         )
 
-        # Should call exec_cmd_in_pod for both egress and ingress
-        self.assertGreater(self.mock_kubecli.exec_cmd_in_pod.call_count, 10)
+        # 3 egress tree commands + ingress commands (modprobe, ip link add, ip link set,
+        # tc qdisc ingress, tc filter, tc qdisc htb, tc class, tc netem = 8)
+        self.assertGreater(self.mock_kubecli.exec_cmd_in_pod.call_count, 8)
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils_network_chaos.log_info")
     def test_set_with_pids(self, mock_log_info):
@@ -509,8 +485,9 @@ class TestCommonSetLimitRules(unittest.TestCase):
             "Expected nsenter commands when pids are provided",
         )
 
+    @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils_network_chaos.log_warning")
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.utils_network_chaos.log_error")
-    def test_set_with_command_failure(self, mock_log_error):
+    def test_set_with_command_failure(self, mock_log_error, mock_log_warning):
         """
         Test handling of command failures
         """
@@ -534,6 +511,8 @@ class TestCommonSetLimitRules(unittest.TestCase):
 
         # Should log error when all commands fail
         mock_log_error.assert_called()
+        # Should log warnings for each failed command
+        self.assertEqual(mock_log_warning.call_count, 3)
 
 
 class TestCommonDeleteLimitRules(unittest.TestCase):
