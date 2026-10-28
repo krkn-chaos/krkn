@@ -19,7 +19,10 @@ import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn.scenario_plugins.pvc.pvc_scenario_plugin import PvcScenarioPlugin
+from krkn.scenario_plugins.pvc.pvc_scenario_plugin import (
+    PvcScenarioPlugin,
+    _parse_fill_percentage,
+)
 from krkn.rollback.config import RollbackContent
 
 
@@ -44,6 +47,14 @@ class TestPvcScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, ["pvc_scenarios"])
         self.assertEqual(len(result), 1)
+
+    def test_parse_fill_percentage_defaults_missing_or_blank_values(self):
+        for value in (None, "", "   "):
+            with self.subTest(value=value):
+                self.assertEqual(_parse_fill_percentage(value), 50.0)
+
+    def test_parse_fill_percentage_accepts_quoted_numeric_value(self):
+        self.assertEqual(_parse_fill_percentage("50"), 50.0)
 
 
 class TestToKbytes(unittest.TestCase):

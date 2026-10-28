@@ -1,0 +1,65 @@
+# KubeVirt fixture with a raw block-mode PVC attached as a data disk.
+# The container disk provides the guest boot device; the PVC is exposed to the
+# virt-launcher compute container through volumeDevices.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: krkn-vmi-block-pvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  volumeMode: Block
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: kubevirt.io/v1
+kind: VirtualMachineInstance
+metadata:
+  name: krkn-vmi-block
+  namespace: default
+spec:
+  domain:
+    devices:
+      disks:
+        - name: containerdisk
+          disk:
+            bus: virtio
+        - name: blockdisk
+          disk:
+            bus: virtio
+        - name: cloudinitdisk
+          disk:
+            bus: virtio
+      interfaces:
+        - name: default
+          masquerade: {}
+          ports:
+            - port: 22
+    resources:
+      requests:
+        memory: 512Mi
+  networks:
+    - name: default
+      pod: {}
+  volumes:
+    - name: containerdisk
+      containerDisk:
+        image: quay.io/containerdisks/fedora:latest
+    - name: blockdisk
+      persistentVolumeClaim:
+        claimName: krkn-vmi-block-pvc
+    - name: cloudinitdisk
+      cloudInitNoCloud:
+        userData: |-
+          #cloud-config
+          ssh_pwauth: false
+          users:
+            - name: fedora
+              groups: [wheel]
+              sudo: ALL=(ALL) NOPASSWD:ALL
+              shell: /bin/bash
+              lock_passwd: true
+              ssh_authorized_keys:
+                - "REPLACE_WITH_KRKN_PUBLIC_KEY"
