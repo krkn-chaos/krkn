@@ -197,7 +197,7 @@ Krkn uses multiple security checks:
 - **[Snyk](https://snyk.io/)**: Additional dependency scanning with curated vulnerability database
 - **GitHub Dependabot**: Automated dependency update alerts for Python and Go modules
 
-Grype and Trivy scan results are published in GitHub Actions job summaries and JSON artifacts. Scheduled scans, manual refreshes and releases also send a concise report and a link to the full results to Slack when the `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret is configured. The repository also contains a local Grype/Copa helper script for manual experiments.
+Grype and Trivy scan results are published in GitHub Actions job summaries and JSON artifacts. Scheduled scans, manual refreshes and releases send a concise report and a link to the full results to Slack when `KRKN_IMAGE_SECURITY_REPORT_SLACK_TRIGGER_URL` is configured. The existing `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` secret is a fallback that sends reports without the rebuild button.
 
  
 ## Reporting a Vulnerability

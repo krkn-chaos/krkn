@@ -414,7 +414,7 @@ jobs:
               select(.Type == "python-pkg")
               | . as $result
               | .Vulnerabilities |= [
-                  .[] as $vulnerability
+                  .[]? as $vulnerability
                 | select(
                     (
                       ($vulnerability.PkgName == "setuptools"
