@@ -13,6 +13,7 @@ import os
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch, call
+from types import SimpleNamespace
 
 import yaml
 from krkn_lib.k8s import KrknKubernetes
@@ -30,6 +31,7 @@ from krkn.scenario_plugins.storage_throttle.storage_throttle_utils import (
     parse_byte_value as _parse_byte_value,
     parse_duration_value as _parse_duration_value,
 )
+from krkn.utils.pod_volumes import resolve_vmi_pod
 from krkn.rollback.config import RollbackContent
 
 
@@ -231,6 +233,66 @@ class TestResolveTargetPod(unittest.TestCase):
         )
         self.assertEqual(result, "from-pvc")
 
+    def test_resolve_by_vmi_name(self):
+        mock_k8s = MagicMock(spec=KrknKubernetes)
+        mock_k8s.get_vmi.return_value = {
+            "status": {"phase": "Running", "nodeName": "worker-1"}
+        }
+        mock_k8s.list_pods.side_effect = [[], ["virt-launcher-vm1"]]
+        mock_k8s.cli.read_namespaced_pod.return_value = {
+            "metadata": {"uid": "uid-vm1"},
+            "status": {"phase": "Running"},
+            "spec": {"nodeName": "worker-1"},
+        }
+
+        result = self.plugin._resolve_pod_name(
+            mock_k8s, "", "", "default", "vm1"
+        )
+
+        self.assertEqual(result, "virt-launcher-vm1")
+        self.assertEqual(mock_k8s.list_pods.call_count, 2)
+
+    def test_resolve_by_vmi_name_skips_stale_launcher(self):
+        mock_k8s = MagicMock(spec=KrknKubernetes)
+        mock_k8s.get_vmi.return_value = {
+            "status": {
+                "phase": "Running",
+                "nodeName": "worker-1",
+                "activePods": {"uid-active": "worker-1"},
+            }
+        }
+        mock_k8s.list_pods.side_effect = [["stale-launcher", "active-launcher"], []]
+        mock_k8s.cli.read_namespaced_pod.side_effect = [
+            {
+                "metadata": {"uid": "uid-stale"},
+                "status": {"phase": "Completed"},
+                "spec": {"nodeName": "worker-1"},
+            },
+            {
+                "metadata": {"uid": "uid-active"},
+                "status": {"phase": "Running"},
+                "spec": {"nodeName": "worker-1"},
+            },
+        ]
+
+        result = resolve_vmi_pod(mock_k8s, "vm1", "default")
+
+        self.assertEqual(result, "active-launcher")
+
+    def test_get_container_id_from_raw_block_pod(self):
+        raw_pod = {
+            "spec": {"containers": [{"name": "compute"}]},
+            "status": {
+                "containerStatuses": [
+                    {"name": "compute", "containerID": "cri-o://abc123def456"}
+                ]
+            },
+        }
+
+        result = StorageThrottleScenarioPlugin._get_container_id(raw_pod, "compute")
+
+        self.assertEqual(result, "abc123def456")
+
     def test_resolve_pvc_not_found(self):
         mock_k8s = MagicMock(spec=KrknKubernetes)
         mock_k8s.get_pvc_info.return_value = None
@@ -355,6 +417,66 @@ class TestFindPvcMount(unittest.TestCase):
         self.assertIsNone(container)
         self.assertIsNone(path)
 
+    def test_find_block_device_from_raw_virt_launcher_pod(self):
+        """KubeVirt block PVCs are resolved through container.volumeDevices."""
+        pod_info = SimpleNamespace(
+            name="virt-launcher-vm",
+            namespace="default",
+            volumes=[],
+            containers=[],
+        )
+        raw_pod = {
+            "spec": {
+                "volumes": [{
+                    "name": "rootdisk",
+                    "persistentVolumeClaim": {"claimName": "vm-disk"},
+                }],
+                "containers": [{
+                    "name": "compute",
+                    "volumeDevices": [{
+                        "name": "rootdisk",
+                        "devicePath": "/dev/vda",
+                    }],
+                }],
+            }
+        }
+        lib_k8s = MagicMock()
+        lib_k8s.cli.read_namespaced_pod.return_value = raw_pod
+
+        target = StorageThrottleScenarioPlugin._find_pvc_volume(
+            lib_k8s, pod_info, "", "vm-disk"
+        )
+
+        self.assertEqual(target.container_name, "compute")
+        self.assertEqual(target.path, "/dev/vda")
+        self.assertEqual(target.mode, "block")
+
+    def test_find_filesystem_mount_from_raw_pod_spec(self):
+        """Raw Kubernetes Pod spec volumes remain supported."""
+        raw_pod = {
+            "spec": {
+                "volumes": [{
+                    "name": "data",
+                    "persistentVolumeClaim": {"claimName": "data-pvc"},
+                }],
+                "containers": [{
+                    "name": "app",
+                    "volumeMounts": [{
+                        "name": "data",
+                        "mountPath": "/data",
+                    }],
+                }],
+            }
+        }
+
+        target = StorageThrottleScenarioPlugin._find_pvc_volume(
+            None, raw_pod, "/data", "data-pvc"
+        )
+
+        self.assertEqual(target.container_name, "app")
+        self.assertEqual(target.path, "/data")
+        self.assertEqual(target.mode, "filesystem")
+
 
 class TestGetDeviceMajMin(unittest.TestCase):
 
@@ -392,6 +514,19 @@ class TestGetDeviceMajMin(unittest.TestCase):
         )
         self.assertEqual(result, "")
         mock_k8s.exec_cmd_in_pod.assert_not_called()
+
+    def test_block_device_major_minor_converts_hex_stat_output(self):
+        mock_k8s = MagicMock(spec=KrknKubernetes)
+        mock_k8s.exec_cmd_in_pod.return_value = "8:10\n"
+
+        result = StorageThrottleScenarioPlugin._get_device_maj_min(
+            mock_k8s, "pod", "ns", "compute", "/dev/vda", "block"
+        )
+
+        self.assertEqual(result, "8:16")
+        command = mock_k8s.exec_cmd_in_pod.call_args.args[0][0]
+        self.assertIn("stat", command)
+        self.assertIn("/dev/vda", command)
 
 
 class TestGetContainerId(unittest.TestCase):
