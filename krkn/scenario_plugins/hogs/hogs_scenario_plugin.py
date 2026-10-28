@@ -51,6 +51,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                 if scenario_config.node_selector:
                     logging.warning(f"node selector {scenario_config.node_selector} not in right format (key=value)")
                 node_selector = ""
+                has_selector = False
             else:
                 node_selector = scenario_config.node_selector
 
@@ -65,7 +66,13 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
                 if len(available_nodes) == 0:
                     raise Exception("no available nodes to schedule workload")
 
-                if not has_selector:
+                if not has_selector and not scenario_config.number_of_nodes:
+                    if not scenario_config.tolerations:
+                        lib_k8s = lib_telemetry.get_lib_kubernetes()
+                        ready_nodes = set(lib_k8s.list_ready_nodes())
+                        available_nodes = [n for n in lib_k8s.list_schedulable_nodes() if n in ready_nodes]
+                        if len(available_nodes) == 0:
+                            raise Exception("no ready schedulable nodes to schedule workload")
                     available_nodes = [available_nodes[random.randint(0, len(available_nodes) - 1)]]
 
             if scenario_config.number_of_nodes and len(available_nodes) > scenario_config.number_of_nodes:
