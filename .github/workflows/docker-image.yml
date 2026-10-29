@@ -515,7 +515,7 @@ jobs:
               | .Vulnerabilities |= [
                   .[]? as $vulnerability
                 | select(
-                    (.FixedVersion // "") != ""
+                    ($vulnerability.FixedVersion // "") != ""
                     and
                     (
                       ($vulnerability.PkgName == "setuptools"
