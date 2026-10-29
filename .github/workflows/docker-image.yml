@@ -1101,16 +1101,15 @@ jobs:
               sbom_only=$((go_fixable + python_fixable - $(jq -r .total <<< "$library_policy")))
               code_line="$platform ($phase): Go $go findings ($go_fixable with fixes, $go_actionable actionable), Python $python findings ($python_fixable with fixes, $python_actionable actionable); $accepted documented exceptions, $sbom_only SBOM-only Python findings."
               if [[ "$phase" == 'candidate after patch' ]]; then
+                code_line+=" Go tools rebuilt from source with pinned modules."
                 before_libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-before.json"
                 if [[ -s "$before_libraries" ]]; then
                   before_counts=$(jq -r '[
-                    ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]?] | length),
-                    ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length),
                     ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length),
                     ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length)
                   ] | join(" ")' "$before_libraries")
-                  read -r before_go before_go_fixable before_python before_python_fixable <<< "$before_counts"
-                  code_line+=" Before Copa: Go $before_go ($before_go_fixable with fixes), Python $before_python ($before_python_fixable with fixes)."
+                  read -r before_python before_python_fixable <<< "$before_counts"
+                  code_line+=" Python before Copa: $before_python findings ($before_python_fixable with fixes)."
                 fi
                 published_libraries="$RUNNER_TEMP/current/current-$platform-trivy.json"
                 if [[ -s "$published_libraries" ]]; then
