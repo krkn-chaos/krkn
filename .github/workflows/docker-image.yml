@@ -20,7 +20,7 @@ on:
         type: string
         required: false
       force_refresh:
-        description: Rebuild even when Grype finds no fixable vulnerabilities
+        description: Rebuild even when Grype and Trivy find no fixable vulnerabilities
         type: boolean
         required: false
         default: false
@@ -139,23 +139,38 @@ jobs:
           printf '%s  %s\n' '64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519' "$grype_archive" | sha256sum -c -
           tar -xzf "$grype_archive" -C "$RUNNER_TEMP" grype
           "$RUNNER_TEMP/grype" docker:localhost/krkn:published-amd64 -o json --file "$RUNNER_TEMP/current-amd64.json"
+          jq '.matches |= map(select(.artifact.type == "rpm"))' "$RUNNER_TEMP/current-amd64.json" > "$RUNNER_TEMP/current-amd64-os.json"
+          mv "$RUNNER_TEMP/current-amd64-os.json" "$RUNNER_TEMP/current-amd64.json"
           jq -e '.source.target.architecture == "amd64"' "$RUNNER_TEMP/current-amd64.json" >/dev/null
           docker pull --platform linux/arm64 "$image"
           docker tag "$image" localhost/krkn:published-arm64
           "$RUNNER_TEMP/grype" docker:localhost/krkn:published-arm64 -o json --file "$RUNNER_TEMP/current-arm64.json"
+          jq '.matches |= map(select(.artifact.type == "rpm"))' "$RUNNER_TEMP/current-arm64.json" > "$RUNNER_TEMP/current-arm64-os.json"
+          mv "$RUNNER_TEMP/current-arm64-os.json" "$RUNNER_TEMP/current-arm64.json"
           jq -e '.source.target.architecture == "arm64"' "$RUNNER_TEMP/current-arm64.json" >/dev/null
+          trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl -fsSL 'https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz' -o "$trivy_archive"
+          printf '%s  %s\n' 'e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7' "$trivy_archive" | sha256sum -c -
+          tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+          "$RUNNER_TEMP/trivy" image --scanners vuln --pkg-types library \
+            --format json --output "$RUNNER_TEMP/current-amd64-trivy.json" localhost/krkn:published-amd64
+          "$RUNNER_TEMP/trivy" image --scanners vuln --pkg-types library \
+            --format json --output "$RUNNER_TEMP/current-arm64-trivy.json" localhost/krkn:published-arm64
           amd64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-amd64.json")
           arm64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-arm64.json")
-          amd64_fixable=$(jq -r .actionable <<< "$amd64_policy")
-          arm64_fixable=$(jq -r .actionable <<< "$arm64_policy")
-          fixable=$((amd64_fixable + arm64_fixable))
+          os_fixable=$(( $(jq -r .actionable <<< "$amd64_policy") + $(jq -r .actionable <<< "$arm64_policy") ))
+          amd64_library_policy=$(jq -c -f scripts/trivy-scan-policy.jq "$RUNNER_TEMP/current-amd64-trivy.json")
+          arm64_library_policy=$(jq -c -f scripts/trivy-scan-policy.jq "$RUNNER_TEMP/current-arm64-trivy.json")
+          library_fixable=$(( $(jq -r .actionable <<< "$amd64_library_policy") + $(jq -r .actionable <<< "$arm64_library_policy") ))
+          library_accepted=$(( $(jq -r .accepted <<< "$amd64_library_policy") + $(jq -r .accepted <<< "$arm64_library_policy") ))
+          fixable=$((os_fixable + library_fixable))
           {
             echo '## Published image scan'
             echo "- Source release: \`$displayed_tag\`"
             echo "- Published amd64 OS: $(jq -r '"\(.distro.name // "unknown") \(.distro.version // "unknown")"' "$RUNNER_TEMP/current-amd64.json")"
             echo "- Published arm64 OS: $(jq -r '"\(.distro.name // "unknown") \(.distro.version // "unknown")"' "$RUNNER_TEMP/current-arm64.json")"
-            echo "- amd64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$amd64_policy")"
-            echo "- arm64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$arm64_policy")"
+            echo "- Grype Fedora RPMs: $os_fixable fixable across amd64 and arm64"
+            echo "- Trivy Go/Python dependencies: $library_fixable actionable, $library_accepted documented exceptions across amd64 and arm64"
           } >> "$GITHUB_STEP_SUMMARY"
           if [[ "$GITHUB_EVENT_NAME" == schedule || "$SCAN_ONLY" == true ]]; then
             echo should_build=false >> "$GITHUB_OUTPUT"
@@ -187,15 +202,17 @@ jobs:
         if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: current-image-grype
+          name: current-image-scans
           path: |
             ${{ runner.temp }}/current-amd64.json
             ${{ runner.temp }}/current-arm64.json
+            ${{ runner.temp }}/current-amd64-trivy.json
+            ${{ runner.temp }}/current-arm64-trivy.json
           if-no-files-found: ignore
           retention-days: 14
 
   security-scan-source:
-    name: Security Scan - Source Code & Dependencies
+    name: Security Scan - Go/Python Dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: github.event_name == 'pull_request'
@@ -203,22 +220,27 @@ jobs:
     - name: Check out code
       uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
-    - name: Install Grype
+    - name: Install Trivy
       run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+        trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+        curl -fsSL 'https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz' -o "$trivy_archive"
+        printf '%s  %s\n' 'e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7' "$trivy_archive" | sha256sum -c -
+        tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+        sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
 
     - name: Scan source code and dependencies
       run: |
-        echo "🔍 Scanning source code and dependencies for vulnerabilities..."
-        grype dir:. --only-fixed -o table > /tmp/grype-source.txt || true
-
-        SCAN_OUTPUT=$(grype dir:. --only-fixed -o json)
-        CRITICAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length')
-        HIGH=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "High")] | length')
-        MEDIUM=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length')
+        echo "🔍 Scanning Go and Python source dependencies for known vulnerabilities..."
+        trivy fs --scanners vuln --pkg-types library \
+          --format json --output "$RUNNER_TEMP/trivy-source.json" .
+        jq -r '.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Target as $target | .Vulnerabilities[]? | "\($target)\t\(.PkgName)\t\(.VulnerabilityID)\t\(.Severity)"' \
+          "$RUNNER_TEMP/trivy-source.json" > "$RUNNER_TEMP/trivy-source.txt"
+        CRITICAL=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "CRITICAL" and (.FixedVersion // "") != "")] | length' "$RUNNER_TEMP/trivy-source.json")
+        HIGH=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "HIGH" and (.FixedVersion // "") != "")] | length' "$RUNNER_TEMP/trivy-source.json")
+        MEDIUM=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "MEDIUM" and (.FixedVersion // "") != "")] | length' "$RUNNER_TEMP/trivy-source.json")
 
         # Create Job Summary with table
-        echo "## 🔒 Security Scan - Source Code & Dependencies" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔒 Security Scan - Go/Python Dependencies" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Severity | Count | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -239,7 +261,7 @@ jobs:
         echo "<summary>📋 Full Scan Results</summary>" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-        cat /tmp/grype-source.txt >> $GITHUB_STEP_SUMMARY
+        cat "$RUNNER_TEMP/trivy-source.txt" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "</details>" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
@@ -481,6 +503,8 @@ jobs:
               | .Vulnerabilities |= [
                   .[]? as $vulnerability
                 | select(
+                    (.FixedVersion // "") != ""
+                    and
                     (
                       ($vulnerability.PkgName == "setuptools"
                         and $vulnerability.InstalledVersion == "81.0.0"
@@ -540,13 +564,15 @@ jobs:
         }
 
         grype "docker:$IMAGE_NAME" --output json --file "$os_before_report"
+        jq '.matches |= map(select(.artifact.type == "rpm"))' "$os_before_report" > "$RUNNER_TEMP/grype-os-before-filtered.json"
+        mv "$RUNNER_TEMP/grype-os-before-filtered.json" "$os_before_report"
         assert_os_scan_covered "$os_before_report" "$IMAGE_NAME" "after dnf upgrade"
-        os_before_count=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_before_report")
-        go_before_count=$(jq '[.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length' "$os_before_report")
+        os_before_count=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length' "$os_before_report")
         echo "Fixable Fedora vulnerabilities after dnf upgrade: $os_before_count"
 
-        trivy image --scanners vuln --pkg-types library --ignore-unfixed \
+        trivy image --scanners vuln --pkg-types library \
           --format json --output "$library_before_report" "$IMAGE_NAME"
+        go_before_count=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length' "$library_before_report")
         filter_python_vulnerabilities "$library_before_report" "$python_report"
         python_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_report")
         python_sbom_before_count=$(count_embedded_sbom_findings "$library_before_report")
@@ -566,16 +592,16 @@ jobs:
         docker image inspect "$PATCHED_IMAGE" >/dev/null
 
         grype "docker:$PATCHED_IMAGE" --output json --file "$os_after_report"
+        jq '.matches |= map(select(.artifact.type == "rpm"))' "$os_after_report" > "$RUNNER_TEMP/grype-os-after-filtered.json"
+        mv "$RUNNER_TEMP/grype-os-after-filtered.json" "$os_after_report"
         assert_os_scan_covered "$os_after_report" "$PATCHED_IMAGE" "after Copa"
-        os_remaining=$(jq '[.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
-        go_remaining=$(jq '[.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
-        total_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed")] | length' "$os_after_report")
-        all_remaining=$(jq '[.matches[]?] | length' "$os_after_report")
-        grype_policy=$(jq -c -f scripts/grype-scan-policy.jq "$os_after_report")
-        critical_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed" and .vulnerability.severity == "Critical")] | length' "$os_after_report")
-        high_remaining=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed" and .vulnerability.severity == "High")] | length' "$os_after_report")
-        trivy image --scanners vuln --pkg-types library --ignore-unfixed \
+        os_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
+        all_os_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm")] | length' "$os_after_report")
+        critical_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed" and .vulnerability.severity == "Critical")] | length' "$os_after_report")
+        high_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed" and .vulnerability.severity == "High")] | length' "$os_after_report")
+        trivy image --scanners vuln --pkg-types library \
           --format json --output "$library_after_report" "$PATCHED_IMAGE"
+        go_remaining=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length' "$library_after_report")
         filter_python_vulnerabilities "$library_after_report" "$python_after_report"
         python_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_after_report")
         python_sbom_after_count=$(count_embedded_sbom_findings "$library_after_report")
@@ -585,26 +611,22 @@ jobs:
           echo "## Image vulnerability patching (${{ matrix.platform }})"
           echo "- Fixable Fedora vulnerabilities after dnf upgrade: $os_before_count"
           echo "- Fixable Fedora vulnerabilities in final image: $os_remaining"
-          echo "- Fixable Go tool vulnerabilities before/after: $go_before_count / $go_remaining"
-          echo "- Documented Go exceptions in oc: $(jq -r .go_accepted <<< "$grype_policy")"
-          echo "- Actionable Go findings: $(jq -r .go_actionable <<< "$grype_policy")"
+          echo "- Trivy Go tool vulnerabilities with fixes before/after: $go_before_count / $go_remaining"
           echo "- Installed Python vulnerabilities with fixes before Copa: $python_before_count"
           echo "- Installed Python vulnerabilities with fixes after Copa: $python_remaining"
           echo "- Python findings from embedded SBOMs without an installed package (excluded): $python_sbom_after_count"
           echo "- Windows/macOS-only setuptools advisories on this Linux image (reported separately): $non_linux_setuptools"
           echo "- Accepted cbor2 findings constrained by arcaflow-plugin-sdk 0.14.3 (reported separately): $accepted_cbor2"
-          echo "- Total Grype fixable matches in final image: $total_remaining"
-          echo "- All Grype matches in final image (including those without a fix): $all_remaining"
-          echo "- Actionable Grype matches in final image: $(jq -r .actionable <<< "$grype_policy")"
-          echo "- Critical / high fixable matches: $critical_remaining / $high_remaining"
+          echo "- Grype Fedora RPM matches in final image: $all_os_remaining ($os_remaining fixable)"
+          echo "- Critical / high fixable Fedora RPM matches: $critical_remaining / $high_remaining"
           echo "- Remaining CVEs are reported and do not block publication. See the uploaded JSON reports for every finding."
-          if (( all_remaining > 0 )); then
+          if (( all_os_remaining > 0 )); then
             echo ''
-            echo '<details><summary>Remaining Grype matches (first 50)</summary>'
+            echo '<details><summary>Remaining Grype Fedora RPM matches (first 50)</summary>'
             echo ''
             echo '| CVE | Package | Installed | Severity | Fix state | Fix |'
             echo '|---|---|---|---|---|---|'
-            jq -r '[.matches[]?][:50][] | "| \(.vulnerability.id) | \(.artifact.name) | \(.artifact.version) | \(.vulnerability.severity) | \(.vulnerability.fix.state) | \((.vulnerability.fix.versions // []) | join(", ")) |"' "$os_after_report"
+            jq -r '[.matches[]? | select(.artifact.type == "rpm")][:50][] | "| \(.vulnerability.id) | \(.artifact.name) | \(.artifact.version) | \(.vulnerability.severity) | \(.vulnerability.fix.state) | \((.vulnerability.fix.versions // []) | join(", ")) |"' "$os_after_report"
             echo ''
             echo '</details>'
           fi
@@ -1003,6 +1025,9 @@ jobs:
     needs: [prepare, build-tools, build, functional-tests, publish-platforms, manifest, rollback]
     if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
     steps:
+      - name: Check out scan policy
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
       - name: Download candidate vulnerability reports
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true
@@ -1015,7 +1040,7 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         continue-on-error: true
         with:
-          name: current-image-grype
+          name: current-image-scans
           path: ${{ runner.temp }}/current
 
       - name: Summarize and notify
@@ -1050,47 +1075,94 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           message="Krkn image workflow $status ($mode). Source: ${SOURCE_TAG:-unknown}; target tag: ${PUBLISH_TAG:-none}; rollback: ${ROLLBACK_TAG:-none}."
+          code_lines=()
+          os_lines=()
           for platform in amd64 arm64; do
             report="$RUNNER_TEMP/reports/vulnerability-reports-$platform/grype-os-after.json"
-            python="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-python-after.json"
+            libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-after.json"
             phase='candidate after patch'
             if [[ ! -s "$report" ]]; then
               report="$RUNNER_TEMP/current/current-$platform.json"
-              python=''
+              libraries="$RUNNER_TEMP/current/current-$platform-trivy.json"
               phase='currently published image'
             fi
-            if [[ -s "$report" ]]; then
-              counts=$(jq -r '[
-                ([.matches[]?] | length),
-                ([.matches[]? | select(.vulnerability.fix.state == "fixed")] | length),
-                ([.matches[]? | select(.vulnerability.severity == "Critical")] | length),
-                ([.matches[]? | select(.vulnerability.severity == "High")] | length),
-                ([.matches[]? | select(.artifact.language == "" and .vulnerability.fix.state == "fixed")] | length),
-                ([.matches[]? | select((.artifact.language // "" | ascii_downcase) == "go" and .vulnerability.fix.state == "fixed")] | length)
-              ] | join(" ")' "$report")
-              read -r total fixable critical high os go <<< "$counts"
-              python_fixable='unavailable'
-              if [[ -n "$python" && -s "$python" ]]; then
-                python_fixable=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python")
-              fi
-              line="$platform ($phase): $total Grype matches, $fixable fixable (OS $os, Go $go), $critical critical, $high high; Trivy Python eligible for Copa: $python_fixable."
-              before="$RUNNER_TEMP/current/current-$platform.json"
-              if [[ "$phase" == 'candidate after patch' && -s "$before" ]]; then
-                before_counts=$(jq -r '[(.matches | length), ([.matches[]? | select(.vulnerability.fix.state == "fixed")] | length)] | join(" ")' "$before")
-                read -r before_total before_fixable <<< "$before_counts"
-                change_counts=$(jq -nr --slurpfile before "$before" --slurpfile after "$report" '
-                  [$before[0].matches[]? | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $old |
-                  [$after[0].matches[]? | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $new |
-                  [($old - $new | length), ($new - $old | length)] | join(" ")')
-                read -r resolved introduced <<< "$change_counts"
-                line+=" Published baseline: $before_total matches, $before_fixable fixable; $resolved resolved, $introduced new."
+            if [[ -s "$libraries" ]]; then
+              library_counts=$(jq -r '[
+                ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]?] | length),
+                ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length),
+                ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length),
+                ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length)
+              ] | join(" ")' "$libraries")
+              read -r go go_fixable python python_fixable <<< "$library_counts"
+              library_policy=$(jq -c -f scripts/trivy-scan-policy.jq "$libraries")
+              go_actionable=$(jq -r .go_actionable <<< "$library_policy")
+              python_actionable=$(jq -r .python_actionable <<< "$library_policy")
+              accepted=$(jq -r .accepted <<< "$library_policy")
+              sbom_only=$((go_fixable + python_fixable - $(jq -r .total <<< "$library_policy")))
+              code_line="$platform ($phase): Go $go findings ($go_fixable with fixes, $go_actionable actionable), Python $python findings ($python_fixable with fixes, $python_actionable actionable); $accepted documented exceptions, $sbom_only SBOM-only Python findings."
+              if [[ "$phase" == 'candidate after patch' ]]; then
+                before_libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-before.json"
+                if [[ -s "$before_libraries" ]]; then
+                  before_counts=$(jq -r '[
+                    ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]?] | length),
+                    ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length),
+                    ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length),
+                    ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length)
+                  ] | join(" ")' "$before_libraries")
+                  read -r before_go before_go_fixable before_python before_python_fixable <<< "$before_counts"
+                  code_line+=" Before Copa: Go $before_go ($before_go_fixable with fixes), Python $before_python ($before_python_fixable with fixes)."
+                fi
+                published_libraries="$RUNNER_TEMP/current/current-$platform-trivy.json"
+                if [[ -s "$published_libraries" ]]; then
+                  code_changes=$(jq -nr --slurpfile before "$published_libraries" --slurpfile after "$libraries" '
+                    [$before[0].Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Target as $target | .Vulnerabilities[]? | [$target, .PkgName, .VulnerabilityID] | join("|")] | unique as $old |
+                    [$after[0].Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Target as $target | .Vulnerabilities[]? | [$target, .PkgName, .VulnerabilityID] | join("|")] | unique as $new |
+                    [($old - $new | length), ($new - $old | length)] | join(" ")')
+                  read -r code_resolved code_new <<< "$code_changes"
+                  code_line+=" Since published baseline: $code_resolved resolved, $code_new new."
+                fi
               fi
             else
-              line="$platform: scanner report unavailable."
+              code_line="$platform: Trivy library report unavailable."
             fi
-            echo "- $line" >> "$GITHUB_STEP_SUMMARY"
-            message+=$'\n'"$line"
+            code_lines+=("$code_line")
+            if [[ -s "$report" ]]; then
+              counts=$(jq -r '[
+                ([.matches[]? | select(.artifact.type == "rpm")] | length),
+                ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length),
+                ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "Critical")] | length),
+                ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "High")] | length)
+              ] | join(" ")' "$report")
+              read -r total fixable critical high <<< "$counts"
+              os_line="$platform ($phase): $total matches, $fixable fixable, $critical critical, $high high."
+              before="$RUNNER_TEMP/current/current-$platform.json"
+              if [[ "$phase" == 'candidate after patch' && -s "$before" ]]; then
+                before_counts=$(jq -r '[(.matches | map(select(.artifact.type == "rpm")) | length), ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length)] | join(" ")' "$before")
+                read -r before_total before_fixable <<< "$before_counts"
+                change_counts=$(jq -nr --slurpfile before "$before" --slurpfile after "$report" '
+                  [$before[0].matches[]? | select(.artifact.type == "rpm") | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $old |
+                  [$after[0].matches[]? | select(.artifact.type == "rpm") | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $new |
+                  [($old - $new | length), ($new - $old | length)] | join(" ")')
+                read -r resolved introduced <<< "$change_counts"
+                os_line+=" Published baseline: $before_total matches, $before_fixable fixable; $resolved resolved, $introduced new."
+              fi
+            else
+              os_line="$platform: Grype OS report unavailable."
+            fi
+            os_lines+=("$os_line")
           done
+          {
+            echo '### Go/Python dependencies (Trivy)'
+            printf '%s\n' "${code_lines[@]/#/- }"
+            echo '### OS packages (Grype)'
+            printf '%s\n' "${os_lines[@]/#/- }"
+          } >> "$GITHUB_STEP_SUMMARY"
+          message+=$'\n\n'"Go/Python dependencies (Trivy):"
+          printf -v code_text '%s\n' "${code_lines[@]}"
+          message+=$'\n'"${code_text%$'\n'}"
+          message+=$'\n\n'"OS packages (Grype):"
+          printf -v os_text '%s\n' "${os_lines[@]}"
+          message+=$'\n'"${os_text%$'\n'}"
           message+=$'\n'"Details and full JSON reports: $run_url"
           message+=$'\n'"Run a scan or rebuild: $workflow_url (select main; use scan_only for a scan or force_refresh to rebuild without actionable findings)."
           if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
@@ -1162,16 +1234,42 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
+      - name: Install Trivy for dependency badge
+        run: |
+          trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl -fsSL 'https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz' -o "$trivy_archive"
+          printf '%s  %s\n' 'e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7' "$trivy_archive" | sha256sum -c -
+          tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+          sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
+
       - name: Scan and generate security badge
         run: |
-          # Grype covers Fedora 45 OS packages as well as bundled tools and Python.
+          # Count only Fedora RPMs from Grype and Go/Python dependencies from Trivy.
           grype docker:krkn-chaos/krkn:security-scan --output json --file "$RUNNER_TEMP/grype-security-scan.json"
+          jq '.matches |= map(select(.artifact.type == "rpm"))' "$RUNNER_TEMP/grype-security-scan.json" > "$RUNNER_TEMP/grype-security-os.json"
+          mv "$RUNNER_TEMP/grype-security-os.json" "$RUNNER_TEMP/grype-security-scan.json"
+          trivy image --scanners vuln --pkg-types library \
+            --format json --output "$RUNNER_TEMP/trivy-security-scan.json" krkn-chaos/krkn:security-scan
 
           # Count vulnerabilities by severity
-          CRITICAL=$(jq '[.matches[]? | select(.vulnerability.severity == "Critical")] | length' "$RUNNER_TEMP/grype-security-scan.json")
-          HIGH=$(jq '[.matches[]? | select(.vulnerability.severity == "High")] | length' "$RUNNER_TEMP/grype-security-scan.json")
-          MEDIUM=$(jq '[.matches[]? | select(.vulnerability.severity == "Medium")] | length' "$RUNNER_TEMP/grype-security-scan.json")
-          TOTAL=$(jq '[.matches[]?] | length' "$RUNNER_TEMP/grype-security-scan.json")
+          os_counts=$(jq -r '[
+            ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "Critical")] | length),
+            ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "High")] | length),
+            ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "Medium")] | length),
+            ([.matches[]? | select(.artifact.type == "rpm")] | length)
+          ] | join(" ")' "$RUNNER_TEMP/grype-security-scan.json")
+          read -r os_critical os_high os_medium os_total <<< "$os_counts"
+          library_counts=$(jq -r '[
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length),
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "HIGH")] | length),
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length),
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]?] | length)
+          ] | join(" ")' "$RUNNER_TEMP/trivy-security-scan.json")
+          read -r library_critical library_high library_medium library_total <<< "$library_counts"
+          CRITICAL=$((os_critical + library_critical))
+          HIGH=$((os_high + library_high))
+          MEDIUM=$((os_medium + library_medium))
+          TOTAL=$((os_total + library_total))
 
           # Determine badge color based on severity
           if [ $CRITICAL -gt 0 ]; then

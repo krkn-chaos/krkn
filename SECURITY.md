@@ -9,7 +9,7 @@ Krkn follows a proactive security strategy based on continuous vulnerability sca
 
 ### Vulnerability Scanning with Grype and Trivy
 
-The Docker image workflow uses [Grype](https://github.com/anchore/grype) to scan Fedora 45 packages and Go binaries. The Dockerfile runs `dnf upgrade --refresh` on every build. [Trivy](https://trivy.dev/) supplies installed Python package findings to Copa for eligible minor-version patches. The candidate is scanned again; remaining CVEs are reported in the run summary, downloadable JSON reports and Slack when configured, but do not block publication. Scanner failures and functional test failures still stop publication. Grype also generates the image security badge on main.
+The Docker image workflow uses [Grype](https://github.com/anchore/grype) for Fedora 45 RPM findings and [Trivy](https://trivy.dev/) for Go and Python dependency findings. The Dockerfile runs `dnf upgrade --refresh` on every build. Trivy supplies installed Python package findings to Copa for eligible minor-version patches. The candidate is scanned again; remaining CVEs are reported in the run summary, downloadable JSON reports and Slack when configured, but do not block publication. Scanner failures and functional test failures still stop publication. The image security badge on main combines Fedora RPM findings from Grype with Go/Python findings from Trivy.
 
 ### Security Baseline
 
@@ -132,9 +132,8 @@ The OpenShift CLI (`oc`) binary is compiled from source with vendored Go depende
 
 **moby/go-archive v0.1.0** - GHSA-hfg8-hc9c-6c3h is fixed in v0.3.0.
 Forcing that version into the current `oc` build breaks the vendored Docker
-archive API (`undefined: archive.Compression`). The workflow records this
-exact `oc` finding as a documented exception. Any new advisory or different
-version is reported separately.
+archive API (`undefined: archive.Compression`). The report retains this
+documented `oc` finding, alongside any new advisory or different version.
 
 ---
 
@@ -193,7 +192,8 @@ We conducted a comprehensive security audit and dependency upgrade, fixing all C
 
 Krkn uses multiple security checks:
 
-- **[Trivy](https://trivy.dev/)**: Runtime image OS and library vulnerability scanning, with Copa patch verification in the Docker image workflow
+- **[Grype](https://github.com/anchore/grype)**: Fedora RPM vulnerability reporting in the Docker image workflow
+- **[Trivy](https://trivy.dev/)**: Go and Python dependency vulnerability reporting, with Copa patch verification in the Docker image workflow
 - **[Snyk](https://snyk.io/)**: Additional dependency scanning with curated vulnerability database
 - **GitHub Dependabot**: Automated dependency update alerts for Python and Go modules
 

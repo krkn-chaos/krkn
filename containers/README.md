@@ -52,10 +52,10 @@ The Docker image workflow keeps the normal tag release path. Both releases and
 security refreshes build the `oc`, `virtctl`, and `yq` binaries for amd64 and
 arm64 outside the Dockerfile. The Fedora 45 Dockerfile runs `dnf upgrade
 --refresh` before installing Krkn; after the image build, Copa applies available
-Python dependency fixes. Grype checks Fedora and Go packages, Trivy supplies
-the Python report for Copa, and both platforms must complete the image scans and
-pass functional tests before publication. Remaining CVEs do not block
-publication. The run summary records vulnerability
+Python dependency fixes. Grype reports Fedora OS packages; Trivy reports Go and
+Python dependencies and supplies the Python report for Copa. Both platforms
+must complete the image scans and pass functional tests before publication.
+Remaining CVEs do not block publication. The run summary records vulnerability
 counts and the source commits of the Go tools; JSON reports are downloadable
 as run artifacts.
 The functional test runner uses the test suite included in the candidate image,
@@ -74,8 +74,11 @@ kept out of the Copa input: forcing `cbor2` to 5.9.0 makes `pip check` fail.
 New findings outside these exact accepted versions and advisory IDs are
 reported separately and remain eligible for Copa patching. See
 [SECURITY.md](../SECURITY.md) for the risk assessment.
-The same exact-match Grype policy is used by the daily scan. The scheduled scan
-never rebuilds an image; the raw reports always include accepted findings.
+The daily scan uses Grype findings only for Fedora RPMs and Trivy findings only
+for Go and Python dependencies. A manual refresh is offered when either scanner
+finds an actionable vulnerability with a published fix. Exact documented Go and
+Python exceptions do not request a refresh. The scheduled scan never rebuilds
+an image; the raw reports always include documented exceptions.
 Add a `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret with an
 incoming webhook for the desired channel to receive a concise report after
 each scheduled scan, manual refresh or release, including scans that find CVEs
@@ -89,7 +92,8 @@ that Slack delivery was skipped.
 Every day at 15:30 Europe/Rome, the workflow scans both platforms of
 `quay.io/krkn-chaos/krkn:latest` and reports the findings without rebuilding.
 An operator can follow the Slack link to run the workflow on `main`. With
-`scan_only` off, if Grype finds a vulnerability with an available fix, the
+`scan_only` off, if Grype finds a fixable Fedora RPM vulnerability or Trivy
+finds an actionable Go/Python dependency vulnerability with an available fix, the
 manual run rebuilds the recorded Krkn release tag and publishes a signed
 multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag
 remains unchanged; `latest` moves to the validated patch tag, followed by a
