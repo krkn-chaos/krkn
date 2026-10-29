@@ -414,6 +414,68 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             # Should return 1 because target fill (10%) < current fill (50%)
             self.assertEqual(result, 1)
 
+    def test_run_rollback_registration_failure(self):
+        """Test run returns 1 and does not create a file when rollback registration fails."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+            # Create mock pod with PVC volume
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "test-pvc"
+            mock_volume.name = "test-volume"
+            mock_pod.volumes = [mock_volume]
+
+            # Create mock container with volume mount
+            mock_container = MagicMock()
+            mock_container.name = "test-container"
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_pod.containers = [mock_container]
+
+            mock_kubecli.get_pod_info.return_value = mock_pod
+            mock_kubecli.get_pvc_info.return_value = MagicMock()
+            mock_kubecli.get_pod_shell.return_value = "bash"
+
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df
+                "/usr/bin/fallocate",  # fallocate available
+                "/usr/bin/dd",  # dd available
+            ]
+
+            with patch.object(
+              self.plugin.rollback_handler,
+              "set_rollback_callable",
+              return_value=False,
+           ) as mock_rollback:
+              result = self.plugin.run(
+                run_uuid="test-uuid",
+                scenario=scenario_path,
+                lib_telemetry=mock_telemetry,
+                scenario_telemetry=MagicMock(),
+              )
+            # Scenario must abort when rollback registration fails
+            self.assertEqual(result, 1)
+            mock_rollback.assert_called_once()
+            # Only df and the two binary checks should run.
+            calls = mock_kubecli.exec_cmd_in_pod.call_args_list
+            self.assertEqual(len(calls), 3)
+            self.assertIn("df", calls[0].args[0][0])
+            self.assertIn("command -v fallocate", calls[1].args[0][0])
+            self.assertIn("command -v dd", calls[2].args[0][0])
+
     @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
     def test_run_success_with_fallocate(self, mock_sleep):
         """Test successful run using fallocate"""
@@ -466,13 +528,18 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             ]
 
             mock_scenario_telemetry = MagicMock()
-
-            result = self.plugin.run(
+            
+            with patch.object(
+              self.plugin.rollback_handler,
+              "set_rollback_callable",
+              return_value=True,
+            ):
+              result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
-            )
+              )
 
             self.assertEqual(result, 0)
             mock_sleep.assert_called_once_with(1)
@@ -529,15 +596,74 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             ]
 
             mock_scenario_telemetry = MagicMock()
-
-            result = self.plugin.run(
+            
+            with patch.object(
+              self.plugin.rollback_handler,
+              "set_rollback_callable",
+              return_value=True,
+            ):
+              result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
-            )
+              )
 
             self.assertEqual(result, 0)
+            mock_sleep.assert_called_once_with(1)
+
+    def test_run_no_file_creation_command_does_not_register_rollback(self):
+        """Test rollback is not registered when neither fallocate nor dd is available."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scenario_config = {
+                "pvc_scenario": {
+                    "namespace": "test-ns",
+                    "pod_name": "test-pod",
+                    "fill_percentage": 80,
+                    "duration": 1,
+                }
+            }
+            scenario_path = self.create_scenario_file(scenario_config, temp_dir)
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_kubecli = MagicMock()
+            mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "test-pvc"
+            mock_volume.name = "test-volume"
+            mock_pod.volumes = [mock_volume]
+
+            mock_container = MagicMock()
+            mock_container.name = "test-container"
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "test-volume"
+            mock_vol_mount.mountPath = "/mnt/data"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_pod.containers = [mock_container]
+
+            mock_kubecli.get_pod_info.return_value = mock_pod
+            mock_kubecli.get_pvc_info.return_value = MagicMock()
+            mock_kubecli.get_pod_shell.return_value = "sh"
+            mock_kubecli.exec_cmd_in_pod.side_effect = [
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df
+                "",  # fallocate unavailable
+                None,  # dd unavailable
+            ]
+
+            with patch.object(
+                self.plugin.rollback_handler,
+                "set_rollback_callable",
+            ) as mock_rollback:
+                result = self.plugin.run(
+                    run_uuid="test-uuid",
+                    scenario=scenario_path,
+                    lib_telemetry=mock_telemetry,
+                    scenario_telemetry=MagicMock(),
+                )
+
+            self.assertEqual(result, 1)
+            mock_rollback.assert_not_called()
+            self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 3)
 
     def test_run_no_binary_available(self):
         """Test run returns 1 when neither fallocate nor dd is available"""
@@ -662,8 +788,13 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             ]
 
             mock_scenario_telemetry = MagicMock()
-
-            with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
+            
+            with patch.object(
+                self.plugin.rollback_handler,
+                "set_rollback_callable",
+                return_value=True,
+            ):
+              with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
                 result = self.plugin.run(
                     run_uuid="test-uuid",
                     scenario=scenario_path,
@@ -834,8 +965,13 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
 
             mock_kubecli.get_pod_shell.side_effect = track_shell
             mock_kubecli.exec_cmd_in_pod.side_effect = track_exec
-
-            with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
+            
+            with patch.object(
+              self.plugin.rollback_handler,
+              "set_rollback_callable",
+              return_value=True,
+            ):
+              with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
                 result = self.plugin.run(
                     run_uuid="test-uuid",
                     scenario=scenario_path,
@@ -898,13 +1034,18 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             ]
 
             mock_scenario_telemetry = MagicMock()
-
-            result = self.plugin.run(
+            
+            with patch.object(
+               self.plugin.rollback_handler,
+               "set_rollback_callable",
+               return_value=True,
+            ):
+              result = self.plugin.run(
                 run_uuid="test-uuid",
                 scenario=scenario_path,
                 lib_telemetry=mock_telemetry,
                 scenario_telemetry=mock_scenario_telemetry,
-            )
+              )
 
             # Should return 1 because file creation failed
             self.assertEqual(result, 1)
