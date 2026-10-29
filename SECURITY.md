@@ -9,7 +9,7 @@ Krkn follows a proactive security strategy based on continuous vulnerability sca
 
 ### Vulnerability Scanning with Grype and Trivy
 
-The Docker image workflow uses [Grype](https://github.com/anchore/grype) for Fedora 45 RPM findings and [Trivy](https://trivy.dev/) for Go and Python dependency findings. The Dockerfile runs `dnf upgrade --refresh` on every build. Trivy supplies installed Python package findings to Copa for eligible minor-version patches. The candidate is scanned again; remaining CVEs are reported in the run summary, downloadable JSON reports and Slack when configured, but do not block publication. Scanner failures and functional test failures still stop publication. The image security badge on main combines Fedora RPM findings from Grype with Go/Python findings from Trivy.
+The Docker image workflow uses [Grype](https://github.com/anchore/grype) for Fedora 45 RPM findings and [Trivy](https://trivy.dev/) for Go and Python dependency findings. The Dockerfile runs `dnf upgrade --refresh` on every build. Copa rebuilds affected Go tools in separate single-binary images and patches eligible Python dependencies in the Krkn image. The final Go tools must pass client-side version commands, and the image must pass functional tests. The candidate is scanned again; remaining CVEs are reported in the run summary, downloadable JSON reports and Slack when configured, but do not block publication. Scanner and patch failures still stop publication. The image security badge on main combines Fedora RPM findings from Grype with Go/Python findings from Trivy.
 
 ### Security Baseline
 

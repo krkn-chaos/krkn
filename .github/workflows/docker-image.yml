@@ -416,6 +416,12 @@ jobs:
         name: krkn-tool-yq-${{ matrix.platform }}
         path: containers/tools
 
+    - name: Download Go source metadata
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        pattern: krkn-go-mod-*-${{ matrix.platform }}
+        path: ${{ runner.temp }}/go-mod-artifacts
+
     - name: Materialize Dockerfile
       run: ./containers/compile_dockerfile.sh
 
@@ -482,14 +488,18 @@ jobs:
         grype version
         copa --version
 
-    - name: Scan Fedora and patch Python packages with Copa
+    - name: Scan Fedora and patch Go and Python dependencies with Copa
       env:
         IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}
+        GO_PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-go-patched
         PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
       run: |
         set -euo pipefail
         os_before_report="$RUNNER_TEMP/grype-os-before.json"
         library_before_report="$RUNNER_TEMP/trivy-before.json"
+        go_policy_report="$RUNNER_TEMP/trivy-go-policy.json"
+        go_report="$RUNNER_TEMP/trivy-go-before.json"
+        python_source_report="$RUNNER_TEMP/trivy-after-go.json"
         python_report="$RUNNER_TEMP/trivy-python-before.json"
         os_after_report="$RUNNER_TEMP/grype-os-after.json"
         library_after_report="$RUNNER_TEMP/trivy-after.json"
@@ -563,6 +573,13 @@ jobs:
           fi
         }
 
+        check_go_tools() {
+          local image="$1"
+          docker run --rm --network none --entrypoint /usr/bin/oc "$image" version --client
+          docker run --rm --network none --entrypoint /usr/bin/virtctl "$image" version --client
+          docker run --rm --network none --entrypoint /usr/bin/yq "$image" --version
+        }
+
         grype "docker:$IMAGE_NAME" --output json --file "$os_before_report"
         jq '.matches |= map(select(.artifact.type == "rpm"))' "$os_before_report" > "$RUNNER_TEMP/grype-os-before-filtered.json"
         mv "$RUNNER_TEMP/grype-os-before-filtered.json" "$os_before_report"
@@ -573,23 +590,97 @@ jobs:
         trivy image --scanners vuln --pkg-types library \
           --format json --output "$library_before_report" "$IMAGE_NAME"
         go_before_count=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length' "$library_before_report")
-        filter_python_vulnerabilities "$library_before_report" "$python_report"
+        jq -f scripts/trivy-scan-policy.jq "$library_before_report" > "$go_policy_report"
+        jq --arg target '' --slurpfile policy "$go_policy_report" -f scripts/trivy-go-copa-report.jq \
+          "$library_before_report" > "$go_report"
+        go_actionable=$(jq -r .go_actionable "$go_policy_report")
+        if (( go_actionable > 0 )); then
+          patched_tools_dir="$RUNNER_TEMP/go-copa-tools"
+          mkdir -p "$patched_tools_dir"
+          printf 'FROM %s\n' "$IMAGE_NAME" > "$patched_tools_dir/Dockerfile"
+          processed_go_findings=0
+          for tool in oc virtctl yq; do
+            tool_findings=$(jq --arg target "usr/bin/$tool" \
+              '[.go_actionable_findings[] | select(.target == $target)] | length' "$go_policy_report")
+            if (( tool_findings == 0 )); then
+              continue
+            fi
+            processed_go_findings=$((processed_go_findings + tool_findings))
+
+            capsule_dir="$RUNNER_TEMP/go-copa-capsule-$tool"
+            mkdir -p "$capsule_dir"
+            cp "containers/tools/$tool" "$capsule_dir/$tool"
+            printf 'FROM docker.io/library/fedora:45\nCOPY --chmod=0755 %s /usr/bin/%s\n' \
+              "$tool" "$tool" > "$capsule_dir/Dockerfile"
+            capsule_image="localhost/krkn:go-copa-$tool-${{ matrix.platform }}"
+            patched_capsule="localhost/krkn:go-copa-$tool-${{ matrix.platform }}-patched"
+            docker build --pull --tag "$capsule_image" "$capsule_dir"
+            capsule_scan="$RUNNER_TEMP/trivy-go-$tool-capsule.json"
+            capsule_policy="$RUNNER_TEMP/trivy-go-$tool-policy.json"
+            tool_report="$RUNNER_TEMP/trivy-go-$tool-before.json"
+            trivy image --scanners vuln --pkg-types library \
+              --format json --output "$capsule_scan" "$capsule_image"
+            jq -f scripts/trivy-scan-policy.jq "$capsule_scan" > "$capsule_policy"
+            jq --arg target "usr/bin/$tool" --slurpfile policy "$capsule_policy" \
+              -f scripts/trivy-go-copa-report.jq "$capsule_scan" > "$tool_report"
+            capsule_findings=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$tool_report")
+            if (( capsule_findings != tool_findings )); then
+              echo "error: $tool has $tool_findings actionable findings in the image but $capsule_findings in the Copa capsule" >&2
+              exit 1
+            fi
+
+            source_dir="$RUNNER_TEMP/go-mod-artifacts/krkn-go-mod-$tool-${{ matrix.platform }}"
+            source_url=$(cat "$source_dir/source-url.txt")
+            source_commit=$(cat "$source_dir/source-commit.txt")
+            COPA_EXPERIMENTAL=1 copa patch \
+              -i "$capsule_image" \
+              -r "$tool_report" \
+              -t "$patched_capsule" \
+              -a docker:// \
+              --pkg-types library \
+              --library-patch-level minor \
+              --go-vcs-url "${source_url%.git}@$source_commit"
+            docker image inspect "$patched_capsule" >/dev/null
+
+            container_id=$(docker create "$patched_capsule")
+            if ! docker cp "$container_id:/usr/bin/$tool" "$patched_tools_dir/$tool"; then
+              docker rm "$container_id" >/dev/null
+              exit 1
+            fi
+            docker rm "$container_id" >/dev/null
+            printf 'COPY --chmod=0755 %s /usr/bin/%s\n' "$tool" "$tool" >> "$patched_tools_dir/Dockerfile"
+          done
+          if (( processed_go_findings != go_actionable )); then
+            echo "error: $((go_actionable - processed_go_findings)) actionable Go findings have no supported tool target" >&2
+            exit 1
+          fi
+          docker build --pull=false --no-cache --tag "$GO_PATCHED_IMAGE" "$patched_tools_dir"
+        else
+          docker tag "$IMAGE_NAME" "$GO_PATCHED_IMAGE"
+        fi
+        docker image inspect "$GO_PATCHED_IMAGE" >/dev/null
+        check_go_tools "$GO_PATCHED_IMAGE"
+
+        trivy image --scanners vuln --pkg-types library \
+          --format json --output "$python_source_report" "$GO_PATCHED_IMAGE"
+        filter_python_vulnerabilities "$python_source_report" "$python_report"
         python_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_report")
-        python_sbom_before_count=$(count_embedded_sbom_findings "$library_before_report")
+        python_sbom_before_count=$(count_embedded_sbom_findings "$python_source_report")
         echo "Installed Python vulnerabilities with fixes before Copa: $python_before_count"
         echo "Python findings from embedded SBOMs without an installed package: $python_sbom_before_count"
         if (( python_before_count > 0 )); then
           COPA_EXPERIMENTAL=1 copa patch \
-            -i "$IMAGE_NAME" \
+            -i "$GO_PATCHED_IMAGE" \
             -r "$python_report" \
             -t "$PATCHED_IMAGE" \
             -a docker:// \
             --pkg-types library \
             --library-patch-level minor
         else
-          docker tag "$IMAGE_NAME" "$PATCHED_IMAGE"
+          docker tag "$GO_PATCHED_IMAGE" "$PATCHED_IMAGE"
         fi
         docker image inspect "$PATCHED_IMAGE" >/dev/null
+        check_go_tools "$PATCHED_IMAGE"
 
         grype "docker:$PATCHED_IMAGE" --output json --file "$os_after_report"
         jq '.matches |= map(select(.artifact.type == "rpm"))' "$os_after_report" > "$RUNNER_TEMP/grype-os-after-filtered.json"
@@ -602,6 +693,7 @@ jobs:
         trivy image --scanners vuln --pkg-types library \
           --format json --output "$library_after_report" "$PATCHED_IMAGE"
         go_remaining=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length' "$library_after_report")
+        go_all_remaining=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]?] | length' "$library_after_report")
         filter_python_vulnerabilities "$library_after_report" "$python_after_report"
         python_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_after_report")
         python_sbom_after_count=$(count_embedded_sbom_findings "$library_after_report")
@@ -612,6 +704,9 @@ jobs:
           echo "- Fixable Fedora vulnerabilities after dnf upgrade: $os_before_count"
           echo "- Fixable Fedora vulnerabilities in final image: $os_remaining"
           echo "- Trivy Go tool vulnerabilities with fixes before/after: $go_before_count / $go_remaining"
+          echo "- All Trivy Go tool findings in final image: $go_all_remaining"
+          echo "- Go findings sent to Copa: $go_actionable"
+          echo '- oc, virtctl and yq version commands passed in the final image.'
           echo "- Installed Python vulnerabilities with fixes before Copa: $python_before_count"
           echo "- Installed Python vulnerabilities with fixes after Copa: $python_remaining"
           echo "- Python findings from embedded SBOMs without an installed package (excluded): $python_sbom_after_count"
@@ -627,6 +722,16 @@ jobs:
             echo '| CVE | Package | Installed | Severity | Fix state | Fix |'
             echo '|---|---|---|---|---|---|'
             jq -r '[.matches[]? | select(.artifact.type == "rpm")][:50][] | "| \(.vulnerability.id) | \(.artifact.name) | \(.artifact.version) | \(.vulnerability.severity) | \(.vulnerability.fix.state) | \((.vulnerability.fix.versions // []) | join(", ")) |"' "$os_after_report"
+            echo ''
+            echo '</details>'
+          fi
+          if (( go_all_remaining > 0 )); then
+            echo ''
+            echo '<details><summary>Remaining Trivy Go tool findings (first 50)</summary>'
+            echo ''
+            echo '| CVE | Tool | Module | Installed | Fixed version |'
+            echo '|---|---|---|---|---|'
+            jq -r '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Target as $target | .Vulnerabilities[]? | "| \(.VulnerabilityID) | \($target) | \(.PkgName) | \(.InstalledVersion) | \(.FixedVersion // "none") |"][:50][]' "$library_after_report"
             echo ''
             echo '</details>'
           fi
@@ -664,6 +769,11 @@ jobs:
         path: |
           ${{ runner.temp }}/grype-os-before.json
           ${{ runner.temp }}/trivy-before.json
+          ${{ runner.temp }}/trivy-go-policy.json
+          ${{ runner.temp }}/trivy-go-before.json
+          ${{ runner.temp }}/trivy-go-*-capsule.json
+          ${{ runner.temp }}/trivy-go-*-before.json
+          ${{ runner.temp }}/trivy-after-go.json
           ${{ runner.temp }}/trivy-python-before.json
           ${{ runner.temp }}/grype-os-after.json
           ${{ runner.temp }}/trivy-after.json
@@ -1101,7 +1211,12 @@ jobs:
               sbom_only=$((go_fixable + python_fixable - $(jq -r .total <<< "$library_policy")))
               code_line="$platform ($phase): Go $go findings ($go_fixable with fixes, $go_actionable actionable), Python $python findings ($python_fixable with fixes, $python_actionable actionable); $accepted documented exceptions, $sbom_only SBOM-only Python findings."
               if [[ "$phase" == 'candidate after patch' ]]; then
-                code_line+=" Go tools rebuilt from source with pinned modules."
+                code_line+=" Go tools rebuilt from source; final version checks passed."
+                go_copa_report="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-go-before.json"
+                if [[ -s "$go_copa_report" ]]; then
+                  go_candidates=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$go_copa_report")
+                  code_line+=" Go findings sent to Copa: $go_candidates."
+                fi
                 before_libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-before.json"
                 if [[ -s "$before_libraries" ]]; then
                   before_counts=$(jq -r '[

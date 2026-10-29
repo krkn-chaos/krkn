@@ -122,4 +122,17 @@ if [[ ! -s "$binary" ]]; then
   exit 1
 fi
 install -m 0755 "$binary" "$output_dir/$tool"
+case "$tool" in
+  oc|virtctl) version_args=(version --client) ;;
+  yq) version_args=(--version) ;;
+esac
+version_output=$("$output_dir/$tool" "${version_args[@]}" 2>&1) || {
+  echo "error: $tool failed its version smoke check: $version_output" >&2
+  exit 1
+}
+if [[ -z "$version_output" ]]; then
+  echo "error: $tool returned no version information" >&2
+  exit 1
+fi
+printf '%s\n' "$version_output"
 printf 'Built %s for %s/%s: %s\n' "$tool" "$(go env GOOS)" "$(go env GOARCH)" "$output_dir/$tool"

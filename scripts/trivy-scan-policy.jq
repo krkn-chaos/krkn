@@ -33,7 +33,11 @@ def accepted_go($result; $vulnerability):
   | select($result.Type != "python-pkg" or installed_python($result; $vulnerability))
   | {
       language: (if $result.Type == "python-pkg" then "python" else "go" end),
-      accepted: (if $result.Type == "python-pkg" then accepted_python($vulnerability) else accepted_go($result; $vulnerability) end)
+      accepted: (if $result.Type == "python-pkg" then accepted_python($vulnerability) else accepted_go($result; $vulnerability) end),
+      target: $result.Target,
+      package: $vulnerability.PkgName,
+      installed: $vulnerability.InstalledVersion,
+      id: $vulnerability.VulnerabilityID
     }
 ] as $matches
 | {
@@ -41,5 +45,7 @@ def accepted_go($result; $vulnerability):
     accepted: ([$matches[] | select(.accepted)] | length),
     actionable: ([$matches[] | select(.accepted | not)] | length),
     go_actionable: ([$matches[] | select(.language == "go" and (.accepted | not))] | length),
-    python_actionable: ([$matches[] | select(.language == "python" and (.accepted | not))] | length)
+    python_actionable: ([$matches[] | select(.language == "python" and (.accepted | not))] | length),
+    go_actionable_findings: [$matches[] | select(.language == "go" and (.accepted | not))
+      | {target, package, installed, id}]
   }

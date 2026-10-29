@@ -51,10 +51,12 @@ base image.
 The Docker image workflow keeps the normal tag release path. Both releases and
 security refreshes build the `oc`, `virtctl`, and `yq` binaries for amd64 and
 arm64 outside the Dockerfile. The Fedora 45 Dockerfile runs `dnf upgrade
---refresh` before installing Krkn; after the image build, Copa applies available
-Python dependency fixes. Grype reports Fedora OS packages; Trivy reports Go and
-Python dependencies and supplies the Python report for Copa. Both platforms
-must complete the image scans and pass functional tests before publication.
+--refresh` before installing Krkn. Trivy finds Go and Python dependency CVEs.
+Copa rebuilds each affected Go tool in a separate single-binary image, then
+patches eligible Python dependencies in the Krkn image. The final `oc`,
+`virtctl`, and `yq` binaries must pass client-side version commands. Grype
+reports Fedora OS packages. Both platforms must complete the image scans and
+pass functional tests before publication.
 Remaining CVEs do not block publication. The run summary records vulnerability
 counts and the source commits of the Go tools; JSON reports are downloadable
 as run artifacts.
