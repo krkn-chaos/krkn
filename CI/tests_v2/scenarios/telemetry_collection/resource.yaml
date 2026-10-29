@@ -1,0 +1,21 @@
+# Target workload for telemetry_collection tests (pod disruption drives the chaos run).
+# Namespace is patched at deploy time by the test framework.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-telemetry-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: krkn-telemetry-target
+  template:
+    metadata:
+      labels:
+        app: krkn-telemetry-target
+    spec:
+      containers:
+      - name: app
+        image: nginx:alpine
+        ports:
+        - containerPort: 80
