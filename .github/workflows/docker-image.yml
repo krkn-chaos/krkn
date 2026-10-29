@@ -673,12 +673,7 @@ jobs:
     - name: Run functional tests v2 against the patched image
       env:
         DOCKER_SOCKET: ${{ steps.docker.outputs.sock }}
-      run: |
-        if [[ "${{ matrix.platform }}" == arm64 ]]; then
-          ./scripts/test-patched-image.sh "localhost/krkn:ci-arm64-patched" -m 'not service_hijacking'
-        else
-          ./scripts/test-patched-image.sh "localhost/krkn:ci-amd64-patched"
-        fi
+      run: ./scripts/test-patched-image.sh "localhost/krkn:ci-${{ matrix.platform }}-patched"
 
     - name: Upload patched-image functional test results
       if: always()

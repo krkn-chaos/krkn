@@ -58,8 +58,6 @@ pass functional tests before publication. Remaining CVEs do not block
 publication. The run summary records vulnerability
 counts and the source commits of the Go tools; JSON reports are downloadable
 as run artifacts.
-The arm64 functional job excludes service hijacking until its standalone
-workload image is published for arm64; the amd64 job still runs that scenario.
 The image labels record the Krkn release tag and the workflow source commit.
 `setuptools` stays at 81.0.0 because the vSphere SDK still imports the
 [`pkg_resources` module removed in 82.0.0](https://setuptools.pypa.io/en/stable/deprecated/pkg_resources.html).
