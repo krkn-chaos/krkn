@@ -84,7 +84,7 @@ workflow page where an operator with repository write access can select
 rebuilding or publishing. If the secret is absent, the run summary records
 that Slack delivery was skipped.
 
-Every day, the workflow scans both platforms of
+Every day at 15:30 Europe/Rome, the workflow scans both platforms of
 `quay.io/krkn-chaos/krkn:latest` and reports the findings without rebuilding.
 An operator can follow the Slack link to run the workflow on `main`. With
 `scan_only` off, if Grype finds a vulnerability with an available fix, the

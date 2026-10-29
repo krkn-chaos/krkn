@@ -6,7 +6,8 @@ on:
       - main
   pull_request:
   schedule:
-    - cron: '17 4 * * *'
+    - cron: '30 15 * * *'
+      timezone: Europe/Rome
   workflow_dispatch:
     inputs:
       scan_only:
