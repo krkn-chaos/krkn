@@ -6,12 +6,9 @@ ARG PYTHON_VERSION=3.11
 USER root
 WORKDIR /home/krkn/kraken
 
-COPY CI/tests_v2 /home/krkn/kraken/CI/tests_v2
-
 RUN python${PYTHON_VERSION} -m venv --system-site-packages /opt/krkn-test-venv \
     && /opt/krkn-test-venv/bin/python -m pip install --no-cache-dir \
-        -r /home/krkn/kraken/CI/tests_v2/requirements.txt \
-    && chown -R krkn:krkn /home/krkn/kraken/CI/tests_v2
+        -r /home/krkn/kraken/CI/tests_v2/requirements.txt
 
 ENV KRKN_TEST_KRAKEN_PYTHON=python${PYTHON_VERSION}
 ENV KRKN_TEST_COVERAGE=1

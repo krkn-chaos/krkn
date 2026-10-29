@@ -58,6 +58,8 @@ pass functional tests before publication. Remaining CVEs do not block
 publication. The run summary records vulnerability
 counts and the source commits of the Go tools; JSON reports are downloadable
 as run artifacts.
+The functional test runner uses the test suite included in the candidate image,
+so a refresh tests the selected release's code with its matching suite.
 The image labels record the Krkn release tag and the workflow source commit.
 `setuptools` stays at 81.0.0 because the vSphere SDK still imports the
 [`pkg_resources` module removed in 82.0.0](https://setuptools.pypa.io/en/stable/deprecated/pkg_resources.html).
@@ -92,13 +94,15 @@ manual run rebuilds the recorded Krkn release tag and publishes a signed
 multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag
 remains unchanged; `latest` moves to the validated patch tag, followed by a
 krkn-hub rebuild. Set `force_refresh` to rebuild without scanner findings, or
-`source_tag` to select a release explicitly. Keep those inputs and
+`source_tag` to select a release explicitly. If `latest` is unavailable, a
+manual run with `source_tag` rebuilds without a published baseline comparison;
+the candidate is still scanned before and after patching. Keep those inputs and
 `rollback_tag` empty when using `scan_only`. The first tagged image built by
 this workflow records its source version in `org.opencontainers.image.version`;
-before that first release, a manual refresh needs `source_tag`.
+before that first release, a manual rebuild needs `source_tag`.
 The scan still works if the published image has no release label or is not yet
-Fedora 45. A manual refresh requires a published Fedora 45 image; publish a
-tagged Fedora 45 release first.
+Fedora 45. A manual refresh against an existing `latest` requires Fedora 45;
+publish a tagged Fedora 45 release first if the current `latest` is older.
 
 To restore a prior signed release or patch, run the workflow on `main` with
 `rollback_tag`. It verifies the manifest signatures in both Quay repositories,

@@ -32,6 +32,7 @@ project_name="krkn-tests-$$"
 export COMPOSE_PROJECT_NAME=$project_name
 export KIND_CLUSTER_NAME=$project_name
 export KRKN_RUNTIME_IMAGE=$runtime_image
+export KRKN_TEST_RESULTS_DIR=${KRKN_TEST_RESULTS_DIR:-"$repo_root/CI/tests_v2"}
 
 # setup-docker-action may expose its daemon on a runner-local Unix socket.
 # Pass that socket through to the KinD service, which starts nested containers.
@@ -80,10 +81,10 @@ pytest_args=(
   --timeout=300
   --reruns=1
   --reruns-delay=5
-  --html=CI/tests_v2/report.html
+  --html=/test-results/report.html
   -n auto
   --dist loadgroup
-  --junitxml=CI/tests_v2/results.xml
+  --junitxml=/test-results/results.xml
 )
 pytest_args+=("$@")
 

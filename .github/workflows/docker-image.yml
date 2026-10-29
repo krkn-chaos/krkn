@@ -88,8 +88,41 @@ jobs:
             exit 0
           fi
 
+          if [[ -n "$INPUT_SOURCE_TAG" && ! "$INPUT_SOURCE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'source_tag must be a release tag such as v5.2.12.' >&2
+            exit 1
+          fi
+          rebuild_without_baseline() {
+            if [[ -z "$INPUT_SOURCE_TAG" ]]; then
+              echo 'Published latest is unavailable. Supply source_tag for a manual rebuild or publish a release tag first.' >&2
+              return 1
+            fi
+            {
+              echo '## Published image scan'
+              echo "- Source release: \`$INPUT_SOURCE_TAG\`"
+              echo '- Published latest is unavailable; no baseline comparison is possible for this rebuild.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "source_tag=$INPUT_SOURCE_TAG" >> "$GITHUB_OUTPUT"
+            echo should_build=true >> "$GITHUB_OUTPUT"
+            echo should_publish=true >> "$GITHUB_OUTPUT"
+            echo "publish_tag=${INPUT_SOURCE_TAG}-patch-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          }
+
           image=quay.io/krkn-chaos/krkn:latest
-          docker pull --platform linux/amd64 "$image"
+          if ! docker pull --platform linux/amd64 "$image"; then
+            if ! latest_status=$(curl -sS -o /dev/null -w '%{http_code}' -I \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+              'https://quay.io/v2/krkn-chaos/krkn/manifests/latest'); then
+              echo 'Could not check the published latest manifest on Quay.' >&2
+              exit 1
+            fi
+            if [[ "$latest_status" != 404 ]]; then
+              echo "Could not pull $image, but its manifest returned HTTP $latest_status; refusing to skip the published baseline." >&2
+              exit 1
+            fi
+            rebuild_without_baseline
+            exit 0
+          fi
           current_tag=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
           docker tag "$image" localhost/krkn:published-amd64
           tag=${INPUT_SOURCE_TAG:-$current_tag}

@@ -75,7 +75,7 @@ services:
     volumes:
       - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
       - kind-kubeconfig:/home/krkn/.kube:ro
-      - ./:/home/krkn/kraken/CI/tests_v2
+      - ${KRKN_TEST_RESULTS_DIR:-./}:/test-results
 
 volumes:
   kind-kubeconfig:
