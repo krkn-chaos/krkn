@@ -725,6 +725,23 @@ jobs:
         docker tag "$source" "quay.io/krkn-chaos/krkn:${tag}-${{ matrix.platform }}"
         docker push "quay.io/krkn-chaos/krkn:${tag}-${{ matrix.platform }}"
 
+    - name: Login to redhat-chaos quay
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USER_1 }}
+        password: ${{ secrets.QUAY_TOKEN_1 }}
+
+    - name: Push validated redhat-chaos platform tags
+      env:
+        PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
+      run: |
+        set -euo pipefail
+        tag=$PUBLISH_TAG
+        source=localhost/krkn:ci-${{ matrix.platform }}-patched
+        docker tag "$source" "quay.io/redhat-chaos/krkn:${tag}-${{ matrix.platform }}"
+        docker push "quay.io/redhat-chaos/krkn:${tag}-${{ matrix.platform }}"
+
   manifest:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -761,6 +778,12 @@ jobs:
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
 
+    # Publish the multi-arch manifests atomically with respect to signing, while
+    # the krkn-chaos credentials are still active. Both accounts use quay.io, so
+    # the later redhat-chaos login overwrites these creds in the docker config;
+    # doing everything here keeps push access to the krkn-chaos repo where the
+    # signature artifact (sha256-<digest>.sig) must live.
+    #
     # Ordering matters (fail-closed): the manifest list is first pushed to a
     # STAGING tag only, then signed and verified by DIGEST (anti-TOCTOU), and
     # only after verification is the exact signed digest promoted to the public
@@ -809,6 +832,46 @@ jobs:
           echo "- Rollback: repoint \`${REPO}:latest\` to the previous signed tag or digest."
         } >> "$GITHUB_STEP_SUMMARY"
 
+    - name: Login to redhat-chaos quay
+      uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      with:
+        registry: quay.io
+        username: ${{ secrets.QUAY_USER_1 }}
+        password: ${{ secrets.QUAY_TOKEN_1 }}
+
+    # Same fail-closed flow as the krkn-chaos step: push the mirror manifest to a
+    # staging tag, sign and verify by digest, then promote the verified digest to
+    # the public ${TAG} and latest tags, so images pulled from
+    # quay.io/redhat-chaos/krkn are always verifiable with the same embedded key.
+    - name: Push, sign and promote RedHat Chaos manifests
+      env:
+        COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+        COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
+      run: |
+        set -euo pipefail
+        TAG=$PUBLISH_TAG
+        REPO=quay.io/redhat-chaos/krkn
+
+        docker manifest create ${REPO}:${TAG}-signing \
+          ${REPO}:${TAG}-amd64 \
+          ${REPO}:${TAG}-arm64
+        DIGEST=$(docker manifest push ${REPO}:${TAG}-signing | tail -n1)
+
+        REF="${REPO}@${DIGEST}"
+        echo "Signing ${REF}"
+        cosign sign --yes --signing-config "${SIGNING_CONFIG}" --key env://COSIGN_PRIVATE_KEY "${REF}"
+        cosign public-key --key env://COSIGN_PRIVATE_KEY > /tmp/cosign.pub
+        cosign verify --insecure-ignore-tlog=true --key /tmp/cosign.pub "${REF}"
+
+        docker buildx imagetools create --tag ${REPO}:${TAG} "${REF}"
+        docker buildx imagetools create --tag ${REPO}:latest "${REF}"
+        {
+          echo "## RedHat Chaos image promoted"
+          echo "- Immutable tag: \`${REPO}:${TAG}\`"
+          echo "- Signed digest: \`${REF}\`"
+        } >> "$GITHUB_STEP_SUMMARY"
+
     # This release-time rebuild signs the krkn-hub scenario images it pushes;
     # the COSIGN_* inputs are consumed by the action (redhat-chaos/actions#34).
     - name: Rebuild krkn-hub
@@ -832,7 +895,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Verify rollback target before changing latest
+      - name: Verify both rollback targets before changing latest
         env:
           ROLLBACK_TAG: ${{ needs.prepare.outputs.rollback_tag }}
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
@@ -840,12 +903,18 @@ jobs:
         run: |
           set -euo pipefail
           cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign.pub"
-          repo=quay.io/krkn-chaos/krkn
-          digest=$(docker buildx imagetools inspect "$repo:$ROLLBACK_TAG" | awk '/^Digest:/ {print $2; exit}')
-          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid digest for $repo:$ROLLBACK_TAG" >&2; exit 1; }
-          ref="$repo@$digest"
-          cosign verify --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign.pub" "$ref"
-          echo "KRKN_ROLLBACK_REF=$ref" >> "$GITHUB_ENV"
+          for account in krkn-chaos redhat-chaos; do
+            repo="quay.io/$account/krkn"
+            digest=$(docker buildx imagetools inspect "$repo:$ROLLBACK_TAG" | awk '/^Digest:/ {print $2; exit}')
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid digest for $repo:$ROLLBACK_TAG" >&2; exit 1; }
+            ref="$repo@$digest"
+            cosign verify --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign.pub" "$ref"
+            if [[ "$account" == krkn-chaos ]]; then
+              echo "KRKN_ROLLBACK_REF=$ref" >> "$GITHUB_ENV"
+            else
+              echo "REDHAT_ROLLBACK_REF=$ref" >> "$GITHUB_ENV"
+            fi
+          done
 
       - name: Login to krkn-chaos Quay
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -855,11 +924,22 @@ jobs:
           password: ${{ secrets.QUAY_PASSWORD }}
 
       - name: Restore krkn-chaos latest
+        run: docker buildx imagetools create --tag quay.io/krkn-chaos/krkn:latest "$KRKN_ROLLBACK_REF"
+
+      - name: Login to redhat-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER_1 }}
+          password: ${{ secrets.QUAY_TOKEN_1 }}
+
+      - name: Restore redhat-chaos latest
         run: |
-          docker buildx imagetools create --tag quay.io/krkn-chaos/krkn:latest "$KRKN_ROLLBACK_REF"
+          docker buildx imagetools create --tag quay.io/redhat-chaos/krkn:latest "$REDHAT_ROLLBACK_REF"
           {
             echo '## Signed image restored'
             echo "- krkn-chaos: \`$KRKN_ROLLBACK_REF\`"
+            echo "- redhat-chaos: \`$REDHAT_ROLLBACK_REF\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rebuild krkn-hub from restored latest
