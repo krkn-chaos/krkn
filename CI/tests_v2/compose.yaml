@@ -69,6 +69,7 @@ services:
       kind:
         condition: service_healthy
     environment:
+      HOME: /home/krkn
       KUBECONFIG: /home/krkn/.kube/config
       KRKN_TEST_KRAKEN_PYTHON: python3.11
       KRKN_TEST_COVERAGE: "1"
