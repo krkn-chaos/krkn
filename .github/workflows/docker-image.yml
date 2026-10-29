@@ -650,6 +650,27 @@ jobs:
             fi
             cat "$copa_log"
             docker image inspect "$patched_capsule" >/dev/null
+            patched_capsule_scan="$RUNNER_TEMP/trivy-go-$tool-after.json"
+            trivy image --scanners vuln --pkg-types library \
+              --format json --output "$patched_capsule_scan" "$patched_capsule"
+            if ! jq -e --arg target "usr/bin/$tool" \
+              '.Results[]? | select((.Type == "gobinary" or .Type == "gomod") and .Target == $target)' \
+              "$patched_capsule_scan" >/dev/null; then
+              echo "error: Trivy could not identify the rebuilt $tool binary" >&2
+              exit 1
+            fi
+            introduced_findings=$(jq -s --arg target "usr/bin/$tool" '
+              ([.[0].Results[]? | select(.Target == $target) | .Vulnerabilities[]?
+                | [.PkgName, .VulnerabilityID] | join("|")] | unique) as $before
+              | ([.[1].Results[]? | select(.Target == $target) | .Vulnerabilities[]?
+                | [.PkgName, .VulnerabilityID] | join("|")] | unique) as $after
+              | ($after - $before | length)
+            ' "$capsule_scan" "$patched_capsule_scan")
+            if (( introduced_findings > 0 )); then
+              echo "warning: Copa rebuilt $tool but introduced $introduced_findings Go findings; retaining the source-built binary" >&2
+              printf '%s\tregressed\t%s\n' "$tool" "$introduced_findings" >> "$go_patch_status"
+              continue
+            fi
 
             container_id=$(docker create "$patched_capsule")
             if ! docker cp "$container_id:/usr/bin/$tool" "$patched_tools_dir/$tool"; then
@@ -790,6 +811,7 @@ jobs:
           ${{ runner.temp }}/trivy-go-*-capsule.json
           ${{ runner.temp }}/trivy-go-*-policy.json
           ${{ runner.temp }}/trivy-go-*-before.json
+          ${{ runner.temp }}/trivy-go-*-after.json
           ${{ runner.temp }}/copa-go-*.log
           ${{ runner.temp }}/copa-go-patch-status.tsv
           ${{ runner.temp }}/trivy-after-go.json
@@ -1240,8 +1262,10 @@ jobs:
                 if [[ -s "$go_patch_status" ]]; then
                   patched_tools=$(awk -F '\t' '$2 == "patched" {print $1}' "$go_patch_status" | paste -sd, -)
                   failed_tools=$(awk -F '\t' '$2 == "failed" {print $1}' "$go_patch_status" | paste -sd, -)
+                  regressed_tools=$(awk -F '\t' '$2 == "regressed" {print $1 " (" $3 " new findings)"}' "$go_patch_status" | paste -sd, -)
                   [[ -z "$patched_tools" ]] || code_line+=" Copa rebuilt: $patched_tools."
                   [[ -z "$failed_tools" ]] || code_line+=" Copa rebuild failed for: $failed_tools; source-built binaries retained."
+                  [[ -z "$regressed_tools" ]] || code_line+=" Copa rebuild regressed: $regressed_tools; source-built binaries retained."
                 fi
                 before_libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-before.json"
                 if [[ -s "$before_libraries" ]]; then
