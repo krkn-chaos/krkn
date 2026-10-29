@@ -961,6 +961,7 @@ jobs:
         run: |
           set -euo pipefail
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          workflow_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/docker-image.yml"
           if jq -e '[.[] | .result] | any(. == "failure")' <<< "$JOB_RESULTS" >/dev/null; then
             status=failed
           elif jq -e '[.[] | .result] | any(. == "cancelled")' <<< "$JOB_RESULTS" >/dev/null; then
@@ -973,6 +974,7 @@ jobs:
             echo "- Workflow: $status ($GITHUB_EVENT_NAME)"
             echo "- Source: \`${SOURCE_TAG:-unknown}\`; target tag: \`${PUBLISH_TAG:-none}\`; rollback: \`${ROLLBACK_TAG:-none}\`"
             echo "- [Full run and downloadable scanner reports]($run_url)"
+            echo "- [Run the image workflow manually]($workflow_url) (select main; enable force_refresh to rebuild without actionable findings)"
           } >> "$GITHUB_STEP_SUMMARY"
 
           message="Krkn image workflow $status ($GITHUB_EVENT_NAME). Source: ${SOURCE_TAG:-unknown}; target tag: ${PUBLISH_TAG:-none}; rollback: ${ROLLBACK_TAG:-none}."
@@ -1018,6 +1020,7 @@ jobs:
             message+=$'\n'"$line"
           done
           message+=$'\n'"Details and full JSON reports: $run_url"
+          message+=$'\n'"Manual rebuild: $workflow_url (select main; enable force_refresh to rebuild without actionable findings)."
           if [[ -n "$KRKN_IMAGE_SECURITY_REPORT_SLACK_TRIGGER_URL" ]]; then
             report_type=rebuild
             if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
