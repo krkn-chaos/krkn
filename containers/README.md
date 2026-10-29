@@ -1,7 +1,7 @@
 
 ### Kraken image
 
-Container image gets automatically built by quay.io at [Kraken image](https://quay.io/redhat-chaos/krkn).
+Container image gets published to [Krkn on Quay](https://quay.io/krkn-chaos/krkn).
 
 
 ### Run containerized version
@@ -11,7 +11,7 @@ Refer [instructions](https://krkn-chaos.dev/docs/installation/) for information 
 
 ### Run Custom Kraken Image
 
-Refer to [instructions](https://github.com/redhat-chaos/krkn/blob/main/containers/build_own_image-README.md) for information on how to run a custom containerized version of kraken using podman.
+Refer to [instructions](https://github.com/krkn-chaos/krkn/blob/main/containers/build_own_image-README.md) for information on how to run a custom containerized version of kraken using podman.
 
 ### Check a built image without running a scenario
 
@@ -20,7 +20,7 @@ no declared dependency conflicts and that the Krkn CLI can start. This exits
 before SSH setup and does not connect to a cluster or run a chaos scenario.
 
 ```sh
-docker run --rm -e KRKN_DEPENDENCY_CHECK=1 quay.io/redhat-chaos/krkn:latest
+docker run --rm -e KRKN_DEPENDENCY_CHECK=1 quay.io/krkn-chaos/krkn:latest
 ```
 
 Use the same command with the candidate image tag in CI after building or
@@ -101,8 +101,8 @@ Fedora 45. A manual refresh requires a published Fedora 45 image; publish a
 tagged Fedora 45 release first.
 
 To restore a prior signed release or patch, run the workflow on `main` with
-`rollback_tag`. It verifies the manifest signatures in both Quay repositories,
-repoints both `latest` tags to those digests, and rebuilds krkn-hub. Keep
+`rollback_tag`. It verifies the image signature in `quay.io/krkn-chaos/krkn`,
+repoints `latest` to that digest, and rebuilds krkn-hub. Keep
 `source_tag` empty and `force_refresh` off when rolling back. Release and
 refresh runs share one concurrency group so they cannot promote `latest` at
 the same time.
