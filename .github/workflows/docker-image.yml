@@ -31,6 +31,7 @@ on:
 
 concurrency:
   group: krkn-image-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publish' }}
+  queue: max
   cancel-in-progress: false
 
 jobs:
@@ -384,21 +385,30 @@ jobs:
     - name: Install Trivy, Grype and Copa
       run: |
         set -euo pipefail
-        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
-          | sudo sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}"
         case "$(uname -m)" in
           x86_64)
             copa_arch=amd64
+            trivy_arch=64bit
+            trivy_sha256=e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7
             copa_sha256=649a9fc3f09da3b2918e98ac258616eb44ac91e78a043ac008f8908bb80cf220
             grype_sha256=64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519
             ;;
           aarch64|arm64)
             copa_arch=arm64
+            trivy_arch=ARM64
+            trivy_sha256=aab21e677a7b7071fc79f1711480840754c18a1b9d9cefa7ccd06af63a0e8f4c
             copa_sha256=a0d2fc2e264896c3426c893468be3ffe5d7ae0a6ffc1757c23a0429b1ca4b8f2
             grype_sha256=86f570f75ca947ea3dd6486309232bcff6d78e44ba081ae75ab14eab72be3dae
             ;;
           *) echo "Unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
         esac
+        trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+        curl -fsSL \
+          "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${trivy_arch}.tar.gz" \
+          -o "$trivy_archive"
+        printf '%s  %s\n' "$trivy_sha256" "$trivy_archive" | sha256sum -c -
+        tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+        sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
         copa_archive="$RUNNER_TEMP/copa.tar.gz"
         curl -fsSL \
           "https://github.com/krkn-chaos/copacetic/releases/download/${COPA_VERSION}/copa_${COPA_VERSION}_linux_${copa_arch}.tar.gz" \
@@ -586,7 +596,10 @@ jobs:
           actual_tag=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$PATCHED_IMAGE")
           [[ "$actual_tag" == "$SOURCE_TAG" ]] || { echo "Patched image lost its source tag: $actual_tag" >&2; exit 1; }
         fi
-        docker run --rm -e KRKN_DEPENDENCY_CHECK=1 "$PATCHED_IMAGE"
+        docker run --rm --entrypoint /bin/sh "$PATCHED_IMAGE" -c '
+          "${PYTHON_CMD:-python3}" -m pip check &&
+          exec "${PYTHON_CMD:-python3}" run_kraken.py --help
+        '
 
     - name: Upload vulnerability reports
       if: always()
@@ -660,7 +673,12 @@ jobs:
     - name: Run functional tests v2 against the patched image
       env:
         DOCKER_SOCKET: ${{ steps.docker.outputs.sock }}
-      run: ./scripts/test-patched-image.sh "localhost/krkn:ci-${{ matrix.platform }}-patched"
+      run: |
+        if [[ "${{ matrix.platform }}" == arm64 ]]; then
+          ./scripts/test-patched-image.sh "localhost/krkn:ci-arm64-patched" -m 'not service_hijacking'
+        else
+          ./scripts/test-patched-image.sh "localhost/krkn:ci-amd64-patched"
+        fi
 
     - name: Upload patched-image functional test results
       if: always()

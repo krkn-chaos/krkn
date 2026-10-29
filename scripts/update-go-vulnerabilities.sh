@@ -312,6 +312,10 @@ while ((pass <= MAX_PASSES)); do
     for update in "${updates[@]}"; do
       printf '  go get %q\n' "$update"
     done
+    if [[ -s "$unresolved_path" ]]; then
+      echo "error: unresolved govulncheck findings remain; see the messages above" >&2
+      exit 1
+    fi
     exit 0
   fi
 

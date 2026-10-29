@@ -130,10 +130,13 @@ if run_logged "Clone KubeVirt sources for virtctl" "$LOG_DIR/virtctl-clone.log" 
     bash -c 'set -euo pipefail
       cd "$1"
       go mod edit -go 1.26
+      go mod edit -require golang.org/x/net@v0.60.0
+      go mod edit -replace golang.org/x/net=golang.org/x/net@v0.60.0
       go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1
       go mod edit -replace github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream=github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream@v1.7.8
       go mod edit -replace github.com/aws/aws-sdk-go-v2/service/s3=github.com/aws/aws-sdk-go-v2/service/s3@v1.97.3
       go work edit -go 1.26
+      go work edit -replace golang.org/x/net=golang.org/x/net@v0.60.0
       go mod tidy
       go work use
       go work vendor
@@ -186,7 +189,10 @@ if run_logged "Clone yq v4.44.6 sources" "$LOG_DIR/yq-clone.log" \
   if run_logged "Prepare and build baseline yq" "$LOG_DIR/yq-baseline-build.log" \
     bash -c 'set -euo pipefail
       cd "$1"
-      go mod edit -replace golang.org/x/net=golang.org/x/net@v0.38.0
+      go mod edit -require golang.org/x/net@v0.60.0
+      go mod edit -require golang.org/x/text@v0.39.0
+      go mod edit -replace golang.org/x/net=golang.org/x/net@v0.60.0
+      go mod edit -replace golang.org/x/text=golang.org/x/text@v0.39.0
       go mod edit -replace github.com/moby/spdystream=github.com/moby/spdystream@v0.5.1
       go mod tidy
       go build -ldflags="-s -w" -o "$2/yq" .' _ "$YQ_SRC" "$BASELINE_DIR"; then
