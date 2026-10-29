@@ -800,14 +800,14 @@ jobs:
         if-no-files-found: ignore
         retention-days: 7
 
-    - name: Save validated image for the publish job
-      if: needs.prepare.outputs.should_publish == 'true'
+    - name: Save patched image for functional tests and publication
+      if: needs.prepare.outputs.should_build == 'true'
       env:
         IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}-patched
       run: docker image save --platform "linux/${{ matrix.platform }}" "$IMAGE_NAME" | gzip -1 > "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz"
 
     - name: Upload validated image artifact
-      if: needs.prepare.outputs.should_publish == 'true'
+      if: needs.prepare.outputs.should_build == 'true'
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: krkn-image-${{ matrix.platform }}
@@ -820,7 +820,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     needs: [prepare, build]
-    if: needs.prepare.outputs.should_publish == 'true'
+    if: needs.prepare.outputs.should_build == 'true'
     strategy:
       fail-fast: false
       matrix:
