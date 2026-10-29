@@ -499,6 +499,8 @@ jobs:
         library_before_report="$RUNNER_TEMP/trivy-before.json"
         go_policy_report="$RUNNER_TEMP/trivy-go-policy.json"
         go_report="$RUNNER_TEMP/trivy-go-before.json"
+        go_patch_status="$RUNNER_TEMP/copa-go-patch-status.tsv"
+        : > "$go_patch_status"
         python_source_report="$RUNNER_TEMP/trivy-after-go.json"
         python_report="$RUNNER_TEMP/trivy-python-before.json"
         os_after_report="$RUNNER_TEMP/grype-os-after.json"
@@ -632,14 +634,21 @@ jobs:
             source_dir="$RUNNER_TEMP/go-mod-artifacts/krkn-go-mod-$tool-${{ matrix.platform }}"
             source_url=$(cat "$source_dir/source-url.txt")
             source_commit=$(cat "$source_dir/source-commit.txt")
-            COPA_EXPERIMENTAL=1 copa patch \
+            copa_log="$RUNNER_TEMP/copa-go-$tool.log"
+            if ! COPA_EXPERIMENTAL=1 copa patch \
               -i "$capsule_image" \
               -r "$tool_report" \
               -t "$patched_capsule" \
               -a docker:// \
               --pkg-types library \
               --library-patch-level minor \
-              --go-vcs-url "${source_url%.git}@$source_commit"
+              --go-vcs-url "${source_url%.git}@$source_commit" > "$copa_log" 2>&1; then
+              cat "$copa_log"
+              echo "warning: Copa could not rebuild $tool; retaining the source-built binary and reporting its remaining findings" >&2
+              printf '%s\tfailed\n' "$tool" >> "$go_patch_status"
+              continue
+            fi
+            cat "$copa_log"
             docker image inspect "$patched_capsule" >/dev/null
 
             container_id=$(docker create "$patched_capsule")
@@ -649,6 +658,7 @@ jobs:
             fi
             docker rm "$container_id" >/dev/null
             printf 'COPY --chmod=0755 %s /usr/bin/%s\n' "$tool" "$tool" >> "$patched_tools_dir/Dockerfile"
+            printf '%s\tpatched\n' "$tool" >> "$go_patch_status"
           done
           if (( processed_go_findings != go_actionable )); then
             echo "error: $((go_actionable - processed_go_findings)) actionable Go findings have no supported tool target" >&2
@@ -706,6 +716,12 @@ jobs:
           echo "- Trivy Go tool vulnerabilities with fixes before/after: $go_before_count / $go_remaining"
           echo "- All Trivy Go tool findings in final image: $go_all_remaining"
           echo "- Go findings sent to Copa: $go_actionable"
+          if [[ -s "$go_patch_status" ]]; then
+            echo '- Copa Go rebuild attempts:'
+            while IFS=$'\t' read -r tool result; do
+              echo "  - $tool: $result"
+            done < "$go_patch_status"
+          fi
           echo '- oc, virtctl and yq version commands passed in the final image.'
           echo "- Installed Python vulnerabilities with fixes before Copa: $python_before_count"
           echo "- Installed Python vulnerabilities with fixes after Copa: $python_remaining"
@@ -772,7 +788,10 @@ jobs:
           ${{ runner.temp }}/trivy-go-policy.json
           ${{ runner.temp }}/trivy-go-before.json
           ${{ runner.temp }}/trivy-go-*-capsule.json
+          ${{ runner.temp }}/trivy-go-*-policy.json
           ${{ runner.temp }}/trivy-go-*-before.json
+          ${{ runner.temp }}/copa-go-*.log
+          ${{ runner.temp }}/copa-go-patch-status.tsv
           ${{ runner.temp }}/trivy-after-go.json
           ${{ runner.temp }}/trivy-python-before.json
           ${{ runner.temp }}/grype-os-after.json
@@ -1216,6 +1235,13 @@ jobs:
                 if [[ -s "$go_copa_report" ]]; then
                   go_candidates=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$go_copa_report")
                   code_line+=" Go findings sent to Copa: $go_candidates."
+                fi
+                go_patch_status="$RUNNER_TEMP/reports/vulnerability-reports-$platform/copa-go-patch-status.tsv"
+                if [[ -s "$go_patch_status" ]]; then
+                  patched_tools=$(awk -F '\t' '$2 == "patched" {print $1}' "$go_patch_status" | paste -sd, -)
+                  failed_tools=$(awk -F '\t' '$2 == "failed" {print $1}' "$go_patch_status" | paste -sd, -)
+                  [[ -z "$patched_tools" ]] || code_line+=" Copa rebuilt: $patched_tools."
+                  [[ -z "$failed_tools" ]] || code_line+=" Copa rebuild failed for: $failed_tools; source-built binaries retained."
                 fi
                 before_libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-before.json"
                 if [[ -s "$before_libraries" ]]; then
