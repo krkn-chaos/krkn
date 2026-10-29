@@ -78,15 +78,18 @@ Add a `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret with an
 incoming webhook for the desired channel to receive a concise report after
 each scheduled scan, manual refresh or release, including scans that find CVEs
 but do not publish an image.
-The message links to the run summary and downloadable full JSON reports. If the
-secret is absent, the run summary records that Slack delivery was skipped.
+The message links to the run summary, downloadable full JSON reports, and the
+workflow page where an operator with repository write access can select
+**Run workflow** on `main`. If the secret is absent, the run summary records
+that Slack delivery was skipped.
 
 Every day, the workflow scans both platforms of
-`quay.io/krkn-chaos/krkn:latest`. If Grype reports a vulnerability with an
-available fix, it rebuilds the recorded Krkn release tag and publishes a signed
-multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag remains
-unchanged; `latest` moves to the validated patch tag, followed by a krkn-hub
-rebuild. A refresh can also be started with **Run workflow** on `main`. Set
+`quay.io/krkn-chaos/krkn:latest` and reports the findings without rebuilding.
+An operator can follow the Slack link to run the workflow on `main`. When Grype
+finds a vulnerability with an available fix, the manual run rebuilds the
+recorded Krkn release tag and publishes a signed multi-platform image as
+`vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag remains unchanged;
+`latest` moves to the validated patch tag, followed by a krkn-hub rebuild. Set
 `force_refresh` to rebuild without scanner findings, or `source_tag` to select
 a release explicitly. The first tagged image built by this workflow records
 its source version in `org.opencontainers.image.version`; before that first
