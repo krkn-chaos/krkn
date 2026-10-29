@@ -9,6 +9,11 @@ on:
     - cron: '17 4 * * *'
   workflow_dispatch:
     inputs:
+      scan_only:
+        description: Scan the published latest image and report findings without rebuilding
+        type: boolean
+        required: false
+        default: false
       source_tag:
         description: Release tag to refresh (defaults to the version recorded on the latest image)
         type: string
@@ -47,6 +52,7 @@ jobs:
           INPUT_SOURCE_TAG: ${{ inputs.source_tag }}
           FORCE_REFRESH: ${{ inputs.force_refresh }}
           ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+          SCAN_ONLY: ${{ inputs.scan_only }}
         run: |
           set -euo pipefail
           if [[ "$GITHUB_EVENT_NAME" != schedule && "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
@@ -62,7 +68,11 @@ jobs:
             exit 0
           fi
           if [[ "$GITHUB_REF" != refs/heads/main ]]; then
-            echo 'Security refresh must run from main.' >&2
+            echo 'Image scans and security refreshes must run from main.' >&2
+            exit 1
+          fi
+          if [[ "$SCAN_ONLY" == true ]] && { [[ -n "$INPUT_SOURCE_TAG" ]] || [[ "$FORCE_REFRESH" == true ]] || [[ -n "$ROLLBACK_TAG" ]]; }; then
+            echo 'scan_only cannot be combined with source_tag, force_refresh or rollback_tag.' >&2
             exit 1
           fi
           if [[ -n "$ROLLBACK_TAG" ]]; then
@@ -81,25 +91,24 @@ jobs:
           current_tag=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
           docker tag "$image" localhost/krkn:published-amd64
           tag=${INPUT_SOURCE_TAG:-$current_tag}
-          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Cannot determine a released source tag from $image. Publish a tagged image first or supply source_tag." >&2
-            exit 1
+          displayed_tag=$tag
+          if [[ ! "$displayed_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            displayed_tag=unknown
           fi
           if [[ -n "$INPUT_SOURCE_TAG" && "$INPUT_SOURCE_TAG" != "$current_tag" ]]; then
             echo "Refreshing $INPUT_SOURCE_TAG instead of the current source $current_tag" >> "$GITHUB_STEP_SUMMARY"
           fi
-          echo "source_tag=$tag" >> "$GITHUB_OUTPUT"
 
           grype_archive="$RUNNER_TEMP/grype.tar.gz"
           curl -fsSL 'https://github.com/anchore/grype/releases/download/v0.121.0/grype_0.121.0_linux_amd64.tar.gz' -o "$grype_archive"
           printf '%s  %s\n' '64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519' "$grype_archive" | sha256sum -c -
           tar -xzf "$grype_archive" -C "$RUNNER_TEMP" grype
           "$RUNNER_TEMP/grype" docker:localhost/krkn:published-amd64 -o json --file "$RUNNER_TEMP/current-amd64.json"
-          jq -e '.distro.name == "fedora" and .distro.version == "45" and .source.target.architecture == "amd64"' "$RUNNER_TEMP/current-amd64.json" >/dev/null
+          jq -e '.source.target.architecture == "amd64"' "$RUNNER_TEMP/current-amd64.json" >/dev/null
           docker pull --platform linux/arm64 "$image"
           docker tag "$image" localhost/krkn:published-arm64
           "$RUNNER_TEMP/grype" docker:localhost/krkn:published-arm64 -o json --file "$RUNNER_TEMP/current-arm64.json"
-          jq -e '.distro.name == "fedora" and .distro.version == "45" and .source.target.architecture == "arm64"' "$RUNNER_TEMP/current-arm64.json" >/dev/null
+          jq -e '.source.target.architecture == "arm64"' "$RUNNER_TEMP/current-arm64.json" >/dev/null
           amd64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-amd64.json")
           arm64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-arm64.json")
           amd64_fixable=$(jq -r .actionable <<< "$amd64_policy")
@@ -107,15 +116,27 @@ jobs:
           fixable=$((amd64_fixable + arm64_fixable))
           {
             echo '## Published image scan'
-            echo "- Source release: \`$tag\`"
+            echo "- Source release: \`$displayed_tag\`"
+            echo "- Published amd64 OS: $(jq -r '"\(.distro.name // "unknown") \(.distro.version // "unknown")"' "$RUNNER_TEMP/current-amd64.json")"
+            echo "- Published arm64 OS: $(jq -r '"\(.distro.name // "unknown") \(.distro.version // "unknown")"' "$RUNNER_TEMP/current-arm64.json")"
             echo "- amd64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$amd64_policy")"
             echo "- arm64: $(jq -r '"\(.total) fixable, \(.accepted) documented exceptions, \(.actionable) actionable"' <<< "$arm64_policy")"
           } >> "$GITHUB_STEP_SUMMARY"
-          if [[ "$GITHUB_EVENT_NAME" == schedule ]]; then
+          if [[ "$GITHUB_EVENT_NAME" == schedule || "$SCAN_ONLY" == true ]]; then
             echo should_build=false >> "$GITHUB_OUTPUT"
             echo should_publish=false >> "$GITHUB_OUTPUT"
-            echo '- Daily scan only; use the manual workflow link in the Slack report to start a refresh.' >> "$GITHUB_STEP_SUMMARY"
+            echo '- Scan only; use the workflow link in the Slack report to start a refresh.' >> "$GITHUB_STEP_SUMMARY"
             exit 0
+          fi
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Cannot determine a released source tag from $image. Publish a tagged image first or supply source_tag." >&2
+            exit 1
+          fi
+          echo "source_tag=$tag" >> "$GITHUB_OUTPUT"
+          if ! jq -e '.distro.name == "fedora" and .distro.version == "45"' "$RUNNER_TEMP/current-amd64.json" >/dev/null ||
+             ! jq -e '.distro.name == "fedora" and .distro.version == "45"' "$RUNNER_TEMP/current-arm64.json" >/dev/null; then
+            echo 'The published latest image is not Fedora 45. Publish a Fedora 45 release before running a security refresh.' >&2
+            exit 1
           fi
           if (( fixable == 0 )) && [[ "$FORCE_REFRESH" != true ]]; then
             echo should_build=false >> "$GITHUB_OUTPUT"
@@ -957,10 +978,15 @@ jobs:
           SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
           PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
           ROLLBACK_TAG: ${{ needs.prepare.outputs.rollback_tag }}
+          SCAN_ONLY: ${{ inputs.scan_only }}
         run: |
           set -euo pipefail
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           workflow_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/docker-image.yml"
+          mode=$GITHUB_EVENT_NAME
+          if [[ "$SCAN_ONLY" == true ]]; then
+            mode='manual scan'
+          fi
           if jq -e '[.[] | .result] | any(. == "failure")' <<< "$JOB_RESULTS" >/dev/null; then
             status=failed
           elif jq -e '[.[] | .result] | any(. == "cancelled")' <<< "$JOB_RESULTS" >/dev/null; then
@@ -970,13 +996,13 @@ jobs:
           fi
           {
             echo '## Image vulnerability report and Slack notification'
-            echo "- Workflow: $status ($GITHUB_EVENT_NAME)"
+            echo "- Workflow: $status ($mode)"
             echo "- Source: \`${SOURCE_TAG:-unknown}\`; target tag: \`${PUBLISH_TAG:-none}\`; rollback: \`${ROLLBACK_TAG:-none}\`"
             echo "- [Full run and downloadable scanner reports]($run_url)"
-            echo "- [Run the image workflow manually]($workflow_url) (select main; enable force_refresh to rebuild without actionable findings)"
+            echo "- [Run the image workflow manually]($workflow_url) (select main; use scan_only for a scan or force_refresh to rebuild without actionable findings)"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          message="Krkn image workflow $status ($GITHUB_EVENT_NAME). Source: ${SOURCE_TAG:-unknown}; target tag: ${PUBLISH_TAG:-none}; rollback: ${ROLLBACK_TAG:-none}."
+          message="Krkn image workflow $status ($mode). Source: ${SOURCE_TAG:-unknown}; target tag: ${PUBLISH_TAG:-none}; rollback: ${ROLLBACK_TAG:-none}."
           for platform in amd64 arm64; do
             report="$RUNNER_TEMP/reports/vulnerability-reports-$platform/grype-os-after.json"
             python="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-python-after.json"
@@ -1019,7 +1045,7 @@ jobs:
             message+=$'\n'"$line"
           done
           message+=$'\n'"Details and full JSON reports: $run_url"
-          message+=$'\n'"Manual rebuild: $workflow_url (select main; enable force_refresh to rebuild without actionable findings)."
+          message+=$'\n'"Run a scan or rebuild: $workflow_url (select main; use scan_only for a scan or force_refresh to rebuild without actionable findings)."
           if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
             echo '- Slack notification not sent: configure the `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` secret.' >> "$GITHUB_STEP_SUMMARY"
             exit 0

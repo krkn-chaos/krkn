@@ -72,28 +72,33 @@ kept out of the Copa input: forcing `cbor2` to 5.9.0 makes `pip check` fail.
 New findings outside these exact accepted versions and advisory IDs are
 reported separately and remain eligible for Copa patching. See
 [SECURITY.md](../SECURITY.md) for the risk assessment.
-The same exact-match Grype policy is used by the daily scan, so accepted
-findings alone do not schedule a rebuild. The raw reports always include them.
+The same exact-match Grype policy is used by the daily scan. The scheduled scan
+never rebuilds an image; the raw reports always include accepted findings.
 Add a `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret with an
 incoming webhook for the desired channel to receive a concise report after
 each scheduled scan, manual refresh or release, including scans that find CVEs
 but do not publish an image.
 The message links to the run summary, downloadable full JSON reports, and the
 workflow page where an operator with repository write access can select
-**Run workflow** on `main`. If the secret is absent, the run summary records
+**Run workflow** on `main`. Set `scan_only` to repeat the scheduled scan without
+rebuilding or publishing. If the secret is absent, the run summary records
 that Slack delivery was skipped.
 
 Every day, the workflow scans both platforms of
 `quay.io/krkn-chaos/krkn:latest` and reports the findings without rebuilding.
-An operator can follow the Slack link to run the workflow on `main`. When Grype
-finds a vulnerability with an available fix, the manual run rebuilds the
-recorded Krkn release tag and publishes a signed multi-platform image as
-`vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag remains unchanged;
-`latest` moves to the validated patch tag, followed by a krkn-hub rebuild. Set
-`force_refresh` to rebuild without scanner findings, or `source_tag` to select
-a release explicitly. The first tagged image built by this workflow records
-its source version in `org.opencontainers.image.version`; before that first
-release, a manual refresh needs `source_tag`.
+An operator can follow the Slack link to run the workflow on `main`. With
+`scan_only` off, if Grype finds a vulnerability with an available fix, the
+manual run rebuilds the recorded Krkn release tag and publishes a signed
+multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag
+remains unchanged; `latest` moves to the validated patch tag, followed by a
+krkn-hub rebuild. Set `force_refresh` to rebuild without scanner findings, or
+`source_tag` to select a release explicitly. Keep those inputs and
+`rollback_tag` empty when using `scan_only`. The first tagged image built by
+this workflow records its source version in `org.opencontainers.image.version`;
+before that first release, a manual refresh needs `source_tag`.
+The scan still works if the published image has no release label or is not yet
+Fedora 45. A manual refresh requires a published Fedora 45 image; publish a
+tagged Fedora 45 release first.
 
 To restore a prior signed release or patch, run the workflow on `main` with
 `rollback_tag`. It verifies the manifest signatures in both Quay repositories,
