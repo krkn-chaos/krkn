@@ -39,6 +39,7 @@ services:
           rm -f "$$archive"
         }
         load_image nginx:alpine
+        load_image quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-service-hijacking
         touch /shared-kubeconfig/ready
         while :; do sleep 2; done
     healthcheck:

@@ -43,6 +43,9 @@ class TestServiceHijacking(BaseScenarioTest):
         proc = None
         try:
             scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
+            scenario["chaos_duration"] = 60
+            for step in scenario["plan"][0]["steps"]["GET"]:
+                step["duration"] = 30
             path = self.write_scenario(self.tmp_path, scenario, suffix="-observe-plan")
             config_path = self.build_config(
                 self.SCENARIO_TYPE, str(path), filename="observe-plan.yaml"
