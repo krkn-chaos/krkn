@@ -134,8 +134,9 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 _get_image_signature_configuration(config["kraken"])
             )
         except (TypeError, FileNotFoundError) as e:
-            logging.error("Invalid image signature configuration: %s", e)
-            return -1
+            exit_code = 1
+            logging.error("Invalid image signature configuration (exit code %d): %s", exit_code, e)
+            return exit_code
         kubeconfig_path = os.path.expanduser(
             get_yaml_item_value(config["kraken"], "kubeconfig_path", "")
         )

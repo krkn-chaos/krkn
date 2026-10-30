@@ -12,8 +12,8 @@ import yaml
 
 
 def _kraken_cmd(config_path: str, repo_root: Path):
-    """Use the same Python as the test process so venv/.venv and coverage match."""
-    python = sys.executable
+    """Use the test Python unless a container runner selects the runtime Python."""
+    python = os.environ.get("KRKN_TEST_KRAKEN_PYTHON", sys.executable)
     if os.environ.get("KRKN_TEST_COVERAGE", "0") == "1":
         return [
             python, "-m", "coverage", "run", "-a",
@@ -109,6 +109,9 @@ def build_config(repo_root, tmp_path):
 
         config = yaml.safe_load(content)
         if "kraken" in config:
+            kubeconfig_path = os.environ.get("KUBECONFIG")
+            if kubeconfig_path:
+                config["kraken"]["kubeconfig_path"] = kubeconfig_path
             # Disable status server so parallel test workers don't all bind to port 8081
             config["kraken"]["publish_kraken_status"] = False
         if "performance_monitoring" in config:

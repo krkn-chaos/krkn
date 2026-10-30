@@ -17,7 +17,7 @@ from lib.utils import assert_kraken_failure, assert_kraken_success, assert_scena
 
 @pytest.mark.functional
 @pytest.mark.service_hijacking
-@pytest.mark.xdist_group("service_hijacking")
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestServiceHijacking(BaseScenarioTest):
     """Exercise service hijacking plan execution and rollback behavior."""
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/service_hijacking/resource.yaml"
@@ -43,6 +43,9 @@ class TestServiceHijacking(BaseScenarioTest):
         proc = None
         try:
             scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
+            scenario["chaos_duration"] = 60
+            for step in scenario["plan"][0]["steps"]["GET"]:
+                step["duration"] = 30
             path = self.write_scenario(self.tmp_path, scenario, suffix="-observe-plan")
             config_path = self.build_config(
                 self.SCENARIO_TYPE, str(path), filename="observe-plan.yaml"
@@ -50,6 +53,7 @@ class TestServiceHijacking(BaseScenarioTest):
             proc = self.run_kraken_background(config_path)
             redirected_selector = None
             plan_response = None
+            observed_responses = []
             # Kraken waits up to 120s for the hijacker pod to reach Running
             # before it patches the Service selector (krkn-lib create_pod).
             # A cold pull of the ~350MB hijacker image takes ~50s on its own,
@@ -69,6 +73,7 @@ class TestServiceHijacking(BaseScenarioTest):
                         traffic_pod,
                         "http://nginx-service:80/list/index.php",
                     )
+                    observed_responses.append(response)
                     if response and (
                         (response[0] == 500 and "internal server error" in response[1])
                         or (response[0] == 201 and "resource created" in response[1])
@@ -80,7 +85,8 @@ class TestServiceHijacking(BaseScenarioTest):
                 f"Service selector never redirected from {original_selector}"
             )
             assert plan_response is not None, (
-                "The hijacked Service never returned either configured response-plan result"
+                "The hijacked Service never returned either configured response-plan result; "
+                f"observed responses: {observed_responses[-10:]}; Kraken exit code: {proc.poll()}"
             )
 
             proc.wait(timeout=120)

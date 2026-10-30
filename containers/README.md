@@ -12,3 +12,107 @@ Refer [instructions](https://krkn-chaos.dev/docs/installation/) for information 
 ### Run Custom Kraken Image
 
 Refer to [instructions](https://github.com/redhat-chaos/krkn/blob/main/containers/build_own_image-README.md) for information on how to run a custom containerized version of kraken using podman.
+
+### Check a built image without running a scenario
+
+Set `KRKN_DEPENDENCY_CHECK=1` to check that the installed Python packages have
+no declared dependency conflicts and that the Krkn CLI can start. This exits
+before SSH setup and does not connect to a cluster or run a chaos scenario.
+
+```sh
+docker run --rm -e KRKN_DEPENDENCY_CHECK=1 quay.io/redhat-chaos/krkn:latest
+```
+
+Use the same command with the candidate image tag in CI after building or
+patching it. This is a smoke check; functional tests still need a separate
+disposable Kubernetes cluster.
+
+### Build the base image locally
+
+The Dockerfile expects architecture-matched `oc`, `virtctl`, and `yq` binaries in
+`containers/tools/`. Build them before compiling the Dockerfile; `oc` requires
+`libkrb5-dev` on Debian/Ubuntu. Use the latest stable Go toolchain supported by
+the cloned sources.
+
+```sh
+scripts/build-container-tool.sh oc
+scripts/build-container-tool.sh virtctl
+scripts/build-container-tool.sh yq
+./containers/compile_dockerfile.sh
+docker build -t localhost/krkn:local containers/
+```
+
+The CI workflow builds these binaries in parallel, uploads them as artifacts,
+then downloads them for each architecture before building and patching the local
+base image.
+
+### Release and security refresh
+
+The Docker image workflow keeps the normal tag release path. Both releases and
+security refreshes build the `oc`, `virtctl`, and `yq` binaries for amd64 and
+arm64 outside the Dockerfile. The Fedora 45 Dockerfile runs `dnf upgrade
+--refresh` before installing Krkn. Trivy finds Go and Python dependency CVEs.
+Copa rebuilds each affected Go tool in a separate single-binary image, then
+patches eligible Python dependencies in the Krkn image. The final `oc`,
+`virtctl`, and `yq` binaries must pass client-side version commands. Grype
+reports Fedora OS packages. Both platforms must complete the image scans and
+pass functional tests before publication.
+Remaining CVEs do not block publication. The run summary records vulnerability
+counts and the source commits of the Go tools; JSON reports are downloadable
+as run artifacts.
+The functional test runner uses the test suite included in the candidate image,
+so a refresh tests the selected release's code with its matching suite.
+The image labels record the Krkn release tag and the workflow source commit.
+`setuptools` stays at 81.0.0 because the vSphere SDK still imports the
+[`pkg_resources` module removed in 82.0.0](https://setuptools.pypa.io/en/stable/deprecated/pkg_resources.html).
+The scanner's [GHSA-xmj3-9gf7-h52w](https://github.com/pypa/setuptools/security/advisories/GHSA-xmj3-9gf7-h52w)
+and [CVE-2026-59890](https://github.com/pypa/setuptools/security/advisories/GHSA-h35f-9h28-mq5c)
+findings affect Windows wheel installation and macOS source distributions,
+respectively. They are shown separately in the run summary for this Linux image.
+All findings remain in the raw reports.
+The existing `arcaflow-plugin-sdk 0.14.3` constraint also keeps `cbor2` at
+5.6.5 on Python 3.11. Its three documented findings are shown separately and
+kept out of the Copa input: forcing `cbor2` to 5.9.0 makes `pip check` fail.
+New findings outside these exact accepted versions and advisory IDs are
+reported separately and remain eligible for Copa patching. See
+[SECURITY.md](../SECURITY.md) for the risk assessment.
+The daily scan uses Grype findings only for Fedora RPMs and Trivy findings only
+for Go and Python dependencies. A manual refresh is offered when either scanner
+finds an actionable vulnerability with a published fix. Exact documented Go and
+Python exceptions do not request a refresh. The scheduled scan never rebuilds
+an image; the raw reports always include documented exceptions.
+Add a `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` repository secret with an
+incoming webhook for the desired channel to receive a concise report after
+each scheduled scan, manual refresh or release, including scans that find CVEs
+but do not publish an image.
+The message links to the run summary, downloadable full JSON reports, and the
+workflow page where an operator with repository write access can select
+**Run workflow** on `main`. Set `scan_only` to repeat the scheduled scan without
+rebuilding or publishing. If the secret is absent, the run summary records
+that Slack delivery was skipped.
+
+Every day at 15:30 Europe/Rome, the workflow scans both platforms of
+`quay.io/krkn-chaos/krkn:latest` and reports the findings without rebuilding.
+An operator can follow the Slack link to run the workflow on `main`. With
+`scan_only` off, if Grype finds a fixable Fedora RPM vulnerability or Trivy
+finds an actionable Go/Python dependency vulnerability with an available fix, the
+manual run rebuilds the recorded Krkn release tag and publishes a signed
+multi-platform image as `vX.Y.Z-patch-YYYYMMDD-RUN_ID-ATTEMPT`. The release tag
+remains unchanged; `latest` moves to the validated patch tag, followed by a
+krkn-hub rebuild. Set `force_refresh` to rebuild without scanner findings, or
+`source_tag` to select a release explicitly. If `latest` is unavailable, a
+manual run with `source_tag` rebuilds without a published baseline comparison;
+the candidate is still scanned before and after patching. Keep those inputs and
+`rollback_tag` empty when using `scan_only`. The first tagged image built by
+this workflow records its source version in `org.opencontainers.image.version`;
+before that first release, a manual rebuild needs `source_tag`.
+The scan still works if the published image has no release label or is not yet
+Fedora 45. A manual refresh against an existing `latest` requires Fedora 45;
+publish a tagged Fedora 45 release first if the current `latest` is older.
+
+To restore a prior signed release or patch, run the workflow on `main` with
+`rollback_tag`. It verifies the manifest signatures in both Quay repositories,
+repoints both `latest` tags to those digests, and rebuilds krkn-hub. Keep
+`source_tag` empty and `force_refresh` off when rolling back. Release and
+refresh runs share one concurrency group so they cannot promote `latest` at
+the same time.
