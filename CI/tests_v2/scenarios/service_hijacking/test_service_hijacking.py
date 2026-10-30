@@ -17,7 +17,7 @@ from lib.utils import assert_kraken_failure, assert_kraken_success, assert_scena
 
 @pytest.mark.functional
 @pytest.mark.service_hijacking
-@pytest.mark.xdist_group("service_hijacking")
+@pytest.mark.xdist_group("node-resource-chaos")
 class TestServiceHijacking(BaseScenarioTest):
     """Exercise service hijacking plan execution and rollback behavior."""
     WORKLOAD_MANIFEST = "CI/tests_v2/scenarios/service_hijacking/resource.yaml"
