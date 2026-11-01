@@ -470,6 +470,39 @@ class TestZoneOutageRun(unittest.TestCase):
         mock_set_rollback.assert_not_called()
         mock_thread_pool.assert_not_called()
 
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.ThreadPool"
+    )
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.gcp_node_scenarios"
+    )
+    def test_run_gcp_aborts_when_rollback_registration_fails(
+        self, mock_gcp_class, mock_thread_pool, mock_sleep
+    ):
+        """Nodes are never stopped if the rollback can't be persisted"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.list_killable_nodes.return_value = ["node-1"]
+
+        plugin = ZoneOutageScenarioPlugin()
+        with patch.object(
+            plugin.rollback_handler, "set_rollback_callable", return_value=False
+        ):
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
+        mock_thread_pool.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -203,7 +203,22 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
                 pod_name = f"http-load-{get_random_string(10)}"
                 
                 logging.info(f"Deploying pod {i+1}/{number_of_pods}: {pod_name}")
-                
+
+                # Register rollback before deploying so an interrupted run can still clean up
+                pod_names.append(pod_name)
+                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
+                if not self.rollback_handler.set_rollback_callable(
+                    self.rollback_http_load_pods,
+                    RollbackContent(
+                        namespace=namespace,
+                        resource_identifier=rollback_data,
+                    ),
+                ):
+                    logging.error(
+                        f"HttpLoadScenarioPlugin failed to register rollback, not deploying pod {pod_name}"
+                    )
+                    return 1
+
                 # Deploy pod using krkn-lib
                 lib_telemetry.get_lib_kubernetes().deploy_http_load(
                     name=pod_name,
@@ -222,19 +237,7 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
                     node_selectors=node_selectors,
                     timeout_sec=500
                 )
-                
-                pod_names.append(pod_name)
-                
-                # Set rollback callable for pod cleanup
-                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
-                self.rollback_handler.set_rollback_callable(
-                    self.rollback_http_load_pods,
-                    RollbackContent(
-                        namespace=namespace,
-                        resource_identifier=rollback_data,
-                    ),
-                )
-            
+
             logging.info(f"Successfully deployed {len(pod_names)} HTTP load pod(s)")
             
             # Wait for all pods to complete

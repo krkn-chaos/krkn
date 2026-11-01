@@ -296,10 +296,15 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
                     return 1
                 logging.info("Host cgroup path: %s" % cgroup_path)
 
-                self._register_rollback(
+                if not self._register_rollback(
                     priv_pod_name, maj_min, cgroup_path,
                     cgroup_version, params.namespace,
-                )
+                ):
+                    logging.error(
+                        "StorageThrottleScenarioPlugin failed to register rollback, "
+                        "aborting before applying the throttle"
+                    )
+                    return 1
 
                 self._apply_throttle(
                     lib_k8s, priv_pod_name, cgroup_path,
@@ -537,7 +542,7 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         encoded_data = base64.b64encode(
             json.dumps(rollback_data).encode("utf-8")
         ).decode("utf-8")
-        self.rollback_handler.set_rollback_callable(
+        return self.rollback_handler.set_rollback_callable(
             self.rollback_throttle,
             RollbackContent(
                 namespace=namespace,

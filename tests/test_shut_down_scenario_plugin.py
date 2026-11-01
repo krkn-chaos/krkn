@@ -126,6 +126,27 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         self.assertEqual(mock_multiprocess.call_count, 2)
         self.assertEqual(len(affected_nodes_status.affected_nodes), 2)
 
+    @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.AWS')
+    def test_cluster_shut_down_aborts_when_rollback_registration_fails(self, mock_aws_class):
+        """
+        Nodes are never stopped if the rollback can't be persisted
+        """
+        shut_down_config = {
+            "runs": 1,
+            "shut_down_duration": 60,
+            "cloud_type": "aws",
+            "timeout": 300
+        }
+        mock_aws_class.return_value.get_instance_id.return_value = "i-123"
+        self.mock_kubecli.list_nodes.return_value = ["node1"]
+
+        with patch.object(self.plugin.rollback_handler, 'set_rollback_callable', return_value=False), \
+                patch.object(self.plugin, 'multiprocess_nodes') as mock_multiprocess:
+            with self.assertRaises(RuntimeError):
+                self.plugin.cluster_shut_down(shut_down_config, self.mock_kubecli, AffectedNodeStatus())
+
+        mock_multiprocess.assert_not_called()
+
     @patch('krkn.scenario_plugins.shut_down.shut_down_scenario_plugin.GCP')
     @patch('time.sleep')
     @patch('time.time')

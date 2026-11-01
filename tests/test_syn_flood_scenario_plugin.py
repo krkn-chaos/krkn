@@ -316,6 +316,30 @@ class TestSynFloodRun(unittest.TestCase):
             )
             mock_lib_kubernetes.deploy_syn_flood.assert_called_once()
 
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """No attacker pod is deployed if the rollback can't be persisted"""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
+            mock_lib_kubernetes.service_exists.return_value = True
+
+            plugin = SynFloodScenarioPlugin()
+            plugin.rollback_handler = MagicMock()
+            plugin.rollback_handler.set_rollback_callable.return_value = False
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            self.assertEqual(result, 1)
+            mock_lib_kubernetes.deploy_syn_flood.assert_not_called()
+
     def test_run_successful_with_label_selector(self):
         """Test successful execution with target-service-label"""
         import tempfile

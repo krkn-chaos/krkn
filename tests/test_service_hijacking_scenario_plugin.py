@@ -159,8 +159,39 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_lib_telemetry = MagicMock()
         mock_lib_kubernetes = MagicMock()
         mock_lib_telemetry.get_lib_kubernetes.return_value = mock_lib_kubernetes
+        mock_lib_kubernetes.cli.read_namespaced_service.return_value.spec.selector = {
+            "app": "nginx"
+        }
         mock_scenario_telemetry = MagicMock()
         return mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry
+
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """The service is never patched if the rollback can't be persisted,
+        and the already deployed hijacker pod is cleaned up"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.service_exists.return_value = True
+        mock_webservice = MagicMock()
+        mock_webservice.pod_name = "hijacker-pod"
+        mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
+
+        plugin = ServiceHijackingScenarioPlugin()
+        plugin.rollback_handler = MagicMock()
+        plugin.rollback_handler.set_rollback_callable.return_value = False
+        result = plugin.run(
+            run_uuid=str(uuid.uuid4()),
+            scenario=scenario_file,
+            lib_telemetry=mock_lib_telemetry,
+            scenario_telemetry=mock_scenario_telemetry,
+        )
+
+        self.assertEqual(result, 1)
+        mock_lib_kubernetes.replace_service_selector.assert_not_called()
+        mock_lib_kubernetes.undeploy_service_hijacking.assert_called_once_with(
+            mock_webservice
+        )
 
     def test_run_successful(self):
         """Test successful execution of the run method"""

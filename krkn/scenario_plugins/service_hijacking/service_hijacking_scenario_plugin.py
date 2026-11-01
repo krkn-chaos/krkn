@@ -78,6 +78,34 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 f"successfully deployed pod: {webservice.pod_name} "
                 f"in namespace:{service_namespace} with selector {webservice.selector}!"
             )
+            # Register rollback before patching so an interrupted run can still restore the service
+            original_selectors = (
+                lib_telemetry.get_lib_kubernetes()
+                .cli.read_namespaced_service(service_name, service_namespace)
+                .spec.selector
+            )
+            rollback_data = {
+                "service_name": service_name,
+                "service_namespace": service_namespace,
+                "original_selectors": original_selectors,
+                "webservice_pod_name": webservice.pod_name,
+            }
+            json_str = json.dumps(rollback_data)
+            encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+            if not self.rollback_handler.set_rollback_callable(
+                self.rollback_service_hijacking,
+                RollbackContent(
+                    namespace=service_namespace,
+                    resource_identifier=encoded_data,
+                ),
+            ):
+                logging.error(
+                    f"ServiceHijackingScenarioPlugin failed to register rollback, "
+                    f"aborting before patching service: {service_name}"
+                )
+                lib_telemetry.get_lib_kubernetes().undeploy_service_hijacking(webservice)
+                return 1
+
             logging.info(
                 f"patching service: {service_name} to hijack traffic towards: {webservice.pod_name}"
             )
@@ -94,24 +122,7 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
 
             logging.info(f"service: {service_name} successfully patched!")
             logging.info(f"original service manifest:\n\n{yaml.dump(original_service)}")
-            
-            # Set rollback callable to ensure service restoration and pod cleanup on failure or interruption
-            rollback_data = {
-                "service_name": service_name,
-                "service_namespace": service_namespace,
-                "original_selectors": original_service["spec"]["selector"],
-                "webservice_pod_name": webservice.pod_name,
-            }
-            json_str = json.dumps(rollback_data)
-            encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
-            self.rollback_handler.set_rollback_callable(
-                self.rollback_service_hijacking,
-                RollbackContent(
-                    namespace=service_namespace,
-                    resource_identifier=encoded_data,
-                ),
-            )
-            
+
             logging.info(f"waiting {chaos_duration} before restoring the service")
             time.sleep(chaos_duration)
             selectors = [

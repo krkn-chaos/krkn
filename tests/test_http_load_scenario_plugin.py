@@ -306,6 +306,27 @@ class TestHttpLoadRun(unittest.TestCase):
             self.assertEqual(result, 0)
             mock_lib_kubernetes.deploy_http_load.assert_called_once()
 
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """No load pod is deployed if the rollback can't be persisted."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
+
+            plugin = HttpLoadScenarioPlugin()
+            plugin.rollback_handler = MagicMock()
+            plugin.rollback_handler.set_rollback_callable.return_value = False
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            self.assertEqual(result, 1)
+            mock_lib_kubernetes.deploy_http_load.assert_not_called()
+
     def test_run_multiple_pods(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scenario_file = self._create_scenario_file(tmp_dir, {"number-of-pods": 3})
