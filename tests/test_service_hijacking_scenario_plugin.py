@@ -193,6 +193,30 @@ class TestServiceHijackingRun(unittest.TestCase):
             mock_webservice
         )
 
+    def test_run_service_read_fails_before_deploy(self):
+        """A failed read of the original selectors leaves nothing deployed"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.service_exists.return_value = True
+        mock_lib_kubernetes.cli.read_namespaced_service.side_effect = Exception(
+            "read failed"
+        )
+
+        plugin = ServiceHijackingScenarioPlugin()
+        plugin.rollback_handler = MagicMock()
+        result = plugin.run(
+            run_uuid=str(uuid.uuid4()),
+            scenario=scenario_file,
+            lib_telemetry=mock_lib_telemetry,
+            scenario_telemetry=mock_scenario_telemetry,
+        )
+
+        self.assertEqual(result, 1)
+        mock_lib_kubernetes.deploy_service_hijacking.assert_not_called()
+        plugin.rollback_handler.set_rollback_callable.assert_not_called()
+
     def test_run_successful(self):
         """Test successful execution of the run method"""
         scenario_file = self._create_scenario_file()

@@ -58,6 +58,12 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
             logging.info(
                 f"service: {service_name} found in namespace: {service_namespace}"
             )
+            # read before deploying so a failed read leaves nothing behind
+            original_selectors = (
+                lib_telemetry.get_lib_kubernetes()
+                .cli.read_namespaced_service(service_name, service_namespace)
+                .spec.selector
+            )
             logging.info(f"creating webservice and initializing test plan...")
             # both named ports and port numbers can be used
             if isinstance(target_port, int):
@@ -79,11 +85,6 @@ class ServiceHijackingScenarioPlugin(AbstractScenarioPlugin):
                 f"in namespace:{service_namespace} with selector {webservice.selector}!"
             )
             # Register rollback before patching so an interrupted run can still restore the service
-            original_selectors = (
-                lib_telemetry.get_lib_kubernetes()
-                .cli.read_namespaced_service(service_name, service_namespace)
-                .spec.selector
-            )
             rollback_data = {
                 "service_name": service_name,
                 "service_namespace": service_namespace,
