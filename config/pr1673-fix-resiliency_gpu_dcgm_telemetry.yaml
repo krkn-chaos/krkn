@@ -1,0 +1,42 @@
+# DRAFT - Resiliency SLOs for Scenario C (GPU telemetry blackout).
+# UNTESTED END-TO-END: not run against any Prometheus server in a cluster.
+# Untested on real GPU.
+#
+# Use with:
+#   resiliency:
+#     resiliency_file: config/resiliency_gpu_dcgm_telemetry.yaml
+#
+# Why a separate file: when resiliency.resiliency_file is not set, krkn
+# re-uses performance_monitoring.alert_profile as its resiliency SLO list
+# (run_kraken.py). The alert profile's check 1 tests the cluster's ALERTING
+# (and uses a PLACEHOLDER alert name), not the system's resilience, so it
+# would cut the resiliency score of every run where that alert does not fire.
+# This file keeps only the recovery SLOs.
+# To skip resiliency scoring entirely instead, set
+#   resiliency:
+#     resiliency_run_mode: disabled
+#
+# krkn evaluates each SLO as a range query over each scenario's own window
+# (krkn/resiliency/resiliency.py -> collector.evaluate_slos), so "@ start()"
+# and "@ end()" are that scenario's start and end (end is after
+# tunings.wait_duration). Any sample > 0 fails the SLO; empty passes.
+# Resiliency knows severities critical (weight 3) and warning (weight 1).
+#
+# Needs the PromQL "@" modifier (on by default since Prometheus 2.33).
+# UNVERIFIED for Thanos Querier / OpenShift user-workload monitoring.
+#
+# UNVERIFIED names:
+#   DCGM_FI_DEV_GPU_UTIL   - default dcgm-exporter field; confirm it is enabled.
+#   UUID                   - per-GPU label assumed on dcgm-exporter metrics.
+# Same scoping limits as the alert profile: per GPU, not per killed pod.
+
+- expr: absent(DCGM_FI_DEV_GPU_UTIL @ end())
+  description: GPU telemetry (DCGM_FI_DEV_GPU_UTIL) present at the end of the Scenario C window
+  severity: critical
+
+- expr: >-
+    count by (UUID) (DCGM_FI_DEV_GPU_UTIL @ start())
+    unless
+    count by (UUID) (DCGM_FI_DEV_GPU_UTIL @ end())
+  description: Every GPU reporting DCGM_FI_DEV_GPU_UTIL at the start of the Scenario C window reports it again at the end
+  severity: critical
