@@ -62,15 +62,38 @@ class TestHogsScenarioPlugin(unittest.TestCase):
             self.plugin.run_scenario(self._stub_config(), MagicMock(), [], q)
         self.assertIn("only failure", str(ctx.exception))
 
-    def test_worker_does_not_deploy_when_rollback_registration_fails(self):
-        """The hog pod is never deployed if the rollback can't be persisted."""
+    def test_no_node_deploys_when_one_rollback_registration_fails(self):
+        """If the rollback for any node can't be saved, no hog pod is deployed
+        on any node."""
         self.plugin.rollback_handler = MagicMock()
-        self.plugin.rollback_handler.set_rollback_callable.return_value = False
+        self.plugin.rollback_handler.set_rollback_callable.side_effect = [True, False, True]
+        self.plugin.run_scenario_worker = MagicMock()
         lib_k8s = MagicMock()
         q = queue.Queue()
-        self.plugin.run_scenario_worker(self._stub_config(), lib_k8s, "node-a", q)
+        with self.assertRaises(Exception) as ctx:
+            self.plugin.run_scenario(
+                self._stub_config(), lib_k8s, ["node-a", "node-b", "node-c"], q
+            )
+        self.assertIn("failed to register rollback", str(ctx.exception))
+        self.plugin.run_scenario_worker.assert_not_called()
         lib_k8s.deploy_hog.assert_not_called()
-        self.assertIn("failed to register rollback", str(q.get_nowait()))
+
+    def test_each_worker_gets_its_registered_pod_name(self):
+        """Every node's rollback is saved first, and each worker deploys the
+        pod name that was saved for it."""
+        self.plugin.rollback_handler = MagicMock()
+        self.plugin.rollback_handler.set_rollback_callable.return_value = True
+        self.plugin.run_scenario_worker = MagicMock()
+        q = queue.Queue()
+        self.plugin.run_scenario(self._stub_config(), MagicMock(), ["node-a", "node-b"], q)
+
+        registered = [
+            c.args[1].resource_identifier
+            for c in self.plugin.rollback_handler.set_rollback_callable.call_args_list
+        ]
+        deployed = [c.args[3] for c in self.plugin.run_scenario_worker.call_args_list]
+        self.assertEqual(len(registered), 2)
+        self.assertEqual(sorted(registered), sorted(deployed))
 
     def test_run_scenario_no_exception(self):
         """Empty exception queue means run_scenario does not raise."""
