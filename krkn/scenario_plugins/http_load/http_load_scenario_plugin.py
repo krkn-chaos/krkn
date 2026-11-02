@@ -199,25 +199,26 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
             # Deploy multiple Vegeta pods
             logging.info(f"Deploying {number_of_pods} HTTP load testing pod(s)")
             
-            for i in range(number_of_pods):
-                pod_name = f"http-load-{get_random_string(10)}"
-                
-                logging.info(f"Deploying pod {i+1}/{number_of_pods}: {pod_name}")
+            pod_names.extend(
+                f"http-load-{get_random_string(10)}" for _ in range(number_of_pods)
+            )
 
-                # Register rollback before deploying so an interrupted run can still clean up
-                pod_names.append(pod_name)
-                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
-                if not self.rollback_handler.set_rollback_callable(
-                    self.rollback_http_load_pods,
-                    RollbackContent(
-                        namespace=namespace,
-                        resource_identifier=rollback_data,
-                    ),
-                ):
-                    logging.error(
-                        f"HttpLoadScenarioPlugin failed to register rollback, not deploying pod {pod_name}"
-                    )
-                    return 1
+            # Register rollback once before deploying so an interrupted run can still clean up
+            rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
+            if not self.rollback_handler.set_rollback_callable(
+                self.rollback_http_load_pods,
+                RollbackContent(
+                    namespace=namespace,
+                    resource_identifier=rollback_data,
+                ),
+            ):
+                logging.error(
+                    "HttpLoadScenarioPlugin failed to register rollback, not deploying load pods"
+                )
+                return 1
+
+            for i, pod_name in enumerate(pod_names):
+                logging.info(f"Deploying pod {i+1}/{number_of_pods}: {pod_name}")
 
                 # Deploy pod using krkn-lib
                 lib_telemetry.get_lib_kubernetes().deploy_http_load(
