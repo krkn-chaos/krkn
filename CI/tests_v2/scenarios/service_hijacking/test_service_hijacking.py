@@ -15,6 +15,45 @@ from lib.network import (
 from lib.utils import assert_kraken_failure, assert_kraken_success, assert_scenario_executed
 
 
+def _hijacker_diagnostics(kubectl, namespace, selector, traffic_pod):
+    """Capture the hijacker while it still exists, before Kraken cleans it up."""
+    label_selector = ",".join(f"{key}={value}" for key, value in selector.items())
+    diagnostics = []
+    commands = (
+        ("pods", ["get", "pods", "-n", namespace, "-l", label_selector, "-o", "wide"]),
+        ("endpoints", ["get", "endpoints", "nginx-service", "-n", namespace, "-o", "wide"]),
+        ("hijacker logs", ["logs", "-n", namespace, "-l", label_selector, "--tail=30"]),
+    )
+    for label, args in commands:
+        try:
+            result = kubectl(args, timeout=15)
+            diagnostics.append(
+                f"{label} (rc={result.returncode}): "
+                f"{result.stdout[-1500:]} {result.stderr[-500:]}"
+            )
+        except subprocess.SubprocessError as error:
+            diagnostics.append(f"{label}: {error}")
+
+    try:
+        result = kubectl(
+            ["get", "pods", "-n", namespace, "-l", label_selector,
+             "-o", "jsonpath={.items[0].status.podIP}"],
+            timeout=15,
+        )
+        pod_ip = result.stdout.strip() if result.returncode == 0 else ""
+        if pod_ip:
+            response = http_status_and_body(
+                kubectl, namespace, traffic_pod,
+                f"http://{pod_ip}:8080/list/index.php",
+            )
+            diagnostics.append(f"direct hijacker pod response: {response}")
+        else:
+            diagnostics.append(f"hijacker pod IP unavailable: {result.stderr}")
+    except subprocess.SubprocessError as error:
+        diagnostics.append(f"direct hijacker pod probe: {error}")
+    return "\n".join(diagnostics)
+
+
 @pytest.mark.functional
 @pytest.mark.service_hijacking
 @pytest.mark.xdist_group("node-resource-chaos")
@@ -40,6 +79,9 @@ class TestServiceHijacking(BaseScenarioTest):
         assert original_selector == {"app": "nginx"}
 
         traffic_pod = start_traffic_pod(kubectl, self.ns, prefix="service-hijacking-traffic-")
+        baseline_response = http_status_and_body(
+            kubectl, self.ns, traffic_pod, "http://nginx-service:80/list/index.php"
+        )
         proc = None
         try:
             scenario = self.load_and_patch_scenario(self.repo_root, self.ns)
@@ -54,6 +96,7 @@ class TestServiceHijacking(BaseScenarioTest):
             redirected_selector = None
             plan_response = None
             observed_responses = []
+            diagnostic_snapshots = []
             # Kraken waits up to 120s for the hijacker pod to reach Running
             # before it patches the Service selector (krkn-lib create_pod).
             # A cold pull of the ~350MB hijacker image takes ~50s on its own,
@@ -74,6 +117,10 @@ class TestServiceHijacking(BaseScenarioTest):
                         "http://nginx-service:80/list/index.php",
                     )
                     observed_responses.append(response)
+                    if response is None and len(observed_responses) in (1, 20, 40):
+                        diagnostic_snapshots.append(
+                            _hijacker_diagnostics(kubectl, self.ns, selector, traffic_pod)
+                        )
                     if response and (
                         (response[0] == 500 and "internal server error" in response[1])
                         or (response[0] == 201 and "resource created" in response[1])
@@ -84,9 +131,19 @@ class TestServiceHijacking(BaseScenarioTest):
             assert redirected_selector and redirected_selector != original_selector, (
                 f"Service selector never redirected from {original_selector}"
             )
+            if plan_response is None and proc.poll() is not None:
+                try:
+                    stdout, stderr = proc.communicate(timeout=5)
+                    diagnostic_snapshots.append(
+                        f"Kraken output: {(stdout or '')[-3000:]} {(stderr or '')[-3000:]}"
+                    )
+                except subprocess.TimeoutExpired:
+                    diagnostic_snapshots.append("Kraken output could not be collected")
             assert plan_response is not None, (
                 "The hijacked Service never returned either configured response-plan result; "
-                f"observed responses: {observed_responses[-10:]}; Kraken exit code: {proc.poll()}"
+                f"baseline response: {baseline_response}; observed responses: "
+                f"{observed_responses[-10:]}; Kraken exit code: {proc.poll()}\n"
+                + "\n--- snapshot ---\n".join(diagnostic_snapshots)
             )
 
             proc.wait(timeout=120)
