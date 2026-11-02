@@ -13,9 +13,10 @@ import base64
 import json
 import unittest
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.syn_flood.syn_flood_scenario_plugin import SynFloodScenarioPlugin
 
 
@@ -253,6 +254,12 @@ class TestParseConfig(unittest.TestCase):
 
 class TestSynFloodRun(unittest.TestCase):
     """Tests for the run method of SynFloodScenarioPlugin"""
+
+    def setUp(self):
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def _create_scenario_file(self, tmp_path, config=None):
         """Helper to create a temporary scenario YAML file"""

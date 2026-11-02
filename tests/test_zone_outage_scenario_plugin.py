@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import yaml
 
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin import (
     ZoneOutageScenarioPlugin,
 )
@@ -334,6 +335,10 @@ class TestZoneOutageRun(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.tmp_path = Path(self.temp_dir.name)
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp_dir.cleanup()

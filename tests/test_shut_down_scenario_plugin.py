@@ -18,6 +18,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.models.k8s import AffectedNodeStatus
 
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.shut_down.shut_down_scenario_plugin import ShutDownScenarioPlugin
 
 
@@ -33,6 +34,10 @@ class TestShutDownScenarioPlugin(unittest.TestCase):
         self.mock_lib_telemetry.get_lib_kubernetes.return_value = self.mock_kubecli
         self.mock_scenario_telemetry = Mock(spec=ScenarioTelemetry)
         self.mock_scenario_telemetry.affected_nodes = []
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_get_scenario_types(self):
         """

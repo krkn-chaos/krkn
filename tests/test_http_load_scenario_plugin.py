@@ -13,11 +13,12 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import yaml
 
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.http_load.http_load_scenario_plugin import HttpLoadScenarioPlugin
 
 
@@ -251,6 +252,12 @@ class TestParseMetricsFromLogs(unittest.TestCase):
 
 class TestHttpLoadRun(unittest.TestCase):
 
+    def setUp(self):
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        self.set_rollback_callable = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _create_scenario_file(self, tmp_dir, config=None):
         default_config = [{
             "http_load_scenario": {
@@ -351,6 +358,8 @@ class TestHttpLoadRun(unittest.TestCase):
 
             self.assertEqual(result, 0)
             self.assertEqual(mock_lib_kubernetes.deploy_http_load.call_count, 3)
+            # One rollback entry covering all three pods, written once
+            self.set_rollback_callable.assert_called_once()
 
     def test_run_invalid_config(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
