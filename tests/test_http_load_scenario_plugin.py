@@ -465,6 +465,34 @@ class TestRollbackHttpLoadPods(unittest.TestCase):
         self.assertTrue(any('error' in log.lower() for log in log_context.output))
         mock_lib_kubernetes.delete_pod.assert_not_called()
 
+    def test_rollback_runs_from_serialized_source(self):
+        """The rollback file only carries the function body, so it must
+        import what it needs itself."""
+        from krkn.rollback.serialization import Serializer
+
+        name, code = Serializer("http_load_scenarios")._parse_rollback_callable_code(
+            HttpLoadScenarioPlugin.rollback_http_load_pods
+        )
+        # Same names the generated rollback file has in scope
+        namespace = {
+            "logging": __import__("logging"),
+            "RollbackContent": RollbackContent,
+            "KrknTelemetryOpenshift": MagicMock,
+        }
+        exec(code, namespace)
+
+        encoded_data = base64.b64encode(json.dumps(["http-load-abc123"]).encode()).decode()
+        mock_lib_telemetry = MagicMock()
+        mock_lib_kubernetes = MagicMock()
+        mock_lib_telemetry.get_lib_kubernetes.return_value = mock_lib_kubernetes
+
+        namespace[name](
+            RollbackContent(resource_identifier=encoded_data, namespace="default"),
+            mock_lib_telemetry,
+        )
+
+        mock_lib_kubernetes.delete_pod.assert_called_once_with("http-load-abc123", "default")
+
 
 if __name__ == "__main__":
     unittest.main()

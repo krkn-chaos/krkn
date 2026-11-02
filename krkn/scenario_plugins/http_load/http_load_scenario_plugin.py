@@ -507,6 +507,8 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
+            import base64  # noqa
+            import json  # noqa
             pod_names = json.loads(
                 base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8')
             )
