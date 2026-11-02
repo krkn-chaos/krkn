@@ -1011,6 +1011,62 @@ class TestRunScenario(unittest.TestCase):
             self.assertEqual(mock_sleep.call_count, 2)
 
 
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """The throttle is never applied if the rollback can't be persisted."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = {
+                "storage_throttle_scenario": {
+                    "namespace": "default",
+                    "pod_name": "app-pod",
+                    "throttle_type": "bandwidth",
+                    "duration": 60,
+                }
+            }
+            path = self.create_scenario_file(config, temp_dir)
+
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "pvc1"
+            mock_volume.name = "vol1"
+            mock_pod.volumes = [mock_volume]
+
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "vol1"
+            mock_vol_mount.mountPath = "/data"
+
+            mock_container = MagicMock()
+            mock_container.name = "app"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_container.containerId = "cri-o://abc123def4567890123456789012"
+            mock_pod.containers = [mock_container]
+            mock_pod.nodeName = "worker-1"
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_k8s = MagicMock(spec=KrknKubernetes)
+            mock_telemetry.get_lib_kubernetes.return_value = mock_k8s
+            mock_k8s.get_pod_info.return_value = mock_pod
+
+            mock_k8s.deploy_io_throttle_pod.return_value = "io-throttle-12345"
+            mock_k8s.exec_cmd_in_pod.side_effect = [
+                "8:16\n",       # _get_device_maj_min
+                "cgroup2fs\n",  # _detect_cgroup_version
+                "/sys/fs/cgroup/kubepods.slice/crio-abc.scope\n",  # scope
+            ]
+            self.plugin.rollback_handler.set_rollback_callable = MagicMock(
+                return_value=False
+            )
+
+            result = self.plugin.run(
+                run_uuid="uuid", scenario=path,
+                lib_telemetry=mock_telemetry, scenario_telemetry=MagicMock(),
+            )
+
+            self.assertEqual(result, 1)
+            # only discovery ran, no throttle echo/cat
+            self.assertEqual(mock_k8s.exec_cmd_in_pod.call_count, 3)
+            # privileged pod is still cleaned up
+            mock_k8s.delete_pod.assert_called_once()
+
     @patch(
         "krkn.scenario_plugins.storage_throttle."
         "storage_throttle_scenario_plugin.time.sleep"
