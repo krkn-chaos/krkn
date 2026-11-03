@@ -110,6 +110,10 @@ class AbstractHealthCheckPlugin(ABC):
         """Return whether the plugin has enough configuration to run."""
         return True
 
+    def can_run(self, config: dict[str, Any]) -> bool:
+        """Return whether the plugin may start its continuous health check."""
+        return self.is_configured(config)
+
     def manages_own_threads(self) -> bool:
         """
         Indicates whether this plugin spawns and manages its own worker threads internally.
