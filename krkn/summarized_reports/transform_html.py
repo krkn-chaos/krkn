@@ -22,6 +22,7 @@ from krkn.summarized_reports.transform import (
     _dedupe_alerts,
     _extract_pod_name,
     _extract_scenario_params,
+    _extract_vmi_pvc_targets,
     _extract_vmi_name,
     format_window,
 )
@@ -164,6 +165,11 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
     scenarios = []
     for s in scenarios_raw:
         selectors, ns_list, exclude_labels, cloud_types = _extract_scenario_params(s.get("parameters", {}))
+        vmi_pvc_targets = _extract_vmi_pvc_targets(s.get("parameters", {}))
+        target_namespaces = {
+            target["namespace"] for target in vmi_pvc_targets if target.get("namespace")
+        }
+        ns_list = [namespace for namespace in ns_list if namespace not in target_namespaces]
 
         recovered = s.get("affected_pods", {}).get("recovered", [])
         unrecovered = s.get("affected_pods", {}).get("unrecovered", [])
@@ -241,6 +247,7 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             "scenario_type": s.get("scenario_type", "N/A"),
             "selectors": selectors,
             "namespaces": ns_list,
+            "vmi_pvc_targets": vmi_pvc_targets,
             "exclude_labels": exclude_labels,
             "cloud_types": cloud_types,
             "all_pods": all_pods,
@@ -360,6 +367,17 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             target_rows.append(("Label Selector", _h(", ".join(s["selectors"]))))
         if s["namespaces"]:
             target_rows.append(("Namespace", _h(", ".join(s["namespaces"]))))
+        for target in s.get("vmi_pvc_targets", []):
+            if target.get("namespace"):
+                target_rows.append(("Namespace", _h(target["namespace"])))
+            if target.get("vmi_name"):
+                target_rows.append(("VMI Name", _h(target["vmi_name"])))
+            if target.get("pvc_name"):
+                target_rows.append(("PVC Name", _h(target["pvc_name"])))
+            if target.get("fill_percentage") is not None:
+                target_rows.append(("Fill Percentage", _h(f'{target["fill_percentage"]}%')))
+            if target.get("duration") is not None:
+                target_rows.append(("Duration", _h(f'{target["duration"]}s')))
         if s["exclude_labels"]:
             target_rows.append(("Exclude Label", _h(", ".join(s["exclude_labels"]))))
         if s["cloud_types"]:
