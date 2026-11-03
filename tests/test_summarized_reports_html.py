@@ -176,6 +176,34 @@ class TestBuildChaosReportHtmlPodRecovery(unittest.TestCase):
         self.assertIn("k8s-app=etcd", html)
         self.assertIn("^openshift-etcd$", html)
 
+    def test_vmi_pvc_target_and_fill_parameters_are_listed(self):
+        scenario = _make_scenario(
+            scenario_name="vmi_pvc_fill.yaml",
+            scenario_type="vmi_pvc_fill_scenarios",
+            parameters={"vmi_pvc_fill_scenario": {
+                "namespace": "default",
+                "vmi_name": "krkn-vmi-block",
+                "pvc_name": "krkn-vmi-block-pvc",
+                "fill_percentage": 50,
+                "duration": 120,
+            }},
+        )
+        output = _minimal_chaos_output()
+        output["telemetry"]["scenarios"] = [scenario]
+
+        html = _generate_html(output)
+
+        self.assertIn("Namespace", html)
+        self.assertIn("default", html)
+        self.assertIn("VMI Name", html)
+        self.assertIn("krkn-vmi-block", html)
+        self.assertIn("PVC Name", html)
+        self.assertIn("krkn-vmi-block-pvc", html)
+        self.assertIn("Fill Percentage", html)
+        self.assertIn("50%", html)
+        self.assertIn("Duration", html)
+        self.assertIn("120s", html)
+
     def test_none_rescheduling_time_coalesced(self):
         scenario = _make_scenario(
             affected_pods={
