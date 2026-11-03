@@ -116,6 +116,121 @@ def _get_image_signature_configuration(kraken_config: dict) -> tuple[bool, str]:
     return bool(enabled), public_key_path
 
 
+def _dry_run_preview(chaos_scenarios, scenario_plugin_factory, kubecli):
+    """Preview targets for all configured scenarios without executing chaos."""
+    logging.info("=" * 60)
+    logging.info("DRY-RUN PREVIEW")
+    logging.info("=" * 60)
+
+    if not chaos_scenarios:
+        logging.info("No chaos scenarios configured.")
+        logging.info("Dry-run complete. No chaos was executed.")
+        return 0
+
+    has_unsupported = False
+    total_previews = 0
+
+    for scenario in chaos_scenarios:
+        scenario_type, scenarios_list, _ = parse_scenario_config(scenario)
+
+        if not scenarios_list:
+            continue
+
+        try:
+            plugin = scenario_plugin_factory.create_plugin(scenario_type)
+        except ScenarioPluginNotFound:
+            logging.error(
+                "UNSUPPORTED PREVIEW: %s (plugin not found)", scenario_type
+            )
+            has_unsupported = True
+            continue
+
+        for scenario_file in scenarios_list:
+            if isinstance(scenario_file, list):
+                logging.error(
+                    "post scenarios have been deprecated, please "
+                    "remove sub-lists from `scenarios` in config.yaml"
+                )
+                has_unsupported = True
+                continue
+
+            try:
+                previews = plugin.preview(scenario_file, kubecli)
+            except Exception as e:
+                logging.error(
+                    "Failed to preview %s (%s): %s",
+                    scenario_file, scenario_type, e,
+                )
+                has_unsupported = True
+                continue
+
+            for preview in previews:
+                total_previews += 1
+                _log_scenario_preview(preview)
+                if not preview.supported:
+                    has_unsupported = True
+
+    logging.info("")
+    logging.info("=" * 60)
+    if has_unsupported:
+        logging.error(
+            "Dry-run failed: one or more configured scenarios "
+            "could not be previewed."
+        )
+        logging.info("No chaos was executed.")
+        return 1
+
+    logging.info(
+        "Dry-run complete: %d preview(s) resolved. "
+        "No chaos was executed.", total_previews,
+    )
+    return 0
+
+
+def _log_scenario_preview(preview):
+    """Log a single ScenarioPreview entry."""
+    logging.info("")
+    if preview.supported:
+        logging.info("SUPPORTED: %s", preview.scenario_type)
+    else:
+        logging.info("UNSUPPORTED PREVIEW: %s", preview.scenario_type)
+
+    logging.info("  File: %s", preview.scenario_file)
+
+    if preview.selectors:
+        logging.info("  Selectors:")
+        for key, value in preview.selectors.items():
+            logging.info("    %s: %s", key, value)
+
+    if preview.supported:
+        logging.info(
+            "  Matched %ss: %d",
+            preview.target_kind.lower(), len(preview.matched_targets),
+        )
+        for t in preview.matched_targets:
+            logging.info(
+                "    - %s/%s", t.get("namespace", ""), t.get("name", "")
+            )
+
+        if preview.excluded_targets:
+            logging.info("  Excluded: %d", len(preview.excluded_targets))
+            for t in preview.excluded_targets:
+                logging.info(
+                    "    - %s/%s", t.get("namespace", ""), t.get("name", "")
+                )
+
+        logging.info("  Eligible: %d", len(preview.planned_targets))
+        for t in preview.planned_targets:
+            logging.info(
+                "    - %s/%s", t.get("namespace", ""), t.get("name", "")
+            )
+
+        logging.info("  Planned action: %s", preview.planned_action)
+
+    for w in preview.warnings:
+        logging.warning("  ⚠️ %s", w)
+
+
 # Main function
 def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
     # Start kraken
@@ -512,6 +627,12 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}")
+
+        # Dry-run: preview targets and exit without executing chaos
+        if getattr(options, 'dry_run', False):
+            return _dry_run_preview(
+                chaos_scenarios, scenario_plugin_factory, kubecli
+            )
 
         # Evaluate top-level triggers before starting health checks or chaos
         trigger_config = config.get("triggers")
@@ -1127,6 +1248,16 @@ if __name__ == "__main__":
              "Must be used together with --start-time and --resiliency-score. "
              "Mutually exclusive with --past-resiliency-score.",
         default=None,
+    )
+
+    parser.add_option(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Preview which targets each scenario would affect without "
+             "executing chaos. No mutations, health checks, or telemetry "
+             "are performed.",
+        default=False,
     )
 
     (options, args) = parser.parse_args()
