@@ -5,14 +5,214 @@ on:
     branches:
       - main
   pull_request:
+  schedule:
+    - cron: '30 15 * * *'
+      timezone: Europe/Rome
+  workflow_dispatch:
+    inputs:
+      scan_only:
+        description: Scan the published latest image and report findings without rebuilding
+        type: boolean
+        required: false
+        default: false
+      source_tag:
+        description: Release tag to refresh (defaults to the version recorded on the latest image)
+        type: string
+        required: false
+      force_refresh:
+        description: Rebuild even when Grype and Trivy find no fixable vulnerabilities
+        type: boolean
+        required: false
+        default: false
+      rollback_tag:
+        description: Existing signed release or patch tag to restore as latest (skips the rebuild)
+        type: string
+        required: false
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: krkn-image-${{ github.event_name == 'pull_request' && github.event.pull_request.number || 'publish' }}
+  queue: max
+  cancel-in-progress: false
 
 jobs:
+  prepare:
+    name: Select image source and check published vulnerabilities
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.select.outputs.should_build }}
+      should_publish: ${{ steps.select.outputs.should_publish }}
+      source_tag: ${{ steps.select.outputs.source_tag }}
+      publish_tag: ${{ steps.select.outputs.publish_tag }}
+      rollback_tag: ${{ steps.select.outputs.rollback_tag }}
+    steps:
+      - name: Check out scan policy
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Select release or refresh
+        id: select
+        env:
+          INPUT_SOURCE_TAG: ${{ inputs.source_tag }}
+          FORCE_REFRESH: ${{ inputs.force_refresh }}
+          ROLLBACK_TAG: ${{ inputs.rollback_tag }}
+          SCAN_ONLY: ${{ inputs.scan_only }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" != schedule && "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
+            echo should_build=true >> "$GITHUB_OUTPUT"
+            if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+              tag=${GITHUB_REF#refs/tags/}
+              echo should_publish=true >> "$GITHUB_OUTPUT"
+              echo "source_tag=$tag" >> "$GITHUB_OUTPUT"
+              echo "publish_tag=$tag" >> "$GITHUB_OUTPUT"
+            else
+              echo should_publish=false >> "$GITHUB_OUTPUT"
+            fi
+            exit 0
+          fi
+          if [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            echo 'Image scans and security refreshes must run from main.' >&2
+            exit 1
+          fi
+          if [[ "$SCAN_ONLY" == true ]] && { [[ -n "$INPUT_SOURCE_TAG" ]] || [[ "$FORCE_REFRESH" == true ]] || [[ -n "$ROLLBACK_TAG" ]]; }; then
+            echo 'scan_only cannot be combined with source_tag, force_refresh or rollback_tag.' >&2
+            exit 1
+          fi
+          if [[ -n "$ROLLBACK_TAG" ]]; then
+            if [[ -n "$INPUT_SOURCE_TAG" || "$FORCE_REFRESH" == true || ! "$ROLLBACK_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-patch-[0-9]{8}-[0-9]+-[0-9]+)?$ ]]; then
+              echo 'rollback_tag must be a release or patch tag and cannot be combined with refresh inputs.' >&2
+              exit 1
+            fi
+            echo should_build=false >> "$GITHUB_OUTPUT"
+            echo should_publish=false >> "$GITHUB_OUTPUT"
+            echo "rollback_tag=$ROLLBACK_TAG" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -n "$INPUT_SOURCE_TAG" && ! "$INPUT_SOURCE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo 'source_tag must be a release tag such as v5.2.12.' >&2
+            exit 1
+          fi
+          rebuild_without_baseline() {
+            if [[ -z "$INPUT_SOURCE_TAG" ]]; then
+              echo 'Published latest is unavailable. Supply source_tag for a manual rebuild or publish a release tag first.' >&2
+              return 1
+            fi
+            {
+              echo '## Published image scan'
+              echo "- Source release: \`$INPUT_SOURCE_TAG\`"
+              echo '- Published latest is unavailable; no baseline comparison is possible for this rebuild.'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "source_tag=$INPUT_SOURCE_TAG" >> "$GITHUB_OUTPUT"
+            echo should_build=true >> "$GITHUB_OUTPUT"
+            echo should_publish=true >> "$GITHUB_OUTPUT"
+            echo "publish_tag=${INPUT_SOURCE_TAG}-patch-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+          }
+
+          image=quay.io/krkn-chaos/krkn:latest
+          if ! docker pull --platform linux/amd64 "$image"; then
+            if ! latest_status=$(curl -sS -o /dev/null -w '%{http_code}' -I \
+              -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+              'https://quay.io/v2/krkn-chaos/krkn/manifests/latest'); then
+              echo 'Could not check the published latest manifest on Quay.' >&2
+              exit 1
+            fi
+            if [[ "$latest_status" != 404 ]]; then
+              echo "Could not pull $image, but its manifest returned HTTP $latest_status; refusing to skip the published baseline." >&2
+              exit 1
+            fi
+            rebuild_without_baseline
+            exit 0
+          fi
+          current_tag=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$image")
+          docker tag "$image" localhost/krkn:published-amd64
+          tag=${INPUT_SOURCE_TAG:-$current_tag}
+          displayed_tag=$tag
+          if [[ ! "$displayed_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            displayed_tag=unknown
+          fi
+          if [[ -n "$INPUT_SOURCE_TAG" && "$INPUT_SOURCE_TAG" != "$current_tag" ]]; then
+            echo "Refreshing $INPUT_SOURCE_TAG instead of the current source $current_tag" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          grype_archive="$RUNNER_TEMP/grype.tar.gz"
+          curl -fsSL 'https://github.com/anchore/grype/releases/download/v0.121.0/grype_0.121.0_linux_amd64.tar.gz' -o "$grype_archive"
+          printf '%s  %s\n' '64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519' "$grype_archive" | sha256sum -c -
+          tar -xzf "$grype_archive" -C "$RUNNER_TEMP" grype
+          "$RUNNER_TEMP/grype" docker:localhost/krkn:published-amd64 -o json --file "$RUNNER_TEMP/current-amd64.json"
+          jq '.matches |= map(select(.artifact.type == "rpm"))' "$RUNNER_TEMP/current-amd64.json" > "$RUNNER_TEMP/current-amd64-os.json"
+          mv "$RUNNER_TEMP/current-amd64-os.json" "$RUNNER_TEMP/current-amd64.json"
+          jq -e '.source.target.architecture == "amd64"' "$RUNNER_TEMP/current-amd64.json" >/dev/null
+          docker pull --platform linux/arm64 "$image"
+          docker tag "$image" localhost/krkn:published-arm64
+          "$RUNNER_TEMP/grype" docker:localhost/krkn:published-arm64 -o json --file "$RUNNER_TEMP/current-arm64.json"
+          jq '.matches |= map(select(.artifact.type == "rpm"))' "$RUNNER_TEMP/current-arm64.json" > "$RUNNER_TEMP/current-arm64-os.json"
+          mv "$RUNNER_TEMP/current-arm64-os.json" "$RUNNER_TEMP/current-arm64.json"
+          jq -e '.source.target.architecture == "arm64"' "$RUNNER_TEMP/current-arm64.json" >/dev/null
+          trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl -fsSL 'https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz' -o "$trivy_archive"
+          printf '%s  %s\n' 'e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7' "$trivy_archive" | sha256sum -c -
+          tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+          "$RUNNER_TEMP/trivy" image --scanners vuln --pkg-types library \
+            --format json --output "$RUNNER_TEMP/current-amd64-trivy.json" localhost/krkn:published-amd64
+          "$RUNNER_TEMP/trivy" image --scanners vuln --pkg-types library \
+            --format json --output "$RUNNER_TEMP/current-arm64-trivy.json" localhost/krkn:published-arm64
+          amd64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-amd64.json")
+          arm64_policy=$(jq -c -f scripts/grype-scan-policy.jq "$RUNNER_TEMP/current-arm64.json")
+          os_fixable=$(( $(jq -r .actionable <<< "$amd64_policy") + $(jq -r .actionable <<< "$arm64_policy") ))
+          amd64_library_policy=$(jq -c -f scripts/trivy-scan-policy.jq "$RUNNER_TEMP/current-amd64-trivy.json")
+          arm64_library_policy=$(jq -c -f scripts/trivy-scan-policy.jq "$RUNNER_TEMP/current-arm64-trivy.json")
+          library_fixable=$(( $(jq -r .actionable <<< "$amd64_library_policy") + $(jq -r .actionable <<< "$arm64_library_policy") ))
+          library_accepted=$(( $(jq -r .accepted <<< "$amd64_library_policy") + $(jq -r .accepted <<< "$arm64_library_policy") ))
+          fixable=$((os_fixable + library_fixable))
+          {
+            echo '## Published image scan'
+            echo "- Source release: \`$displayed_tag\`"
+            echo "- Published amd64 OS: $(jq -r '"\(.distro.name // "unknown") \(.distro.version // "unknown")"' "$RUNNER_TEMP/current-amd64.json")"
+            echo "- Published arm64 OS: $(jq -r '"\(.distro.name // "unknown") \(.distro.version // "unknown")"' "$RUNNER_TEMP/current-arm64.json")"
+            echo "- Grype Fedora RPMs: $os_fixable fixable across amd64 and arm64"
+            echo "- Trivy Go/Python dependencies: $library_fixable actionable, $library_accepted documented exceptions across amd64 and arm64"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$GITHUB_EVENT_NAME" == schedule || "$SCAN_ONLY" == true ]]; then
+            echo should_build=false >> "$GITHUB_OUTPUT"
+            echo should_publish=false >> "$GITHUB_OUTPUT"
+            echo '- Scan only; use the workflow link in the Slack report to start a refresh.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Cannot determine a released source tag from $image. Publish a tagged image first or supply source_tag." >&2
+            exit 1
+          fi
+          echo "source_tag=$tag" >> "$GITHUB_OUTPUT"
+          if ! jq -e '.distro.name == "fedora" and .distro.version == "45"' "$RUNNER_TEMP/current-amd64.json" >/dev/null ||
+             ! jq -e '.distro.name == "fedora" and .distro.version == "45"' "$RUNNER_TEMP/current-arm64.json" >/dev/null; then
+            echo 'The published latest image is not Fedora 45. Publish a Fedora 45 release before running a security refresh.' >&2
+            exit 1
+          fi
+          if (( fixable == 0 )) && [[ "$FORCE_REFRESH" != true ]]; then
+            echo should_build=false >> "$GITHUB_OUTPUT"
+            echo should_publish=false >> "$GITHUB_OUTPUT"
+            echo '- No refresh needed.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo should_build=true >> "$GITHUB_OUTPUT"
+          echo should_publish=true >> "$GITHUB_OUTPUT"
+          echo "publish_tag=${tag}-patch-$(date -u +%Y%m%d)-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload published image scan
+        if: (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: current-image-scans
+          path: |
+            ${{ runner.temp }}/current-amd64.json
+            ${{ runner.temp }}/current-arm64.json
+            ${{ runner.temp }}/current-amd64-trivy.json
+            ${{ runner.temp }}/current-arm64-trivy.json
+          if-no-files-found: ignore
+          retention-days: 14
+
   security-scan-source:
-    name: Security Scan - Source Code & Dependencies
+    name: Security Scan - Go/Python Dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 60
     if: github.event_name == 'pull_request'
@@ -20,22 +220,27 @@ jobs:
     - name: Check out code
       uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
-    - name: Install Grype
+    - name: Install Trivy
       run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+        trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+        curl -fsSL 'https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz' -o "$trivy_archive"
+        printf '%s  %s\n' 'e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7' "$trivy_archive" | sha256sum -c -
+        tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+        sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
 
     - name: Scan source code and dependencies
       run: |
-        echo "🔍 Scanning source code and dependencies for vulnerabilities..."
-        grype dir:. --only-fixed -o table > /tmp/grype-source.txt || true
-
-        SCAN_OUTPUT=$(grype dir:. --only-fixed -o json)
-        CRITICAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length')
-        HIGH=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "High")] | length')
-        MEDIUM=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length')
+        echo "🔍 Scanning Go and Python source dependencies for known vulnerabilities..."
+        trivy fs --scanners vuln --pkg-types library \
+          --format json --output "$RUNNER_TEMP/trivy-source.json" .
+        jq -r '.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Target as $target | .Vulnerabilities[]? | "\($target)\t\(.PkgName)\t\(.VulnerabilityID)\t\(.Severity)"' \
+          "$RUNNER_TEMP/trivy-source.json" > "$RUNNER_TEMP/trivy-source.txt"
+        CRITICAL=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "CRITICAL" and (.FixedVersion // "") != "")] | length' "$RUNNER_TEMP/trivy-source.json")
+        HIGH=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "HIGH" and (.FixedVersion // "") != "")] | length' "$RUNNER_TEMP/trivy-source.json")
+        MEDIUM=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "MEDIUM" and (.FixedVersion // "") != "")] | length' "$RUNNER_TEMP/trivy-source.json")
 
         # Create Job Summary with table
-        echo "## 🔒 Security Scan - Source Code & Dependencies" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔒 Security Scan - Go/Python Dependencies" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "| Severity | Count | Status |" >> $GITHUB_STEP_SUMMARY
         echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
@@ -56,15 +261,645 @@ jobs:
         echo "<summary>📋 Full Scan Results</summary>" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-        cat /tmp/grype-source.txt >> $GITHUB_STEP_SUMMARY
+        cat "$RUNNER_TEMP/trivy-source.txt" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "</details>" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
+  build-tools:
+    name: Build ${{ matrix.tool }} (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: oc
+            platform: amd64
+            runner: ubuntu-latest
+          - tool: virtctl
+            platform: amd64
+            runner: ubuntu-latest
+          - tool: yq
+            platform: amd64
+            runner: ubuntu-latest
+          - tool: oc
+            platform: arm64
+            runner: ubuntu-24.04-arm
+          - tool: virtctl
+            platform: arm64
+            runner: ubuntu-24.04-arm
+          - tool: yq
+            platform: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      GOTOOLCHAIN: local
+    steps:
+    - name: Check out code
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+    - name: Set up the latest stable Go toolchain
+      uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      with:
+        go-version: stable
+        check-latest: true
+        cache: false
+
+    - name: Install oc build dependencies
+      if: matrix.tool == 'oc'
+      run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libkrb5-dev
+
+    - name: Build tool binary
+      run: |
+        mkdir -p "$RUNNER_TEMP/go-mod-artifacts"
+        ./scripts/build-container-tool.sh \
+          "${{ matrix.tool }}" \
+          containers/tools \
+          "$RUNNER_TEMP/go-mod-artifacts"
+
+    - name: Summarize Go module updates
+      if: always()
+      env:
+        TOOL: ${{ matrix.tool }}
+        PLATFORM: ${{ matrix.platform }}
+      run: |
+        set -euo pipefail
+        diff_file="$RUNNER_TEMP/go-mod-artifacts/$TOOL/go-mod-updates.diff"
+        {
+          echo "## Go module updates: $TOOL ($PLATFORM)"
+          if [[ -s "$RUNNER_TEMP/go-mod-artifacts/$TOOL/source-commit.txt" ]]; then
+            echo "Source commit: \`$(cat "$RUNNER_TEMP/go-mod-artifacts/$TOOL/source-commit.txt")\`"
+          fi
+          if [[ -s "$diff_file" ]]; then
+            echo ""
+            echo '<details><summary>go.mod / go.work changes</summary>'
+            echo ''
+            echo '```diff'
+            cat "$diff_file"
+            echo '```'
+            echo '</details>'
+          elif [[ -f "$RUNNER_TEMP/go-mod-artifacts/$TOOL/go.mod" ]]; then
+            echo "No go.mod or go.work changes were made."
+          else
+            echo "No Go module files were captured; the build may have failed before cloning the source."
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload Go module files
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: krkn-go-mod-${{ matrix.tool }}-${{ matrix.platform }}
+        path: ${{ runner.temp }}/go-mod-artifacts/${{ matrix.tool }}/
+        if-no-files-found: ignore
+        retention-days: 30
+
+    - name: Upload tool binary
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: krkn-tool-${{ matrix.tool }}-${{ matrix.platform }}
+        path: containers/tools/${{ matrix.tool }}
+        if-no-files-found: error
+        retention-days: 1
+
   build:
+    name: Build, patch and validate (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    needs: [prepare, build-tools]
+    if: needs.prepare.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-latest
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+    env:
+      TRIVY_VERSION: 0.76.0
+      GRYPE_VERSION: 0.121.0
+      COPA_VERSION: krkn-v0.1.0
+    steps:
+    - name: Check out code
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+    - name: Set up Docker with the containerd image store
+      id: docker
+      uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+      with:
+        set-host: true
+        daemon-config: |
+          {
+            "features": {
+              "containerd-snapshotter": true
+            }
+          }
+
+    - name: Download oc binary
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-tool-oc-${{ matrix.platform }}
+        path: containers/tools
+
+    - name: Download virtctl binary
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-tool-virtctl-${{ matrix.platform }}
+        path: containers/tools
+
+    - name: Download yq binary
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-tool-yq-${{ matrix.platform }}
+        path: containers/tools
+
+    - name: Download Go source metadata
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        pattern: krkn-go-mod-*-${{ matrix.platform }}
+        path: ${{ runner.temp }}/go-mod-artifacts
+
+    - name: Materialize Dockerfile
+      run: ./containers/compile_dockerfile.sh
+
+    - name: Build the local base image
+      env:
+        IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}
+        SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
+      run: |
+        set -euo pipefail
+        build_args=(--build-arg "BUILD_WORKFLOW_REVISION=$GITHUB_SHA")
+        if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+          build_args+=(--build-arg "PR_NUMBER=${{ github.event.pull_request.number }}")
+        fi
+        if [[ -n "$SOURCE_TAG" ]]; then
+          build_args+=(--build-arg "TAG=$SOURCE_TAG")
+        fi
+        docker build --pull --no-cache \
+          --tag "$IMAGE_NAME" \
+          "${build_args[@]}" \
+          containers/
+
+    - name: Install Trivy, Grype and Copa
+      run: |
+        set -euo pipefail
+        case "$(uname -m)" in
+          x86_64)
+            copa_arch=amd64
+            trivy_arch=64bit
+            trivy_sha256=e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7
+            copa_sha256=649a9fc3f09da3b2918e98ac258616eb44ac91e78a043ac008f8908bb80cf220
+            grype_sha256=64e07133d3486115de647a66581461dccf5c732748a0a3119077395565f15519
+            ;;
+          aarch64|arm64)
+            copa_arch=arm64
+            trivy_arch=ARM64
+            trivy_sha256=aab21e677a7b7071fc79f1711480840754c18a1b9d9cefa7ccd06af63a0e8f4c
+            copa_sha256=a0d2fc2e264896c3426c893468be3ffe5d7ae0a6ffc1757c23a0429b1ca4b8f2
+            grype_sha256=86f570f75ca947ea3dd6486309232bcff6d78e44ba081ae75ab14eab72be3dae
+            ;;
+          *) echo "Unsupported runner architecture: $(uname -m)" >&2; exit 1 ;;
+        esac
+        trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+        curl -fsSL \
+          "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-${trivy_arch}.tar.gz" \
+          -o "$trivy_archive"
+        printf '%s  %s\n' "$trivy_sha256" "$trivy_archive" | sha256sum -c -
+        tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+        sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
+        copa_archive="$RUNNER_TEMP/copa.tar.gz"
+        curl -fsSL \
+          "https://github.com/krkn-chaos/copacetic/releases/download/${COPA_VERSION}/copa_${COPA_VERSION}_linux_${copa_arch}.tar.gz" \
+          -o "$copa_archive"
+        printf '%s  %s\n' "$copa_sha256" "$copa_archive" | sha256sum -c -
+        tar -xzf "$copa_archive" -C "$RUNNER_TEMP" copa
+        sudo install -m 0755 "$RUNNER_TEMP/copa" /usr/local/bin/copa
+        grype_archive="$RUNNER_TEMP/grype.tar.gz"
+        curl -fsSL \
+          "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_${copa_arch}.tar.gz" \
+          -o "$grype_archive"
+        printf '%s  %s\n' "$grype_sha256" "$grype_archive" | sha256sum -c -
+        tar -xzf "$grype_archive" -C "$RUNNER_TEMP" grype
+        sudo install -m 0755 "$RUNNER_TEMP/grype" /usr/local/bin/grype
+        trivy --version
+        grype version
+        copa --version
+
+    - name: Scan Fedora and patch Go and Python dependencies with Copa
+      env:
+        IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}
+        GO_PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-go-patched
+        PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
+      run: |
+        set -euo pipefail
+        os_before_report="$RUNNER_TEMP/grype-os-before.json"
+        library_before_report="$RUNNER_TEMP/trivy-before.json"
+        go_policy_report="$RUNNER_TEMP/trivy-go-policy.json"
+        go_report="$RUNNER_TEMP/trivy-go-before.json"
+        go_patch_status="$RUNNER_TEMP/copa-go-patch-status.tsv"
+        : > "$go_patch_status"
+        python_source_report="$RUNNER_TEMP/trivy-after-go.json"
+        python_report="$RUNNER_TEMP/trivy-python-before.json"
+        os_after_report="$RUNNER_TEMP/grype-os-after.json"
+        library_after_report="$RUNNER_TEMP/trivy-after.json"
+        python_after_report="$RUNNER_TEMP/trivy-python-after.json"
+
+        filter_python_vulnerabilities() {
+          jq '
+            .Results |= map(
+              select(.Type == "python-pkg")
+              | . as $result
+              | .Vulnerabilities |= [
+                  .[]? as $vulnerability
+                | select(
+                    ($vulnerability.FixedVersion // "") != ""
+                    and
+                    (
+                      ($vulnerability.PkgName == "setuptools"
+                        and $vulnerability.InstalledVersion == "81.0.0"
+                        and ($vulnerability.VulnerabilityID == "GHSA-xmj3-9gf7-h52w"
+                          or $vulnerability.VulnerabilityID == "CVE-2026-59890"))
+                      or ($vulnerability.PkgName == "cbor2"
+                        and $vulnerability.InstalledVersion == "5.6.5"
+                        and ($vulnerability.VulnerabilityID == "CVE-2025-64076"
+                          or $vulnerability.VulnerabilityID == "CVE-2026-26209"
+                          or $vulnerability.VulnerabilityID == "CVE-2025-68131"))
+                    ) | not
+                  )
+                  | [$result.Packages[]? | select(.Identifier.UID == $vulnerability.PkgIdentifier.UID)] as $matches
+                  | select(
+                      ($matches | length) == 0
+                      or any($matches[]; .AnalyzedBy == "python-pkg")
+                      or any($matches[]; .AnalyzedBy != "sbom")
+                    )
+                  | $vulnerability
+                ]
+            )
+          ' "$1" > "$2"
+        }
+
+        count_embedded_sbom_findings() {
+          jq '
+            [
+              .Results[]?
+              | select(.Type == "python-pkg") as $result
+              | $result.Vulnerabilities[]? as $vulnerability
+              | [$result.Packages[]? | select(.Identifier.UID == $vulnerability.PkgIdentifier.UID)] as $matches
+              | select(($matches | length) > 0 and all($matches[]; .AnalyzedBy == "sbom"))
+            ]
+            | length
+          ' "$1"
+        }
+
+        assert_os_scan_covered() {
+          local report="$1"
+          local image="$2"
+          local phase="$3"
+          if ! jq -e --arg arch "${{ matrix.platform }}" '
+            .descriptor.name == "grype"
+            and .distro.name == "fedora"
+            and .distro.version == "45"
+            and .source.target.architecture == $arch
+          ' "$report" >/dev/null; then
+            echo "error: Grype did not identify Fedora 45 on $phase; refusing to treat the image as vulnerability-free" >&2
+            exit 1
+          fi
+          local rpm_count
+          rpm_count=$(docker run --rm --user 0 --entrypoint /usr/bin/rpm "$image" -qa | wc -l)
+          if (( rpm_count == 0 )); then
+            echo "error: no installed RPM packages found in $image on $phase" >&2
+            exit 1
+          fi
+        }
+
+        check_go_tools() {
+          local image="$1"
+          docker run --rm --network none --entrypoint /usr/bin/oc "$image" version --client
+          docker run --rm --network none --entrypoint /usr/bin/virtctl "$image" version --client
+          docker run --rm --network none --entrypoint /usr/bin/yq "$image" --version
+        }
+
+        grype "docker:$IMAGE_NAME" --output json --file "$os_before_report"
+        jq '.matches |= map(select(.artifact.type == "rpm"))' "$os_before_report" > "$RUNNER_TEMP/grype-os-before-filtered.json"
+        mv "$RUNNER_TEMP/grype-os-before-filtered.json" "$os_before_report"
+        assert_os_scan_covered "$os_before_report" "$IMAGE_NAME" "after dnf upgrade"
+        os_before_count=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length' "$os_before_report")
+        echo "Fixable Fedora vulnerabilities after dnf upgrade: $os_before_count"
+
+        trivy image --scanners vuln --pkg-types library \
+          --format json --output "$library_before_report" "$IMAGE_NAME"
+        go_before_count=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length' "$library_before_report")
+        jq -f scripts/trivy-scan-policy.jq "$library_before_report" > "$go_policy_report"
+        jq --arg target '' --slurpfile policy "$go_policy_report" -f scripts/trivy-go-copa-report.jq \
+          "$library_before_report" > "$go_report"
+        go_actionable=$(jq -r .go_actionable "$go_policy_report")
+        if (( go_actionable > 0 )); then
+          patched_tools_dir="$RUNNER_TEMP/go-copa-tools"
+          mkdir -p "$patched_tools_dir"
+          printf 'FROM %s\n' "$IMAGE_NAME" > "$patched_tools_dir/Dockerfile"
+          processed_go_findings=0
+          for tool in oc virtctl yq; do
+            tool_findings=$(jq --arg target "usr/bin/$tool" \
+              '[.go_actionable_findings[] | select(.target == $target)] | length' "$go_policy_report")
+            if (( tool_findings == 0 )); then
+              continue
+            fi
+            processed_go_findings=$((processed_go_findings + tool_findings))
+
+            capsule_dir="$RUNNER_TEMP/go-copa-capsule-$tool"
+            mkdir -p "$capsule_dir"
+            cp "containers/tools/$tool" "$capsule_dir/$tool"
+            printf 'FROM docker.io/library/fedora:45\nCOPY --chmod=0755 %s /usr/bin/%s\n' \
+              "$tool" "$tool" > "$capsule_dir/Dockerfile"
+            capsule_image="localhost/krkn:go-copa-$tool-${{ matrix.platform }}"
+            patched_capsule="localhost/krkn:go-copa-$tool-${{ matrix.platform }}-patched"
+            docker build --pull --tag "$capsule_image" "$capsule_dir"
+            capsule_scan="$RUNNER_TEMP/trivy-go-$tool-capsule.json"
+            capsule_policy="$RUNNER_TEMP/trivy-go-$tool-policy.json"
+            tool_report="$RUNNER_TEMP/trivy-go-$tool-before.json"
+            trivy image --scanners vuln --pkg-types library \
+              --format json --output "$capsule_scan" "$capsule_image"
+            jq -f scripts/trivy-scan-policy.jq "$capsule_scan" > "$capsule_policy"
+            jq --arg target "usr/bin/$tool" --slurpfile policy "$capsule_policy" \
+              -f scripts/trivy-go-copa-report.jq "$capsule_scan" > "$tool_report"
+            capsule_findings=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$tool_report")
+            if (( capsule_findings != tool_findings )); then
+              echo "error: $tool has $tool_findings actionable findings in the image but $capsule_findings in the Copa capsule" >&2
+              exit 1
+            fi
+
+            source_dir="$RUNNER_TEMP/go-mod-artifacts/krkn-go-mod-$tool-${{ matrix.platform }}"
+            source_url=$(cat "$source_dir/source-url.txt")
+            source_commit=$(cat "$source_dir/source-commit.txt")
+            copa_log="$RUNNER_TEMP/copa-go-$tool.log"
+            if ! COPA_EXPERIMENTAL=1 copa patch \
+              -i "$capsule_image" \
+              -r "$tool_report" \
+              -t "$patched_capsule" \
+              -a docker:// \
+              --pkg-types library \
+              --library-patch-level minor \
+              --go-vcs-url "${source_url%.git}@$source_commit" > "$copa_log" 2>&1; then
+              cat "$copa_log"
+              echo "warning: Copa could not rebuild $tool; retaining the source-built binary and reporting its remaining findings" >&2
+              printf '%s\tfailed\n' "$tool" >> "$go_patch_status"
+              continue
+            fi
+            cat "$copa_log"
+            docker image inspect "$patched_capsule" >/dev/null
+            patched_capsule_scan="$RUNNER_TEMP/trivy-go-$tool-after.json"
+            trivy image --scanners vuln --pkg-types library \
+              --format json --output "$patched_capsule_scan" "$patched_capsule"
+            if ! jq -e --arg target "usr/bin/$tool" \
+              '.Results[]? | select((.Type == "gobinary" or .Type == "gomod") and .Target == $target)' \
+              "$patched_capsule_scan" >/dev/null; then
+              echo "error: Trivy could not identify the rebuilt $tool binary" >&2
+              exit 1
+            fi
+            introduced_findings=$(jq -s --arg target "usr/bin/$tool" '
+              ([.[0].Results[]? | select(.Target == $target) | .Vulnerabilities[]?
+                | [.PkgName, .VulnerabilityID] | join("|")] | unique) as $before
+              | ([.[1].Results[]? | select(.Target == $target) | .Vulnerabilities[]?
+                | [.PkgName, .VulnerabilityID] | join("|")] | unique) as $after
+              | ($after - $before | length)
+            ' "$capsule_scan" "$patched_capsule_scan")
+            if (( introduced_findings > 0 )); then
+              echo "warning: Copa rebuilt $tool but introduced $introduced_findings Go findings; retaining the source-built binary" >&2
+              printf '%s\tregressed\t%s\n' "$tool" "$introduced_findings" >> "$go_patch_status"
+              continue
+            fi
+
+            container_id=$(docker create "$patched_capsule")
+            if ! docker cp "$container_id:/usr/bin/$tool" "$patched_tools_dir/$tool"; then
+              docker rm "$container_id" >/dev/null
+              exit 1
+            fi
+            docker rm "$container_id" >/dev/null
+            printf 'COPY --chmod=0755 %s /usr/bin/%s\n' "$tool" "$tool" >> "$patched_tools_dir/Dockerfile"
+            printf '%s\tpatched\n' "$tool" >> "$go_patch_status"
+          done
+          if (( processed_go_findings != go_actionable )); then
+            echo "error: $((go_actionable - processed_go_findings)) actionable Go findings have no supported tool target" >&2
+            exit 1
+          fi
+          docker build --pull=false --no-cache --tag "$GO_PATCHED_IMAGE" "$patched_tools_dir"
+        else
+          docker tag "$IMAGE_NAME" "$GO_PATCHED_IMAGE"
+        fi
+        docker image inspect "$GO_PATCHED_IMAGE" >/dev/null
+        check_go_tools "$GO_PATCHED_IMAGE"
+
+        trivy image --scanners vuln --pkg-types library \
+          --format json --output "$python_source_report" "$GO_PATCHED_IMAGE"
+        filter_python_vulnerabilities "$python_source_report" "$python_report"
+        python_before_count=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_report")
+        python_sbom_before_count=$(count_embedded_sbom_findings "$python_source_report")
+        echo "Installed Python vulnerabilities with fixes before Copa: $python_before_count"
+        echo "Python findings from embedded SBOMs without an installed package: $python_sbom_before_count"
+        if (( python_before_count > 0 )); then
+          COPA_EXPERIMENTAL=1 copa patch \
+            -i "$GO_PATCHED_IMAGE" \
+            -r "$python_report" \
+            -t "$PATCHED_IMAGE" \
+            -a docker:// \
+            --pkg-types library \
+            --library-patch-level minor
+        else
+          docker tag "$GO_PATCHED_IMAGE" "$PATCHED_IMAGE"
+        fi
+        docker image inspect "$PATCHED_IMAGE" >/dev/null
+        check_go_tools "$PATCHED_IMAGE"
+
+        grype "docker:$PATCHED_IMAGE" --output json --file "$os_after_report"
+        jq '.matches |= map(select(.artifact.type == "rpm"))' "$os_after_report" > "$RUNNER_TEMP/grype-os-after-filtered.json"
+        mv "$RUNNER_TEMP/grype-os-after-filtered.json" "$os_after_report"
+        assert_os_scan_covered "$os_after_report" "$PATCHED_IMAGE" "after Copa"
+        os_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length' "$os_after_report")
+        all_os_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm")] | length' "$os_after_report")
+        critical_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed" and .vulnerability.severity == "Critical")] | length' "$os_after_report")
+        high_remaining=$(jq '[.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed" and .vulnerability.severity == "High")] | length' "$os_after_report")
+        trivy image --scanners vuln --pkg-types library \
+          --format json --output "$library_after_report" "$PATCHED_IMAGE"
+        go_remaining=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length' "$library_after_report")
+        go_all_remaining=$(jq '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]?] | length' "$library_after_report")
+        filter_python_vulnerabilities "$library_after_report" "$python_after_report"
+        python_remaining=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$python_after_report")
+        python_sbom_after_count=$(count_embedded_sbom_findings "$library_after_report")
+        non_linux_setuptools=$(jq '[.Results[]?.Vulnerabilities[]? | select((.VulnerabilityID == "GHSA-xmj3-9gf7-h52w" or .VulnerabilityID == "CVE-2026-59890") and .PkgName == "setuptools" and .InstalledVersion == "81.0.0")] | length' "$library_after_report")
+        accepted_cbor2=$(jq '[.Results[]?.Vulnerabilities[]? | select((.VulnerabilityID == "CVE-2025-64076" or .VulnerabilityID == "CVE-2026-26209" or .VulnerabilityID == "CVE-2025-68131") and .PkgName == "cbor2" and .InstalledVersion == "5.6.5")] | length' "$library_after_report")
+        {
+          echo "## Image vulnerability patching (${{ matrix.platform }})"
+          echo "- Fixable Fedora vulnerabilities after dnf upgrade: $os_before_count"
+          echo "- Fixable Fedora vulnerabilities in final image: $os_remaining"
+          echo "- Trivy Go tool vulnerabilities with fixes before/after: $go_before_count / $go_remaining"
+          echo "- All Trivy Go tool findings in final image: $go_all_remaining"
+          echo "- Go findings sent to Copa: $go_actionable"
+          if [[ -s "$go_patch_status" ]]; then
+            echo '- Copa Go rebuild attempts:'
+            while IFS=$'\t' read -r tool result; do
+              echo "  - $tool: $result"
+            done < "$go_patch_status"
+          fi
+          echo '- oc, virtctl and yq version commands passed in the final image.'
+          echo "- Installed Python vulnerabilities with fixes before Copa: $python_before_count"
+          echo "- Installed Python vulnerabilities with fixes after Copa: $python_remaining"
+          echo "- Python findings from embedded SBOMs without an installed package (excluded): $python_sbom_after_count"
+          echo "- Windows/macOS-only setuptools advisories on this Linux image (reported separately): $non_linux_setuptools"
+          echo "- Accepted cbor2 findings constrained by arcaflow-plugin-sdk 0.14.3 (reported separately): $accepted_cbor2"
+          echo "- Grype Fedora RPM matches in final image: $all_os_remaining ($os_remaining fixable)"
+          echo "- Critical / high fixable Fedora RPM matches: $critical_remaining / $high_remaining"
+          echo "- Remaining CVEs are reported and do not block publication. See the uploaded JSON reports for every finding."
+          if (( all_os_remaining > 0 )); then
+            echo ''
+            echo '<details><summary>Remaining Grype Fedora RPM matches (first 50)</summary>'
+            echo ''
+            echo '| CVE | Package | Installed | Severity | Fix state | Fix |'
+            echo '|---|---|---|---|---|---|'
+            jq -r '[.matches[]? | select(.artifact.type == "rpm")][:50][] | "| \(.vulnerability.id) | \(.artifact.name) | \(.artifact.version) | \(.vulnerability.severity) | \(.vulnerability.fix.state) | \((.vulnerability.fix.versions // []) | join(", ")) |"' "$os_after_report"
+            echo ''
+            echo '</details>'
+          fi
+          if (( go_all_remaining > 0 )); then
+            echo ''
+            echo '<details><summary>Remaining Trivy Go tool findings (first 50)</summary>'
+            echo ''
+            echo '| CVE | Tool | Module | Installed | Fixed version |'
+            echo '|---|---|---|---|---|'
+            jq -r '[.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Target as $target | .Vulnerabilities[]? | "| \(.VulnerabilityID) | \($target) | \(.PkgName) | \(.InstalledVersion) | \(.FixedVersion // "none") |"][:50][]' "$library_after_report"
+            echo ''
+            echo '</details>'
+          fi
+          if (( python_remaining > 0 )); then
+            echo ''
+            echo '<details><summary>Remaining installed Python findings eligible for Copa (first 50)</summary>'
+            echo ''
+            echo '| CVE | Package | Installed | Fixed version |'
+            echo '|---|---|---|---|'
+            jq -r '[.Results[]?.Vulnerabilities[]?][:50][] | "| \(.VulnerabilityID) | \(.PkgName) | \(.InstalledVersion) | \(.FixedVersion) |"' "$python_after_report"
+            echo ''
+            echo '</details>'
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+    - name: Check patched image source and Python dependencies
+      env:
+        PATCHED_IMAGE: localhost/krkn:ci-${{ matrix.platform }}-patched
+        SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
+      run: |
+        set -euo pipefail
+        if [[ -n "$SOURCE_TAG" ]]; then
+          actual_tag=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.version" }}' "$PATCHED_IMAGE")
+          [[ "$actual_tag" == "$SOURCE_TAG" ]] || { echo "Patched image lost its source tag: $actual_tag" >&2; exit 1; }
+        fi
+        docker run --rm --entrypoint /bin/sh "$PATCHED_IMAGE" -c '
+          "${PYTHON_CMD:-python3}" -m pip check &&
+          exec "${PYTHON_CMD:-python3}" run_kraken.py --help
+        '
+
+    - name: Upload vulnerability reports
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: vulnerability-reports-${{ matrix.platform }}
+        path: |
+          ${{ runner.temp }}/grype-os-before.json
+          ${{ runner.temp }}/trivy-before.json
+          ${{ runner.temp }}/trivy-go-policy.json
+          ${{ runner.temp }}/trivy-go-before.json
+          ${{ runner.temp }}/trivy-go-*-capsule.json
+          ${{ runner.temp }}/trivy-go-*-policy.json
+          ${{ runner.temp }}/trivy-go-*-before.json
+          ${{ runner.temp }}/trivy-go-*-after.json
+          ${{ runner.temp }}/copa-go-*.log
+          ${{ runner.temp }}/copa-go-patch-status.tsv
+          ${{ runner.temp }}/trivy-after-go.json
+          ${{ runner.temp }}/trivy-python-before.json
+          ${{ runner.temp }}/grype-os-after.json
+          ${{ runner.temp }}/trivy-after.json
+          ${{ runner.temp }}/trivy-python-after.json
+        if-no-files-found: ignore
+        retention-days: 7
+
+    - name: Save patched image for functional tests and publication
+      if: needs.prepare.outputs.should_build == 'true'
+      env:
+        IMAGE_NAME: localhost/krkn:ci-${{ matrix.platform }}-patched
+      run: docker image save --platform "linux/${{ matrix.platform }}" "$IMAGE_NAME" | gzip -1 > "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz"
+
+    - name: Upload validated image artifact
+      if: needs.prepare.outputs.should_build == 'true'
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: krkn-image-${{ matrix.platform }}
+        path: ${{ runner.temp }}/krkn-${{ matrix.platform }}.tar.gz
+        if-no-files-found: error
+        retention-days: 1
+
+  functional-tests:
+    name: Functional tests (patched ${{ matrix.platform }} image)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    needs: [prepare, build]
+    if: needs.prepare.outputs.should_build == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: amd64
+            runner: ubuntu-24.04
+          - platform: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+    - name: Check out code
+      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+    - name: Set up Docker with the containerd image store
+      id: docker
+      uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+      with:
+        set-host: true
+        daemon-config: |
+          {
+            "features": {
+              "containerd-snapshotter": true
+            }
+          }
+
+    - name: Download validated image
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-image-${{ matrix.platform }}
+        path: ${{ runner.temp }}
+
+    - name: Load patched image
+      run: gzip -dc "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz" | docker image load
+
+    - name: Run functional tests v2 against the patched image
+      env:
+        DOCKER_SOCKET: ${{ steps.docker.outputs.sock }}
+      run: ./scripts/test-patched-image.sh "localhost/krkn:ci-${{ matrix.platform }}-patched"
+
+    - name: Upload patched-image functional test results
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: tests-v2-patched-image-${{ matrix.platform }}
+        path: |
+          CI/tests_v2/report.html
+          CI/tests_v2/results.xml
+        if-no-files-found: ignore
+        retention-days: 7
+
+  publish-platforms:
+    name: Publish validated image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 60
+    needs: [prepare, build, functional-tests]
+    if: needs.prepare.outputs.should_publish == 'true'
     strategy:
+      fail-fast: false
       matrix:
         include:
           - platform: amd64
@@ -72,112 +907,65 @@ jobs:
           - platform: arm64
             runner: ubuntu-24.04-arm
     steps:
-    - name: Check out code
-      uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+    - name: Set up Docker
+      uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+      with:
+        set-host: true
+        daemon-config: |
+          {
+            "features": {
+              "containerd-snapshotter": true
+            }
+          }
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+    - name: Download validated image artifact
+      uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      with:
+        name: krkn-image-${{ matrix.platform }}
+        path: ${{ runner.temp }}
 
-    - name: Test Build the Docker images
-      if: github.event_name == 'pull_request'
-      run: |
-        ./containers/compile_dockerfile.sh
-        docker buildx build --no-cache \
-          --platform linux/${{ matrix.platform }} \
-          -t quay.io/krkn-chaos/krkn:pr-${{ github.event.pull_request.number }}-${{ matrix.platform }} \
-          -t quay.io/redhat-chaos/krkn:pr-${{ github.event.pull_request.number }}-${{ matrix.platform }} \
-          containers/ \
-          --build-arg PR_NUMBER=${{ github.event.pull_request.number }} \
-          --load
-
-    - name: Install Grype
-      if: github.event_name == 'pull_request'
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-
-    - name: Scan Docker image for vulnerabilities
-      if: github.event_name == 'pull_request'
-      run: |
-        IMAGE_NAME="quay.io/krkn-chaos/krkn:pr-${{ github.event.pull_request.number }}-${{ matrix.platform }}"
-        echo "🔍 Scanning Docker image: $IMAGE_NAME"
-        grype "$IMAGE_NAME" --only-fixed -o table > /tmp/grype-image-${{ matrix.platform }}.txt || true
-
-        SCAN_OUTPUT=$(grype "$IMAGE_NAME" --only-fixed -o json)
-        CRITICAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length')
-        HIGH=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "High")] | length')
-        MEDIUM=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length')
-
-        # Create Job Summary with table
-        echo "## 🐳 Docker Image Security Scan - ${{ matrix.platform }}" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Severity | Count | Status |" >> $GITHUB_STEP_SUMMARY
-        echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-        echo "| 🔴 Critical | $CRITICAL | $([ $CRITICAL -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🟠 High | $HIGH | $([ $HIGH -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "| 🟡 Medium | $MEDIUM | $([ $MEDIUM -eq 0 ] && echo '✅' || echo '⚠️') |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-
-        if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-          echo "⚠️ **Found $CRITICAL Critical and $HIGH High vulnerabilities with available fixes**" >> $GITHUB_STEP_SUMMARY
-        else
-          echo "✅ **No Critical or High vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
-        fi
-
-        # Add collapsible full scan results
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "<details>" >> $GITHUB_STEP_SUMMARY
-        echo "<summary>📋 Full Scan Results</summary>" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        cat /tmp/grype-image-${{ matrix.platform }}.txt >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "</details>" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
+    - name: Load validated image
+      run: gzip -dc "$RUNNER_TEMP/krkn-${{ matrix.platform }}.tar.gz" | docker image load
 
     - name: Login to krkn-chaos quay
-      if: startsWith(github.ref, 'refs/tags')
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USERNAME }}
         password: ${{ secrets.QUAY_PASSWORD }}
 
-    - name: Build and push krkn-chaos images
-      if: startsWith(github.ref, 'refs/tags')
+    - name: Push validated krkn-chaos platform tags
+      env:
+        PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
       run: |
-        ./containers/compile_dockerfile.sh
-        TAG=${GITHUB_REF#refs/tags/}
-        docker buildx build --no-cache \
-          --platform linux/${{ matrix.platform }} \
-          --provenance=false \
-          -t quay.io/krkn-chaos/krkn:latest-${{ matrix.platform }} \
-          -t quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} \
-          containers/ \
-          --build-arg TAG=${TAG} \
-          --push --load
+        set -euo pipefail
+        tag=$PUBLISH_TAG
+        source=localhost/krkn:ci-${{ matrix.platform }}-patched
+        docker tag "$source" "quay.io/krkn-chaos/krkn:${tag}-${{ matrix.platform }}"
+        docker push "quay.io/krkn-chaos/krkn:${tag}-${{ matrix.platform }}"
 
     - name: Login to redhat-chaos quay
-      if: startsWith(github.ref, 'refs/tags')
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
       with:
         registry: quay.io
         username: ${{ secrets.QUAY_USER_1 }}
         password: ${{ secrets.QUAY_TOKEN_1 }}
 
-    - name: Push redhat-chaos images
-      if: startsWith(github.ref, 'refs/tags')
+    - name: Push validated redhat-chaos platform tags
+      env:
+        PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
       run: |
-        TAG=${GITHUB_REF#refs/tags/}
-        docker tag quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} quay.io/redhat-chaos/krkn:${TAG}-${{ matrix.platform }}
-        docker tag quay.io/krkn-chaos/krkn:${TAG}-${{ matrix.platform }} quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
-        docker push quay.io/redhat-chaos/krkn:${TAG}-${{ matrix.platform }}
-        docker push quay.io/redhat-chaos/krkn:latest-${{ matrix.platform }}
+        set -euo pipefail
+        tag=$PUBLISH_TAG
+        source=localhost/krkn:ci-${{ matrix.platform }}-patched
+        docker tag "$source" "quay.io/redhat-chaos/krkn:${tag}-${{ matrix.platform }}"
+        docker push "quay.io/redhat-chaos/krkn:${tag}-${{ matrix.platform }}"
 
   manifest:
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    needs: build
-    if: startsWith(github.ref, 'refs/tags')
+    needs: [prepare, publish-platforms]
+    if: needs.prepare.outputs.should_publish == 'true'
     steps:
     # Check out the repo so the vendored cosign signing-config is on the runner.
     # This job otherwise only manipulates already-pushed tags.
@@ -229,9 +1017,10 @@ jobs:
       env:
         COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
       run: |
         set -euo pipefail
-        TAG=${GITHUB_REF#refs/tags/}
+        TAG=$PUBLISH_TAG
         REPO=quay.io/krkn-chaos/krkn
 
         # Assemble the manifest list and push it to a staging tag ONLY. The
@@ -255,6 +1044,12 @@ jobs:
         # is left behind but is harmless: it points to the same signed digest.
         docker buildx imagetools create --tag ${REPO}:${TAG} "${REF}"
         docker buildx imagetools create --tag ${REPO}:latest "${REF}"
+        {
+          echo "## KrknChaos image promoted"
+          echo "- Immutable tag: \`${REPO}:${TAG}\`"
+          echo "- Signed digest: \`${REF}\`"
+          echo "- Rollback: repoint \`${REPO}:latest\` to the previous signed tag or digest."
+        } >> "$GITHUB_STEP_SUMMARY"
 
     - name: Login to redhat-chaos quay
       uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
@@ -271,9 +1066,10 @@ jobs:
       env:
         COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
       run: |
         set -euo pipefail
-        TAG=${GITHUB_REF#refs/tags/}
+        TAG=$PUBLISH_TAG
         REPO=quay.io/redhat-chaos/krkn
 
         docker manifest create ${REPO}:${TAG}-signing \
@@ -289,6 +1085,11 @@ jobs:
 
         docker buildx imagetools create --tag ${REPO}:${TAG} "${REF}"
         docker buildx imagetools create --tag ${REPO}:latest "${REF}"
+        {
+          echo "## RedHat Chaos image promoted"
+          echo "- Immutable tag: \`${REPO}:${TAG}\`"
+          echo "- Signed digest: \`${REF}\`"
+        } >> "$GITHUB_STEP_SUMMARY"
 
     # This release-time rebuild signs the krkn-hub scenario images it pushes;
     # the COSIGN_* inputs are consumed by the action (redhat-chaos/actions#34).
@@ -300,6 +1101,248 @@ jobs:
         AUTOPUSH: ${{ secrets.AUTOPUSH }}
         COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
         COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+  rollback:
+    name: Restore signed image and rebuild krkn-hub
+    runs-on: ubuntu-latest
+    needs: prepare
+    if: needs.prepare.outputs.rollback_tag != ''
+    steps:
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Verify both rollback targets before changing latest
+        env:
+          ROLLBACK_TAG: ${{ needs.prepare.outputs.rollback_tag }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign.pub"
+          for account in krkn-chaos redhat-chaos; do
+            repo="quay.io/$account/krkn"
+            digest=$(docker buildx imagetools inspect "$repo:$ROLLBACK_TAG" | awk '/^Digest:/ {print $2; exit}')
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || { echo "Invalid digest for $repo:$ROLLBACK_TAG" >&2; exit 1; }
+            ref="$repo@$digest"
+            cosign verify --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign.pub" "$ref"
+            if [[ "$account" == krkn-chaos ]]; then
+              echo "KRKN_ROLLBACK_REF=$ref" >> "$GITHUB_ENV"
+            else
+              echo "REDHAT_ROLLBACK_REF=$ref" >> "$GITHUB_ENV"
+            fi
+          done
+
+      - name: Login to krkn-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Restore krkn-chaos latest
+        run: docker buildx imagetools create --tag quay.io/krkn-chaos/krkn:latest "$KRKN_ROLLBACK_REF"
+
+      - name: Login to redhat-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER_1 }}
+          password: ${{ secrets.QUAY_TOKEN_1 }}
+
+      - name: Restore redhat-chaos latest
+        run: |
+          docker buildx imagetools create --tag quay.io/redhat-chaos/krkn:latest "$REDHAT_ROLLBACK_REF"
+          {
+            echo '## Signed image restored'
+            echo "- krkn-chaos: \`$KRKN_ROLLBACK_REF\`"
+            echo "- redhat-chaos: \`$REDHAT_ROLLBACK_REF\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rebuild krkn-hub from restored latest
+        uses: redhat-chaos/actions/krkn-hub@b3118123a105aa4d208b282639d24f71d02fb25c # main
+        with:
+          QUAY_USER: ${{ secrets.QUAY_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
+          AUTOPUSH: ${{ secrets.AUTOPUSH }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+  notify:
+    name: Report image vulnerabilities to Slack
+    runs-on: ubuntu-latest
+    needs: [prepare, build-tools, build, functional-tests, publish-platforms, manifest, rollback]
+    if: always() && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || startsWith(github.ref, 'refs/tags/'))
+    steps:
+      - name: Check out scan policy
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Download candidate vulnerability reports
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          pattern: vulnerability-reports-*
+          path: ${{ runner.temp }}/reports
+
+      - name: Download published image scan
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        continue-on-error: true
+        with:
+          name: current-image-scans
+          path: ${{ runner.temp }}/current
+
+      - name: Summarize and notify
+        env:
+          KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
+          JOB_RESULTS: ${{ toJSON(needs) }}
+          SOURCE_TAG: ${{ needs.prepare.outputs.source_tag }}
+          PUBLISH_TAG: ${{ needs.prepare.outputs.publish_tag }}
+          ROLLBACK_TAG: ${{ needs.prepare.outputs.rollback_tag }}
+          SCAN_ONLY: ${{ inputs.scan_only }}
+        run: |
+          set -euo pipefail
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          workflow_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/docker-image.yml"
+          mode=$GITHUB_EVENT_NAME
+          if [[ "$SCAN_ONLY" == true ]]; then
+            mode='manual scan'
+          fi
+          if jq -e '[.[] | .result] | any(. == "failure")' <<< "$JOB_RESULTS" >/dev/null; then
+            status=failed
+          elif jq -e '[.[] | .result] | any(. == "cancelled")' <<< "$JOB_RESULTS" >/dev/null; then
+            status=cancelled
+          else
+            status=completed
+          fi
+          {
+            echo '## Image vulnerability report and Slack notification'
+            echo "- Workflow: $status ($mode)"
+            echo "- Source: \`${SOURCE_TAG:-unknown}\`; target tag: \`${PUBLISH_TAG:-none}\`; rollback: \`${ROLLBACK_TAG:-none}\`"
+            echo "- [Full run and downloadable scanner reports]($run_url)"
+            echo "- [Run the image workflow manually]($workflow_url) (select main; use scan_only for a scan or force_refresh to rebuild without actionable findings)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          message="Krkn image workflow $status ($mode). Source: ${SOURCE_TAG:-unknown}; target tag: ${PUBLISH_TAG:-none}; rollback: ${ROLLBACK_TAG:-none}."
+          code_lines=()
+          os_lines=()
+          for platform in amd64 arm64; do
+            report="$RUNNER_TEMP/reports/vulnerability-reports-$platform/grype-os-after.json"
+            libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-after.json"
+            phase='candidate after patch'
+            if [[ ! -s "$report" ]]; then
+              report="$RUNNER_TEMP/current/current-$platform.json"
+              libraries="$RUNNER_TEMP/current/current-$platform-trivy.json"
+              phase='currently published image'
+            fi
+            if [[ -s "$libraries" ]]; then
+              library_counts=$(jq -r '[
+                ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]?] | length),
+                ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length),
+                ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length),
+                ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length)
+              ] | join(" ")' "$libraries")
+              read -r go go_fixable python python_fixable <<< "$library_counts"
+              library_policy=$(jq -c -f scripts/trivy-scan-policy.jq "$libraries")
+              go_actionable=$(jq -r .go_actionable <<< "$library_policy")
+              python_actionable=$(jq -r .python_actionable <<< "$library_policy")
+              accepted=$(jq -r .accepted <<< "$library_policy")
+              sbom_only=$((go_fixable + python_fixable - $(jq -r .total <<< "$library_policy")))
+              code_line="$platform ($phase): Go $go findings ($go_fixable with fixes, $go_actionable actionable), Python $python findings ($python_fixable with fixes, $python_actionable actionable); $accepted documented exceptions, $sbom_only SBOM-only Python findings."
+              if [[ "$phase" == 'candidate after patch' ]]; then
+                code_line+=" Go tools rebuilt from source; final version checks passed."
+                go_copa_report="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-go-before.json"
+                if [[ -s "$go_copa_report" ]]; then
+                  go_candidates=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$go_copa_report")
+                  code_line+=" Go findings sent to Copa: $go_candidates."
+                fi
+                go_patch_status="$RUNNER_TEMP/reports/vulnerability-reports-$platform/copa-go-patch-status.tsv"
+                if [[ -s "$go_patch_status" ]]; then
+                  patched_tools=$(awk -F '\t' '$2 == "patched" {print $1}' "$go_patch_status" | paste -sd, -)
+                  failed_tools=$(awk -F '\t' '$2 == "failed" {print $1}' "$go_patch_status" | paste -sd, -)
+                  regressed_tools=$(awk -F '\t' '$2 == "regressed" {print $1 " (" $3 " new findings)"}' "$go_patch_status" | paste -sd, -)
+                  [[ -z "$patched_tools" ]] || code_line+=" Copa rebuilt: $patched_tools."
+                  [[ -z "$failed_tools" ]] || code_line+=" Copa rebuild failed for: $failed_tools; source-built binaries retained."
+                  [[ -z "$regressed_tools" ]] || code_line+=" Copa rebuild regressed: $regressed_tools; source-built binaries retained."
+                fi
+                before_libraries="$RUNNER_TEMP/reports/vulnerability-reports-$platform/trivy-before.json"
+                if [[ -s "$before_libraries" ]]; then
+                  before_counts=$(jq -r '[
+                    ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]?] | length),
+                    ([.Results[]? | select(.Type == "python-pkg") | .Vulnerabilities[]? | select((.FixedVersion // "") != "")] | length)
+                  ] | join(" ")' "$before_libraries")
+                  read -r before_python before_python_fixable <<< "$before_counts"
+                  code_line+=" Python before Copa: $before_python findings ($before_python_fixable with fixes)."
+                fi
+                published_libraries="$RUNNER_TEMP/current/current-$platform-trivy.json"
+                if [[ -s "$published_libraries" ]]; then
+                  code_changes=$(jq -nr --slurpfile before "$published_libraries" --slurpfile after "$libraries" '
+                    [$before[0].Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Target as $target | .Vulnerabilities[]? | [$target, .PkgName, .VulnerabilityID] | join("|")] | unique as $old |
+                    [$after[0].Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Target as $target | .Vulnerabilities[]? | [$target, .PkgName, .VulnerabilityID] | join("|")] | unique as $new |
+                    [($old - $new | length), ($new - $old | length)] | join(" ")')
+                  read -r code_resolved code_new <<< "$code_changes"
+                  code_line+=" Since published baseline: $code_resolved resolved, $code_new new."
+                fi
+              fi
+            else
+              code_line="$platform: Trivy library report unavailable."
+            fi
+            code_lines+=("$code_line")
+            if [[ -s "$report" ]]; then
+              counts=$(jq -r '[
+                ([.matches[]? | select(.artifact.type == "rpm")] | length),
+                ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length),
+                ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "Critical")] | length),
+                ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "High")] | length)
+              ] | join(" ")' "$report")
+              read -r total fixable critical high <<< "$counts"
+              os_line="$platform ($phase): $total matches, $fixable fixable, $critical critical, $high high."
+              before="$RUNNER_TEMP/current/current-$platform.json"
+              if [[ "$phase" == 'candidate after patch' && -s "$before" ]]; then
+                before_counts=$(jq -r '[(.matches | map(select(.artifact.type == "rpm")) | length), ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.fix.state == "fixed")] | length)] | join(" ")' "$before")
+                read -r before_total before_fixable <<< "$before_counts"
+                change_counts=$(jq -nr --slurpfile before "$before" --slurpfile after "$report" '
+                  [$before[0].matches[]? | select(.artifact.type == "rpm") | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $old |
+                  [$after[0].matches[]? | select(.artifact.type == "rpm") | [(.vulnerability.id // ""), (.artifact.name // ""), (.artifact.type // "")] | join("|")] | unique as $new |
+                  [($old - $new | length), ($new - $old | length)] | join(" ")')
+                read -r resolved introduced <<< "$change_counts"
+                os_line+=" Published baseline: $before_total matches, $before_fixable fixable; $resolved resolved, $introduced new."
+              fi
+            else
+              os_line="$platform: Grype OS report unavailable."
+            fi
+            os_lines+=("$os_line")
+          done
+          {
+            echo '### Go/Python dependencies (Trivy)'
+            printf '%s\n' "${code_lines[@]/#/- }"
+            echo '### OS packages (Grype)'
+            printf '%s\n' "${os_lines[@]/#/- }"
+          } >> "$GITHUB_STEP_SUMMARY"
+          message+=$'\n\n'"Go/Python dependencies (Trivy):"
+          printf -v code_text '%s\n' "${code_lines[@]}"
+          message+=$'\n'"${code_text%$'\n'}"
+          message+=$'\n\n'"OS packages (Grype):"
+          printf -v os_text '%s\n' "${os_lines[@]}"
+          message+=$'\n'"${os_text%$'\n'}"
+          message+=$'\n'"Details and full JSON reports: $run_url"
+          message+=$'\n'"Run a scan or rebuild: $workflow_url (select main; use scan_only for a scan or force_refresh to rebuild without actionable findings)."
+          if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
+            echo '- Slack notification not sent: configure the `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` secret.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          jq -n --arg text "$message" '{text: $text}' > "$RUNNER_TEMP/slack-payload.json"
+          curl -fsS --retry 3 --retry-all-errors --max-time 20 \
+            -H 'Content-type: application/json' \
+            --data-binary "@$RUNNER_TEMP/slack-payload.json" \
+            "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" > "$RUNNER_TEMP/slack-response.txt"
+          if [[ "$(cat "$RUNNER_TEMP/slack-response.txt")" != ok ]]; then
+            echo 'Slack webhook did not acknowledge the report.' >&2
+            exit 1
+          fi
+          echo '- Slack notification sent.' >> "$GITHUB_STEP_SUMMARY"
 
   security-badge:
     permissions:
@@ -321,6 +1364,24 @@ jobs:
           path: krkn-lib-docs
           ssh-key: ${{ secrets.KRKN_LIB_DOCS_PRIV_KEY }}
 
+      - name: Download oc binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: krkn-tool-oc-amd64
+          path: containers/tools
+
+      - name: Download virtctl binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: krkn-tool-virtctl-amd64
+          path: containers/tools
+
+      - name: Download yq binary
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: krkn-tool-yq-amd64
+          path: containers/tools
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
@@ -337,16 +1398,42 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
 
+      - name: Install Trivy for dependency badge
+        run: |
+          trivy_archive="$RUNNER_TEMP/trivy.tar.gz"
+          curl -fsSL 'https://github.com/aquasecurity/trivy/releases/download/v0.76.0/trivy_0.76.0_Linux-64bit.tar.gz' -o "$trivy_archive"
+          printf '%s  %s\n' 'e24b1c51293c1b15e4ba8d45bbc7891ba053f90278ec2698f3562c993e145fe7' "$trivy_archive" | sha256sum -c -
+          tar -xzf "$trivy_archive" -C "$RUNNER_TEMP" trivy
+          sudo install -m 0755 "$RUNNER_TEMP/trivy" /usr/local/bin/trivy
+
       - name: Scan and generate security badge
         run: |
-          # Scan with grype (no --only-fixed to get all CVEs for baseline)
-          SCAN_OUTPUT=$(grype krkn-chaos/krkn:security-scan -o json)
+          # Count only Fedora RPMs from Grype and Go/Python dependencies from Trivy.
+          grype docker:krkn-chaos/krkn:security-scan --output json --file "$RUNNER_TEMP/grype-security-scan.json"
+          jq '.matches |= map(select(.artifact.type == "rpm"))' "$RUNNER_TEMP/grype-security-scan.json" > "$RUNNER_TEMP/grype-security-os.json"
+          mv "$RUNNER_TEMP/grype-security-os.json" "$RUNNER_TEMP/grype-security-scan.json"
+          trivy image --scanners vuln --pkg-types library \
+            --format json --output "$RUNNER_TEMP/trivy-security-scan.json" krkn-chaos/krkn:security-scan
 
           # Count vulnerabilities by severity
-          CRITICAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Critical")] | length')
-          HIGH=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "High")] | length')
-          MEDIUM=$(echo "$SCAN_OUTPUT" | jq '[.matches[] | select(.vulnerability.severity == "Medium")] | length')
-          TOTAL=$(echo "$SCAN_OUTPUT" | jq '[.matches[]] | length')
+          os_counts=$(jq -r '[
+            ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "Critical")] | length),
+            ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "High")] | length),
+            ([.matches[]? | select(.artifact.type == "rpm" and .vulnerability.severity == "Medium")] | length),
+            ([.matches[]? | select(.artifact.type == "rpm")] | length)
+          ] | join(" ")' "$RUNNER_TEMP/grype-security-scan.json")
+          read -r os_critical os_high os_medium os_total <<< "$os_counts"
+          library_counts=$(jq -r '[
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length),
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "HIGH")] | length),
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]? | select(.Severity == "MEDIUM")] | length),
+            ([.Results[]? | select(.Type == "gobinary" or .Type == "gomod" or .Type == "python-pkg") | .Vulnerabilities[]?] | length)
+          ] | join(" ")' "$RUNNER_TEMP/trivy-security-scan.json")
+          read -r library_critical library_high library_medium library_total <<< "$library_counts"
+          CRITICAL=$((os_critical + library_critical))
+          HIGH=$((os_high + library_high))
+          MEDIUM=$((os_medium + library_medium))
+          TOTAL=$((os_total + library_total))
 
           # Determine badge color based on severity
           if [ $CRITICAL -gt 0 ]; then
