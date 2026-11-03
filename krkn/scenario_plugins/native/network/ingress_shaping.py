@@ -207,6 +207,63 @@ def get_default_interface(node: str, pod_template, kubecli: KrknKubernetes, imag
     return interfaces
 
 
+def parse_brief_interface_list(output: str) -> typing.Optional[typing.List[str]]:
+    """
+    Function that parses the interface names from the output of
+    `ip -br addr show`.
+
+    On some hosts the `ip` binary prints its usage/help text instead of the
+    brief interface list (e.g. when the `-br` flag is unsupported). In that
+    case this function returns None so the caller can fall back to a non-brief
+    command.
+
+    Args:
+        output (string)
+            - The raw output of `ip -br addr show`
+
+    Returns:
+        The list of interface names, or None if the output is not a valid
+        brief interface list
+    """
+    lines = [line for line in output.split("\n") if line.strip()]
+    if not lines:
+        return None
+
+    interface_list = []
+    for line in lines:
+        token = line.split()[0]
+        # The brief output's first token is always the interface name. Usage
+        # text starts with "Usage:" and option lines start with "-", neither of
+        # which is a valid interface name.
+        if token == "Usage:" or token.startswith("-"):
+            return None
+        interface_list.append(token)
+
+    return interface_list
+
+
+def parse_full_interface_list(output: str) -> typing.List[str]:
+    """
+    Function that parses the interface names from the output of `ip addr show`
+    (the non-brief format), used as a fallback when `ip -br addr show` is
+    unavailable.
+
+    Args:
+        output (string)
+            - The raw output of `ip addr show`
+
+    Returns:
+        The list of interface names
+    """
+    interface_list = []
+    for line in output.split("\n"):
+        match = re.match(r"^\d+:\s+([^:@]+)[:@]", line)
+        if match:
+            interface_list.append(match.group(1).strip())
+
+    return interface_list
+
+
 def verify_interface(
     input_interface_list: typing.List[str], node: str, pod_template, kubecli: KrknKubernetes, image: str
 ) -> typing.List[str]:
@@ -261,10 +318,29 @@ def verify_interface(
                 logging.error("Exception occurred while executing command in pod")
                 sys.exit(1)
 
-            interface_ip = output.split("\n")
-            node_interface_list = [
-                interface.split()[0] for interface in interface_ip[:-1]
-            ]
+            node_interface_list = parse_brief_interface_list(output)
+
+            if node_interface_list is None:
+                logging.warning(
+                    "`ip -br addr show` did not return a valid interface list "
+                    "on node %s (output: %s); falling back to `ip addr show`"
+                    % (node, output.split("\n"))
+                )
+                cmd = ["ip", "addr", "show"]
+                output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
+
+                if not output:
+                    logging.error("Exception occurred while executing command in pod")
+                    sys.exit(1)
+
+                node_interface_list = parse_full_interface_list(output)
+
+            if not node_interface_list:
+                logging.error(
+                    "Could not determine the interface list on node %s "
+                    "from the command output" % node
+                )
+                sys.exit(1)
 
             for interface in input_interface_list:
                 if interface not in node_interface_list:
