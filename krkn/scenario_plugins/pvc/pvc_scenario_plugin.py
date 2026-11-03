@@ -22,7 +22,7 @@ from krkn_lib.utils import get_yaml_item_value
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
-from krkn.utils.filesystem_pvc import (encode_rollback_data, fill_filesystem_pvc, rollback_filesystem_fill)
+from krkn.utils.filesystem_pvc import (encode_rollback_data, fill_filesystem_pvc)
 from krkn.utils.pod_volumes import resolve_pvc_volume
 
 
@@ -189,6 +189,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         rollback_content: RollbackContent,
         lib_telemetry: KrknTelemetryOpenshift,
     ):
+        from krkn.utils.filesystem_pvc import rollback_filesystem_fill
         rollback_filesystem_fill(
             rollback_content.resource_identifier,
             lib_telemetry,

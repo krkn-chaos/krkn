@@ -13,12 +13,15 @@ import base64
 import json
 import os
 import tempfile
+from types import SimpleNamespace
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, Mock, patch
 import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
+from krkn.rollback.serialization import Serializer
 
+from krkn.rollback.handler import _parse_rollback_module
 from krkn.scenario_plugins.pvc.pvc_scenario_plugin import (
     PvcScenarioPlugin,
     _parse_fill_percentage,
@@ -59,6 +62,25 @@ class TestPvcScenarioPlugin(unittest.TestCase):
 
 class TestRollbackTempFile(unittest.TestCase):
     """Tests for the rollback_temp_file static method"""
+    
+    def test_rollback_temp_file_serialization(self):
+        rollback_mock = Mock()
+        with tempfile.TemporaryDirectory() as tmp_dir, patch(
+            "krkn.utils.filesystem_pvc.rollback_filesystem_fill",
+            rollback_mock,
+        ):
+            content = RollbackContent(resource_identifier="/data/kraken.tmp",namespace="kraken",)
+            version = SimpleNamespace(version_file_full_path=os.path.join(tmp_dir, "pvc_rollback.py"))
+
+            serializer = Serializer("pvc")
+            version_path = serializer.serialize_callable(PvcScenarioPlugin.rollback_temp_file,content,version,)
+
+            rollback_callable, rollback_content = (_parse_rollback_module(version_path))
+
+            telemetry = Mock()
+            rollback_callable(rollback_content, telemetry)
+
+            rollback_mock.assert_called_once_with("/data/kraken.tmp",telemetry,)
 
     def test_rollback_temp_file_success(self):
         """Test successful rollback removes temp file"""
