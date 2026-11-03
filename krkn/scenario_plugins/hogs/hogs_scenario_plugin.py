@@ -96,13 +96,16 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             config.node_selector = f"kubernetes.io/hostname={node}"
             pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
             node_resources_start = lib_k8s.get_node_resources_info(node)
-            self.rollback_handler.set_rollback_callable(
+            if not self.rollback_handler.set_rollback_callable(
                 self.rollback_hog_pod,
                 RollbackContent(
                     namespace=config.namespace,
                     resource_identifier=pod_name,
                 ),
-            )
+            ):
+                raise Exception(
+                    f"[{node}] failed to register rollback, not deploying hog pod {pod_name}"
+                )
             lib_k8s.deploy_hog(pod_name, config)
             start = time.time()
             # waiting 3 seconds before starting sample collection
