@@ -1,6 +1,6 @@
 # Pytest Functional Tests (tests_v2)
 
-This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, **I/O hog**, and **node** scenarios with proper assertions, retries, and reporting.
+This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **application outage**, **Cerberus**, **container**, **CPU hog**, **memory hog**, **I/O hog**, **namespace deletion**, **network chaos**, **node**, **node network chaos**, **pod disruption**, **pod error**, **pod network chaos**, **pod network filter**, **pod server**, **PVC**, **service hijacking**, **storage throttle**, **telemetry**, and **time** scenarios with proper assertions, retries, and reporting.
 
 Each test runs in its **own ephemeral Kubernetes namespace** (`krkn-test-<uuid>`). Before the test, the framework creates the namespace, deploys the target workload, and waits for pods to be ready. After the test, the namespace is deleted (cascading all resources). **You do not need to deploy any workloads manually.**
 
@@ -207,9 +207,90 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
 
   Config-error negatives (invalid selector/node name, missing actions, unsupported cloud type) and the worker-targeting helper's control-plane exclusion are pinned by unit tests instead of cluster runs (missing-actions and unsupported-cloud are in the pushed `tests/` suite; the rest live in the local unit layer pending a separate push).
 
+- **scenarios/container_scenarios/**
+  Container disruption scenario (`container_scenarios`). `resource.yaml` provides the target Deployment with container `fedtools` and label `scenario=container`; `resource_decoy.yaml` provides a second Deployment with the same container name but label `scenario=decoy`. `scenario_base.yaml` is a `scenarios` list whose namespace, selector, container name, count, and recovery time are patched per test; `action` stays fixed at its base value across all tests. Tests include:
+  - **test_container_kill_and_recovery**: Happy path — kills the selected container, verifies that the run succeeds and the scenario executes, then waits for the target pod to recover and remain Ready.
+  - **test_container_label_selector_targeting**: Deploys the decoy workload and verifies that only pods matching `scenario=container` are affected; the decoy pod remains running and ready.
+  - **test_invalid_container_name_fails**: Uses a container name that does not exist and a kill count that cannot be satisfied; Kraken exits non-zero.
+  - **test_invalid_label_selector_fails**: Uses a selector that matches no pods even though workloads exist; Kraken exits non-zero.
+
+- **scenarios/namespace_deletion/**
+  Namespace deletion scenario (`service_disruption_scenarios`). `resource.yaml` provides a workload in the target namespace; `scenario_base.yaml` configures namespace matching, optional namespace label selection, `delete_count`, `runs`, `sleep`, and `wait_time`. Tests include:
+  - **test_single_namespace_object_deletion**: Matches exactly one namespace, verifies that its Kubernetes objects are deleted, and confirms a successful Kraken run.
+  - **test_multiple_namespace_delete_count**: Creates three matching namespaces and uses `delete_count=2`; exactly two namespaces are disrupted while one remains untouched.
+  - **test_multiple_runs_repeat_disruption_loop**: Sets `runs=2` and verifies that the namespace disruption loop executes twice.
+  - **test_label_selector_targeting**: Leaves the namespace field empty, targets namespaces by label, and verifies that only the labeled namespace is selected.
+  - **test_no_match_namespace_fails**: Uses a regex that matches no namespaces; Kraken exits non-zero with a clear failure.
+  - **test_namespace_and_label_mutual_exclusion_fails**: Sets both a namespace and a `label_selector`; Kraken exits with the expected mutual-exclusion error.
+  - **test_delete_count_exceeds_available_fails**: Requests more namespaces than match the selection; Kraken exits non-zero with a `not enough namespaces` failure.
+
+- **scenarios/node_network_chaos/**
+  Node network chaos scenario (`network_chaos_ng_scenarios`). `scenario_base.yaml` contains the list-based configuration for the `krkn-network-chaos` helper image, target node, packet loss, latency, bandwidth, direction, instance count, and cleanup behavior. Tests use a worker node and include:
+  - **test_variants_apply_netem_and_cleanup**: Runs a list of impairment variants (packet loss, latency with ingress/egress, bandwidth limit, and egress-only direction), verifies that `netem` is applied during chaos on local runtimes and cleaned up afterward, confirms the helper pod is removed, and checks that all cluster nodes remain Ready.
+  - **test_instance_count_with_label_selector**: Uses a label selector matching multiple nodes and verifies that only the configured `instance_count` is targeted.
+  - **test_force_false_skips_injection_when_tc_rules_exist**: Prepares existing traffic-control rules and verifies that `force=false` warns and skips injection instead of overriding them.
+  - **test_nonexistent_target_node_fails**: Specifies a node that does not exist; Kraken fails gracefully.
+  - **test_no_nodes_matching_selector_warns**: Uses a selector with no matches; Kraken logs that no targets were found and exits 0 without injecting chaos.
+
+- **scenarios/pod_error_scenarios/**
+  Pod disruption failure-mode coverage using the `pod_disruption_scenarios` plugin. `resource.yaml` provides the target workload, and `scenario_base.yaml` configures the namespace pattern, label selector, recovery time, and kill count. Tests include:
+  - **test_kill_multiple_pods**: Kills multiple matching pods (`kill: 2`), verifies that disruption occurs across at least two pods, and confirms that all pods recover.
+  - **test_excessive_kill_count_fails**: Requests more pods than are available; Kraken exits non-zero with the count-check error.
+  - **test_recovery_timeout_fails**: Deploys a workload whose replacement pods cannot become Ready within the configured recovery window and verifies that Kraken reports failure.
+
+- **scenarios/storage_throttle/**
+  Storage throttle scenario (`storage_throttle_scenarios`). `resource.yaml` provides a workload with the `krkn-throttle-pvc` volume mounted at `/data`; `scenario_base.yaml` configures the PVC, pod, mount path, throttle type, bandwidth, IOPS, duration, and helper image. Tests include:
+  - **test_throttle_and_recovery**: Applies combined read/write bandwidth (`bps`) and `iops` limits (`throttle_type: both`), verifies a successful Kraken run, and confirms that target pods remain Running and Ready. Negative config-validation paths (bad namespace, invalid `throttle_type`) are covered by the unit test suite (`tests/test_storage_throttle_scenario_plugin.py`).
+
+- **scenarios/network_chaos/**
+  Legacy node network chaos scenario (`network_chaos_scenarios`). `scenario_base.yaml` configures node-level traffic control impairments (`latency`, `bandwidth`, `loss`). Tests use `@pytest.mark.no_workload` and include:
+  - **test_netem_applied_and_cleaned** (`kind_only`): Parameterized across bandwidth and latency egress variants; observes an active `netem` qdisc on the target worker node during chaos, then verifies exit 0, node readiness, `netem` removal, and cleanup of helper resources.
+  - **test_nonexistent_node_fails**: Targets a node name that does not exist and verifies that Kraken exits non-zero.
+
+- **scenarios/pod_network_chaos/**
+  Pod-level network impairment scenario (`network_chaos_ng_scenarios`). `resource.yaml` deploys the target workload and service, and `scenario_base.yaml` configures pod network latency and packet loss. Tests include:
+  - **test_latency_loss_and_recovery**: Measures peer HTTP traffic from a traffic pod to the target service, verifies delayed responses while `netem` is active, and confirms traffic recovery and helper pod cleanup after rollback.
+  - **test_nonexistent_target_fails**: Specifies a pod target that does not exist and verifies that Kraken exits non-zero with a not-found error.
+
+- **scenarios/pod_network_filter/**
+  Pod network filtering scenario (`network_chaos_ng_scenarios`) applying iptables port/protocol filtering inside pod network namespaces. `resource.yaml` deploys the target workload and service; `scenario_base.yaml` configures ingress/egress port and protocol rules. Tests include:
+  - **test_filter_variants_lifecycle_and_cleanup**: Runs a list of protocol (`tcp`, `udp`), port, and direction (`ingress`, `egress`) variants, verifying exit 0, duration adherence, rule cleanup, and pod health.
+  - **test_tcp_port_block_traffic_and_recovery**: Verifies that peer HTTP traffic to port 80 is blocked while the filter is active and restored once the scenario completes.
+  - **test_label_selector_targeting**: Targets pods via `label_selector` with `instance_count=1` and verifies that only one matching pod is filtered.
+  - **test_no_matching_pods_for_label**: Uses a label selector that matches no pods and verifies that Kraken treats it as a clean no-op (exit 0 with no helper pods left behind).
+  - **test_filter_rules_removed_after_scenario**: Observes the live helper pod during execution, verifies filter cleanup afterward, and confirms a subsequent run succeeds without stale state.
+
+- **scenarios/pvc/**
+  PVC disk fill scenario (`pvc_scenarios`). `resource.yaml` deploys a PVC-backed pod with `/data` mounted, and `scenario_base.yaml` configures the target PVC, pod, fill percentage, and duration. Tests include:
+  - **test_fill_keeps_target_pod_healthy**: Observes the temporary fill file (`kraken.tmp`) growing on the mounted volume during chaos, verifies its removal on rollback, and confirms the target pod stays Running and Ready.
+
+- **scenarios/service_hijacking/**
+  Service hijacking scenario (`service_hijacking_scenarios`). `resource.yaml` deploys an `nginx` pod and `nginx-service`; `scenario_base.yaml` defines the hijacking plan and custom HTTP responses. Tests include:
+  - **test_plan_runs_and_restores_service**: Observes the Service selector redirecting traffic to the hijacker pod and returning the configured plan response during chaos, then verifies full selector restoration and hijacker resource cleanup after rollback.
+  - **test_missing_service_fails**: Targets a Service that does not exist and verifies that Kraken exits non-zero.
+  - **test_interrupted_hijack_rolls_back_service**: Sends `SIGTERM` while the Service is hijacked and verifies that Kraken's rollback handler restores the original Service selector and removes the hijacker pod.
+
+- **scenarios/time_scenarios/**
+  Pod and node clock skew scenario (`time_scenarios`). `resource.yaml` deploys the target pod workload, and `scenario_base.yaml` configures `skew_time` actions against pods or nodes. Tests include:
+  - **test_pod_time_action_resets_safely**: Executes a pod `skew_time` action, verifies that Kraken logs the date check/reset flow and exits 0, and confirms the pod remains healthy.
+  - **test_worker_date_action_ntp_safe**: Executes a node `skew_time` action against a worker node and verifies NTP-safe reset handling and node readiness.
+
+- **scenarios/cerberus/**
+  Cerberus health-gate integration coverage (`cerberus`). Runs a pod disruption scenario configured to poll a local mock Cerberus HTTP endpoint:
+  - **test_unhealthy_probe_reports_health_failure**: Configures Cerberus to return an unhealthy (`False`) status and verifies that Kraken exits with code `1` when the health check fails.
+
+- **scenarios/pod_server/**
+  Kraken daemon mode and HTTP status-server (`PAUSE`/`RUN`/`STOP`) control-plane integration coverage (`pod_server`). Tests include:
+  - **test_daemon_stop_via_status_api**: Starts Kraken in `daemon_mode` and verifies that posting `STOP` to the status endpoint terminates the daemon cleanly (exit 0).
+  - **test_pause_waits_then_run_signal_releases**: Starts Kraken with `signal_state: PAUSE`, verifies that no pod disruption occurs while paused, then posts `RUN` and confirms the disruption executes and pods recover.
+
+- **scenarios/telemetry/**
+  Credential-gated S3 telemetry upload integration coverage (`telemetry`). Skips automatically when `AWS_BUCKET` or the `aws` CLI is unavailable:
+  - **test_telemetry_uploads_core_artifacts**: Runs Kraken with telemetry enabled and verifies that the core telemetry artifacts are uploaded under the run's unique S3 request prefix.
+
 ## Configuration
 
-- **pytest.ini**: Markers (`functional`, `pod_disruption`, `application_outage`, `storage_throttle`, `cpu_hog`, `memory_hog`, `node_scenarios`, `no_workload`). Use `--timeout=300`, `--reruns=2`, `--reruns-delay=10` on the command line for full runs.
+- **pytest.ini**: Markers (`functional`, `pod_disruption`, `pod_error_scenarios`, `application_outage`, `storage_throttle`, `cpu_hog`, `memory_hog`, `io_hog`, `container_scenarios`, `node_scenarios`, `kind_only`, `node_network_chaos`, `namespace_deletion`, `no_workload`, `order`, `xdist_group`, `network_chaos`, `pvc`, `time_scenarios`, `service_hijacking`, `pod_network_chaos`, `pod_network_filter`, `cerberus`, `telemetry`, `pod_server`). Use `--timeout=300`, `--reruns=2`, `--reruns-delay=10` on the command line for full runs.
 - **conftest.py**: Re-exports fixtures from `lib/k8s.py`, `lib/namespace.py`, `lib/deploy.py`, `lib/kraken.py` (e.g. `test_namespace`, `deploy_workload`, `k8s_core`, `wait_for_pods_running`, `run_kraken`, `build_config`). Configs are built from `CI/tests_v2/config/common_test_config.yaml` with monitoring disabled for local runs. Timeout constants in `lib/base.py` can be overridden via env vars.
 - **Cluster access**: Reads and applies use the Kubernetes Python client; `kubectl` is still used for `port-forward` and for running Kraken.
 - **utils.py**: Pod/network policy helpers and assertion helpers (`assert_all_pods_running_and_ready`, `assert_pod_count_unchanged`, `assert_kraken_success`, `assert_kraken_failure`, `patch_namespace_in_docs`).
@@ -217,7 +298,7 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
 ## Relationship to existing CI
 
 - The **existing** bash tests in `CI/tests/` and `CI/run.sh` are **unchanged**. They continue to run as before in GitHub Actions.
-- This framework is **additive**. To run it in CI later, add a separate job or step that runs `pytest CI/tests_v2/ ...` from the repo root.
+- This framework is **additive**. The `Tests v2 (pytest functional)` workflow in `.github/workflows/tests_v2.yml` creates a KinD cluster and runs `pytest CI/tests_v2/ ...` on pull requests and pushes to `main`.
 
 ## Troubleshooting
 
