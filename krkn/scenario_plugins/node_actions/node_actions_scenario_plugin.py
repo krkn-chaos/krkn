@@ -230,10 +230,10 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
 
     def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
+        pool = None
         try:
             # pool object with number of element
             pool = ThreadPool(processes=len(nodes))
-
             pool.starmap(
                 self.run_node,
                 zip(
@@ -243,10 +243,12 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     repeat(node_scenario),
                 ),
             )
-
-            pool.close()
         except Exception as e:
-            logging.info("Error on pool multiprocessing: " + str(e))
+            logging.error("Error on pool multiprocessing: " + str(e))
+        finally:
+            if pool:
+                pool.close()
+                pool.join()
 
     def run_node(self, single_node, node_scenario_object, action, node_scenario):
         # Get the scenario specifics for running action nodes
