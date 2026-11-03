@@ -820,7 +820,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             mock_kubecli.get_pod_info.assert_any_call(name="broken-pod", namespace="test-ns")
             mock_kubecli.get_pod_info.assert_any_call(name="working-pod", namespace="test-ns")
 
-            self.assertEqual(mock_kubecli.get_pod_shell.call_count, 3)
+            self.assertEqual(mock_kubecli.get_pod_shell.call_count, 2)
             mock_kubecli.get_pod_shell.assert_any_call("broken-pod", "test-ns", "test-container")
             mock_kubecli.get_pod_shell.assert_any_call("working-pod", "test-ns", "test-container")
 
@@ -1087,8 +1087,8 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 )
 
             self.assertEqual(result, 0)
-            self.assertEqual(call_order[:2], ["get_pod_shell", "get_pod_shell"])
-            self.assertTrue(all(c == "exec_cmd_in_pod" for c in call_order[2:]))
+            self.assertEqual(call_order[0], "get_pod_shell")
+            self.assertTrue(all(c == "exec_cmd_in_pod" for c in call_order[1:]))
 
     def test_run_file_creation_failed(self):
         """Test run returns 1 when file creation fails and verifies cleanup is attempted"""

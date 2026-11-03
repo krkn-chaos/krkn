@@ -14,9 +14,7 @@
 import logging
 import random
 
-from requests.packages import target
 import yaml
-from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value
@@ -118,8 +116,10 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 selected_pod = None
                 selected_pod_name = None
                 selected_target = None
+                selected_shell = None
                 
                 for candidate_pod_name in pods_to_try:
+                    shell = None
                     logging.info("Attempting to use pod '%s'",candidate_pod_name)
                     # Get volume name
                     pod = kubecli.get_pod_info(name=candidate_pod_name, namespace=namespace)
@@ -142,6 +142,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     selected_pod = pod
                     selected_pod_name = candidate_pod_name
                     selected_target = volume_target
+                    selected_shell = shell
                     break
                 
                 if selected_pod is None:
@@ -163,24 +164,20 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                             "PvcScenarioPlugin Failed to register rollback context. Aborting scenario."
                         )
                 
-                # Delegate filesystem filling to the shared utility.
-                if selected_target.mode == "filesystem":
-                    result, _ = fill_filesystem_pvc(
-                        kubecli=kubecli,
-                        pod_name=selected_pod_name,
-                        namespace=namespace,
-                        pvc_name=pvc_name,
-                        target_fill_percentage=target_fill_percentage,
-                        duration=duration,
-                        block_size=block_size,
-                        volume_target=selected_target,
-                        on_file_created=register_rollback,
-                        pod=selected_pod,
-                    )
-                    return result
-                
-                logging.error("PVC '%s' uses block storage, but the block-storage utility has not yet been integrated here",pvc_name,)
-                return 1
+                result, _ = fill_filesystem_pvc(
+                    kubecli=kubecli,
+                    pod_name=selected_pod_name,
+                    namespace=namespace,
+                    pvc_name=pvc_name,
+                    target_fill_percentage=target_fill_percentage,
+                    duration=duration,
+                    block_size=block_size,
+                    volume_target=selected_target,
+                    on_file_created=register_rollback,
+                    pod=selected_pod,
+                    shell=selected_shell
+                )
+                return result
         except Exception as e:
             logging.error("PvcScenarioPlugin exiting due to Exception %s" % e)
             return 1
