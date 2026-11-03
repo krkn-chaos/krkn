@@ -121,7 +121,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 for candidate_pod_name in pods_to_try:
                     shell = None
                     logging.info("Attempting to use pod '%s'",candidate_pod_name)
-                    # Get volume name
+
                     pod = kubecli.get_pod_info(name=candidate_pod_name, namespace=namespace)
                     if pod is None:
                         logging.warning("Pod '%s' was not found; trying the next pod",candidate_pod_name)
@@ -136,7 +136,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     if volume_target.mode == "filesystem":
                         shell = kubecli.get_pod_shell(candidate_pod_name,namespace,volume_target.container_name)
                         if shell is None:
-                            logging.warning("Container '%s' in pod '%s' has no usable shell;trying the next pod",volume_target.container_name,candidate_pod_name)
+                            logging.warning("Container '%s' in pod '%s' has no usable shell; trying the next pod",volume_target.container_name,candidate_pod_name)
                             continue
 
                     selected_pod = pod
