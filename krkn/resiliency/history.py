@@ -24,6 +24,7 @@ from __future__ import annotations
 import datetime
 import logging
 from dataclasses import dataclass
+import math
 from typing import Optional
 
 from krkn_lib.models.k8s import ResiliencyReport
@@ -64,9 +65,15 @@ def parse_duration(duration_str: str) -> datetime.timedelta:
         value = float(s[:-1])
     except ValueError:
         raise ValueError(f"Invalid numeric value '{s[:-1]}' in '{duration_str}'")
-    if value <= 0:
-        raise ValueError(f"Duration must be positive, got '{duration_str}'")
-    return datetime.timedelta(**{units[unit]: value})
+    if not math.isfinite(value) or value <= 0:
+        raise ValueError(f"Duration must be a finite positive number, got '{duration_str}'")
+    try:
+        duration = datetime.timedelta(**{units[unit]: value})
+    except OverflowError as exc:
+        raise ValueError(f"Duration '{duration_str}' is too large") from exc
+    if duration <= datetime.timedelta(0):
+        raise ValueError(f"Duration '{duration_str}' is too small")
+    return duration
 
 
 def parse_datetime(dt_str: str) -> datetime.datetime:
@@ -143,7 +150,10 @@ def parse_history_window(
     if past_resiliency_score is not None:
         duration = parse_duration(past_resiliency_score)
         end = datetime.datetime.now(datetime.timezone.utc)
-        start = end - duration
+        try:
+            start = end - duration
+        except OverflowError as exc:
+            raise ValueError(f"Duration '{past_resiliency_score}' is too large to calculate the historical window") from exc
         return HistoryWindow(start=start, end=end, label=past_resiliency_score)
 
     if hist_start_str or hist_end_str:
