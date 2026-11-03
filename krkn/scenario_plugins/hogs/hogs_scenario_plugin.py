@@ -83,6 +83,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
 
     def run_scenario_worker(self, config: HogConfig,
                             lib_k8s: KrknKubernetes, node: str,
+                            pod_name: str,
                             exception_queue: queue.Queue):
         try:
             if not config.workers:
@@ -94,15 +95,7 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
             # using kubernetes.io/hostname = <node_name> selector to
             # precisely deploy each workload on each selected node
             config.node_selector = f"kubernetes.io/hostname={node}"
-            pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
             node_resources_start = lib_k8s.get_node_resources_info(node)
-            self.rollback_handler.set_rollback_callable(
-                self.rollback_hog_pod,
-                RollbackContent(
-                    namespace=config.namespace,
-                    resource_identifier=pod_name,
-                ),
-            )
             lib_k8s.deploy_hog(pod_name, config)
             start = time.time()
             # waiting 3 seconds before starting sample collection
@@ -157,10 +150,27 @@ class HogsScenarioPlugin(AbstractScenarioPlugin):
         workers = []
         logging.info(f"running {config.type.value} hog scenario")
         logging.info(f"targeting nodes: [{','.join(available_nodes)}]")
+        # Save the rollback for every node before any hog pod is deployed,
+        # so a failure here leaves the cluster untouched.
+        pod_names = {}
+        for node in available_nodes:
+            pod_name = f"{config.type.value}-hog-{get_random_string(5)}"
+            if not self.rollback_handler.set_rollback_callable(
+                self.rollback_hog_pod,
+                RollbackContent(
+                    namespace=config.namespace,
+                    resource_identifier=pod_name,
+                ),
+            ):
+                raise Exception(
+                    f"[{node}] failed to register rollback, not deploying any hog pod"
+                )
+            pod_names[node] = pod_name
+
         for node in available_nodes:
             config_copy = copy.deepcopy(config)
             worker = threading.Thread(target=self.run_scenario_worker,
-                                      args=(config_copy, lib_k8s, node, exception_queue))
+                                      args=(config_copy, lib_k8s, node, pod_names[node], exception_queue))
             worker.daemon = True
             worker.start()
             workers.append(worker)
