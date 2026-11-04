@@ -9,15 +9,12 @@ Usage:
 Assisted By: Claude Code
 """
 
-import base64
-import json
 import os
 import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 import yaml
-from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn.rollback.serialization import Serializer
 
