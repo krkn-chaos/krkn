@@ -90,14 +90,15 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     )
                     
                 kubecli = lib_telemetry.get_lib_kubernetes()
-                # Get pod name
+                # Get candidate pods
                 if pvc_name:
                     pvc = kubecli.get_pvc_info(pvc_name, namespace)
-                    if pvc is None or not pvc.podNames:
-                        logging.error(
-                            "PvcScenarioPlugin: PVC '%s' in namespace '%s' was not found "
-                            "or is not mounted by any pod" % (str(pvc_name), str(namespace))
-                        )
+                    if pvc is None:
+                        logging.error("PvcScenarioPlugin: PVC '%s' in namespace '%s' was not found " % (str(pvc_name), str(namespace)))
+                        return 1
+
+                    if not pvc.podNames:
+                        logging.error("PvcScenarioPlugin: PVC '%s' in namespace '%s' is not mounted by any pod"% (str(pvc_name), str(namespace)))
                         return 1
 
                     # Create a shuffled copy to maintain the random attempt distribution
@@ -107,9 +108,6 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     if pod_name:
                         logging.info("pod_name '%s' will be overridden with one of the pods mounted in the PVC" % (str(pod_name)))
                 else:
-                    if not pod_name:
-                        logging.error("Either 'pvc_name' or 'pod_name' must be specified in the configuration")
-                        return 1
                     # Fallback if only pod_name was provided in the configuration
                     pods_to_try = [pod_name]
 
@@ -120,23 +118,23 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                 
                 for candidate_pod_name in pods_to_try:
                     shell = None
-                    logging.info("Attempting to use pod '%s'",candidate_pod_name)
+                    logging.debug("Attempting to use pod '%s'",candidate_pod_name)
 
                     pod = kubecli.get_pod_info(name=candidate_pod_name, namespace=namespace)
                     if pod is None:
-                        logging.warning("Pod '%s' was not found; trying the next pod",candidate_pod_name)
+                        logging.debug("Pod '%s' was not found; trying the next pod",candidate_pod_name)
                         continue
                     
                     volume_target = resolve_pvc_volume(kubecli, pod, pvc_name)
                     if volume_target is None:
-                        logging.warning("Pod '%s' does not expose PVC '%s'; trying the next pod",candidate_pod_name,pvc_name,)
+                        logging.debug("Pod '%s' does not expose PVC '%s'; trying the next pod",candidate_pod_name,pvc_name,)
                         continue
                     
                     # Filesystem volumes require a usable shell.
                     if volume_target.mode == "filesystem":
                         shell = kubecli.get_pod_shell(candidate_pod_name,namespace,volume_target.container_name)
                         if shell is None:
-                            logging.warning("Container '%s' in pod '%s' has no usable shell; trying the next pod",volume_target.container_name,candidate_pod_name)
+                            logging.debug("Container '%s' in pod '%s' has no usable shell; trying the next pod",volume_target.container_name,candidate_pod_name)
                             continue
 
                     selected_pod = pod
@@ -178,7 +176,7 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                     shell=selected_shell
                 )
                 return result
-        except Exception as e:
+        except (RuntimeError, Exception) as e:
             logging.error("PvcScenarioPlugin exiting due to Exception %s" % e)
             return 1
         else:

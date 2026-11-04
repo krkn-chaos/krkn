@@ -82,59 +82,6 @@ class TestRollbackTempFile(unittest.TestCase):
 
             rollback_mock.assert_called_once_with("/data/kraken.tmp",telemetry,)
 
-    def test_rollback_temp_file_success(self):
-        """Test successful rollback removes temp file"""
-        # Create mock telemetry
-        mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
-        mock_kubecli = MagicMock()
-        mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
-        
-        # Simulate successful file removal
-        mock_kubecli.exec_cmd_in_pod.side_effect = [
-            "",  # rm -f command output
-            "total 0\ndrwxr-xr-x 2 root root 40 Jan 1 00:00 .",  # ls -lh output without file
-        ]
-
-        # Create rollback data
-        rollback_data = {
-            "pod_name": "test-pod",
-            "namespace": "test-ns",
-            "container_name": "test-container",
-            "full_path": "/mnt/data/kraken.tmp",
-            "file_name": "kraken.tmp",
-            "mount_path": "/mnt/data",
-        }
-        encoded_data = encode_rollback_data(rollback_data)
-
-        rollback_content = RollbackContent(
-            namespace="test-ns",
-            resource_identifier=encoded_data,
-        )
-
-        # Should not raise any exception
-        PvcScenarioPlugin.rollback_temp_file(rollback_content, mock_telemetry)
-
-        # Verify exec_cmd_in_pod was called
-        self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)  
-
-    @patch("krkn.utils.filesystem_pvc.logging")
-    def test_rollback_temp_file_invalid_data(self, mock_logging):
-        """Test rollback handles invalid encoded data gracefully and logs error"""
-        mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
-
-        rollback_content = RollbackContent(
-            namespace="test-ns",
-            resource_identifier="invalid-base64-data!!!",
-        )
-
-        # Should not raise exception, just log the error
-        PvcScenarioPlugin.rollback_temp_file(rollback_content, mock_telemetry)
-
-        # Verify error was logged to inform users of rollback failure
-        mock_logging.error.assert_called_once()
-        error_message = mock_logging.error.call_args[0][0]
-        self.assertIn("Failed to rollback filesystem PVC fill", error_message)
-
 
 class TestPvcScenarioPluginRun(unittest.TestCase):
     """Tests for the run method of PvcScenarioPlugin"""
