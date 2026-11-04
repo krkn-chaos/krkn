@@ -7,12 +7,49 @@
 
 import unittest
 from unittest.mock import MagicMock, patch
-
-from krkn.utils.filesystem_pvc import fill_filesystem_pvc
+from krkn.utils.filesystem_pvc import (fill_filesystem_pvc, remove_filesystem_fill, encode_rollback_data, rollback_filesystem_fill)
 from krkn.utils.pod_volumes import PodVolumeTarget
+from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
 
 class TestFillFilesystemPvc(unittest.TestCase):
+    def test_remove_filesystem_fill_success(self):
+        kubecli = MagicMock()
+        kubecli.exec_cmd_in_pod.side_effect = [
+            "",
+            "total 0\ndrwxr-xr-x 2 root root 40 Jan 1 00:00 .",
+        ]
+
+        remove_filesystem_fill(
+            kubecli=kubecli,
+            pod_name="test-pod",
+            namespace="test-ns",
+            container_name="test-container",
+            mount_path="/mnt/data",
+            file_name="kraken.tmp",
+        )
+
+        self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 2)
+
+    def test_remove_filesystem_fill_failure(self):
+        kubecli = MagicMock()
+        kubecli.exec_cmd_in_pod.side_effect = [
+            "",
+            "total 1024\n-rw-r--r-- 1 root root 1M Jan 1 00:00 kraken.tmp",
+        ]
+
+        with self.assertRaises(RuntimeError):
+            remove_filesystem_fill(
+                kubecli=kubecli,
+                pod_name="test-pod",
+                namespace="test-ns",
+                container_name="test-container",
+                mount_path="/mnt/data",
+                file_name="kraken.tmp",
+            )
+
+        self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 2)
+        
     def test_logs_usage_file_size_and_cleanup(self):
         kubecli = MagicMock()
         kubecli.get_pod_shell.return_value = "shell"
@@ -74,6 +111,47 @@ class TestFillFilesystemPvc(unittest.TestCase):
         self.assertTrue(any("utilization=50.00%" in line for line in captured.output))
         self.assertTrue(any("Filesystem PVC after cleanup" in line for line in captured.output))
         self.assertTrue(any("fill file removed" in line for line in captured.output))
+
+class TestRollbackFilesystemFill(unittest.TestCase):
+
+    def test_rollback_filesystem_fill_success(self):
+        """Test successful rollback removes the temporary file."""
+        # Create mock telemetry
+        mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+        mock_kubecli = MagicMock()
+        mock_telemetry.get_lib_kubernetes.return_value = mock_kubecli
+
+        # Simulate successful file removal
+        mock_kubecli.exec_cmd_in_pod.side_effect = [
+            "",
+            "total 0\ndrwxr-xr-x 2 root root 40 Jan 1 00:00 .",
+        ]
+
+        # Create rollback data
+        rollback_data = {
+            "pod_name": "test-pod",
+            "namespace": "test-ns",
+            "container_name": "test-container",
+            "file_name": "kraken.tmp",
+            "mount_path": "/mnt/data",
+        }
+
+        encoded_data = encode_rollback_data(rollback_data)
+
+        rollback_filesystem_fill(encoded_data, mock_telemetry)
+        # Verify exec_cmd_in_pod was called
+        self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)
+
+    @patch("krkn.utils.filesystem_pvc.logging")
+    def test_rollback_filesystem_fill_invalid_data(self, mock_logging):
+        """Test rollback handles invalid encoded data gracefully."""
+        mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+
+        rollback_filesystem_fill("invalid-base64-data!!!", mock_telemetry)
+        # Verify error was logged to inform users of rollback failure
+        mock_logging.error.assert_called_once()
+        error_message = mock_logging.error.call_args[0][0]
+        self.assertIn("Failed to rollback filesystem PVC fill", error_message)
 
 
 if __name__ == "__main__":
