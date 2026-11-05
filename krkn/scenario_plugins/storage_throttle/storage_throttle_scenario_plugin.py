@@ -782,6 +782,17 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         :param lib_telemetry: KrknTelemetryOpenshift instance.
         """
         try:
+            import base64
+            import json
+            from krkn.scenario_plugins.storage_throttle.\
+                storage_throttle_scenario_plugin import (
+                    StorageThrottleScenarioPlugin,
+                )
+            from krkn.scenario_plugins.storage_throttle.\
+                storage_throttle_utils import (
+                    validate_maj_min,
+                )
+
             namespace = rollback_content.namespace
             decoded = base64.b64decode(
                 rollback_content.resource_identifier.encode("utf-8")
@@ -796,9 +807,10 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
                 "deleting pod %s" % priv_pod_name
             )
 
-            if not _validate_maj_min(maj_min):
+            if not validate_maj_min(maj_min):
                 logging.warning(
-                    "Invalid maj_min during rollback, skipping throttle removal"
+                    "Invalid maj_min during rollback, "
+                    "skipping throttle removal"
                 )
             else:
                 cgroup_path = data.get("cgroup_path")
