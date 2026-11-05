@@ -10,4 +10,4 @@ jobs:
       permissions:
         issues: write
         pull-requests: write
-      uses: krkn-chaos/actions/.github/workflows/slash-to-add-label.yml@main
+      uses: krkn-chaos/actions/.github/workflows/slash-to-add-label.yml@01a376af9315db7b740727e1f2f40a76ad118672 # main

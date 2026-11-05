@@ -13,7 +13,7 @@ concurrency:
 jobs:
     handle-issue:
       if: github.event_name == 'issues'
-      uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@main
+      uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@01a376af9315db7b740727e1f2f40a76ad118672 # main
       permissions:
         issues: write
         contents: read
@@ -22,7 +22,7 @@ jobs:
         ISSUE_PR_CLASSIC: ${{ secrets.ISSUE_PR_CLASSIC }}
     handle-pr:
       if: github.event_name == 'pull_request_target'
-      uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@main
+      uses: krkn-chaos/actions/.github/workflows/linked-issue-to-pr-management.yml@01a376af9315db7b740727e1f2f40a76ad118672 # main
       permissions:
         issues: write
         contents: read
