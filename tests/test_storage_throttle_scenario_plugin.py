@@ -1325,6 +1325,56 @@ class TestRollbackThrottle(unittest.TestCase):
         error_msg = mock_logging.error.call_args[0][0]
         self.assertIn("Failed to rollback", error_msg)
 
+    def test_rollback_serialized_execution(self):
+        """Rollback callable must execute when rendered via Serializer."""
+        from krkn.rollback.serialization import Serializer
+        from krkn.rollback.handler import _parse_rollback_module
+
+        serializer = Serializer("storage_throttle_scenarios")
+        name, code = serializer._parse_rollback_callable_code(
+            StorageThrottleScenarioPlugin.rollback_throttle
+        )
+        rollback_data = {
+            "priv_pod_name": "io-throttle-12345",
+            "maj_min": "8:16",
+            "cgroup_path": "/kubepods.slice/crio-abc123.scope",
+            "cgroup_version": "v2",
+        }
+        encoded = base64.b64encode(
+            json.dumps(rollback_data).encode("utf-8")
+        ).decode("utf-8")
+        content = RollbackContent(
+            namespace="default", resource_identifier=encoded
+        )
+        rendered = serializer.template.render(
+            rollback_callable_name=name,
+            rollback_callable_code=code,
+            rollback_content=str(content),
+        )
+
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".py", delete=False
+        ) as tf:
+            tf.write(rendered)
+            tmp_path = tf.name
+
+        try:
+            callable_fn, parsed_content = _parse_rollback_module(tmp_path)
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_k8s = MagicMock(spec=KrknKubernetes)
+            mock_telemetry.get_lib_kubernetes.return_value = mock_k8s
+            mock_k8s.exec_cmd_in_pod.return_value = ""
+
+            callable_fn(parsed_content, mock_telemetry)
+
+            mock_k8s.exec_cmd_in_pod.assert_called_once()
+            mock_k8s.delete_pod.assert_called_once_with(
+                "io-throttle-12345", "default"
+            )
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+
 
 if __name__ == "__main__":
     unittest.main()
