@@ -81,8 +81,7 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                             if len(namespaces) == 0:
                                 logging.error(
                                     "ServiceDisruptionScenarioPlugin Couldn't delete %s namespaces, "
-                                    "not enough namespaces matching %s with label %s "
-                                    "(exit code: 1)"
+                                    "not enough namespaces matching %s with label %s"
                                     % (
                                         str(delete_count),
                                         scenario_namespace,
@@ -112,8 +111,8 @@ class ServiceDisruptionScenarioPlugin(AbstractScenarioPlugin):
                             except Exception as e:
                                 logging.error(
                                     "ServiceDisruptionScenarioPlugin Delete all "
-                                    "objects in namespace %s was unsuccessful: %s "
-                                    "(exit code: 1)" % (str(selected_namespace), e)
+                                    "objects in namespace %s was unsuccessful: %s"
+                                    % (str(selected_namespace), e)
                                 )
                                 return 1
                             namespaces.remove(selected_namespace)

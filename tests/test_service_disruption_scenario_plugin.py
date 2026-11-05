@@ -96,7 +96,6 @@ class TestServiceDisruptionScenarioPlugin(unittest.TestCase):
         errors = "\n".join(logs.output)
         self.assertIn("test-ns", errors)
         self.assertIn("forbidden", errors)
-        self.assertIn("exit code: 1", errors)
 
     @patch("time.sleep")
     def test_run_reports_delete_count_when_not_enough_namespaces(self, _):
@@ -108,7 +107,6 @@ class TestServiceDisruptionScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, 1)
         self.assertIn("Couldn't delete 2 namespaces", logs.output[0])
-        self.assertIn("exit code: 1", logs.output[0])
         self.assertNotIn("ù", logs.output[0])
 
 if __name__ == "__main__":
