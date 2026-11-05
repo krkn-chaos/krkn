@@ -204,10 +204,17 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             vmi_total_recovery = max(vmi_recovery_times)
             vmi_reschedule = max(v.get("vmi_rescheduling_time") or 0 for v in vmi_recovered if isinstance(v, dict))
             vmi_readiness = max(v.get("vmi_readiness_time") or 0 for v in vmi_recovered if isinstance(v, dict))
+            guest_vals = [
+                v.get("guest_reachable_time")
+                for v in vmi_recovered
+                if isinstance(v, dict) and v.get("guest_reachable_time") is not None
+            ]
+            vmi_guest_reachable = max(guest_vals) if guest_vals else None
         else:
             vmi_total_recovery = None
             vmi_reschedule = None
             vmi_readiness = None
+            vmi_guest_reachable = None
 
         affected_nodes = s.get("affected_nodes", [])
         node_list = []
@@ -265,6 +272,7 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
             "vmi_total_recovery_time": vmi_total_recovery,
             "vmi_rescheduling_time": vmi_reschedule,
             "vmi_readiness_time": vmi_readiness,
+            "guest_reachable_time": vmi_guest_reachable,
             "affected_nodes": node_list,
             "cluster_events": cluster_events,
             "additional_telemetry": additional_telemetry,
@@ -447,11 +455,17 @@ def build_chaos_report_html(chaos_output: dict, output_path: str) -> str:
                 continue
             recovery_cell = ""
             if s["vmi_total_recovery_time"] is not None:
+                detail = (
+                    f'Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br>'
+                    f'Readiness: {(s["vmi_readiness_time"] or 0):.2f}s'
+                )
+                if s.get("guest_reachable_time") is not None:
+                    detail += (
+                        f'<br>Guest Reachable: {s["guest_reachable_time"]:.2f}s'
+                    )
                 recovery_cell = (
                     f'{s["vmi_total_recovery_time"]:.2f}s'
-                    f'<br><span class="recovery-detail">'
-                    f'Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br>'
-                    f'Readiness: {(s["vmi_readiness_time"] or 0):.2f}s</span>'
+                    f'<br><span class="recovery-detail">{detail}</span>'
                 )
             rows.append([
                 _h(s["scenario"]),
