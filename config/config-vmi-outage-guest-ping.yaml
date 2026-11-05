@@ -1,0 +1,96 @@
+kraken:
+    kubeconfig_path: ~/.kube/config
+    image_signature_verification_enabled: False
+    exit_on_failure: False
+    auto_rollback: True
+    publish_kraken_status: False
+    signal_state: RUN
+    signal_address: 0.0.0.0
+    port: 8081
+    report_formats:
+        - html
+    chaos_scenarios:
+       - vmi_outage:
+              - scenarios/kubevirt/vmi-outage-vm-img-windows.yaml
+
+resiliency:
+  resiliency_run_mode: disabled
+
+cerberus:
+    cerberus_enabled: False
+
+elastic:
+    enable_elastic: False
+    verify_certs: False
+    elastic_url: ""
+    elastic_port: 32766
+    username: "elastic"
+    password: "test"
+    metrics_index: "krkn-metrics"
+    alerts_index: "krkn-alerts"
+    telemetry_index: "krkn-telemetry"
+    run_tag: ""
+
+tunings:
+    wait_duration: 1
+    iterations: 1
+    daemon_mode: False
+
+telemetry:
+    enabled: False
+    api_url: ""
+    username: username
+    password: password
+    prometheus_backup: False
+    prometheus_namespace: ""
+    prometheus_container_name: ""
+    prometheus_pod_name: ""
+    full_prometheus_backup: False
+    backup_threads: 5
+    archive_path: ""
+    max_retries: 0
+    run_tag: ''
+    archive_size: 500000
+    telemetry_group: ''
+    logs_backup: False
+    logs_filter_patterns: []
+    oc_cli_path: /usr/bin/oc
+    events_backup: False
+
+performance_monitoring:
+    prometheus_url: ''
+    prometheus_bearer_token:
+    uuid:
+    enable_alerts: False
+    alert_profile: config/alerts.yaml
+    run_during: during
+    exit_on_failure: False
+    only_failures: True
+    enable_metrics: False
+    metrics_profile: config/metrics-report.yaml
+    check_critical_alerts: False
+
+health_checks:
+    interval: 2
+    run_during: post
+    exit_on_failure: False
+    only_failures: False
+    config: []
+
+kubevirt_checks:
+    interval: 2
+    run_during: []
+    exit_on_failure: False
+    namespace:
+    name:
+    only_failures: False
+    disconnected: False
+    ssh_node: ""
+    node_names: ""
+
+object_state_checks:
+    interval: 2
+    run_during: []
+    exit_on_failure: False
+    only_failures: False
+    config: []

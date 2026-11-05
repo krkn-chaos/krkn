@@ -1,0 +1,43 @@
+# Long-lived in-cluster helper for guest reachability probes (TCP-safe).
+# Compatible with OpenShift restricted-v2 (no NET_RAW).
+# Image already includes ping + nc.
+#
+#   oc apply -f scenarios/kubevirt/guest-ping-diagnosis-pod.yaml -n <vmi-namespace>
+#   oc wait --for=condition=Ready pod/krkn-guest-ping-diagnosis -n <vmi-namespace>
+#
+#   oc exec -n <ns> krkn-guest-ping-diagnosis -- nc -z -w2 <guest-ip> 22
+#
+# Scenario (recommended under restricted SCC):
+#   guest_ping_pod: krkn-guest-ping-diagnosis
+#   guest_ping_method: tcp
+#   guest_ping_port: 22   # or 3389 / 5985 for Windows
+#
+# For ICMP, either use an ephemeral helper in a namespace that allows NET_RAW,
+# or add capabilities.add: ["NET_RAW"] to this pod (requires non-restricted SCC).
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  name: krkn-guest-ping-diagnosis
+  labels:
+    app: krkn-guest-ping
+    krkn-chaos.io/role: diagnosis
+    krkn-chaos.io/scenario: vmi_outage
+spec:
+  restartPolicy: Always
+  containers:
+    - name: probe
+      image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi
