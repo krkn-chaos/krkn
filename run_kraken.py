@@ -556,9 +556,8 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 sys.exit(-1)
             logging.info("Scenario plugins for this run:")
             for stype in sorted(configured_types):
-                if stype in scenario_plugin_factory.loaded_plugins:
-                    cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
-                    logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
+                cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
+                logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
 
         # Pre-chaos health checks (run health checks configured with run_during: "pre")
         logging.debug("=" * 80)
