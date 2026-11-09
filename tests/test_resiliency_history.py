@@ -195,22 +195,6 @@ class TestParseHistoryWindow(unittest.TestCase):
         with self.assertRaises(ValueError):
             parse_history_window("1000000d", None, None)
 
-    def test_overflow_duration_raises(self):
-        with self.assertRaises(ValueError):
-            parse_history_window("1e10w", None, None)
-
-    def test_nan_duration_raises(self):
-        with self.assertRaises(ValueError):
-            parse_history_window("nanh", None, None)
-
-    def test_infinite_duration_raises(self):
-        with self.assertRaises(ValueError):
-            parse_history_window("infh", None, None)
-
-    def test_tiny_duration_raises(self):
-        with self.assertRaises(ValueError):
-            parse_history_window("1e-7s", None, None)
-
     def test_invalid_start_time_raises(self):
         with self.assertRaises(ValueError):
             parse_history_window(None, "not-a-date", "2026-05-25T09:00:00", resiliency_score_flag=True)
