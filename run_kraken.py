@@ -546,13 +546,19 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         # Log run-specific plugin mappings (after triggers may have cleared chaos_scenarios)
         configured_types = extract_scenario_types(chaos_scenarios)
         if configured_types:
+            missing_types = configured_types - set(scenario_plugin_factory.loaded_plugins)
+            if missing_types:
+                for stype in sorted(missing_types):
+                    logging.error(
+                        f"  ❌ Scenario type '{stype}' has no matching plugin. "
+                        "Cannot execute the configured chaos scenarios."
+                    )
+                sys.exit(-1)
             logging.info("Scenario plugins for this run:")
             for stype in sorted(configured_types):
                 if stype in scenario_plugin_factory.loaded_plugins:
                     cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
                     logging.info(f"  ✅ {stype} ➡️ `{cls_name}`")
-                else:
-                    logging.warning(f"  ⚠️ {stype} ➡️ no matching plugin found")
 
         # Pre-chaos health checks (run health checks configured with run_during: "pre")
         logging.debug("=" * 80)
