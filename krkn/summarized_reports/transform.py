@@ -253,6 +253,36 @@ def _extract_scenario_params(raw_params):
     return selectors, namespaces, exclude_labels, cloud_types
 
 
+def _extract_vmi_pvc_targets(raw_params):
+    """Extract VMI PVC target identifiers from nested scenario parameters."""
+    targets = []
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            vmi_name = obj.get("vmi_name")
+            pvc_name = obj.get("pvc_name")
+            if vmi_name or pvc_name:
+                target = {
+                    "namespace": obj.get("namespace") or obj.get("namespace_pattern"),
+                    "vmi_name": vmi_name,
+                    "pvc_name": pvc_name,
+                    "fill_percentage": obj.get("fill_percentage"),
+                    "duration": obj.get("duration"),
+                }
+                if target not in targets:
+                    targets.append(target)
+            for value in obj.values():
+                if isinstance(value, (dict, list)):
+                    _walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, (dict, list)):
+                    _walk(item)
+
+    _walk(raw_params)
+    return targets
+
+
 def _extract_pod_name(pod):
     if isinstance(pod, dict):
         ns = pod.get("namespace", "")
@@ -360,10 +390,26 @@ def build_chaos_report(chaos_output: dict) -> str:
     for i, s in enumerate(scenarios, 1):
         lines.append(f"  [{i}] Scenario  : " + str(s.get("scenario", "N/A")) + " (" + str(s.get("scenario_type", "N/A")) + ")")
         selectors, ns_list, exclude_labels, cloud_types = _extract_scenario_params(s.get("parameters", {}))
+        vmi_pvc_targets = _extract_vmi_pvc_targets(s.get("parameters", {}))
+        target_namespaces = {
+            target["namespace"] for target in vmi_pvc_targets if target.get("namespace")
+        }
+        ns_list = [namespace for namespace in ns_list if namespace not in target_namespaces]
         if selectors:
             lines.append("  Label Selector : " + ", ".join(selectors))
         if ns_list:
             lines.append("  Namespace      : " + ", ".join(ns_list))
+        for target in vmi_pvc_targets:
+            if target.get("namespace"):
+                lines.append("  Namespace      : " + str(target["namespace"]))
+            if target.get("vmi_name"):
+                lines.append("  VMI Name       : " + str(target["vmi_name"]))
+            if target.get("pvc_name"):
+                lines.append("  PVC Name       : " + str(target["pvc_name"]))
+            if target.get("fill_percentage") is not None:
+                lines.append("  Fill Percentage: " + str(target["fill_percentage"]) + "%")
+            if target.get("duration") is not None:
+                lines.append("  Duration       : " + str(target["duration"]) + "s")
         if exclude_labels:
             lines.append("  Exclude Label  : " + ", ".join(exclude_labels))
         if cloud_types:
@@ -776,6 +822,11 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
     scenarios = []
     for s in scenarios_raw:
         selectors, ns_list, exclude_labels, cloud_types = _extract_scenario_params(s.get("parameters", {}))
+        vmi_pvc_targets = _extract_vmi_pvc_targets(s.get("parameters", {}))
+        target_namespaces = {
+            target["namespace"] for target in vmi_pvc_targets if target.get("namespace")
+        }
+        ns_list = [namespace for namespace in ns_list if namespace not in target_namespaces]
 
         recovered = s.get("affected_pods", {}).get("recovered", [])
         unrecovered = s.get("affected_pods", {}).get("unrecovered", [])
@@ -855,6 +906,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             "scenario_type": s.get("scenario_type", "N/A"),
             "selectors": selectors,
             "namespaces": ns_list,
+            "vmi_pvc_targets": vmi_pvc_targets,
             "exclude_labels": exclude_labels,
             "cloud_types": cloud_types,
             "all_pods": all_pods,
@@ -983,6 +1035,17 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             target_rows.append(("Label Selector", ", ".join(s["selectors"])))
         if s["namespaces"]:
             target_rows.append(("Namespace", ", ".join(s["namespaces"])))
+        for target in s.get("vmi_pvc_targets", []):
+            if target.get("namespace"):
+                target_rows.append(("Namespace", target["namespace"]))
+            if target.get("vmi_name"):
+                target_rows.append(("VMI Name", target["vmi_name"]))
+            if target.get("pvc_name"):
+                target_rows.append(("PVC Name", target["pvc_name"]))
+            if target.get("fill_percentage") is not None:
+                target_rows.append(("Fill Percentage", f'{target["fill_percentage"]}%'))
+            if target.get("duration") is not None:
+                target_rows.append(("Duration", f'{target["duration"]}s'))
         if s["exclude_labels"]:
             target_rows.append(("Exclude Label", ", ".join(s["exclude_labels"])))
         if s["cloud_types"]:
