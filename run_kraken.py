@@ -553,7 +553,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                         f"  ❌ Scenario type '{stype}' has no matching plugin. "
                         "Cannot execute the configured chaos scenarios."
                     )
-                sys.exit(-1)
+                return -1
             logging.info("Scenario plugins for this run:")
             for stype in sorted(configured_types):
                 cls_name = scenario_plugin_factory.loaded_plugins[stype].__name__
@@ -637,7 +637,7 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                             logging.error(
                                 f"impossible to find scenario {scenario_type}, plugin not found. Exiting"
                             )
-                            sys.exit(-1)
+                            return -1
 
                         
                         batch_window_start_dt = datetime.datetime.now(datetime.timezone.utc)
