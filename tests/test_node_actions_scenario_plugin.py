@@ -9,6 +9,8 @@ Usage:
 Assisted By: Claude Code
 """
 
+import sys
+import threading
 import unittest
 from unittest.mock import MagicMock, Mock, patch, mock_open, call
 import yaml
@@ -20,6 +22,8 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.models.k8s import AffectedNodeStatus
 
+from krkn.scenario_plugins.node_actions import ibmcloud_node_scenarios
+from krkn.scenario_plugins.node_actions.general_cloud_node_scenarios import general_node_scenarios
 from krkn.scenario_plugins.node_actions.node_actions_scenario_plugin import NodeActionsScenarioPlugin
 
 
@@ -794,7 +798,8 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
     @patch('logging.info')
     def test_multiprocess_nodes_with_exception(self, mock_logging):
         """
-        Test multiprocess_nodes handles exceptions gracefully
+        Test multiprocess_nodes logs a pool error and raises it, so the
+        scenario fails like it does in serial mode (#1633)
         """
         nodes = ["node1", "node2"]
         mock_scenario_object = Mock()
@@ -804,10 +809,294 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         with patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
             mock_pool.side_effect = Exception("Pool error")
 
-            self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
+            with self.assertRaises(Exception) as ctx:
+                self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
 
+            self.assertEqual(str(ctx.exception), "Pool error")
             mock_logging.assert_called()
             self.assertIn("Error on pool multiprocessing", str(mock_logging.call_args))
+
+    def test_multiprocess_nodes_raises_when_a_node_fails(self):
+        """
+        A node action that raises in the pool fails multiprocess_nodes;
+        the other nodes still run
+        """
+        ran = []
+
+        def run_node(node, *args):
+            if node == "bad":
+                raise RuntimeError("stop failed on bad")
+            ran.append(node)
+
+        with patch.object(self.plugin, 'run_node', side_effect=run_node):
+            with self.assertRaises(RuntimeError):
+                self.plugin.multiprocess_nodes(
+                    ["good1", "bad", "good2"], Mock(), "node_stop_scenario", {}
+                )
+
+        self.assertEqual(sorted(ran), ["good1", "good2"])
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def _run_with_one_failing_node(self, parallel, mock_file, mock_general_scenarios, mock_common_funcs, mock_cerberus):
+        scenario_yaml = {
+            "node_scenarios": [
+                {
+                    "cloud_type": "generic",
+                    "node_name": "good1,bad",
+                    "actions": ["stop_kubelet_scenario"],
+                    "parallel": parallel,
+                }
+            ]
+        }
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+
+        def stop_kubelet(count, node, timeout):
+            if node == "bad":
+                raise RuntimeError("stop failed on bad")
+
+        mock_scenario_object.stop_kubelet_scenario.side_effect = stop_kubelet
+        mock_general_scenarios.return_value = mock_scenario_object
+        mock_common_funcs.get_node_by_name.return_value = ["good1", "bad"]
+
+        with patch('yaml.safe_load', return_value=scenario_yaml):
+            return self.plugin.run(
+                "test-uuid",
+                "/path/to/scenario.yaml",
+                self.mock_lib_telemetry,
+                self.mock_scenario_telemetry
+            )
+
+    def test_run_fails_when_a_node_fails_in_parallel(self):
+        """A failed node fails the scenario in parallel mode (#1633)"""
+        self.assertEqual(self._run_with_one_failing_node(True), 1)
+
+    def test_run_fails_when_a_node_fails_in_serial(self):
+        """A failed node fails the scenario in serial mode"""
+        self.assertEqual(self._run_with_one_failing_node(False), 1)
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def _run_with_every_node_excluded(self, parallel, mock_file, mock_general_scenarios, mock_common_funcs, mock_cerberus):
+        scenario_yaml = {
+            "node_scenarios": [
+                {
+                    "cloud_type": "generic",
+                    "label_selector": "node-role.kubernetes.io/worker",
+                    "exclude_label": "node-role.kubernetes.io/infra",
+                    "instance_count": 2,
+                    "actions": ["stop_kubelet_scenario"],
+                    "parallel": parallel,
+                }
+            ]
+        }
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+        mock_general_scenarios.return_value = mock_scenario_object
+        # the exclude label matches every selected node
+        mock_common_funcs.get_node.side_effect = [["node-A", "node-B"], ["node-A", "node-B"]]
+
+        with patch('yaml.safe_load', return_value=scenario_yaml):
+            rc = self.plugin.run(
+                "test-uuid",
+                "/path/to/scenario.yaml",
+                self.mock_lib_telemetry,
+                self.mock_scenario_telemetry
+            )
+        mock_scenario_object.stop_kubelet_scenario.assert_not_called()
+        return rc
+
+    def test_run_passes_with_every_node_excluded_in_parallel(self):
+        """An empty selection is not a failure in parallel mode either"""
+        self.assertEqual(self._run_with_every_node_excluded(True), 0)
+
+    def test_run_passes_with_every_node_excluded_in_serial(self):
+        self.assertEqual(self._run_with_every_node_excluded(False), 0)
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def _run_with_a_missing_named_node(self, parallel, mock_file, mock_general_scenarios, mock_common_funcs, mock_cerberus):
+        scenario_yaml = {
+            "node_scenarios": [
+                {
+                    "cloud_type": "generic",
+                    "node_name": "ghost-node",
+                    "actions": ["stop_kubelet_scenario"],
+                    "parallel": parallel,
+                }
+            ]
+        }
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+        mock_general_scenarios.return_value = mock_scenario_object
+        # get_node_by_name returns None when a named node isn't killable
+        mock_common_funcs.get_node_by_name.return_value = None
+
+        with patch('yaml.safe_load', return_value=scenario_yaml):
+            return self.plugin.run(
+                "test-uuid",
+                "/path/to/scenario.yaml",
+                self.mock_lib_telemetry,
+                self.mock_scenario_telemetry
+            )
+
+    def test_run_fails_with_a_missing_named_node_in_parallel(self):
+        """A missing named node is a failure, not an empty selection"""
+        self.assertEqual(self._run_with_a_missing_named_node(True), 1)
+
+    def test_run_fails_with_a_missing_named_node_in_serial(self):
+        self.assertEqual(self._run_with_a_missing_named_node(False), 1)
+
+    def test_multiprocess_nodes_closes_and_joins_pool_when_a_node_fails(self):
+        """The pool is cleaned up when a node fails, and the error still
+        reaches run()"""
+        with patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
+            mock_pool_instance = Mock()
+            mock_pool_instance.starmap.side_effect = RuntimeError("node failed")
+            mock_pool.return_value = mock_pool_instance
+
+            with self.assertRaises(RuntimeError):
+                self.plugin.multiprocess_nodes(["node1", "node2"], Mock(), "node_stop_scenario", {})
+
+            mock_pool_instance.close.assert_called_once()
+            mock_pool_instance.join.assert_called_once()
+
+    def test_multiprocess_nodes_does_not_wait_for_workers_when_interrupted(self):
+        """Ctrl-C (or a signal handler that exits) must not wait in join()
+        for a node action that is still running"""
+        for interrupt in (KeyboardInterrupt(), SystemExit(1)):
+            with self.subTest(type(interrupt).__name__), \
+                    patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
+                mock_pool.return_value.starmap.side_effect = interrupt
+
+                with self.assertRaises(type(interrupt)):
+                    self.plugin.multiprocess_nodes(["node1"], Mock(), "node_stop_scenario", {})
+
+                mock_pool.return_value.close.assert_called_once()
+                mock_pool.return_value.join.assert_not_called()
+
+    def test_multiprocess_nodes_fails_for_every_exit_code(self):
+        for code in (0, None, "message"):
+            with self.subTest(code=code), \
+                    patch.object(self.plugin, 'run_node', side_effect=SystemExit(code)):
+                error = self._result_of(lambda: self.plugin.multiprocess_nodes(
+                    ["node1"], Mock(), "node_stop_scenario", {}
+                ))
+                self.assertIsInstance(error, RuntimeError)
+                self.assertIn("exited with code %s" % code, str(error))
+
+    def _result_of(self, func):
+        """Run func in a daemon thread; return what it returned or raised.
+        Fails instead of hanging the test run if func never finishes."""
+        outcome = []
+
+        def target():
+            try:
+                outcome.append(func())
+            except BaseException as e:
+                outcome.append(e)
+
+        thread = threading.Thread(target=target, daemon=True)
+        thread.start()
+        thread.join(10)
+        if not outcome:
+            self.fail("multiprocess_nodes never returned")
+        return outcome[0]
+
+    def test_multiprocess_nodes_fails_when_a_node_action_exits(self):
+        """sys.exit() in a worker kills its thread, so starmap would wait
+        forever; it has to fail the scenario, after the other nodes ran"""
+        ran = []
+
+        def run_node(node, *args):
+            if node == "bad":
+                sys.exit(3)
+            ran.append(node)
+
+        with patch.object(self.plugin, 'run_node', side_effect=run_node):
+            error = self._result_of(lambda: self.plugin.multiprocess_nodes(
+                ["good1", "bad", "good2"], Mock(), "node_stop_scenario", {}
+            ))
+
+        self.assertIsInstance(error, RuntimeError)
+        self.assertIn("bad", str(error))
+        self.assertIn("3", str(error))
+        self.assertIsInstance(error.__cause__, SystemExit)
+        self.assertEqual(sorted(ran), ["good1", "good2"])
+
+    def _run_ibm_stop_of_a_node_missing_from_the_vpc(self, parallel):
+        """run() with the real IBM helpers: get_instance_id calls sys.exit(1)"""
+        ibm = ibmcloud_node_scenarios.IbmCloud.__new__(ibmcloud_node_scenarios.IbmCloud)
+        ibm.list_instances = lambda: []
+        scenario_object = ibmcloud_node_scenarios.ibm_node_scenarios.__new__(
+            ibmcloud_node_scenarios.ibm_node_scenarios
+        )
+        scenario_object.ibmcloud = ibm
+        scenario_object.kubecli = Mock()
+        scenario_object.affected_nodes_status = AffectedNodeStatus()
+        scenario_object.node_action_kube_check = False
+        return self._run_with_scenario_object(
+            scenario_object, "ibmcloud", "node_stop_scenario", parallel
+        )
+
+    def _run_with_scenario_object(self, scenario_object, cloud_type, action, parallel):
+        module = 'krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.'
+        scenario_yaml = {
+            "node_scenarios": [
+                {
+                    "cloud_type": cloud_type,
+                    "node_name": "node1,node2",
+                    "actions": [action],
+                    "parallel": parallel,
+                }
+            ]
+        }
+        self.mock_lib_telemetry.get_lib_kubernetes.return_value.list_killable_nodes.return_value = [
+            "node1", "node2"
+        ]
+        with patch('builtins.open', mock_open(read_data=yaml.dump(scenario_yaml))), \
+                patch(module + 'cerberus'), \
+                patch(module + 'node_general', False), \
+                patch.object(self.plugin, 'get_node_scenario_object', return_value=scenario_object):
+            return self._result_of(lambda: self.plugin.run(
+                "test-uuid", "/path/to/scenario.yaml",
+                self.mock_lib_telemetry, self.mock_scenario_telemetry
+            ))
+
+    def test_run_fails_when_the_ibm_helper_exits_in_parallel(self):
+        self.assertEqual(self._run_ibm_stop_of_a_node_missing_from_the_vpc(True), 1)
+
+    def test_run_still_exits_when_the_ibm_helper_exits_in_serial(self):
+        """Serial mode is unchanged: the SystemExit leaves run()"""
+        result = self._run_ibm_stop_of_a_node_missing_from_the_vpc(False)
+        self.assertIsInstance(result, SystemExit)
+        self.assertEqual(result.code, 1)
+
+    def _run_stop_kubelet_with_a_failing_node_watch(self, parallel):
+        """run() with the real stop_kubelet_scenario, which ignores a failing
+        oc command and only raises when the node watch does"""
+        scenario_object = general_node_scenarios(Mock(), True, AffectedNodeStatus())
+        scenario_object.kubecli.watch_node_status.side_effect = RuntimeError("watch failed")
+        with patch('subprocess.run'):
+            return self._run_with_scenario_object(
+                scenario_object, "generic", "stop_kubelet_scenario", parallel
+            )
+
+    def test_run_fails_when_the_kubelet_node_watch_fails_in_parallel(self):
+        self.assertEqual(self._run_stop_kubelet_with_a_failing_node_watch(True), 1)
+
+    def test_run_fails_when_the_kubelet_node_watch_fails_in_serial(self):
+        self.assertEqual(self._run_stop_kubelet_with_a_failing_node_watch(False), 1)
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
     def test_inject_node_scenario_excludes_consecutive_nodes(self, mock_common_funcs):
