@@ -218,6 +218,89 @@ class TestVmiPvcFillScenarioPlugin(unittest.TestCase):
         mock_fill.assert_called_once()
 
     @patch("krkn.scenario_plugins.vmi_pvc_fill.vmi_pvc_fill_scenario_plugin.fill_filesystem_pvc")
+    def test_filesystem_fill_rollback_loads_and_removes_the_file(self, mock_fill):
+        """The rollback registered for a filesystem fill must survive the
+        version file round trip and remove the fill file (#1682)."""
+        import os
+        import shutil
+        from krkn.rollback.handler import _parse_rollback_module
+        from krkn.rollback.serialization import Serializer
+
+        self.config["vmi_pvc_fill_scenario"].update({
+            "pvc_name": "filesystem-pvc",
+            "device_path": "",
+        })
+        fill_data = {
+            "pod_name": "virt-launcher-vm1",
+            "namespace": "default",
+            "container_name": "app",
+            "mount_path": "/data",
+            "file_name": "kraken.tmp",
+            "full_path": "/data/kraken.tmp",
+        }
+
+        def fill(*args, on_file_created=None, **kwargs):
+            on_file_created(fill_data)
+            return 1, None
+
+        mock_fill.side_effect = fill
+        lib_k8s = MagicMock()
+        lib_k8s.get_vmi.return_value = {
+            "status": {"phase": "Running", "nodeName": "worker-1"}
+        }
+        lib_k8s.list_pods.return_value = ["virt-launcher-vm1"]
+        lib_k8s.cli.read_namespaced_pod.return_value = {
+            "metadata": {"uid": "uid-vm1"},
+            "status": {"phase": "Running"},
+            "spec": {
+                "nodeName": "worker-1",
+                "volumes": [{
+                    "name": "disk",
+                    "persistentVolumeClaim": {"claimName": "filesystem-pvc"},
+                }],
+                "containers": [{
+                    "name": "app",
+                    "volumeMounts": [{"name": "disk", "mountPath": "/data"}],
+                }],
+            },
+        }
+        telemetry = MagicMock()
+        telemetry.get_lib_kubernetes.return_value = lib_k8s
+        self.plugin.rollback_handler = MagicMock()
+
+        self.plugin.run("run-id", self._scenario_file(), telemetry, MagicMock())
+
+        self.plugin.rollback_handler.set_rollback_callable.assert_called_once()
+        callable_, content = (
+            self.plugin.rollback_handler.set_rollback_callable.call_args.args
+        )
+
+        # Write and load the version file the way RollbackHandler does.
+        serializer = Serializer("vmi_pvc_fill_scenarios")
+        name, code = serializer._parse_rollback_callable_code(callable_)
+        text = serializer.template.render(
+            rollback_callable_name=name,
+            rollback_callable_code=code,
+            rollback_content=str(content),
+        )
+        version_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, version_dir, ignore_errors=True)
+        version_file = os.path.join(version_dir, "version.py")
+        with open(version_file, "w") as handle:
+            handle.write(text)
+        loaded_callable, loaded_content = _parse_rollback_module(version_file)
+
+        rollback_k8s = MagicMock()
+        rollback_k8s.exec_cmd_in_pod.return_value = ""
+        rollback_telemetry = MagicMock()
+        rollback_telemetry.get_lib_kubernetes.return_value = rollback_k8s
+        loaded_callable(loaded_content, rollback_telemetry)
+
+        rollback_k8s.exec_cmd_in_pod.assert_any_call(
+            ["rm -f /data/kraken.tmp"], "virt-launcher-vm1", "default", "app"
+        )
+
+    @patch("krkn.scenario_plugins.vmi_pvc_fill.vmi_pvc_fill_scenario_plugin.fill_filesystem_pvc")
     def test_run_returns_failure_when_filesystem_fill_fails(self, mock_fill):
         self.config["vmi_pvc_fill_scenario"].update({
             "pvc_name": "filesystem-pvc",
