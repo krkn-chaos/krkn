@@ -844,6 +844,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "command",
     "group": "triggers"
   },
   {
@@ -854,6 +855,7 @@
     "type": "number",
     "default": "0",
     "required": "false",
+    "trigger_type": "command",
     "group": "triggers"
   },
   {
@@ -908,6 +910,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "http",
     "group": "triggers"
   },
   {
@@ -918,6 +921,7 @@
     "type": "string",
     "default": "GET",
     "required": "false",
+    "trigger_type": "http",
     "group": "triggers"
   },
   {
@@ -928,6 +932,7 @@
     "type": "number",
     "default": "200",
     "required": "false",
+    "trigger_type": "http",
     "group": "triggers"
   },
   {
@@ -939,6 +944,7 @@
     "default": "",
     "required": "false",
     "secret": "true",
+    "trigger_type": "http",
     "group": "triggers"
   },
   {
@@ -949,6 +955,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "http",
     "group": "triggers"
   },
   {
@@ -959,6 +966,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "k8s",
     "group": "triggers"
   },
   {
@@ -969,6 +977,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "k8s",
     "group": "triggers"
   },
   {
@@ -979,6 +988,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "k8s",
     "group": "triggers"
   },
   {
@@ -989,6 +999,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "k8s",
     "group": "triggers"
   },
   {
@@ -999,6 +1010,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "k8s",
     "group": "triggers"
   },
   {
@@ -1009,6 +1021,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "prometheus",
     "group": "triggers"
   },
   {
@@ -1019,6 +1032,7 @@
     "type": "string",
     "default": "",
     "required": "false",
+    "trigger_type": "prometheus",
     "group": "triggers"
   },
   {
@@ -1030,6 +1044,7 @@
     "default": "",
     "required": "false",
     "secret": "true",
+    "trigger_type": "prometheus",
     "group": "triggers"
   }
 ]
