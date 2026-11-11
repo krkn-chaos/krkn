@@ -127,11 +127,10 @@ class TestPVC(BaseScenarioTest):
                 proc.args, proc.returncode, stdout=stdout, stderr=stderr
             )
             assert_kraken_success(result, context=self.ns, tmp_path=self.tmp_path)
-            # Execution-evidence gate (SCENARIO_EXECUTION_MARKERS["pvc"]):
-            # "Creating kraken.tmp file|Finish waiting". Both branches are
-            # unconditional on the success path, so the OR-marker is
-            # equivalent to the previous AND-substring pair; the live
-            # df/file polling above carries the primary proof.
+            # The shared helper emits "Filesystem PVC fill: file=..." after
+            # creating and measuring the file. The live df/file polling above
+            # carries the primary proof; this marker confirms the scenario
+            # reached its fill operation.
             assert_scenario_executed(
                 result, self.SCENARIO_NAME, context=self.ns, tmp_path=self.tmp_path
             )

@@ -1,0 +1,12 @@
+vmi_pvc_fill_scenario:
+  # This v2 test exercises the plugin's filesystem-PVC path using a Pod target.
+  # It does not require a VMI, virtctl, or guest SSH credentials.
+  vmi_name: ""
+  pod_name: krkn-vmi-pvc-test-pod
+  namespace: default
+  pvc_name: krkn-vmi-pvc-test-claim
+  device_path: ""
+  mount_path: /data
+  fill_percentage: 90
+  duration: 15
+  format_device: false
