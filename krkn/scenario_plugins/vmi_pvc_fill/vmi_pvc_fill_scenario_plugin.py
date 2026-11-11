@@ -32,7 +32,6 @@ from krkn.rollback.handler import set_rollback_context_decorator
 from krkn.utils.filesystem_pvc import (
     encode_rollback_data,
     fill_filesystem_pvc,
-    rollback_filesystem_fill,
 )
 from krkn.utils.pod_volumes import read_raw_pod, resolve_pvc_volume, resolve_vmi_pod
 
@@ -416,7 +415,7 @@ sleep {params.duration}
 
         def register_rollback(data):
             self.rollback_handler.set_rollback_callable(
-                rollback_filesystem_fill,
+                self.rollback_filesystem_fill,
                 RollbackContent(
                     namespace=params.namespace,
                     resource_identifier=encode_rollback_data(data),
@@ -435,6 +434,21 @@ sleep {params.duration}
             pod=pod,
         )
         return result
+
+    @staticmethod
+    def rollback_filesystem_fill(
+        rollback_content: RollbackContent,
+        lib_telemetry: KrknTelemetryOpenshift,
+    ) -> None:
+        """Remove the fill file left by an interrupted filesystem PVC fill.
+
+        The rollback loader only accepts a rollback_* function that takes a
+        RollbackContent, and only this function's source is copied into the
+        version file, so the shared helper is imported here.
+        """
+        from krkn.utils.filesystem_pvc import rollback_filesystem_fill
+
+        rollback_filesystem_fill(rollback_content.resource_identifier, lib_telemetry)
 
     @staticmethod
     def rollback_guest_storage(

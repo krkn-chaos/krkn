@@ -7,6 +7,10 @@ rules:
 - apiGroups: [""]
   resources: ["pods", "services"]
   verbs: ["get", "list", "watch", "create", "delete"]
+# Required for vmi_outage guest-reachability probes (exec ping/nc in helper pod).
+- apiGroups: [""]
+  resources: ["pods/exec"]
+  verbs: ["create"]
 - apiGroups: ["apps"]
   resources: ["deployments", "statefulsets"]
   verbs: ["get", "list", "watch", "create", "delete"]

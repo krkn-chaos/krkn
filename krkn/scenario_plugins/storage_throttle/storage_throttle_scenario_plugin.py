@@ -315,10 +315,15 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
                     return 1
                 logging.info("Host cgroup path: %s" % cgroup_path)
 
-                self._register_rollback(
+                if not self._register_rollback(
                     priv_pod_name, maj_min, cgroup_path,
                     cgroup_version, params.namespace,
-                )
+                ):
+                    logging.error(
+                        "StorageThrottleScenarioPlugin failed to register rollback, "
+                        "aborting before applying the throttle"
+                    )
+                    return 1
 
                 self._apply_throttle(
                     lib_k8s, priv_pod_name, cgroup_path,
@@ -594,7 +599,7 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         encoded_data = base64.b64encode(
             json.dumps(rollback_data).encode("utf-8")
         ).decode("utf-8")
-        self.rollback_handler.set_rollback_callable(
+        return self.rollback_handler.set_rollback_callable(
             self.rollback_throttle,
             RollbackContent(
                 namespace=namespace,
@@ -782,6 +787,17 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
         :param lib_telemetry: KrknTelemetryOpenshift instance.
         """
         try:
+            import base64
+            import json
+            from krkn.scenario_plugins.storage_throttle.\
+                storage_throttle_scenario_plugin import (
+                    StorageThrottleScenarioPlugin,
+                )
+            from krkn.scenario_plugins.storage_throttle.\
+                storage_throttle_utils import (
+                    validate_maj_min,
+                )
+
             namespace = rollback_content.namespace
             decoded = base64.b64decode(
                 rollback_content.resource_identifier.encode("utf-8")
@@ -796,9 +812,10 @@ class StorageThrottleScenarioPlugin(AbstractScenarioPlugin):
                 "deleting pod %s" % priv_pod_name
             )
 
-            if not _validate_maj_min(maj_min):
+            if not validate_maj_min(maj_min):
                 logging.warning(
-                    "Invalid maj_min during rollback, skipping throttle removal"
+                    "Invalid maj_min during rollback, "
+                    "skipping throttle removal"
                 )
             else:
                 cgroup_path = data.get("cgroup_path")
