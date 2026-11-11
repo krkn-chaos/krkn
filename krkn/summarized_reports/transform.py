@@ -490,9 +490,20 @@ def build_chaos_report(chaos_output: dict) -> str:
                 total = max(vmi_recovery_times)
                 reschedule_times = [v.get("vmi_rescheduling_time") or 0 for v in vmi_recovered if isinstance(v, dict)]
                 readiness_times = [v.get("vmi_readiness_time") or 0 for v in vmi_recovered if isinstance(v, dict)]
+                guest_times = [
+                    v.get("guest_reachable_time")
+                    for v in vmi_recovered
+                    if isinstance(v, dict) and v.get("guest_reachable_time") is not None
+                ]
                 lines.append(f"    VMI Recovery Time     : {total:.2f}s")
                 lines.append(f"      ├─ Rescheduling Time: {max(reschedule_times):.2f}s")
-                lines.append(f"      └─ Readiness Time   : {max(readiness_times):.2f}s")
+                if guest_times:
+                    lines.append(f"      ├─ Readiness Time   : {max(readiness_times):.2f}s")
+                    lines.append(
+                        f"      └─ Guest Reachable  : {max(guest_times):.2f}s"
+                    )
+                else:
+                    lines.append(f"      └─ Readiness Time   : {max(readiness_times):.2f}s")
 
         affected_nodes = s.get("affected_nodes", [])
         if affected_nodes:
@@ -861,10 +872,17 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             vmi_total_recovery = max(vmi_recovery_times)
             vmi_reschedule = max(v.get("vmi_rescheduling_time") or 0 for v in vmi_recovered if isinstance(v, dict))
             vmi_readiness = max(v.get("vmi_readiness_time") or 0 for v in vmi_recovered if isinstance(v, dict))
+            guest_vals = [
+                v.get("guest_reachable_time")
+                for v in vmi_recovered
+                if isinstance(v, dict) and v.get("guest_reachable_time") is not None
+            ]
+            vmi_guest_reachable = max(guest_vals) if guest_vals else None
         else:
             vmi_total_recovery = None
             vmi_reschedule = None
             vmi_readiness = None
+            vmi_guest_reachable = None
 
         affected_nodes = s.get("affected_nodes", [])
         node_list = []
@@ -924,6 +942,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             "vmi_total_recovery_time": vmi_total_recovery,
             "vmi_rescheduling_time": vmi_reschedule,
             "vmi_readiness_time": vmi_readiness,
+            "guest_reachable_time": vmi_guest_reachable,
             "affected_nodes": node_list,
             "cluster_events": cluster_events,
             "additional_telemetry": additional_telemetry,
@@ -1115,7 +1134,15 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             recovery_cell = ""
             if s["vmi_total_recovery_time"] is not None:
                 rt = f'{s["vmi_total_recovery_time"]:.2f}s'
-                rt += f'<br/><font size="7" color="#555555">Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br/>Readiness: {(s["vmi_readiness_time"] or 0):.2f}s</font>'
+                detail = (
+                    f'Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br/>'
+                    f'Readiness: {(s["vmi_readiness_time"] or 0):.2f}s'
+                )
+                if s.get("guest_reachable_time") is not None:
+                    detail += (
+                        f'<br/>Guest Reachable: {s["guest_reachable_time"]:.2f}s'
+                    )
+                rt += f'<br/><font size="7" color="#555555">{detail}</font>'
                 recovery_cell = Paragraph(rt, _STYLE_CELL)
             rows.append([
                 s["scenario"],

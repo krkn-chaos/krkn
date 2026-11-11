@@ -857,55 +857,486 @@ class TestVmiOutageScenarioPlugin(unittest.TestCase):
         self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
 
 
-if __name__ == "__main__":
-    unittest.main()
+    # ==================== Guest reachability MTTR ====================
 
-    def test_legacy_scenario_name_backwards_compatibility(self):
-        """
-        Test that legacy scenario name 'kubevirt_vm_outage' still works
-        """
-        # Create test config with legacy scenario name
-        legacy_config = {
-            "scenarios": [
-                {
-                    "name": "legacy test",
-                    "scenario": "kubevirt_vm_outage",  # Old name
-                    "parameters": {
-                        "vm_name": "test-vm",
-                        "namespace": "default",
-                        "duration": 0
-                    }
-                }
-            ]
+    def test_get_vmi_ip_from_interfaces(self):
+        vmi = {
+            "status": {
+                "interfaces": [
+                    {"name": "eth0", "ipAddress": "10.0.0.5"},
+                ]
+            }
         }
+        self.assertEqual(VmiOutageScenarioPlugin.get_vmi_ip(vmi), "10.0.0.5")
 
-        # Create a temporary config file with legacy name
-        temp_dir = tempfile.gettempdir()
-        legacy_scenario_file = os.path.join(temp_dir, "test_legacy_scenario.yaml")
-        with open(legacy_scenario_file, "w") as f:
-            yaml.dump(legacy_config, f)
+    def test_get_vmi_ip_from_ip_addresses_list(self):
+        vmi = {
+            "status": {
+                "interfaces": [
+                    {"name": "eth0", "ipAddresses": ["192.168.1.10", "fe80::1"]},
+                ]
+            }
+        }
+        self.assertEqual(VmiOutageScenarioPlugin.get_vmi_ip(vmi), "192.168.1.10")
 
-        # Setup k8s_client mocks
-        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
-        self.k8s_client.get_vms.return_value = [{"metadata": {"name": "test-vm"}}]
+    def test_get_vmi_ips_skips_link_local_and_dedupes(self):
+        vmi = {
+            "status": {
+                "interfaces": [
+                    {
+                        "name": "default",
+                        "ipAddress": "10.0.0.5",
+                        "ipAddresses": ["10.0.0.5", "fe80::1"],
+                    },
+                    {
+                        "name": "secondary",
+                        "ipAddress": "192.168.100.2",
+                    },
+                ]
+            }
+        }
+        self.assertEqual(
+            VmiOutageScenarioPlugin.get_vmi_ips(vmi),
+            ["10.0.0.5", "192.168.100.2"],
+        )
 
-        # Mock VMI with new timestamp after deletion
-        new_vmi = copy.deepcopy(self.mock_vmi)
-        new_vmi['metadata']['creationTimestamp'] = '2023-01-01T00:05:00Z'
+    def test_get_vmi_ip_missing(self):
+        self.assertIsNone(VmiOutageScenarioPlugin.get_vmi_ip({}))
+        self.assertIsNone(VmiOutageScenarioPlugin.get_vmi_ip({"status": {}}))
 
-        self.k8s_client.get_vmi.side_effect = [
-            self.mock_vmi,  # validate_environment
-            self.mock_vmi,  # execute_scenario
-            new_vmi,        # delete_vmi - recreated
-            new_vmi         # wait_for_running
+    def test_wait_for_guest_reachable_tries_all_ips(self):
+        """First interface may be unreachable; later ones must still succeed."""
+        self.plugin.affected_vmi = AffectedVMI(
+            vmi_name="test-vm", namespace="default"
+        )
+        multi_ip = copy.deepcopy(self.mock_vmi)
+        multi_ip["status"]["interfaces"] = [
+            {"ipAddress": "10.0.0.1"},
+            {"ipAddress": "10.0.0.9"},
         ]
+        self.k8s_client.get_vmi.return_value = multi_ip
 
+        def probe(host, *_a, **_k):
+            return host == "10.0.0.9"
+
+        self.plugin.probe_guest_via_pod = MagicMock(side_effect=probe)
+
+        with patch("time.time", side_effect=[100.0, 100.5, 101.0]):
+            with patch("time.sleep"):
+                result = self.plugin.wait_for_guest_reachable(
+                    "test-vm",
+                    "default",
+                    timeout=30,
+                    interval=1,
+                    method="icmp",
+                    probe_pod="probe-pod",
+                )
+
+        self.assertEqual(result, 0)
+        probed = [
+            c.args[0] for c in self.plugin.probe_guest_via_pod.call_args_list
+        ]
+        self.assertEqual(probed, ["10.0.0.1", "10.0.0.9"])
+
+    def test_wait_for_guest_reachable_via_pod(self):
+        """Probes via a ready helper pod; create is done before chaos."""
+        self.plugin.affected_vmi = AffectedVMI(
+            vmi_name="test-vm", namespace="default"
+        )
+        running_with_ip = copy.deepcopy(self.mock_vmi)
+        running_with_ip["status"]["interfaces"] = [{"ipAddress": "10.0.0.9"}]
+        self.k8s_client.get_vmi.return_value = running_with_ip
+        self.k8s_client.exec_cmd_in_pod = MagicMock(return_value="OK\n")
+
+        with patch("time.time", side_effect=[200.0, 200.5, 201.0]):
+            with patch("time.sleep"):
+                result = self.plugin.wait_for_guest_reachable(
+                    "test-vm",
+                    "default",
+                    timeout=30,
+                    interval=1,
+                    method="icmp",
+                    probe_pod="probe-pod",
+                )
+
+        self.assertEqual(result, 0)
+        self.assertAlmostEqual(
+            self.plugin.affected_vmi.guest_reachable_time, 1.0, places=3
+        )
+        self.k8s_client.exec_cmd_in_pod.assert_called()
+
+    def test_wait_for_guest_reachable_timeout(self):
+        self.plugin.affected_vmi = AffectedVMI(
+            vmi_name="test-vm", namespace="default"
+        )
+        running_with_ip = copy.deepcopy(self.mock_vmi)
+        running_with_ip["status"]["interfaces"] = [{"ipAddress": "10.0.0.9"}]
+        self.k8s_client.get_vmi.return_value = running_with_ip
+        self.k8s_client.exec_cmd_in_pod = MagicMock(return_value="FAIL\n")
+
+        times = itertools.count(0, 10)
+
+        with patch("time.time", side_effect=lambda: float(next(times))):
+            with patch("time.sleep"):
+                result = self.plugin.wait_for_guest_reachable(
+                    "test-vm",
+                    "default",
+                    timeout=5,
+                    interval=1,
+                    method="icmp",
+                    probe_pod="probe-pod",
+                )
+
+        self.assertEqual(result, 1)
+        self.assertIsNone(
+            getattr(self.plugin.affected_vmi, "guest_reachable_time", None)
+        )
+
+    def test_ensure_guest_probe_pod_creates(self):
+        self.plugin._create_guest_probe_pod = MagicMock(return_value="probe-pod")
+
+        name, owned = self.plugin._ensure_guest_probe_pod(
+            "default", method="tcp"
+        )
+
+        self.assertEqual(name, "probe-pod")
+        self.assertTrue(owned)
+        self.plugin._create_guest_probe_pod.assert_called_once_with(
+            "default",
+            method="tcp",
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
+        )
+
+    def test_guest_probe_pod_body_net_raw_only_for_icmp(self):
+        icmp_caps = self.plugin._guest_probe_pod_body(
+            "p", method="icmp"
+        )["spec"]["containers"][0]["securityContext"]["capabilities"]
+        self.assertEqual(icmp_caps.get("add"), ["NET_RAW"])
+        self.assertEqual(icmp_caps.get("drop"), ["ALL"])
+
+        tcp_caps = self.plugin._guest_probe_pod_body(
+            "p", method="tcp"
+        )["spec"]["containers"][0]["securityContext"]["capabilities"]
+        self.assertNotIn("add", tcp_caps)
+        self.assertEqual(tcp_caps.get("drop"), ["ALL"])
+
+    def test_guest_probe_pod_body_uses_custom_image(self):
+        body = self.plugin._guest_probe_pod_body(
+            "p",
+            method="icmp",
+            image="registry.local/krkn-tools:latest",
+        )
+        self.assertEqual(
+            body["spec"]["containers"][0]["image"],
+            "registry.local/krkn-tools:latest",
+        )
+
+    def test_create_guest_probe_pod_cleans_up_on_startup_failure(self):
+        self.k8s_client.create_pod = MagicMock(
+            side_effect=Exception("Starting pod failed")
+        )
+        self.k8s_client.delete_pod = MagicMock()
+
+        with self.assertRaises(Exception):
+            self.plugin._create_guest_probe_pod("default", method="tcp")
+
+        self.k8s_client.create_pod.assert_called_once()
+        self.k8s_client.delete_pod.assert_called_once()
+        deleted_name = self.k8s_client.delete_pod.call_args.args[0]
+        self.assertTrue(deleted_name.startswith("krkn-guest-ping-"))
+
+    def test_create_guest_probe_pod_waits_for_container_ready(self):
+        """New pods use the same container-ready gate as reused pods."""
+        self.k8s_client.create_pod = MagicMock()
+        self.k8s_client.is_pod_running = MagicMock(return_value=True)
+        self.k8s_client.delete_pod = MagicMock()
+
+        pod_name = self.plugin._create_guest_probe_pod(
+            "default", method="icmp"
+        )
+
+        self.assertTrue(pod_name.startswith("krkn-guest-ping-"))
+        self.k8s_client.create_pod.assert_called_once()
+        self.k8s_client.is_pod_running.assert_called_with(
+            pod_name, "default"
+        )
+        self.k8s_client.delete_pod.assert_not_called()
+
+    def test_create_guest_probe_pod_cleans_up_on_ready_timeout(self):
+        self.k8s_client.create_pod = MagicMock()
+        self.k8s_client.is_pod_running = MagicMock(return_value=False)
+        self.k8s_client.delete_pod = MagicMock()
+        self.plugin._wait_for_probe_pod_ready = MagicMock(
+            side_effect=TimeoutError("not ready")
+        )
+
+        with self.assertRaises(TimeoutError):
+            self.plugin._create_guest_probe_pod("default", method="tcp")
+
+        self.k8s_client.create_pod.assert_called_once()
+        self.k8s_client.delete_pod.assert_called_once()
+
+    def test_ensure_guest_probe_pod_reuses_existing(self):
+        self.k8s_client.is_pod_running = MagicMock(return_value=True)
+        self.plugin._create_guest_probe_pod = MagicMock()
+
+        name, owned = self.plugin._ensure_guest_probe_pod(
+            "default",
+            probe_pod="krkn-guest-ping-diagnosis",
+        )
+
+        self.assertEqual(name, "krkn-guest-ping-diagnosis")
+        self.assertFalse(owned)
+        self.plugin._create_guest_probe_pod.assert_not_called()
+        self.k8s_client.is_pod_running.assert_called_with(
+            "krkn-guest-ping-diagnosis", "default"
+        )
+
+    def test_execute_scenario_spins_probe_before_delete(self):
+        """Helper pod is prepared before VMI delete when guest ping is enabled."""
+        config = {
+            "parameters": {
+                "vm_name": "test-vm",
+                "namespace": "default",
+                "wait_for_guest_ping": True,
+                "guest_ping_settle_seconds": 3,
+                "guest_ping_timeout": 30,
+                "guest_ping_interval": 1,
+            }
+        }
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [
+            {"metadata": {"name": "test-vm"}}
+        ]
+        self.k8s_client.is_pod_running = MagicMock(return_value=True)
+        self.k8s_client.exec_cmd_in_pod = MagicMock(return_value="OK\n")
+        self.k8s_client.delete_pod = MagicMock()
+        self.plugin._create_guest_probe_pod = MagicMock(
+            return_value="probe-early"
+        )
+
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi["metadata"]["creationTimestamp"] = "2023-01-01T00:05:00Z"
+        new_vmi["status"]["interfaces"] = [{"ipAddress": "10.0.0.9"}]
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,
+            self.mock_vmi,
+            new_vmi,
+            new_vmi,
+            new_vmi,
+        ]
         self.k8s_client.delete_vmi.return_value = None
 
-        # Run with legacy scenario name - should still work
-        with patch("builtins.open", unittest.mock.mock_open(read_data=yaml.dump(legacy_config))):
-            result = self.plugin.run("test-uuid", legacy_scenario_file, self.telemetry, self.scenario_telemetry)
+        order = []
 
-        # Should succeed with legacy name
+        def track_create(*_a, **_k):
+            order.append("create_probe")
+            return "probe-early"
+
+        def track_delete(*_a, **_k):
+            order.append("delete_vmi")
+
+        def track_settle(seconds):
+            if seconds == 3:
+                order.append("settle")
+
+        self.plugin._create_guest_probe_pod = MagicMock(
+            side_effect=track_create
+        )
+        self.k8s_client.delete_vmi.side_effect = track_delete
+
+        with patch("time.sleep", side_effect=track_settle):
+            result = self.plugin.execute_scenario(
+                config, self.scenario_telemetry
+            )
+
+        self.assertEqual(len(result.recovered), 1)
+        self.assertEqual(order[:3], ["create_probe", "settle", "delete_vmi"])
+        self.k8s_client.delete_pod.assert_called_once()
+
+    def test_probe_guest_via_pod_tcp_command(self):
+        self.k8s_client.exec_cmd_in_pod = MagicMock(return_value="OK")
+        ok = self.plugin.probe_guest_via_pod(
+            "10.0.0.9",
+            "probe-pod",
+            "default",
+            method="tcp",
+            port=3389,
+        )
+        self.assertTrue(ok)
+        cmd = self.k8s_client.exec_cmd_in_pod.call_args.args[0][0]
+        self.assertIn("nc -z", cmd)
+        self.assertIn("3389", cmd)
+
+    def test_execute_scenario_with_guest_ping_includes_in_total(self):
+        """Full flow with wait_for_guest_ping adds guest_reachable_time into total."""
+        config = copy.deepcopy(self.config)
+        config["scenarios"][0]["parameters"]["wait_for_guest_ping"] = True
+        config["scenarios"][0]["parameters"]["guest_ping_method"] = "icmp"
+        config["scenarios"][0]["parameters"]["guest_ping_timeout"] = 60
+        config["scenarios"][0]["parameters"]["guest_ping_interval"] = 1
+        config["scenarios"][0]["parameters"]["guest_ping_settle_seconds"] = 0
+
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [{"metadata": {"name": "test-vm"}}]
+        self.k8s_client.is_pod_running = MagicMock(return_value=True)
+        self.k8s_client.exec_cmd_in_pod = MagicMock(return_value="OK\n")
+        self.k8s_client.create_pod = MagicMock()
+        self.k8s_client.delete_pod = MagicMock()
+
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi["metadata"]["creationTimestamp"] = "2023-01-01T00:05:00Z"
+        new_vmi["status"]["interfaces"] = [{"ipAddress": "10.0.0.9"}]
+
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,  # validate
+            self.mock_vmi,  # capture
+            new_vmi,  # delete recreate
+            new_vmi,  # wait_for_running
+            new_vmi,  # wait_for_guest_reachable
+        ]
+        self.k8s_client.delete_vmi.return_value = None
+
+        with patch("time.sleep"):
+            with patch(
+                "builtins.open",
+                unittest.mock.mock_open(read_data=yaml.dump(config)),
+            ):
+                result = self.plugin.run(
+                    "test-uuid",
+                    self.scenario_file,
+                    self.telemetry,
+                    self.scenario_telemetry,
+                )
+
         self.assertEqual(result, 0)
-        self.k8s_client.delete_vmi.assert_called_once_with("test-vm", "default")
+        recovered = self.scenario_telemetry.affected_vmis.recovered
+        self.assertEqual(len(recovered), 1)
+        self.assertIsNotNone(recovered[0].guest_reachable_time)
+        expected_total = (
+            (recovered[0].vmi_rescheduling_time or 0)
+            + (recovered[0].vmi_readiness_time or 0)
+            + (recovered[0].guest_reachable_time or 0)
+        )
+        self.assertAlmostEqual(
+            recovered[0].total_recovery_time, expected_total, places=2
+        )
+
+    def test_as_bool_string_false(self):
+        from krkn.scenario_plugins.vmi_outage.vmi_outage_scenario_plugin import (
+            _as_bool,
+        )
+
+        self.assertFalse(_as_bool("False"))
+        self.assertFalse(_as_bool("false"))
+        self.assertTrue(_as_bool("True"))
+        self.assertTrue(_as_bool(True))
+        self.assertFalse(_as_bool(False))
+
+    def test_as_number_blank_and_invalid(self):
+        from krkn.scenario_plugins.vmi_outage.vmi_outage_scenario_plugin import (
+            _as_number,
+        )
+
+        self.assertEqual(_as_number("", 300, int), 300)
+        self.assertEqual(_as_number(None, 2, float), 2.0)
+        self.assertEqual(_as_number("nope", 22, int), 22)
+        self.assertEqual(_as_number("5", 300, int), 5)
+
+    def test_empty_guest_ping_params_do_not_block_default_outage(self):
+        """Envsubst blanks must not abort when wait_for_guest_ping is off."""
+        config = {
+            "parameters": {
+                "vm_name": "test-vm",
+                "namespace": "default",
+                "wait_for_guest_ping": False,
+                "guest_ping_timeout": "",
+                "guest_ping_interval": "",
+                "guest_ping_port": "",
+                "guest_ping_settle_seconds": "",
+            }
+        }
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [
+            {"metadata": {"name": "test-vm"}}
+        ]
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi["metadata"]["creationTimestamp"] = "2023-01-01T00:05:00Z"
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,
+            self.mock_vmi,
+            new_vmi,
+            new_vmi,
+        ]
+        self.k8s_client.delete_vmi.return_value = None
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsNone(result.error)
+        self.assertEqual(len(result.recovered), 1)
+        self.k8s_client.delete_vmi.assert_called_once()
+
+    def test_invalid_guest_ping_method_fails_fast(self):
+        config = {
+            "parameters": {
+                "vm_name": "test-vm",
+                "namespace": "default",
+                "wait_for_guest_ping": True,
+                "guest_ping_method": "udp",
+            }
+        }
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsNotNone(result.error)
+        self.assertIn("guest_ping_method", result.error)
+        self.k8s_client.delete_vmi.assert_not_called()
+        self.k8s_client.create_pod.assert_not_called()
+
+    def test_guest_ping_disabled_excludes_guest_reachable_from_total(self):
+        """Disabled path: guest_reachable_time stays None and out of total."""
+        config = {
+            "parameters": {
+                "vm_name": "test-vm",
+                "namespace": "default",
+                "wait_for_guest_ping": False,
+            }
+        }
+        self.k8s_client.get_vmis.return_value = [self.mock_vmi]
+        self.k8s_client.get_vms.return_value = [
+            {"metadata": {"name": "test-vm"}}
+        ]
+        new_vmi = copy.deepcopy(self.mock_vmi)
+        new_vmi["metadata"]["creationTimestamp"] = "2023-01-01T00:05:00Z"
+        self.k8s_client.get_vmi.side_effect = [
+            self.mock_vmi,
+            self.mock_vmi,
+            new_vmi,
+            new_vmi,
+        ]
+        self.k8s_client.delete_vmi.return_value = None
+        self.k8s_client.create_pod = MagicMock()
+        self.k8s_client.exec_cmd_in_pod = MagicMock()
+
+        result = self.plugin.execute_scenario(config, self.scenario_telemetry)
+
+        self.assertIsNone(result.error)
+        self.assertEqual(len(result.recovered), 1)
+        recovered = result.recovered[0]
+        self.assertIsNone(
+            getattr(recovered, "guest_reachable_time", None)
+        )
+        expected_total = (
+            (recovered.vmi_rescheduling_time or 0)
+            + (recovered.vmi_readiness_time or 0)
+        )
+        self.assertAlmostEqual(
+            recovered.total_recovery_time, expected_total, places=2
+        )
+        self.k8s_client.create_pod.assert_not_called()
+        self.k8s_client.exec_cmd_in_pod.assert_not_called()
+
+
+if __name__ == "__main__":
+    unittest.main()
