@@ -438,6 +438,48 @@ class TestBuildChaosReportVMIRecovery(unittest.TestCase):
         report = build_chaos_report(output)
         self.assertIn("Rescheduling Time: 0.00s", report)
 
+    def test_guest_reachable_omitted_when_unset(self):
+        """Disabled/unmeasured guest probe must not show Guest Reachable."""
+        scenario = _make_scenario(
+            affected_vmis={
+                "recovered": [{
+                    "namespace": "kubevirt",
+                    "vmi_name": "test-vm",
+                    "total_recovery_time": 10.0,
+                    "vmi_rescheduling_time": 2.0,
+                    "vmi_readiness_time": 8.0,
+                    # guest_reachable_time absent / None → omit from report
+                }],
+                "unrecovered": [],
+            },
+        )
+        output = _minimal_chaos_output()
+        output["telemetry"]["scenarios"] = [scenario]
+        report = build_chaos_report(output)
+        self.assertIn("VMI Recovery Time", report)
+        self.assertIn("Readiness Time", report)
+        self.assertNotIn("Guest Reachable", report)
+
+    def test_guest_reachable_shown_when_measured(self):
+        scenario = _make_scenario(
+            affected_vmis={
+                "recovered": [{
+                    "namespace": "kubevirt",
+                    "vmi_name": "test-vm",
+                    "total_recovery_time": 14.0,
+                    "vmi_rescheduling_time": 2.0,
+                    "vmi_readiness_time": 8.0,
+                    "guest_reachable_time": 4.0,
+                }],
+                "unrecovered": [],
+            },
+        )
+        output = _minimal_chaos_output()
+        output["telemetry"]["scenarios"] = [scenario]
+        report = build_chaos_report(output)
+        self.assertIn("Guest Reachable", report)
+        self.assertIn("4.00s", report)
+
 
 class TestBuildChaosReportLoadTestMetrics(unittest.TestCase):
 
