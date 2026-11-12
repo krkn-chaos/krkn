@@ -251,6 +251,9 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
                 # Store metrics in telemetry
                 scenario_telemetry.additional_telemetry = metrics
             
+            # Clean up HTTP load pods
+            self._cleanup_pods(pod_names, namespace, lib_telemetry)
+
             logging.info("HTTP load test completed successfully")
             return 0
 
@@ -333,6 +336,27 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
         
         logging.info(f"All {len(finished_pods)}/{len(pod_names)} pods have completed")
     
+    def _cleanup_pods(
+        self,
+        pod_names: List[str],
+        namespace: str,
+        lib_telemetry: KrknTelemetryOpenshift,
+    ):
+        """
+        Clean up HTTP load pods.
+
+        :param pod_names: List of pod names to delete
+        :param namespace: Namespace where pods are running
+        :param lib_telemetry: Telemetry object for Kubernetes operations
+        """
+        logging.info("Cleaning up HTTP load pods...")
+        for pod_name in pod_names:
+            try:
+                lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
+                logging.info(f"Deleted pod: {pod_name}")
+            except Exception as e:
+                logging.warning(f"Failed to delete pod {pod_name}: {e}")
+
     def _collect_and_aggregate_results(
         self,
         pod_names: List[str],
