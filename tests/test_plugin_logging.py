@@ -65,7 +65,7 @@ class TestPluginLogging(unittest.TestCase):
         self.assertNotIn("scenario_type", types)
 
     def test_mixed_formats_extract_all_types(self):
-        """Mixed formats should extract all unique scenario types."""
+        """Mixed formats should extract all unique scenario type with non empty file lists."""
         chaos_scenarios = [
             # Old format
             {
@@ -85,16 +85,37 @@ class TestPluginLogging(unittest.TestCase):
                 "scenario_type": "service_disruption_scenarios",
                 "weight": 2,
                 "files": ["scenarios/openshift/regex_namespace.yaml"]
+            },
+            # Empty old format
+            {"unknown_scenarios": []},
+            # Empty weighted format
+            {
+                "another_unknown_scenarios": {
+                    "weight": 2,
+                    "files": []
+                }
+            },
+            # Empty explicit format
+            {
+                "scenario_type": "empty_scenarios",
+                "weight": 1,
+                "files": []
             }
         ]
 
         types = extract_scenario_types(chaos_scenarios)
 
-        self.assertEqual(len(types), 3)
-        self.assertIn("container_scenarios", types)
-        self.assertIn("pod_disruption_scenarios", types)
-        self.assertIn("service_disruption_scenarios", types)
+        expected_types = {
+            "container_scenarios",
+            "pod_disruption_scenarios",
+            "service_disruption_scenarios"
+        }
+
+        self.assertEqual(types, expected_types)
         self.assertNotIn("scenario_type", types)
+        self.assertNotIn("unknown_scenarios", types)
+        self.assertNotIn("another_unknown_scenarios", types)
+        self.assertNotIn("empty_scenarios", types)
 
     def test_duplicate_scenario_types_deduplicated(self):
         """Duplicate scenario types should be deduplicated."""
@@ -130,6 +151,18 @@ class TestPluginLogging(unittest.TestCase):
         types = extract_scenario_types(chaos_scenarios)
 
         self.assertEqual(len(types), 0)
+
+    def test_invalid_and_empty_entries_are_ignored(self):
+        """Invalid and empty configuration entries should be ignored."""
+        chaos_scenarios = [
+            {},
+            None,
+            {"pvc_scenarios": ["scenarios/kind/pvc_scenario.yaml"]}
+        ]
+
+        types = extract_scenario_types(chaos_scenarios)
+
+        self.assertEqual(types, {"pvc_scenarios"})
 
     def test_scenario_type_key_not_mistaken_for_plugin(self):
         """The literal string 'scenario_type' should never appear in configured types."""
