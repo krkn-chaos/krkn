@@ -305,6 +305,7 @@ class TestHttpLoadRun(unittest.TestCase):
 
             self.assertEqual(result, 0)
             mock_lib_kubernetes.deploy_http_load.assert_called_once()
+            mock_lib_kubernetes.delete_pod.assert_called_once()
 
     def test_run_multiple_pods(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -330,6 +331,7 @@ class TestHttpLoadRun(unittest.TestCase):
 
             self.assertEqual(result, 0)
             self.assertEqual(mock_lib_kubernetes.deploy_http_load.call_count, 3)
+            self.assertEqual(mock_lib_kubernetes.delete_pod.call_count, 3)
 
     def test_run_invalid_config(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -351,6 +353,36 @@ class TestHttpLoadRun(unittest.TestCase):
 
             self.assertEqual(result, 1)
             mock_lib_kubernetes.deploy_http_load.assert_not_called()
+            mock_lib_kubernetes.delete_pod.assert_not_called()
+
+    def test_run_cleanup_pods_exception(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
+
+            mock_lib_kubernetes.is_pod_running.return_value = False
+            mock_lib_kubernetes.get_pod_log.return_value = (
+                '{"requests":100,"latencies":{"mean":50000000},"success":1.0,'
+                '"rate":50.0,"throughput":49.5,"status_codes":{"200":100},'
+                '"bytes_in":{"total":1024},"bytes_out":{"total":512},"errors":[]}'
+            )
+            mock_lib_kubernetes.delete_pod.side_effect = Exception(
+                "API error deleting pod"
+            )
+
+            plugin = HttpLoadScenarioPlugin()
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            self.assertEqual(result, 0)
+            mock_lib_kubernetes.deploy_http_load.assert_called_once()
+            mock_lib_kubernetes.delete_pod.assert_called_once()
 
     def test_run_deploy_exception(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -370,6 +402,7 @@ class TestHttpLoadRun(unittest.TestCase):
             )
 
             self.assertEqual(result, 1)
+            mock_lib_kubernetes.delete_pod.assert_not_called()
 
 
 class TestRollbackHttpLoadPods(unittest.TestCase):
