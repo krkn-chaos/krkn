@@ -18,6 +18,7 @@ from unittest.mock import MagicMock, patch
 import uuid
 import yaml
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.service_hijacking.service_hijacking_scenario_plugin import (
     ServiceHijackingScenarioPlugin,
 )
@@ -116,6 +117,10 @@ class TestServiceHijackingRun(unittest.TestCase):
         """Set up test fixtures - create temporary directory"""
         self.temp_dir = tempfile.TemporaryDirectory()
         self.tmp_path = Path(self.temp_dir.name)
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         """Clean up temporary directory after test"""
@@ -159,8 +164,63 @@ class TestServiceHijackingRun(unittest.TestCase):
         mock_lib_telemetry = MagicMock()
         mock_lib_kubernetes = MagicMock()
         mock_lib_telemetry.get_lib_kubernetes.return_value = mock_lib_kubernetes
+        mock_lib_kubernetes.cli.read_namespaced_service.return_value.spec.selector = {
+            "app": "nginx"
+        }
         mock_scenario_telemetry = MagicMock()
         return mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry
+
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """The service is never patched if the rollback can't be persisted,
+        and the already deployed hijacker pod is cleaned up"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.service_exists.return_value = True
+        mock_webservice = MagicMock()
+        mock_webservice.pod_name = "hijacker-pod"
+        mock_lib_kubernetes.deploy_service_hijacking.return_value = mock_webservice
+
+        plugin = ServiceHijackingScenarioPlugin()
+        plugin.rollback_handler = MagicMock()
+        plugin.rollback_handler.set_rollback_callable.return_value = False
+        result = plugin.run(
+            run_uuid=str(uuid.uuid4()),
+            scenario=scenario_file,
+            lib_telemetry=mock_lib_telemetry,
+            scenario_telemetry=mock_scenario_telemetry,
+        )
+
+        self.assertEqual(result, 1)
+        mock_lib_kubernetes.replace_service_selector.assert_not_called()
+        mock_lib_kubernetes.undeploy_service_hijacking.assert_called_once_with(
+            mock_webservice
+        )
+
+    def test_run_service_read_fails_before_deploy(self):
+        """A failed read of the original selectors leaves nothing deployed"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.service_exists.return_value = True
+        mock_lib_kubernetes.cli.read_namespaced_service.side_effect = Exception(
+            "read failed"
+        )
+
+        plugin = ServiceHijackingScenarioPlugin()
+        plugin.rollback_handler = MagicMock()
+        result = plugin.run(
+            run_uuid=str(uuid.uuid4()),
+            scenario=scenario_file,
+            lib_telemetry=mock_lib_telemetry,
+            scenario_telemetry=mock_scenario_telemetry,
+        )
+
+        self.assertEqual(result, 1)
+        mock_lib_kubernetes.deploy_service_hijacking.assert_not_called()
+        plugin.rollback_handler.set_rollback_callable.assert_not_called()
 
     def test_run_successful(self):
         """Test successful execution of the run method"""
