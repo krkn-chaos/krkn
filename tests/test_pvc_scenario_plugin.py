@@ -19,7 +19,10 @@ import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
-from krkn.scenario_plugins.pvc.pvc_scenario_plugin import PvcScenarioPlugin
+from krkn.scenario_plugins.pvc.pvc_scenario_plugin import (
+    PvcScenarioPlugin,
+    _parse_fill_percentage,
+)
 from krkn.rollback.config import RollbackContent
 
 
@@ -44,6 +47,14 @@ class TestPvcScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(result, ["pvc_scenarios"])
         self.assertEqual(len(result), 1)
+
+    def test_parse_fill_percentage_defaults_missing_or_blank_values(self):
+        for value in (None, "", "   "):
+            with self.subTest(value=value):
+                self.assertEqual(_parse_fill_percentage(value), 50.0)
+
+    def test_parse_fill_percentage_accepts_quoted_numeric_value(self):
+        self.assertEqual(_parse_fill_percentage("50"), 50.0)
 
 
 class TestToKbytes(unittest.TestCase):
@@ -476,7 +487,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             self.assertIn("command -v fallocate", calls[1].args[0][0])
             self.assertIn("command -v dd", calls[2].args[0][0])
 
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
+    @patch("krkn.utils.filesystem_pvc.time.sleep")
     def test_run_success_with_fallocate(self, mock_sleep):
         """Test successful run using fallocate"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -523,8 +534,11 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 "/usr/bin/dd",  # command -v dd
                 "",  # fallocate command
                 "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",  # ls -lh (file created)
+                "71680000",  # wc -c
+                "/dev/sda1 100000 80000 20000 80% /mnt/data",  # df after fill
                 "",  # rm -f (cleanup)
                 "total 0",  # ls -lh (file removed)
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df after cleanup
             ]
 
             mock_scenario_telemetry = MagicMock()
@@ -544,7 +558,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
             self.assertEqual(result, 0)
             mock_sleep.assert_called_once_with(1)
 
-    @patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep")
+    @patch("krkn.utils.filesystem_pvc.time.sleep")
     def test_run_success_with_dd(self, mock_sleep):
         """Test successful run using dd when fallocate is not available"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -591,8 +605,11 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 "/usr/bin/dd",  # command -v dd
                 "",  # dd command
                 "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",  # ls -lh
+                "71680000",  # wc -c
+                "/dev/sda1 100000 80000 20000 80% /mnt/data",  # df after fill
                 "",  # rm -f
                 "total 0",  # ls -lh (file removed)
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df after cleanup
             ]
 
             mock_scenario_telemetry = MagicMock()
@@ -783,8 +800,11 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 "/usr/bin/dd",  # command -v dd
                 "",  # fallocate command
                 "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",  # ls -lh (file created)
+                "71680000",  # wc -c
+                "/dev/sda1 100000 80000 20000 80% /mnt/data",  # df after fill
                 "",  # rm -f (cleanup)
                 "total 0",  # ls -lh (file removed)
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",  # df after cleanup
             ]
 
             mock_scenario_telemetry = MagicMock()
@@ -794,7 +814,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 "set_rollback_callable",
                 return_value=True,
             ):
-              with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
+              with patch("krkn.utils.filesystem_pvc.time.sleep"):
                 result = self.plugin.run(
                     run_uuid="test-uuid",
                     scenario=scenario_path,
@@ -938,8 +958,11 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 "/usr/bin/dd",
                 "",
                 "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",
+                "71680000",
+                "/dev/sda1 100000 80000 20000 80% /mnt/data",
                 "",
                 "total 0",
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",
             ]
 
             mock_scenario_telemetry = MagicMock()
@@ -951,8 +974,11 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
                 "/usr/bin/dd",
                 "",
                 "-rw-r--r-- 1 root root 70M Jan 1 00:00 kraken.tmp",
+                "71680000",
+                "/dev/sda1 100000 80000 20000 80% /mnt/data",
                 "",
                 "total 0",
+                "/dev/sda1 100000 10000 90000 10% /mnt/data",
             ])
 
             def track_shell(*a, **kw):
@@ -971,7 +997,7 @@ class TestPvcScenarioPluginRun(unittest.TestCase):
               "set_rollback_callable",
               return_value=True,
             ):
-              with patch("krkn.scenario_plugins.pvc.pvc_scenario_plugin.time.sleep"):
+              with patch("krkn.utils.filesystem_pvc.time.sleep"):
                 result = self.plugin.run(
                     run_uuid="test-uuid",
                     scenario=scenario_path,
