@@ -75,3 +75,5 @@ CI/tests_v2/assets/
 #env
 chaos/*
 
+# Go binaries downloaded from CI build artifacts for local Docker builds
+containers/tools/

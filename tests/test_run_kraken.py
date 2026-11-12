@@ -7,6 +7,28 @@ from run_kraken import main
 
 class TestRunKraken(unittest.TestCase):
 
+    @patch('run_kraken.logging.error')
+    @patch('run_kraken.yaml.safe_load')
+    @patch('run_kraken.os.path.isfile')
+    @patch('builtins.open', new_callable=mock_open)
+    def test_invalid_signature_config_logs_exit_code(
+        self, mock_file, mock_isfile, mock_yaml_load, mock_log_error
+    ):
+        mock_isfile.side_effect = lambda path: path == "/fake/config.yaml"
+        mock_yaml_load.return_value = {
+            "kraken": {
+                "image_signature_verification_enabled": True,
+                "image_signature_public_key": "missing.pub",
+            }
+        }
+
+        result = main(SimpleNamespace(cfg="/fake/config.yaml"), None)
+
+        self.assertEqual(result, 1)
+        mock_log_error.assert_called_once()
+        self.assertEqual(mock_log_error.call_args.args[1], 1)
+        self.assertIn("missing.pub", str(mock_log_error.call_args.args[2]))
+
     @patch('run_kraken.yaml.safe_load')
     @patch('run_kraken.os.path.isfile')
     @patch('builtins.open', new_callable=mock_open)

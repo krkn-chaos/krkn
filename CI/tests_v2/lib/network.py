@@ -143,9 +143,20 @@ def http_status_and_body(kubectl, namespace, pod, url) -> Optional[tuple]:
         kubectl, namespace, pod, url, write_out="\n%{http_code}", discard_body=False
     )
     if response.returncode != 0:
+        logger.warning(
+            "HTTP probe failed: url=%s rc=%s stderr=%s",
+            url,
+            response.returncode,
+            response.stderr.strip(),
+        )
         return None
     body, separator, status = response.stdout.rpartition("\n")
     if not separator or not status.isdigit():
+        logger.warning(
+            "HTTP probe returned an invalid status: url=%s stdout=%r",
+            url,
+            response.stdout[-200:],
+        )
         return None
     return int(status), body
 
