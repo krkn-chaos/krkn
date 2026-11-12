@@ -338,6 +338,41 @@ class TestRollbackAbstractScenarioPlugin:
         assert result is False
         plugin.rollback_handler.serializer.serialize_callable.assert_called_once()
 
+    def test_failed_write_leaves_no_rollback_file(self, tmp_path):
+        from unittest.mock import Mock, patch
+        from krkn.rollback.serialization import Serializer
+
+        def sample_rollback(rollback_content, lib_telemetry):
+            pass
+
+        version = Mock()
+        version.version_file_full_path = str(
+            tmp_path / "test_scenario_123456789_abcdefgh.py"
+        )
+        real_open = open
+
+        class HalfWrite:
+            def __init__(self, path, mode):
+                self.f = real_open(path, mode)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                self.f.close()
+
+            def write(self, data):
+                self.f.write(data[: len(data) // 2])
+                raise OSError("disk full")
+
+        with patch("krkn.rollback.serialization.open", HalfWrite, create=True):
+            with pytest.raises(OSError):
+                Serializer("test_scenario").serialize_callable(
+                    sample_rollback, "content", version
+                )
+
+        assert os.listdir(tmp_path) == []
+
     @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
     @pytest.mark.parametrize("scenario_should_fail", [True, False], ids=["failing_scenario", "successful_scenario"])
     def test_run_scenarios_respect_auto_rollback_config(self, auto_rollback, scenario_should_fail):
