@@ -43,6 +43,30 @@ class TestApplicationOutageScenarioPlugin(unittest.TestCase):
         self.assertEqual(result, ["application_outages_scenarios"])
         self.assertEqual(len(result), 1)
 
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """No network policy is created if the rollback can't be persisted."""
+        config = {
+            "application_outage": {
+                "duration": 0,
+                "namespace": "test-ns",
+                "pod_selector": {"app": "foo"},
+                "block": ["Ingress"],
+                "exclude_label": None,
+            }
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "app_outage.yaml")
+            with open(path, "w") as f:
+                yaml.safe_dump(config, f)
+            lib_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            kubecli = MagicMock(spec=KrknKubernetes)
+            lib_telemetry.get_lib_kubernetes.return_value = kubecli
+            self.plugin.rollback_handler = MagicMock()
+            self.plugin.rollback_handler.set_rollback_callable.return_value = False
+            result = self.plugin.run("test-uuid", path, lib_telemetry, MagicMock())
+        self.assertEqual(result, 1)
+        kubecli.create_net_policy.assert_not_called()
+
     def _rendered_policy(self, exclude_label=None, raw_yaml=None):
         """Run the scenario with a mocked cluster and return the NetworkPolicy spec sent to the API."""
         config = {
