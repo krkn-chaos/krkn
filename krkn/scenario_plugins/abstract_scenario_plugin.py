@@ -15,6 +15,7 @@ import logging
 import os
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils.functions import get_yaml_item_value
@@ -27,6 +28,22 @@ from krkn.rollback.handler import (
 )
 from krkn.rollback.signal import signal_handler
 from krkn.rollback.serialization import Serializer
+
+
+@dataclass
+class ScenarioPreview:
+    """Read-only preview of targets a scenario would affect during dry-run."""
+    scenario_type: str
+    scenario_file: str
+    target_kind: str
+    selectors: dict
+    matched_targets: list[dict]
+    excluded_targets: list[dict]
+    planned_targets: list[dict]
+    planned_action: str
+    warnings: list[str] = field(default_factory=list)
+    supported: bool = True
+
 
 class AbstractScenarioPlugin(ABC):
 
@@ -75,6 +92,29 @@ class AbstractScenarioPlugin(ABC):
         :return: the corresponding scenario_type as a list of strings
         """
         pass
+
+    def preview(self, scenario, kubecli):
+        """Return a read-only preview of targets this scenario would affect.
+
+        Plugins that support dry-run override this method to resolve targets
+        without executing chaos.  The default returns an unsupported preview.
+
+        :param scenario: path to the scenario config file
+        :param kubecli: KrknKubernetes client for read-only cluster queries
+        :return: list of ScenarioPreview objects
+        """
+        return [ScenarioPreview(
+            scenario_type=self.get_scenario_types()[0],
+            scenario_file=scenario,
+            target_kind="unknown",
+            selectors={},
+            matched_targets=[],
+            excluded_targets=[],
+            planned_targets=[],
+            planned_action="N/A",
+            warnings=["preview not implemented for this scenario type"],
+            supported=False,
+        )]
 
     def run_scenarios(
         self,
