@@ -11,14 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import base64
-import json
 import logging
 import random
-import re
 
 import yaml
-from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value
@@ -26,7 +22,8 @@ from krkn_lib.utils import get_yaml_item_value
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
-from krkn.utils.filesystem_pvc import fill_filesystem_pvc
+from krkn.utils.filesystem_pvc import (encode_rollback_data, fill_filesystem_pvc)
+from krkn.utils.pod_volumes import resolve_pvc_volume
 
 
 def _parse_fill_percentage(value) -> float:
@@ -91,41 +88,71 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         "pod_name will be ignored, pod_name used will be "
                         "a retrieved from the pod used in the pvc_name"
                     )
-
-                # Get pod name
+                    
+                kubecli = lib_telemetry.get_lib_kubernetes()
+                # Get candidate pods
                 if pvc_name:
-                    if pod_name:
-                        logging.info(
-                            "pod_name '%s' will be overridden with one of "
-                            "the pods mounted in the PVC" % (str(pod_name))
-                        )
-                    pvc = lib_telemetry.get_lib_kubernetes().get_pvc_info(
-                        pvc_name, namespace
-                    )
-                    try:
-                        # random generator not used for
-                        # security/cryptographic purposes.
-                        pod_name = random.choice(pvc.podNames)  # nosec
-                        logging.info("Pod name: %s" % pod_name)
-                    except Exception:
-                        logging.error(
-                            "PvcScenarioPlugin Pod associated with %s PVC, on namespace %s, "
-                            "not found" % (str(pvc_name), str(namespace))
-                        )
+                    pvc = kubecli.get_pvc_info(pvc_name, namespace)
+                    if pvc is None:
+                        logging.error("PvcScenarioPlugin: PVC '%s' in namespace '%s' was not found " % (str(pvc_name), str(namespace)))
                         return 1
 
-                kubecli = lib_telemetry.get_lib_kubernetes()
-                pod = kubecli.get_pod_info(name=pod_name, namespace=namespace)
-                if pod is None:
-                    logging.error(
-                        "PvcScenarioPlugin Exiting as pod '%s' doesn't exist "
-                        "in namespace '%s'" % (str(pod_name), str(namespace))
-                    )
-                    return 1
+                    if not pvc.podNames:
+                        logging.error("PvcScenarioPlugin: PVC '%s' in namespace '%s' is not mounted by any pod"% (str(pvc_name), str(namespace)))
+                        return 1
 
+                    # Create a shuffled copy to maintain the random attempt distribution
+                    pods_to_try = list(pvc.podNames)
+                    random.shuffle(pods_to_try)
+                    
+                    if pod_name:
+                        logging.info("pod_name '%s' will be overridden with one of the pods mounted in the PVC" % (str(pod_name)))
+                else:
+                    # Fallback if only pod_name was provided in the configuration
+                    pods_to_try = [pod_name]
+
+                selected_pod = None
+                selected_pod_name = None
+                selected_target = None
+                selected_shell = None
+                
+                for candidate_pod_name in pods_to_try:
+                    shell = None
+                    logging.debug("Attempting to use pod '%s'",candidate_pod_name)
+
+                    pod = kubecli.get_pod_info(name=candidate_pod_name, namespace=namespace)
+                    if pod is None:
+                        logging.debug("Pod '%s' was not found; trying the next pod",candidate_pod_name)
+                        continue
+                    
+                    volume_target = resolve_pvc_volume(kubecli, pod, pvc_name)
+                    if volume_target is None:
+                        logging.debug("Pod '%s' does not expose PVC '%s'; trying the next pod",candidate_pod_name,pvc_name,)
+                        continue
+                    
+                    # Filesystem volumes require a usable shell.
+                    if volume_target.mode == "filesystem":
+                        shell = kubecli.get_pod_shell(candidate_pod_name,namespace,volume_target.container_name)
+                        if shell is None:
+                            logging.debug("Container '%s' in pod '%s' has no usable shell; trying the next pod",volume_target.container_name,candidate_pod_name)
+                            continue
+
+                    selected_pod = pod
+                    selected_pod_name = candidate_pod_name
+                    selected_target = volume_target
+                    selected_shell = shell
+                    break
+                
+                if selected_pod is None:
+                    resource = f"PVC '{pvc_name}'" if pvc_name else f"pod '{pod_name}'"
+                    logging.error("No usable pod found for %s in namespace '%s'",resource,namespace,)
+                    return 1
+            
+                pvc_name = selected_target.pvc_name
+                logging.info("Selected pod '%s' for PVC '%s' (mode=%s, container=%s, path=%s)",selected_pod_name, pvc_name, selected_target.mode,selected_target.container_name, selected_target.path,)
+                
                 def register_rollback(data):
-                    json_str = json.dumps(data)
-                    encoded_data = base64.b64encode(json_str.encode("utf-8")).decode("utf-8")
+                    encoded_data = encode_rollback_data(data)
                     success = self.rollback_handler.set_rollback_callable(
                         self.rollback_temp_file,
                         RollbackContent(namespace=namespace, resource_identifier=encoded_data),
@@ -134,17 +161,19 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
                         raise RuntimeError(
                             "PvcScenarioPlugin Failed to register rollback context. Aborting scenario."
                         )
-
+                
                 result, _ = fill_filesystem_pvc(
-                    kubecli,
-                    pod_name,
-                    namespace,
-                    pvc_name,
-                    target_fill_percentage,
-                    duration,
-                    block_size,
+                    kubecli=kubecli,
+                    pod_name=selected_pod_name,
+                    namespace=namespace,
+                    pvc_name=pvc_name,
+                    target_fill_percentage=target_fill_percentage,
+                    duration=duration,
+                    block_size=block_size,
+                    volume_target=selected_target,
                     on_file_created=register_rollback,
-                    pod=pod,
+                    pod=selected_pod,
+                    shell=selected_shell
                 )
                 return result
         except (RuntimeError, Exception) as e:
@@ -153,100 +182,16 @@ class PvcScenarioPlugin(AbstractScenarioPlugin):
         else:
             return 0
 
-    # krkn_lib
-    def remove_temp_file(
-        self,
-        file_name,
-        full_path,
-        pod_name,
-        namespace,
-        container_name,
-        mount_path,
-        file_size_kb,
-        kubecli: KrknKubernetes,
-    ):
-        command = "rm -f %s" % (str(full_path))
-        logging.debug("Remove temp file from the PVC command:\n %s" % command)
-        kubecli.exec_cmd_in_pod([command], pod_name, namespace, container_name)
-        command = "ls -lh %s" % (str(mount_path))
-        logging.debug("Check temp file is removed command:\n %s" % command)
-        response = kubecli.exec_cmd_in_pod(
-            [command], pod_name, namespace, container_name
-        )
-        logging.info("\n" + str(response))
-        if not (str(file_name).lower() in str(response).lower()):
-            logging.info("Temp file successfully removed")
-        else:
-            logging.error(
-                "PvcScenarioPlugin Failed to delete tmp file with %s size"
-                % (str(file_size_kb))
-            )
-            raise RuntimeError()
-
-    def to_kbytes(self, value):
-        if not re.match("^[0-9]+[K|M|G|T]i$", value):
-            logging.error(
-                "PvcScenarioPlugin PVC capacity %s does not match expression "
-                "regexp '^[0-9]+[K|M|G|T]i$'"
-            )
-            raise RuntimeError()
-        unit = {"K": 0, "M": 1, "G": 2, "T": 3}
-        base = 1024 if ("i" in value) else 1000
-        exp = unit[value[-2:-1]]
-        res = int(value[:-2]) * (base**exp)
-        return res
-
     @staticmethod
     def rollback_temp_file(
         rollback_content: RollbackContent,
         lib_telemetry: KrknTelemetryOpenshift,
     ):
-        """Rollback function to remove temporary file created during the PVC scenario.
-
-        :param rollback_content: Rollback content containing namespace and encoded rollback data in resource_identifier.
-        :param lib_telemetry: Instance of KrknTelemetryOpenshift for Kubernetes operations.
-        """
-        try:
-            namespace = rollback_content.namespace
-            import base64 # noqa
-            import json # noqa
-            decoded_data = base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8')
-            rollback_data = json.loads(decoded_data)
-            pod_name = rollback_data["pod_name"]
-            container_name = rollback_data["container_name"]
-            full_path = rollback_data["full_path"]
-            file_name = rollback_data["file_name"]
-            mount_path = rollback_data["mount_path"]
-            
-            logging.info(
-                f"Rolling back PVC scenario: removing temp file {full_path} from pod {pod_name} in namespace {namespace}"
-            )
-            
-            # Remove the temp file
-            command = "rm -f %s" % (str(full_path))
-            logging.info("Remove temp file from the PVC command:\n %s" % command)
-            response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
-                [command], pod_name, namespace, container_name
-            )
-            logging.info("\n" + str(response))
-            # Verify removal
-            command = "ls -lh %s" % (str(mount_path))
-            logging.info("Check temp file is removed command:\n %s" % command)
-            response = lib_telemetry.get_lib_kubernetes().exec_cmd_in_pod(
-                [command], pod_name, namespace, container_name
-            )
-            logging.info("\n" + str(response))
-            
-            if not (str(file_name).lower() in str(response).lower()):
-                logging.info("Temp file successfully removed during rollback")
-            else:
-                logging.warning(
-                    f"Temp file {file_name} may still exist after rollback attempt"
-                )
-            
-            logging.info("PVC scenario rollback completed successfully.")
-        except Exception as e:
-            logging.error(f"Failed to rollback PVC scenario temp file: {e}")
+        from krkn.utils.filesystem_pvc import rollback_filesystem_fill
+        rollback_filesystem_fill(
+            rollback_content.resource_identifier,
+            lib_telemetry,
+        )
 
     def get_scenario_types(self) -> list[str]:
         return ["pvc_scenarios"]
