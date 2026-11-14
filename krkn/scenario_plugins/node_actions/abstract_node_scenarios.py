@@ -19,6 +19,11 @@ import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
+
+class NodeStopIssuedError(RuntimeError):
+    """A node stop failed after the stop request was sent, so the node may be stopped."""
+
+
 # krkn_lib
 class abstract_node_scenarios:
     kubecli: KrknKubernetes
@@ -41,7 +46,26 @@ class abstract_node_scenarios:
     # Node scenario to stop and then start the node
     def node_stop_start_scenario(self, instance_kill_count, node, timeout, duration, poll_interval):
         logging.info("Starting node_stop_start_scenario injection")
-        self.node_stop_scenario(instance_kill_count, node, timeout, poll_interval)
+        try:
+            self.node_stop_scenario(instance_kill_count, node, timeout, poll_interval)
+        except NodeStopIssuedError as stop_error:
+            # The stop request went out, so the node may be stopped. Start it
+            # anyway, then fail the scenario with the stop error. Failures
+            # before the request leave the node as it was and are not caught.
+            logging.error(
+                "Stopping node %s failed, starting it again in %s seconds before failing: %s"
+                % (node, duration, stop_error)
+            )
+            time.sleep(duration)
+            try:
+                self.node_start_scenario(instance_kill_count, node, timeout, poll_interval)
+            except Exception as start_error:
+                logging.error(
+                    "Starting node %s after the failed stop also failed: %s"
+                    % (node, start_error)
+                )
+            self.affected_nodes_status.merge_affected_nodes()
+            raise stop_error
         logging.info("Waiting for %s seconds before starting the node" % (duration))
         time.sleep(duration)
         self.node_start_scenario(instance_kill_count, node, timeout, poll_interval)

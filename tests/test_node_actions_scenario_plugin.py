@@ -18,7 +18,7 @@ import os
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.telemetry import ScenarioTelemetry
-from krkn_lib.models.k8s import AffectedNodeStatus
+from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
 from krkn.scenario_plugins.node_actions.node_actions_scenario_plugin import NodeActionsScenarioPlugin
 
@@ -328,6 +328,36 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
 
         mock_common_funcs.get_node_by_name.assert_called_once_with(["node1", "node2"], self.mock_kubecli)
         self.assertEqual(mock_scenario_object.node_stop_start_scenario.call_count, 2)
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    def test_inject_node_scenario_keeps_telemetry_of_nodes_done_before_a_failure(self, mock_common_funcs):
+        """
+        A failure on a later node still reports the nodes that completed before it (#1653)
+        """
+        node_scenario = {"node_name": "node1,node2", "runs": 1, "timeout": 120, "duration": 0}
+        action = "node_stop_scenario"
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        done = AffectedNode("node1")
+
+        def stop(_count, node, _timeout, _poll):
+            if node == "node1":
+                mock_scenario_object.affected_nodes_status.affected_nodes.append(done)
+            else:
+                raise RuntimeError("wait failed")
+
+        mock_scenario_object.node_stop_scenario.side_effect = stop
+        mock_common_funcs.get_node_by_name.return_value = ["node1", "node2"]
+
+        with self.assertRaises(RuntimeError):
+            self.plugin.inject_node_scenario(
+                action,
+                node_scenario,
+                mock_scenario_object,
+                self.mock_kubecli,
+                self.mock_scenario_telemetry
+            )
+        self.assertEqual(self.mock_scenario_telemetry.affected_nodes, [done])
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
     def test_inject_node_scenario_with_label_selector(self, mock_common_funcs):

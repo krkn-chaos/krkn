@@ -9,7 +9,7 @@ Assisted By: Claude Code
 
 import unittest
 from unittest.mock import Mock, patch
-from krkn.scenario_plugins.node_actions.abstract_node_scenarios import abstract_node_scenarios
+from krkn.scenario_plugins.node_actions.abstract_node_scenarios import NodeStopIssuedError, abstract_node_scenarios
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
 
@@ -63,6 +63,59 @@ class TestAbstractNodeScenarios(unittest.TestCase):
         self.scenarios.node_start_scenario.assert_called_once_with(
             instance_kill_count, node, timeout, poll_interval
         )
+        self.mock_affected_nodes_status.merge_affected_nodes.assert_called_once()
+
+    @staticmethod
+    def _stop_issued_error():
+        """A provider stop error raised after the stop request was sent, as the AWS handler raises it"""
+        try:
+            try:
+                raise RuntimeError("Timed out or failed waiting for instance i-1 to be stopped")
+            except RuntimeError as e:
+                raise NodeStopIssuedError("node_stop_scenario injection failed") from e
+        except NodeStopIssuedError as error:
+            return error
+
+    @patch('time.sleep')
+    def test_node_stop_start_scenario_still_starts_when_stop_was_issued(self, mock_sleep):
+        """A stop that failed after the stop request still starts the node after duration, then fails (#1653)"""
+        stop_error = self._stop_issued_error()
+        self.scenarios.node_stop_scenario = Mock(side_effect=stop_error)
+        self.scenarios.node_start_scenario = Mock()
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenarios.node_stop_start_scenario(1, "test-node", 300, 60, 10)
+
+        self.assertIs(ctx.exception, stop_error)
+        mock_sleep.assert_called_once_with(60)
+        self.scenarios.node_start_scenario.assert_called_once_with(1, "test-node", 300, 10)
+        self.mock_affected_nodes_status.merge_affected_nodes.assert_called_once()
+
+    @patch('time.sleep')
+    def test_node_stop_start_scenario_does_not_start_when_stop_was_never_issued(self, mock_sleep):
+        """A stop that failed before the stop request (e.g. instance lookup) does not start the node (#1653)"""
+        stop_error = RuntimeError("could not get instance id")
+        self.scenarios.node_stop_scenario = Mock(side_effect=stop_error)
+        self.scenarios.node_start_scenario = Mock()
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenarios.node_stop_start_scenario(1, "test-node", 300, 60, 10)
+
+        self.assertIs(ctx.exception, stop_error)
+        mock_sleep.assert_not_called()
+        self.scenarios.node_start_scenario.assert_not_called()
+
+    @patch('time.sleep')
+    def test_node_stop_start_scenario_fails_when_stop_and_start_fail(self, mock_sleep):
+        """If the start after a failed stop also fails, the stop failure is what's raised (#1653)"""
+        stop_error = self._stop_issued_error()
+        self.scenarios.node_stop_scenario = Mock(side_effect=stop_error)
+        self.scenarios.node_start_scenario = Mock(side_effect=RuntimeError("start"))
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenarios.node_stop_start_scenario(1, "test-node", 300, 60, 10)
+        self.assertIs(ctx.exception, stop_error)
+        self.scenarios.node_start_scenario.assert_called_once()
         self.mock_affected_nodes_status.merge_affected_nodes.assert_called_once()
 
     @patch('logging.info')
