@@ -4,6 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin import (
+    pod_outage,
+)
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.scenario_plugin_factory import ScenarioPluginFactory
 from krkn.scenario_plugins.native.plugins import PluginStep, Plugins, PLUGINS
@@ -233,7 +236,7 @@ class TestPlugins(unittest.TestCase):
             plugins = Plugins([self.plugin_step1])
 
             with self.assertRaises(Exception) as context:
-                plugins.run(temp_file, "/path/to/kubeconfig", "/path/to/kraken_config", "test-uuid")
+                plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
             self.assertIn("expected list", str(context.exception))
         finally:
@@ -252,7 +255,7 @@ class TestPlugins(unittest.TestCase):
             plugins = Plugins([self.plugin_step1])
 
             with self.assertRaises(Exception) as context:
-                plugins.run(temp_file, "/path/to/kubeconfig", "/path/to/kraken_config", "test-uuid")
+                plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
             self.assertIn("expected a list of dict's", str(context.exception))
         finally:
@@ -273,7 +276,7 @@ class TestPlugins(unittest.TestCase):
             plugins = Plugins([self.plugin_step1])
 
             with self.assertRaises(Exception) as context:
-                plugins.run(temp_file, "/path/to/kubeconfig", "/path/to/kraken_config", "test-uuid")
+                plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
             self.assertIn("missing 'id' field", str(context.exception))
         finally:
@@ -294,7 +297,7 @@ class TestPlugins(unittest.TestCase):
             plugins = Plugins([self.plugin_step1])
 
             with self.assertRaises(Exception) as context:
-                plugins.run(temp_file, "/path/to/kubeconfig", "/path/to/kraken_config", "test-uuid")
+                plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
             self.assertIn("missing 'config' field", str(context.exception))
         finally:
@@ -320,7 +323,7 @@ class TestPlugins(unittest.TestCase):
             plugins = Plugins([plugin_step])
 
             with self.assertRaises(Exception) as context:
-                plugins.run(temp_file, "/path/to/kubeconfig", "/path/to/kraken_config", "test-uuid")
+                plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
             self.assertIn("Invalid step", str(context.exception))
             self.assertIn("expected one of", str(context.exception))
@@ -361,7 +364,7 @@ class TestPlugins(unittest.TestCase):
 
         try:
             plugins = Plugins([plugin_step])
-            plugins.run(temp_file, "/path/to/kubeconfig", "/path/to/kraken_config", "test-uuid")
+            plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
             # Verify schema was called
             mock_schema.assert_called_once()
@@ -404,7 +407,7 @@ class TestPlugins(unittest.TestCase):
             plugins = Plugins([plugin_step])
 
             with self.assertRaises(Exception) as context:
-                plugins.run(temp_file, "/path/to/kubeconfig", "/path/to/kraken_config", "test-uuid")
+                plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
             self.assertIn("failed", str(context.exception))
         finally:
@@ -445,7 +448,7 @@ class TestPlugins(unittest.TestCase):
 
         try:
             plugins = Plugins([plugin_step])
-            plugins.run(temp_file, "/custom/kubeconfig", "/path/to/kraken_config", "test-uuid")
+            plugins.run(temp_file, "/custom/kubeconfig", "test-uuid")
 
             # Verify kubeconfig_path was set
             self.assertEqual(mock_input_instance.kubeconfig_path, "/custom/kubeconfig")
@@ -453,18 +456,14 @@ class TestPlugins(unittest.TestCase):
             Path(temp_file).unlink()
 
     @patch('krkn.scenario_plugins.native.plugins.logging')
-    def test_run_with_kraken_config_injection(self, mock_logging):
-        """Test run method injects kraken_config when property exists"""
+    def test_run_with_kraken_config_from_scenario(self, mock_logging):
+        """Test run method passes kraken_config through scenario configuration"""
         # Create mock schema with kraken_config in input properties
         mock_schema = Mock()
         mock_schema.id = "test_step"
 
-        # Mock input schema with kraken_config property
-        mock_input_instance = Mock()
-        mock_input = Mock()
-        mock_input.properties = {"kraken_config": Mock()}
-        mock_input.unserialize = Mock(return_value=mock_input_instance)
-        mock_schema.input = mock_input
+        # Use the real input schema to verify configuration deserialization
+        mock_schema.input = pod_outage.input
 
         # Mock output
         mock_output = Mock()
@@ -477,8 +476,14 @@ class TestPlugins(unittest.TestCase):
         plugin_step = PluginStep(schema=mock_schema, error_output_ids=["error"])
 
         # Create a temporary YAML file
+        kraken_config = {"cerberus_enabled": True}
+        test_config = {
+            "namespace": "default",
+            "pod_name": "test-pod",
+            "kraken_config": kraken_config,
+        }
         test_data = [
-            {"id": "test_step", "config": {"param": "value"}}
+            {"id": "test_step", "config": test_config}
         ]
 
         with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
@@ -487,12 +492,21 @@ class TestPlugins(unittest.TestCase):
 
         try:
             plugins = Plugins([plugin_step])
-            plugins.run(temp_file, "/path/to/kubeconfig", "/custom/kraken.yaml", "test-uuid")
+            plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
-            # Verify kraken_config was set
-            self.assertEqual(mock_input_instance.kraken_config, "/custom/kraken.yaml")
+            mock_schema.assert_called_once()
+
+            actual_params = mock_schema.call_args.kwargs["params"]
+
+            self.assertEqual(actual_params.kraken_config, kraken_config)
+            self.assertEqual(actual_params.namespace, "default")
+            self.assertEqual(actual_params.pod_name, "test-pod")
+            self.assertEqual(actual_params.kubeconfig_path, "/path/to/kubeconfig")
+
+
         finally:
             Path(temp_file).unlink()
+
 
     def test_json_schema(self):
         """Test json_schema method"""
