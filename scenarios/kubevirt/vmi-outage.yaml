@@ -6,3 +6,18 @@ scenarios:
       label_selector: ""        # optional; if set, vm_name is not required
       namespace: <namespace>
       timeout: 60
+      # Optional: MTTR from VMI Running → first guest ICMP ping via helper pod
+      wait_for_guest_ping: false
+      guest_ping_timeout: 300
+      guest_ping_interval: 2
+      # icmp (default): ephemeral helper gets NET_RAW; needs a less-restricted SCC.
+      guest_ping_method: icmp
+      guest_ping_settle_seconds: 5
+      # Override for disconnected / mirrored registries (must include ping/nc):
+      # guest_ping_image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools
+      # guest_ping_namespace:   # defaults to the scenario namespace
+      # For tcp instead of icmp (restricted-v2 / no NET_RAW):
+      #   guest_ping_method: tcp
+      #   guest_ping_port: 22   # or 3389 for RDP
+      #   oc apply -f CI/templates/guest-ping-diagnosis-pod.yaml -n <ns>
+      #   guest_ping_pod: krkn-guest-ping-diagnosis

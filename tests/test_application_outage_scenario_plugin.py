@@ -151,6 +151,57 @@ class TestApplicationOutageScenarioPlugin(unittest.TestCase):
         values = {e["key"]: e["values"] for e in expressions}
         self.assertEqual(values, {"true": ["x"], "false": ["y"]})
 
+    def test_pod_selector_unquoted_values_in_scenario_file(self):
+        """
+        Unquoted booleans and numbers in pod_selector load as bool/float; the
+        matchLabels sent to the API must be strings ("true", "1.0")
+        """
+        raw_yaml = (
+            "application_outage:\n"
+            "  duration: 0\n"
+            "  namespace: test-ns\n"
+            "  pod_selector: {app: foo, canary: true, debug: false, version: 1.0}\n"
+            "  block: [Ingress]\n"
+        )
+        spec = self._rendered_policy(raw_yaml=raw_yaml)
+        self.assertEqual(
+            spec["spec"]["podSelector"]["matchLabels"],
+            {"app": "foo", "canary": "true", "debug": "false", "version": "1.0"},
+        )
+
+    def test_pod_selector_unquoted_boolean_keys_in_scenario_file(self):
+        """
+        Label keys written unquoted as true/false in pod_selector load as
+        bools; they must reach matchLabels as "true"/"false"
+        """
+        raw_yaml = (
+            "application_outage:\n"
+            "  duration: 0\n"
+            "  namespace: test-ns\n"
+            "  pod_selector: {true: x, false: y}\n"
+            "  block: [Ingress]\n"
+        )
+        spec = self._rendered_policy(raw_yaml=raw_yaml)
+        self.assertEqual(
+            spec["spec"]["podSelector"]["matchLabels"], {"true": "x", "false": "y"}
+        )
+
+    def test_pod_selector_missing_or_empty_selects_all_pods(self):
+        """
+        Without pod_selector (or with an empty one) matchLabels must be an
+        empty dict, which selects every pod in the namespace
+        """
+        base = (
+            "application_outage:\n"
+            "  duration: 0\n"
+            "  namespace: test-ns\n"
+            "  block: [Ingress]\n"
+        )
+        for raw_yaml in (base, base + "  pod_selector:\n", base + "  pod_selector: {}\n"):
+            with self.subTest(raw_yaml=raw_yaml):
+                spec = self._rendered_policy(raw_yaml=raw_yaml)
+                self.assertEqual(spec["spec"]["podSelector"]["matchLabels"], {})
+
 
 if __name__ == "__main__":
     unittest.main()

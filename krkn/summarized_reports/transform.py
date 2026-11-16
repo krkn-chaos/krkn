@@ -253,6 +253,36 @@ def _extract_scenario_params(raw_params):
     return selectors, namespaces, exclude_labels, cloud_types
 
 
+def _extract_vmi_pvc_targets(raw_params):
+    """Extract VMI PVC target identifiers from nested scenario parameters."""
+    targets = []
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            vmi_name = obj.get("vmi_name")
+            pvc_name = obj.get("pvc_name")
+            if vmi_name or pvc_name:
+                target = {
+                    "namespace": obj.get("namespace") or obj.get("namespace_pattern"),
+                    "vmi_name": vmi_name,
+                    "pvc_name": pvc_name,
+                    "fill_percentage": obj.get("fill_percentage"),
+                    "duration": obj.get("duration"),
+                }
+                if target not in targets:
+                    targets.append(target)
+            for value in obj.values():
+                if isinstance(value, (dict, list)):
+                    _walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, (dict, list)):
+                    _walk(item)
+
+    _walk(raw_params)
+    return targets
+
+
 def _extract_pod_name(pod):
     if isinstance(pod, dict):
         ns = pod.get("namespace", "")
@@ -360,10 +390,26 @@ def build_chaos_report(chaos_output: dict) -> str:
     for i, s in enumerate(scenarios, 1):
         lines.append(f"  [{i}] Scenario  : " + str(s.get("scenario", "N/A")) + " (" + str(s.get("scenario_type", "N/A")) + ")")
         selectors, ns_list, exclude_labels, cloud_types = _extract_scenario_params(s.get("parameters", {}))
+        vmi_pvc_targets = _extract_vmi_pvc_targets(s.get("parameters", {}))
+        target_namespaces = {
+            target["namespace"] for target in vmi_pvc_targets if target.get("namespace")
+        }
+        ns_list = [namespace for namespace in ns_list if namespace not in target_namespaces]
         if selectors:
             lines.append("  Label Selector : " + ", ".join(selectors))
         if ns_list:
             lines.append("  Namespace      : " + ", ".join(ns_list))
+        for target in vmi_pvc_targets:
+            if target.get("namespace"):
+                lines.append("  Namespace      : " + str(target["namespace"]))
+            if target.get("vmi_name"):
+                lines.append("  VMI Name       : " + str(target["vmi_name"]))
+            if target.get("pvc_name"):
+                lines.append("  PVC Name       : " + str(target["pvc_name"]))
+            if target.get("fill_percentage") is not None:
+                lines.append("  Fill Percentage: " + str(target["fill_percentage"]) + "%")
+            if target.get("duration") is not None:
+                lines.append("  Duration       : " + str(target["duration"]) + "s")
         if exclude_labels:
             lines.append("  Exclude Label  : " + ", ".join(exclude_labels))
         if cloud_types:
@@ -444,9 +490,20 @@ def build_chaos_report(chaos_output: dict) -> str:
                 total = max(vmi_recovery_times)
                 reschedule_times = [v.get("vmi_rescheduling_time") or 0 for v in vmi_recovered if isinstance(v, dict)]
                 readiness_times = [v.get("vmi_readiness_time") or 0 for v in vmi_recovered if isinstance(v, dict)]
+                guest_times = [
+                    v.get("guest_reachable_time")
+                    for v in vmi_recovered
+                    if isinstance(v, dict) and v.get("guest_reachable_time") is not None
+                ]
                 lines.append(f"    VMI Recovery Time     : {total:.2f}s")
                 lines.append(f"      ├─ Rescheduling Time: {max(reschedule_times):.2f}s")
-                lines.append(f"      └─ Readiness Time   : {max(readiness_times):.2f}s")
+                if guest_times:
+                    lines.append(f"      ├─ Readiness Time   : {max(readiness_times):.2f}s")
+                    lines.append(
+                        f"      └─ Guest Reachable  : {max(guest_times):.2f}s"
+                    )
+                else:
+                    lines.append(f"      └─ Readiness Time   : {max(readiness_times):.2f}s")
 
         affected_nodes = s.get("affected_nodes", [])
         if affected_nodes:
@@ -776,6 +833,11 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
     scenarios = []
     for s in scenarios_raw:
         selectors, ns_list, exclude_labels, cloud_types = _extract_scenario_params(s.get("parameters", {}))
+        vmi_pvc_targets = _extract_vmi_pvc_targets(s.get("parameters", {}))
+        target_namespaces = {
+            target["namespace"] for target in vmi_pvc_targets if target.get("namespace")
+        }
+        ns_list = [namespace for namespace in ns_list if namespace not in target_namespaces]
 
         recovered = s.get("affected_pods", {}).get("recovered", [])
         unrecovered = s.get("affected_pods", {}).get("unrecovered", [])
@@ -810,10 +872,17 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             vmi_total_recovery = max(vmi_recovery_times)
             vmi_reschedule = max(v.get("vmi_rescheduling_time") or 0 for v in vmi_recovered if isinstance(v, dict))
             vmi_readiness = max(v.get("vmi_readiness_time") or 0 for v in vmi_recovered if isinstance(v, dict))
+            guest_vals = [
+                v.get("guest_reachable_time")
+                for v in vmi_recovered
+                if isinstance(v, dict) and v.get("guest_reachable_time") is not None
+            ]
+            vmi_guest_reachable = max(guest_vals) if guest_vals else None
         else:
             vmi_total_recovery = None
             vmi_reschedule = None
             vmi_readiness = None
+            vmi_guest_reachable = None
 
         affected_nodes = s.get("affected_nodes", [])
         node_list = []
@@ -855,6 +924,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             "scenario_type": s.get("scenario_type", "N/A"),
             "selectors": selectors,
             "namespaces": ns_list,
+            "vmi_pvc_targets": vmi_pvc_targets,
             "exclude_labels": exclude_labels,
             "cloud_types": cloud_types,
             "all_pods": all_pods,
@@ -872,6 +942,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             "vmi_total_recovery_time": vmi_total_recovery,
             "vmi_rescheduling_time": vmi_reschedule,
             "vmi_readiness_time": vmi_readiness,
+            "guest_reachable_time": vmi_guest_reachable,
             "affected_nodes": node_list,
             "cluster_events": cluster_events,
             "additional_telemetry": additional_telemetry,
@@ -983,6 +1054,17 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             target_rows.append(("Label Selector", ", ".join(s["selectors"])))
         if s["namespaces"]:
             target_rows.append(("Namespace", ", ".join(s["namespaces"])))
+        for target in s.get("vmi_pvc_targets", []):
+            if target.get("namespace"):
+                target_rows.append(("Namespace", target["namespace"]))
+            if target.get("vmi_name"):
+                target_rows.append(("VMI Name", target["vmi_name"]))
+            if target.get("pvc_name"):
+                target_rows.append(("PVC Name", target["pvc_name"]))
+            if target.get("fill_percentage") is not None:
+                target_rows.append(("Fill Percentage", f'{target["fill_percentage"]}%'))
+            if target.get("duration") is not None:
+                target_rows.append(("Duration", f'{target["duration"]}s'))
         if s["exclude_labels"]:
             target_rows.append(("Exclude Label", ", ".join(s["exclude_labels"])))
         if s["cloud_types"]:
@@ -1052,7 +1134,15 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             recovery_cell = ""
             if s["vmi_total_recovery_time"] is not None:
                 rt = f'{s["vmi_total_recovery_time"]:.2f}s'
-                rt += f'<br/><font size="7" color="#555555">Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br/>Readiness: {(s["vmi_readiness_time"] or 0):.2f}s</font>'
+                detail = (
+                    f'Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br/>'
+                    f'Readiness: {(s["vmi_readiness_time"] or 0):.2f}s'
+                )
+                if s.get("guest_reachable_time") is not None:
+                    detail += (
+                        f'<br/>Guest Reachable: {s["guest_reachable_time"]:.2f}s'
+                    )
+                rt += f'<br/><font size="7" color="#555555">{detail}</font>'
                 recovery_cell = Paragraph(rt, _STYLE_CELL)
             rows.append([
                 s["scenario"],

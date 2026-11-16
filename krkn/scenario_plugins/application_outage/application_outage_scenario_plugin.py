@@ -39,6 +39,11 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                 pod_selector = get_yaml_item_value(
                     scenario_config, "pod_selector", "{}"
                 )
+                if isinstance(pod_selector, dict):
+                    pod_selector = {
+                        self._label_str(k): self._label_str(v)
+                        for k, v in pod_selector.items()
+                    }
                 traffic_type = get_yaml_item_value(
                     scenario_config, "block", "[Ingress, Egress]"
                 )
@@ -155,6 +160,19 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
         return ["application_outages_scenarios"]
 
     @staticmethod
+    def _label_str(item) -> str:
+        """
+        Convert a label key or value loaded from the scenario file to a string.
+
+        Unquoted true/false in the scenario file load as bools; str() would
+        give "True"/"False", which never matches a label.
+
+        :param item: label key or value as loaded by yaml.safe_load
+        :return: the label as a string
+        """
+        return str(item).lower() if isinstance(item, bool) else str(item)
+
+    @staticmethod
     def _build_exclude_expressions(exclude_label) -> list[dict]:
         """
         Build match expressions for NetworkPolicy from exclude_label.
@@ -176,23 +194,22 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
         if not exclude_label:
             return expressions
 
-        # unquoted true/false in the scenario file load as bools;
-        # str() would give "True"/"False", which never matches a label
-        def _label_str(item) -> str:
-            return str(item).lower() if isinstance(item, bool) else str(item)
-
         def _append_expr(key: str, values):
             if not key or values is None:
                 return
             if not isinstance(values, list):
                 values = [values]
-            cleaned_values = [_label_str(v).strip() for v in values if str(v).strip()]
+            cleaned_values = [
+                ApplicationOutageScenarioPlugin._label_str(v).strip()
+                for v in values
+                if str(v).strip()
+            ]
             if cleaned_values:
                 expressions.append({"key": key.strip(), "values": cleaned_values})
 
         if isinstance(exclude_label, dict):
             for k, v in exclude_label.items():
-                _append_expr(_label_str(k), v)
+                _append_expr(ApplicationOutageScenarioPlugin._label_str(k), v)
             return expressions
 
         if isinstance(exclude_label, list):

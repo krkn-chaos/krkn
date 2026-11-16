@@ -13,8 +13,10 @@ import os
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch, call
+from types import SimpleNamespace
 
 import yaml
+from kubernetes import client as kubernetes_client
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -30,6 +32,7 @@ from krkn.scenario_plugins.storage_throttle.storage_throttle_utils import (
     parse_byte_value as _parse_byte_value,
     parse_duration_value as _parse_duration_value,
 )
+from krkn.utils.pod_volumes import read_raw_pod, resolve_vmi_pod
 from krkn.rollback.config import RollbackContent
 
 
@@ -231,6 +234,66 @@ class TestResolveTargetPod(unittest.TestCase):
         )
         self.assertEqual(result, "from-pvc")
 
+    def test_resolve_by_vmi_name(self):
+        mock_k8s = MagicMock(spec=KrknKubernetes)
+        mock_k8s.get_vmi.return_value = {
+            "status": {"phase": "Running", "nodeName": "worker-1"}
+        }
+        mock_k8s.list_pods.side_effect = [[], ["virt-launcher-vm1"]]
+        mock_k8s.cli.read_namespaced_pod.return_value = {
+            "metadata": {"uid": "uid-vm1"},
+            "status": {"phase": "Running"},
+            "spec": {"nodeName": "worker-1"},
+        }
+
+        result = self.plugin._resolve_pod_name(
+            mock_k8s, "", "", "default", "vm1"
+        )
+
+        self.assertEqual(result, "virt-launcher-vm1")
+        self.assertEqual(mock_k8s.list_pods.call_count, 2)
+
+    def test_resolve_by_vmi_name_skips_stale_launcher(self):
+        mock_k8s = MagicMock(spec=KrknKubernetes)
+        mock_k8s.get_vmi.return_value = {
+            "status": {
+                "phase": "Running",
+                "nodeName": "worker-1",
+                "activePods": {"uid-active": "worker-1"},
+            }
+        }
+        mock_k8s.list_pods.side_effect = [["stale-launcher", "active-launcher"], []]
+        mock_k8s.cli.read_namespaced_pod.side_effect = [
+            {
+                "metadata": {"uid": "uid-stale"},
+                "status": {"phase": "Completed"},
+                "spec": {"nodeName": "worker-1"},
+            },
+            {
+                "metadata": {"uid": "uid-active"},
+                "status": {"phase": "Running"},
+                "spec": {"nodeName": "worker-1"},
+            },
+        ]
+
+        result = resolve_vmi_pod(mock_k8s, "vm1", "default")
+
+        self.assertEqual(result, "active-launcher")
+
+    def test_get_container_id_from_raw_block_pod(self):
+        raw_pod = {
+            "spec": {"containers": [{"name": "compute"}]},
+            "status": {
+                "containerStatuses": [
+                    {"name": "compute", "containerID": "cri-o://abc123def456"}
+                ]
+            },
+        }
+
+        result = StorageThrottleScenarioPlugin._get_container_id(raw_pod, "compute")
+
+        self.assertEqual(result, "abc123def456")
+
     def test_resolve_pvc_not_found(self):
         mock_k8s = MagicMock(spec=KrknKubernetes)
         mock_k8s.get_pvc_info.return_value = None
@@ -355,6 +418,101 @@ class TestFindPvcMount(unittest.TestCase):
         self.assertIsNone(container)
         self.assertIsNone(path)
 
+    def test_find_block_device_from_raw_virt_launcher_pod(self):
+        """KubeVirt block PVCs are resolved through container.volumeDevices."""
+        pod_info = SimpleNamespace(
+            name="virt-launcher-vm",
+            namespace="default",
+            volumes=[],
+            containers=[],
+        )
+        raw_pod = {
+            "spec": {
+                "volumes": [{
+                    "name": "rootdisk",
+                    "persistentVolumeClaim": {"claimName": "vm-disk"},
+                }],
+                "containers": [{
+                    "name": "compute",
+                    "volumeDevices": [{
+                        "name": "rootdisk",
+                        "devicePath": "/dev/vda",
+                    }],
+                }],
+            }
+        }
+        lib_k8s = MagicMock()
+        lib_k8s.cli.read_namespaced_pod.return_value = raw_pod
+
+        target = StorageThrottleScenarioPlugin._find_pvc_volume(
+            lib_k8s, pod_info, "", "vm-disk"
+        )
+
+        self.assertEqual(target.container_name, "compute")
+        self.assertEqual(target.path, "/dev/vda")
+        self.assertEqual(target.mode, "block")
+
+    def test_find_filesystem_mount_from_raw_pod_spec(self):
+        """Raw Kubernetes Pod spec volumes remain supported."""
+        raw_pod = {
+            "spec": {
+                "volumes": [{
+                    "name": "data",
+                    "persistentVolumeClaim": {"claimName": "data-pvc"},
+                }],
+                "containers": [{
+                    "name": "app",
+                    "volumeMounts": [{
+                        "name": "data",
+                        "mountPath": "/data",
+                    }],
+                }],
+            }
+        }
+
+        target = StorageThrottleScenarioPlugin._find_pvc_volume(
+            None, raw_pod, "/data", "data-pvc"
+        )
+
+        self.assertEqual(target.container_name, "app")
+        self.assertEqual(target.path, "/data")
+        self.assertEqual(target.mode, "filesystem")
+
+    def test_raw_kubernetes_pod_is_serialized_for_storage_throttle(self):
+        """Raw client models must expose the camelCase dict fields used by run()."""
+        raw_pod = kubernetes_client.V1Pod(
+            metadata=kubernetes_client.V1ObjectMeta(
+                name="virt-launcher-vm", namespace="default"
+            ),
+            spec=kubernetes_client.V1PodSpec(
+                node_name="worker-1",
+                containers=[kubernetes_client.V1Container(name="compute")],
+            ),
+            status=kubernetes_client.V1PodStatus(
+                container_statuses=[
+                    kubernetes_client.V1ContainerStatus(
+                        name="compute",
+                        image="test",
+                        image_id="test",
+                        ready=True,
+                        restart_count=0,
+                        container_id="containerd://abcdef123456",
+                    )
+                ]
+            ),
+        )
+        lib_k8s = MagicMock()
+        lib_k8s.api_client = kubernetes_client.ApiClient()
+        lib_k8s.cli.read_namespaced_pod.return_value = raw_pod
+
+        pod = read_raw_pod(lib_k8s, "virt-launcher-vm", "default")
+
+        self.assertEqual(pod["spec"]["nodeName"], "worker-1")
+        self.assertEqual(
+            StorageThrottleScenarioPlugin._get_container_id(pod, "compute"),
+            "abcdef123456",
+        )
+
 
 class TestGetDeviceMajMin(unittest.TestCase):
 
@@ -392,6 +550,19 @@ class TestGetDeviceMajMin(unittest.TestCase):
         )
         self.assertEqual(result, "")
         mock_k8s.exec_cmd_in_pod.assert_not_called()
+
+    def test_block_device_major_minor_converts_hex_stat_output(self):
+        mock_k8s = MagicMock(spec=KrknKubernetes)
+        mock_k8s.exec_cmd_in_pod.return_value = "8:10\n"
+
+        result = StorageThrottleScenarioPlugin._get_device_maj_min(
+            mock_k8s, "pod", "ns", "compute", "/dev/vda", "block"
+        )
+
+        self.assertEqual(result, "8:16")
+        command = mock_k8s.exec_cmd_in_pod.call_args.args[0][0]
+        self.assertIn("stat", command)
+        self.assertIn("/dev/vda", command)
 
 
 class TestGetContainerId(unittest.TestCase):
@@ -1011,6 +1182,62 @@ class TestRunScenario(unittest.TestCase):
             self.assertEqual(mock_sleep.call_count, 2)
 
 
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """The throttle is never applied if the rollback can't be persisted."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = {
+                "storage_throttle_scenario": {
+                    "namespace": "default",
+                    "pod_name": "app-pod",
+                    "throttle_type": "bandwidth",
+                    "duration": 60,
+                }
+            }
+            path = self.create_scenario_file(config, temp_dir)
+
+            mock_pod = MagicMock()
+            mock_volume = MagicMock()
+            mock_volume.pvcName = "pvc1"
+            mock_volume.name = "vol1"
+            mock_pod.volumes = [mock_volume]
+
+            mock_vol_mount = MagicMock()
+            mock_vol_mount.name = "vol1"
+            mock_vol_mount.mountPath = "/data"
+
+            mock_container = MagicMock()
+            mock_container.name = "app"
+            mock_container.volumeMounts = [mock_vol_mount]
+            mock_container.containerId = "cri-o://abc123def4567890123456789012"
+            mock_pod.containers = [mock_container]
+            mock_pod.nodeName = "worker-1"
+
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_k8s = MagicMock(spec=KrknKubernetes)
+            mock_telemetry.get_lib_kubernetes.return_value = mock_k8s
+            mock_k8s.get_pod_info.return_value = mock_pod
+
+            mock_k8s.deploy_io_throttle_pod.return_value = "io-throttle-12345"
+            mock_k8s.exec_cmd_in_pod.side_effect = [
+                "8:16\n",       # _get_device_maj_min
+                "cgroup2fs\n",  # _detect_cgroup_version
+                "/sys/fs/cgroup/kubepods.slice/crio-abc.scope\n",  # scope
+            ]
+            self.plugin.rollback_handler.set_rollback_callable = MagicMock(
+                return_value=False
+            )
+
+            result = self.plugin.run(
+                run_uuid="uuid", scenario=path,
+                lib_telemetry=mock_telemetry, scenario_telemetry=MagicMock(),
+            )
+
+            self.assertEqual(result, 1)
+            # only discovery ran, no throttle echo/cat
+            self.assertEqual(mock_k8s.exec_cmd_in_pod.call_count, 3)
+            # privileged pod is still cleaned up
+            mock_k8s.delete_pod.assert_called_once()
+
     @patch(
         "krkn.scenario_plugins.storage_throttle."
         "storage_throttle_scenario_plugin.time.sleep"
@@ -1153,6 +1380,56 @@ class TestRollbackThrottle(unittest.TestCase):
         mock_logging.error.assert_called_once()
         error_msg = mock_logging.error.call_args[0][0]
         self.assertIn("Failed to rollback", error_msg)
+
+    def test_rollback_serialized_execution(self):
+        """Rollback callable must execute when rendered via Serializer."""
+        from krkn.rollback.serialization import Serializer
+        from krkn.rollback.handler import _parse_rollback_module
+
+        serializer = Serializer("storage_throttle_scenarios")
+        name, code = serializer._parse_rollback_callable_code(
+            StorageThrottleScenarioPlugin.rollback_throttle
+        )
+        rollback_data = {
+            "priv_pod_name": "io-throttle-12345",
+            "maj_min": "8:16",
+            "cgroup_path": "/kubepods.slice/crio-abc123.scope",
+            "cgroup_version": "v2",
+        }
+        encoded = base64.b64encode(
+            json.dumps(rollback_data).encode("utf-8")
+        ).decode("utf-8")
+        content = RollbackContent(
+            namespace="default", resource_identifier=encoded
+        )
+        rendered = serializer.template.render(
+            rollback_callable_name=name,
+            rollback_callable_code=code,
+            rollback_content=str(content),
+        )
+
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".py", delete=False
+        ) as tf:
+            tf.write(rendered)
+            tmp_path = tf.name
+
+        try:
+            callable_fn, parsed_content = _parse_rollback_module(tmp_path)
+            mock_telemetry = MagicMock(spec=KrknTelemetryOpenshift)
+            mock_k8s = MagicMock(spec=KrknKubernetes)
+            mock_telemetry.get_lib_kubernetes.return_value = mock_k8s
+            mock_k8s.exec_cmd_in_pod.return_value = ""
+
+            callable_fn(parsed_content, mock_telemetry)
+
+            mock_k8s.exec_cmd_in_pod.assert_called_once()
+            mock_k8s.delete_pod.assert_called_once_with(
+                "io-throttle-12345", "default"
+            )
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
 
 
 if __name__ == "__main__":

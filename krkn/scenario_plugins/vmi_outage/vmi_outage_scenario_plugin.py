@@ -13,10 +13,13 @@
 # limitations under the License.
 
 import logging
+import os
 import time
-from typing import Dict, Any
+import uuid
+from typing import Dict, Any, Optional
 import random
 import yaml
+from jinja2 import Environment, FileSystemLoader
 from kubernetes.client.rest import ApiException
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.telemetry import ScenarioTelemetry
@@ -25,6 +28,57 @@ from krkn_lib.utils import log_exception
 from krkn_lib.models.k8s import AffectedVMI, VmisStatus
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+
+# Helper image for guest reachability probes (ping/nc included).
+DEFAULT_GUEST_PING_IMAGE = (
+    "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
+)
+
+
+def _as_bool(value: Any, default: bool = False) -> bool:
+    """Parse bools from YAML or envsubst strings (``False`` must not become True)."""
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in ("1", "true", "yes", "on")
+    return bool(value)
+
+
+def _optional_str(value: Any) -> Optional[str]:
+    """Strip optional config/envsubst values; blank → None."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _as_number(value: Any, default: float, cast=float):
+    """
+    Parse numeric YAML/envsubst values; blank or invalid → default.
+
+    Hub templates often leave ``$VAR`` empty when unset; ``int("")`` must
+    not abort a scenario that does not even enable guest ping.
+    """
+    if value is None:
+        return cast(default)
+    if isinstance(value, bool):
+        return cast(default)
+    if isinstance(value, (int, float)):
+        return cast(value)
+    text = str(value).strip()
+    if not text:
+        return cast(default)
+    try:
+        return cast(text)
+    except (TypeError, ValueError):
+        logging.warning(
+            f"Invalid numeric value {value!r}; using default {default}"
+        )
+        return cast(default)
 
 
 class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
@@ -109,6 +163,45 @@ class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
             timeout = params.get("timeout", 60)
             kill_count = params.get("kill_count", 1)
             disable_auto_restart = params.get("disable_auto_restart", False)
+            wait_for_guest_ping = _as_bool(
+                params.get("wait_for_guest_ping", False), False
+            )
+            # Always resolve guest-ping knobs (hub envsubst may leave blanks);
+            # _as_number / _optional_str supply defaults. Probe create/settle/
+            # wait steps below stay gated on wait_for_guest_ping.
+            guest_ping_timeout = int(
+                _as_number(params.get("guest_ping_timeout"), 300, int)
+            )
+            guest_ping_interval = float(
+                _as_number(params.get("guest_ping_interval"), 2, float)
+            )
+            guest_ping_method = (
+                _optional_str(params.get("guest_ping_method")) or "icmp"
+            ).lower()
+            if guest_ping_method not in ("icmp", "tcp"):
+                message = (
+                    f"Invalid guest_ping_method={guest_ping_method!r}; "
+                    "expected 'icmp' or 'tcp'"
+                )
+                logging.error(message)
+                self.vmis_status.error = message
+                return self.vmis_status
+            guest_ping_port = int(
+                _as_number(params.get("guest_ping_port"), 22, int)
+            )
+            guest_ping_namespace = _optional_str(
+                params.get("guest_ping_namespace")
+            )
+            # Optional pre-created helper (CI/templates/guest-ping-diagnosis-pod.yaml).
+            guest_ping_pod = _optional_str(params.get("guest_ping_pod"))
+            guest_ping_settle_seconds = float(
+                _as_number(params.get("guest_ping_settle_seconds"), 5, float)
+            )
+            # Disconnected clusters may mirror the tools image off quay.
+            guest_ping_image = (
+                _optional_str(params.get("guest_ping_image"))
+                or DEFAULT_GUEST_PING_IMAGE
+            )
 
             if not vm_name and not label_selector:
                 logging.error("Either vm_name or label_selector parameter is required")
@@ -122,57 +215,120 @@ class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
                 logging.error(message)
                 self.vmis_status.error = message
                 return self.vmis_status
-            for _ in range(kill_count):
 
-                rand_int = random.randint(0, len(self.vmis_list) - 1)
-                vmi = self.vmis_list[rand_int]
+            # Spin helper pod before chaos so create/pull is off the MTTR path.
+            owned_probe_pod = False
+            active_probe_pod = None
+            probe_ns = guest_ping_namespace or namespace
+            if wait_for_guest_ping:
+                try:
+                    active_probe_pod, owned_probe_pod = (
+                        self._ensure_guest_probe_pod(
+                            probe_ns,
+                            probe_pod=guest_ping_pod,
+                            method=guest_ping_method,
+                            image=guest_ping_image,
+                        )
+                    )
+                    if guest_ping_settle_seconds > 0:
+                        logging.info(
+                            f"Probe pod {active_probe_pod} ready; settling "
+                            f"{guest_ping_settle_seconds}s before scenario"
+                        )
+                        time.sleep(guest_ping_settle_seconds)
+                except Exception as exc:
+                    message = (
+                        f"Failed to prepare guest probe pod in {probe_ns}: {exc}"
+                    )
+                    logging.error(message)
+                    log_exception(str(exc))
+                    self.vmis_status.error = message
+                    return self.vmis_status
 
-                target = f"label_selector={label_selector}" if label_selector else f"vm_name={vm_name}"
-                logging.info(f"Starting VMI outage scenario for {target} in namespace: {namespace}")
-                vmi_name = vmi.get("metadata").get("name")
-                vmi_namespace = vmi.get("metadata").get("namespace")
+            try:
+                for _ in range(kill_count):
 
-                # Create affected_vmi early so we can track failures
-                self.affected_vmi = AffectedVMI(
-                    vmi_name=vmi_name,
-                    namespace=vmi_namespace,
-                )
+                    rand_int = random.randint(0, len(self.vmis_list) - 1)
+                    vmi = self.vmis_list[rand_int]
 
-                if not self.validate_environment(vmi_name, vmi_namespace):
-                    self.vmis_status.unrecovered.append(self.affected_vmi)
-                    continue
+                    target = f"label_selector={label_selector}" if label_selector else f"vm_name={vm_name}"
+                    logging.info(f"Starting VMI outage scenario for {target} in namespace: {namespace}")
+                    vmi_name = vmi.get("metadata").get("name")
+                    vmi_namespace = vmi.get("metadata").get("namespace")
 
-                vmi = self.k8s_client.get_vmi(vmi_name, vmi_namespace)
-                if not vmi:
-                    logging.error(f"VMI {vmi_name} not found in namespace {vmi_namespace}")
-                    self.vmis_status.unrecovered.append(self.affected_vmi)
-                    continue
+                    # Create affected_vmi early so we can track failures
+                    self.affected_vmi = AffectedVMI(
+                        vmi_name=vmi_name,
+                        namespace=vmi_namespace,
+                    )
 
-                self.original_vmi = vmi
-                logging.info(f"Captured initial state of VMI: {vmi_name}")
-                result = self.delete_vmi(vmi_name, vmi_namespace, disable_auto_restart)
-                if result != 0:
-                    self.vmis_status.unrecovered.append(self.affected_vmi)
-                    continue
+                    if not self.validate_environment(vmi_name, vmi_namespace):
+                        self.vmis_status.unrecovered.append(self.affected_vmi)
+                        continue
 
-                result = self.wait_for_running(vmi_name,vmi_namespace, timeout)
-                if result != 0:
-                    self.vmis_status.unrecovered.append(self.affected_vmi)
-                    continue
-                
-                self.affected_vmi.total_recovery_time = (
-                    self.affected_vmi.vmi_readiness_time
-                    + self.affected_vmi.vmi_rescheduling_time
-                )
+                    vmi = self.k8s_client.get_vmi(vmi_name, vmi_namespace)
+                    if not vmi:
+                        logging.error(f"VMI {vmi_name} not found in namespace {vmi_namespace}")
+                        self.vmis_status.unrecovered.append(self.affected_vmi)
+                        continue
 
-                self.vmis_status.recovered.append(self.affected_vmi)
-                logging.info(f"Successfully completed VMI outage scenario for VM: {vmi_name}")
+                    self.original_vmi = vmi
+                    logging.info(f"Captured initial state of VMI: {vmi_name}")
+                    result = self.delete_vmi(vmi_name, vmi_namespace, disable_auto_restart)
+                    if result != 0:
+                        self.vmis_status.unrecovered.append(self.affected_vmi)
+                        continue
 
-            return self.vmis_status
+                    result = self.wait_for_running(vmi_name, vmi_namespace, timeout)
+                    if result != 0:
+                        self.vmis_status.unrecovered.append(self.affected_vmi)
+                        continue
+
+                    if wait_for_guest_ping:
+                        result = self.wait_for_guest_reachable(
+                            vmi_name,
+                            vmi_namespace,
+                            timeout=guest_ping_timeout,
+                            interval=guest_ping_interval,
+                            method=guest_ping_method,
+                            port=guest_ping_port,
+                            probe_namespace=probe_ns,
+                            probe_pod=active_probe_pod,
+                        )
+                        if result != 0:
+                            self.vmis_status.unrecovered.append(self.affected_vmi)
+                            continue
+
+                    total = (
+                        (self.affected_vmi.vmi_readiness_time or 0)
+                        + (self.affected_vmi.vmi_rescheduling_time or 0)
+                    )
+                    guest_time = getattr(
+                        self.affected_vmi, "guest_reachable_time", None
+                    )
+                    if guest_time is not None:
+                        total += guest_time
+                    self.affected_vmi.total_recovery_time = total
+
+                    self.vmis_status.recovered.append(self.affected_vmi)
+                    logging.info(
+                        f"Successfully completed VMI outage scenario for VM: {vmi_name}"
+                        f" (total_recovery_time={total:.2f}s"
+                        f", guest_reachable_time={guest_time})"
+                    )
+
+                return self.vmis_status
+            finally:
+                if owned_probe_pod and active_probe_pod:
+                    self._delete_guest_probe_pod(active_probe_pod, probe_ns)
 
         except Exception as e:
-            logging.error(f"Error executing VMI outage scenario: {e}")
+            message = f"Error executing VMI outage scenario: {e}"
+            logging.error(message)
             log_exception(str(e))
+            if self.vmis_status is None:
+                self.vmis_status = VmisStatus()
+            self.vmis_status.error = message
             return self.vmis_status
 
     def validate_environment(self, vm_name: str, namespace: str) -> bool:
@@ -293,7 +449,289 @@ class VmiOutageScenarioPlugin(AbstractScenarioPlugin):
                 logging.info(f"VMI {vm_name} not yet recreated")
             time.sleep(1)
         return 1
-    
+
+    @staticmethod
+    def get_vmi_ips(vmi: Dict[str, Any]) -> list[str]:
+        """
+        Return all guest IPs from VMI status.interfaces (deduped).
+
+        Skips IPv6 link-local (``fe80:``) addresses, which are not useful for
+        cross-pod reachability probes. Order follows interface status order.
+        """
+        ips: list[str] = []
+        seen = set()
+        interfaces = (vmi or {}).get("status", {}).get("interfaces") or []
+        for iface in interfaces:
+            if not isinstance(iface, dict):
+                continue
+            candidates = []
+            primary = iface.get("ipAddress")
+            if primary:
+                candidates.append(primary)
+            for addr in iface.get("ipAddresses") or []:
+                if addr:
+                    candidates.append(addr)
+            for ip in candidates:
+                if ip in seen:
+                    continue
+                if str(ip).lower().startswith("fe80:"):
+                    continue
+                seen.add(ip)
+                ips.append(ip)
+        return ips
+
+    @staticmethod
+    def get_vmi_ip(vmi: Dict[str, Any]) -> Optional[str]:
+        """Return the first guest IP from VMI status.interfaces, if any."""
+        ips = VmiOutageScenarioPlugin.get_vmi_ips(vmi)
+        return ips[0] if ips else None
+
+    def _guest_probe_pod_body(
+        self,
+        pod_name: str,
+        method: str = "icmp",
+        image: str = DEFAULT_GUEST_PING_IMAGE,
+    ) -> Dict[str, Any]:
+        """
+        Build a short-lived helper pod from ``guest_ping_pod.j2``.
+
+        NET_RAW is added only for ICMP. TCP probes stay compatible with
+        OpenShift restricted-v2 / PodSecurity restricted (no extra caps).
+        ``image`` is configurable for disconnected / mirrored registries.
+        """
+        probe_method = (method or "icmp").lower()
+        file_loader = FileSystemLoader(os.path.abspath(os.path.dirname(__file__)))
+        env = Environment(loader=file_loader, autoescape=False)
+        template = env.get_template("guest_ping_pod.j2")
+        return yaml.safe_load(
+            template.render(
+                pod_name=pod_name,
+                image=image or DEFAULT_GUEST_PING_IMAGE,
+                method=probe_method,
+            )
+        )
+
+    def _create_guest_probe_pod(
+        self,
+        namespace: str,
+        method: str = "icmp",
+        image: str = DEFAULT_GUEST_PING_IMAGE,
+    ) -> str:
+        """
+        Create helper probe pod and wait until containers are Ready.
+
+        ``create_pod`` waits for phase=Running; we then call
+        ``_wait_for_probe_pod_ready`` so new and reused pods share the same
+        container-ready gate. On create/readiness failure the pod name is
+        already known, so clean up even if the object exists.
+        """
+        probe_image = image or DEFAULT_GUEST_PING_IMAGE
+        pod_name = f"krkn-guest-ping-{uuid.uuid4().hex[:8]}"
+        body = self._guest_probe_pod_body(
+            pod_name, method=method, image=probe_image
+        )
+        logging.info(
+            f"Creating guest probe pod {pod_name} in {namespace} "
+            f"(image={probe_image}, method={method})"
+        )
+        try:
+            self.k8s_client.create_pod(body, namespace, timeout=180)
+            self._wait_for_probe_pod_ready(pod_name, namespace, timeout=180)
+        except Exception:
+            logging.error(
+                f"Guest probe pod {pod_name} failed to start in {namespace}; "
+                "cleaning up"
+            )
+            self._delete_guest_probe_pod(pod_name, namespace)
+            raise
+        return pod_name
+
+    def _wait_for_probe_pod_ready(
+        self, pod_name: str, namespace: str, timeout: int = 180
+    ) -> None:
+        """Block until probe pod containers report ready=True or raise."""
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if self.k8s_client.is_pod_running(pod_name, namespace):
+                logging.info(
+                    f"Guest probe pod {pod_name} is ready in {namespace}"
+                )
+                return
+            time.sleep(2)
+        raise TimeoutError(
+            f"Guest probe pod {pod_name} not ready in {namespace} "
+            f"within {timeout}s"
+        )
+
+    def _ensure_guest_probe_pod(
+        self,
+        namespace: str,
+        probe_pod: Optional[str] = None,
+        method: str = "icmp",
+        image: str = DEFAULT_GUEST_PING_IMAGE,
+    ) -> tuple[str, bool]:
+        """
+        Ensure a probe pod is container-ready before chaos starts.
+
+        :return: (pod_name, owned) — owned True means caller should delete it
+        """
+        existing = _optional_str(probe_pod)
+        if existing:
+            if (method or "icmp").lower() == "icmp":
+                logging.warning(
+                    f"Reusing probe pod {existing} for icmp; the pod must "
+                    "have NET_RAW (CI/templates/guest-ping-diagnosis-pod.yaml "
+                    "does not). Prefer leaving guest_ping_pod empty for icmp."
+                )
+            logging.info(
+                f"Using existing guest probe pod {existing} in {namespace}"
+            )
+            self._wait_for_probe_pod_ready(existing, namespace)
+            return existing, False
+
+        return (
+            self._create_guest_probe_pod(
+                namespace, method=method, image=image
+            ),
+            True,
+        )
+
+    def _delete_guest_probe_pod(self, pod_name: str, namespace: str) -> None:
+        if not pod_name:
+            return
+        try:
+            self.k8s_client.delete_pod(
+                pod_name, namespace, grace_period_seconds=0
+            )
+            logging.info(f"Deleted guest probe pod {pod_name}")
+        except Exception as exc:
+            logging.warning(
+                f"Failed to delete guest probe pod {pod_name}: {exc}"
+            )
+
+    def probe_guest_via_pod(
+        self,
+        host: str,
+        pod_name: str,
+        namespace: str,
+        method: str = "icmp",
+        port: int = 22,
+    ) -> bool:
+        """
+        Probe guest from an in-cluster helper pod (same SDN as the VMI IP).
+        """
+        method = (method or "icmp").lower()
+        if method == "tcp":
+            cmd = f"nc -z -w 2 {host} {port} >/dev/null 2>&1 && echo OK || echo FAIL"
+        elif method == "icmp":
+            cmd = (
+                f"ping -c 1 -W 1 {host} >/dev/null 2>&1 && echo OK || echo FAIL"
+            )
+        else:
+            logging.error(
+                f"Invalid guest_ping_method={method!r}; expected 'icmp' or 'tcp'"
+            )
+            return False
+        try:
+            output = self.k8s_client.exec_cmd_in_pod(
+                [cmd], pod_name, namespace
+            )
+            return "OK" in (output or "")
+        except Exception as exc:
+            status = getattr(exc, "status", None)
+            msg = str(exc)
+            # Surface RBAC/auth failures; guest-down is expected noise at debug.
+            if status in (401, 403) or "forbidden" in msg.lower():
+                logging.warning(
+                    f"In-cluster probe of {host} via {pod_name} denied: {exc}. "
+                    "Krkn SA needs pods/exec create "
+                    "(see rbac/non-privileged-role.yaml / "
+                    "rbac/privileged-clusterrole.yaml)."
+                )
+            else:
+                logging.debug(
+                    f"In-cluster probe of {host} via {pod_name} failed: {exc}"
+                )
+            return False
+
+    def wait_for_guest_reachable(
+        self,
+        vm_name: str,
+        namespace: str,
+        timeout: int = 300,
+        interval: float = 2,
+        method: str = "icmp",
+        port: int = 22,
+        probe_namespace: Optional[str] = None,
+        probe_pod: Optional[str] = None,
+    ) -> int:
+        """
+        Poll until the guest is reachable after VMI phase=Running.
+
+        Default method is ICMP ping via an in-cluster helper prepared before
+        chaos (``_ensure_guest_probe_pod``). Sets
+        ``affected_vmi.guest_reachable_time`` on success.
+
+        :return: 0 on success, 1 on timeout / missing IP / missing probe
+        """
+        probe_ns = probe_namespace or namespace
+        active_probe_pod = _optional_str(probe_pod)
+        if not active_probe_pod:
+            logging.error(
+                "wait_for_guest_reachable requires a ready probe_pod"
+            )
+            return 1
+
+        logging.info(
+            f"Waiting for guest reachability on VMI {vm_name} "
+            f"(method={method}, probe={active_probe_pod}, timeout={timeout}s)"
+        )
+
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            vmi = self.k8s_client.get_vmi(vm_name, namespace)
+            ips = self.get_vmi_ips(vmi) if vmi else []
+            if not ips:
+                logging.info(
+                    f"VMI {vm_name} has no guest IP yet; "
+                    f"retrying in {interval}s"
+                )
+                time.sleep(interval)
+                continue
+
+            # Multi-NIC guests: try every reported address each cycle.
+            reachable_ip = None
+            for ip in ips:
+                if self.probe_guest_via_pod(
+                    ip,
+                    active_probe_pod,
+                    probe_ns,
+                    method=method,
+                    port=port,
+                ):
+                    reachable_ip = ip
+                    break
+
+            if reachable_ip:
+                elapsed = time.time() - start_time
+                self.affected_vmi.guest_reachable_time = elapsed
+                logging.info(
+                    f"Guest {vm_name} reachable at {reachable_ip} after "
+                    f"{elapsed:.2f}s (method={method})"
+                )
+                return 0
+
+            logging.info(
+                f"Guest {vm_name} at {ips} not reachable yet "
+                f"(method={method})"
+            )
+            time.sleep(interval)
+
+        logging.error(
+            f"Timed out waiting for guest {vm_name} to become reachable "
+            f"after {timeout}s (method={method})"
+        )
+        return 1
 
     def recover(self, vm_name: str, namespace: str, disable_auto_restart: bool = False) -> int:
         """
