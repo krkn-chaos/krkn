@@ -35,7 +35,11 @@ SCENARIO_EXECUTION_MARKERS = {
     "cpu_hog": r"running cpu hog scenario",
     "memory_hog": r"running memory hog scenario",
     "io_hog": r"running io hog scenario",
-    "pvc": r"Creating kraken\.tmp file|Finish waiting",
+    # Shared filesystem_pvc helper emits this after creating and measuring
+    # the fill file. Keep the marker aligned with that implementation so a
+    # successful delegated fill passes the execution-evidence gate.
+    "pvc": r"Filesystem PVC fill: file=.+requested=",
+    "vmi_pvc_fill": r"Filesystem PVC fill: file=.+requested=",
     "service_hijacking": r"hijack|hijacking|service",
 }
 

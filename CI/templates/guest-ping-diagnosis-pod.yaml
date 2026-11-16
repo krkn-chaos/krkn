@@ -1,0 +1,43 @@
+# Optional long-lived helper for TCP guest reachability (restricted-v2 safe).
+# Default vmi_outage guest MTTR uses ICMP via an ephemeral helper with NET_RAW;
+# use this template only when guest_ping_method: tcp.
+# Image already includes ping + nc.
+#
+#   oc apply -f CI/templates/guest-ping-diagnosis-pod.yaml -n <vmi-namespace>
+#   oc wait --for=condition=Ready pod/krkn-guest-ping-diagnosis -n <vmi-namespace>
+#
+#   oc exec -n <ns> krkn-guest-ping-diagnosis -- nc -z -w2 <guest-ip> 22
+#
+# Scenario:
+#   guest_ping_method: tcp
+#   guest_ping_port: 22   # or 3389 / 5985 for Windows
+#   guest_ping_pod: krkn-guest-ping-diagnosis
+#
+# This pod drops ALL capabilities (no NET_RAW); do not use it for icmp.
+#
+apiVersion: v1
+kind: Pod
+metadata:
+  name: krkn-guest-ping-diagnosis
+  labels:
+    app: krkn-guest-ping
+    krkn-chaos.io/role: diagnosis
+    krkn-chaos.io/scenario: vmi_outage
+spec:
+  restartPolicy: Always
+  containers:
+    - name: probe
+      image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools
+      imagePullPolicy: IfNotPresent
+      command: ["sleep", "infinity"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+      resources:
+        requests:
+          cpu: 10m
+          memory: 32Mi
+        limits:
+          cpu: 200m
+          memory: 128Mi

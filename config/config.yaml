@@ -1,5 +1,5 @@
 kraken:
-    kubeconfig_path: ~/.kube/config                     # Path to kubeconfig
+    kubeconfig_path: ~/.kube/config                  # Path to kubeconfig
     image_signature_verification_enabled: True          # Verify workload image signatures before deployment
     image_signature_public_key: cosign.pub               # Relative to the Krkn repository root
     exit_on_failure: False                                 # Exit when a post action scenario fails
@@ -48,6 +48,8 @@ kraken:
            - scenarios/openshift/pvc_scenario.yaml
        - storage_throttle_scenarios:
            - scenarios/openshift/storage_throttle.yaml
+       - vmi_pvc_fill_scenarios:
+           - scenarios/kubevirt/vmi_pvc_fill.yaml
        - network_chaos_scenarios:
            - scenarios/openshift/network_chaos.yaml
        - service_hijacking_scenarios:

@@ -1,0 +1,14 @@
+scenarios:
+  - name: "vmi outage guest ping mttr"
+    scenario: vmi_outage
+    parameters:
+      vm_name: vm-img--windows
+      namespace: ieng--vm-img
+      timeout: 600
+      wait_for_guest_ping: true
+      guest_ping_timeout: 300
+      guest_ping_interval: 2
+      # icmp: plugin creates ephemeral helper with NET_RAW.
+      # Needs an SCC/ns that allows NET_RAW (not restricted-v2).
+      guest_ping_method: icmp
+      guest_ping_settle_seconds: 5

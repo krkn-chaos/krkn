@@ -13,6 +13,7 @@ import os
 import tempfile
 import unittest
 from unittest.mock import patch, MagicMock
+from reportlab.platypus import Table
 
 from krkn.summarized_reports.transform import (
     build_chaos_report,
@@ -437,6 +438,48 @@ class TestBuildChaosReportVMIRecovery(unittest.TestCase):
         report = build_chaos_report(output)
         self.assertIn("Rescheduling Time: 0.00s", report)
 
+    def test_guest_reachable_omitted_when_unset(self):
+        """Disabled/unmeasured guest probe must not show Guest Reachable."""
+        scenario = _make_scenario(
+            affected_vmis={
+                "recovered": [{
+                    "namespace": "kubevirt",
+                    "vmi_name": "test-vm",
+                    "total_recovery_time": 10.0,
+                    "vmi_rescheduling_time": 2.0,
+                    "vmi_readiness_time": 8.0,
+                    # guest_reachable_time absent / None → omit from report
+                }],
+                "unrecovered": [],
+            },
+        )
+        output = _minimal_chaos_output()
+        output["telemetry"]["scenarios"] = [scenario]
+        report = build_chaos_report(output)
+        self.assertIn("VMI Recovery Time", report)
+        self.assertIn("Readiness Time", report)
+        self.assertNotIn("Guest Reachable", report)
+
+    def test_guest_reachable_shown_when_measured(self):
+        scenario = _make_scenario(
+            affected_vmis={
+                "recovered": [{
+                    "namespace": "kubevirt",
+                    "vmi_name": "test-vm",
+                    "total_recovery_time": 14.0,
+                    "vmi_rescheduling_time": 2.0,
+                    "vmi_readiness_time": 8.0,
+                    "guest_reachable_time": 4.0,
+                }],
+                "unrecovered": [],
+            },
+        )
+        output = _minimal_chaos_output()
+        output["telemetry"]["scenarios"] = [scenario]
+        report = build_chaos_report(output)
+        self.assertIn("Guest Reachable", report)
+        self.assertIn("4.00s", report)
+
 
 class TestBuildChaosReportLoadTestMetrics(unittest.TestCase):
 
@@ -679,6 +722,63 @@ class TestBuildChaosReportMultipleScenarios(unittest.TestCase):
         self.assertIn("[1] Scenario", report)
         self.assertIn("[2] Scenario", report)
         self.assertIn("[3] Scenario", report)
+
+
+class TestBuildChaosReportVmiPvcTargets(unittest.TestCase):
+
+    def _scenario(self):
+        return _make_scenario(
+            scenario_name="vmi_pvc_fill.yaml",
+            scenario_type="vmi_pvc_fill_scenarios",
+            parameters={"vmi_pvc_fill_scenario": {
+                "namespace": "default",
+                "vmi_name": "krkn-vmi-block",
+                "pvc_name": "krkn-vmi-block-pvc",
+                "fill_percentage": 50,
+                "duration": 120,
+            }},
+        )
+
+    def test_text_summary_includes_vmi_pvc_target_and_fill_parameters(self):
+        output = _minimal_chaos_output()
+        output["telemetry"]["scenarios"] = [self._scenario()]
+
+        report = build_chaos_report(output)
+
+        self.assertIn("Namespace      : default", report)
+        self.assertIn("VMI Name       : krkn-vmi-block", report)
+        self.assertIn("PVC Name       : krkn-vmi-block-pvc", report)
+        self.assertIn("Fill Percentage: 50%", report)
+        self.assertIn("Duration       : 120s", report)
+
+    @patch("reportlab.platypus.SimpleDocTemplate.build")
+    def test_pdf_includes_vmi_pvc_target_and_fill_parameters(self, mock_build):
+        output = _minimal_chaos_output()
+        output["telemetry"]["scenarios"] = [self._scenario()]
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            pdf_path = f.name
+        try:
+            build_chaos_report_pdf(output, pdf_path)
+
+            flowables = mock_build.call_args.args[0]
+            table_text = []
+            for flowable in flowables:
+                if not isinstance(flowable, Table):
+                    continue
+                for row in flowable._cellvalues:
+                    for cell in row:
+                        table_text.append(
+                            cell.getPlainText() if hasattr(cell, "getPlainText")
+                            else str(cell)
+                        )
+            rendered = " ".join(table_text)
+            for expected in (
+                "default", "krkn-vmi-block", "krkn-vmi-block-pvc", "50%", "120s"
+            ):
+                self.assertIn(expected, rendered)
+        finally:
+            if os.path.exists(pdf_path):
+                os.unlink(pdf_path)
 
 
 class TestBuildChaosReportHealthChecks(unittest.TestCase):
