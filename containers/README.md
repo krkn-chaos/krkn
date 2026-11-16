@@ -22,16 +22,21 @@ Two workflows handle the separate scan and remediation steps:
   `quay.io/krkn-chaos/krkn:latest` with Grype, uploads the JSON report, and
   sends a Slack message with a link to **Patch Krkn Base Image**. It can also
   be run manually for a scan on demand.
-- **Patch Krkn Base Image** is a manual workflow. Select the Krkn source ref and
-  the maximum Go/Python update level (`patch`, `minor`, or `major`). It patches
+- **Patch Krkn Base Image** is a manual workflow. Select the Krkn source ref,
+  the maximum Go/Python update level (`patch`, `minor`, or `major`), and a publish
+  target. The default `beta` target publishes to `quay.io/krkn-chaos/krkn-beta`
+  without updating production tags or rebuilding krkn-hub. Select `production`
+  only for an approved release; it promotes both production repositories and
+  rebuilds krkn-hub after all gates pass. It patches
   the three Go tool source trees with Copa and Grype, recompiles the binaries
   for amd64 and arm64, and uploads the binaries plus the original and patched
   Go manifests and scan reports as workflow artifacts. It then patches the
   Python runtime dependencies in an intermediate image, builds both candidate
   architectures, runs the full functional v2 suite on amd64, and performs
-  runtime checks on arm64. Only after the gates pass does it sign and promote a
-  `patch-<run>-<attempt>` tag and `latest` in both existing Quay repositories,
-  then rebuild `krkn-hub`.
+  runtime checks on arm64. After the gates pass it signs and promotes a
+  `patch-<run>-<attempt>` tag and `latest` in the selected repository. The beta
+  target stops there; the production target also promotes the redhat-chaos mirror
+  and rebuilds `krkn-hub`.
 
 The image build in this workflow is separate from the existing tag-triggered
 release workflow. It does not change the standard release path.

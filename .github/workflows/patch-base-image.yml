@@ -17,6 +17,14 @@ on:
           - patch
           - minor
           - major
+      publish_target:
+        description: Publish to beta for validation or production after approval
+        required: true
+        default: beta
+        type: choice
+        options:
+          - beta
+          - production
 
 permissions:
   contents: read
@@ -28,7 +36,7 @@ concurrency:
 env:
   COPA_VERSION: 0.15.0
   GRYPE_VERSION: 0.121.3
-  QUAY_REPOSITORY: quay.io/krkn-chaos/krkn
+  QUAY_REPOSITORY: ${{ inputs.publish_target == 'production' && 'quay.io/krkn-chaos/krkn' || 'quay.io/krkn-chaos/krkn-beta' }}
   MIRROR_REPOSITORY: quay.io/redhat-chaos/krkn
   COPA_EXPERIMENTAL: '1'
   KRKN_COPA_LIBRARY_PATCH_LEVEL: ${{ inputs.library_patch_level }}
@@ -303,6 +311,7 @@ jobs:
           docker push "$CANDIDATE_IMAGE"
 
       - name: Log in to redhat-chaos Quay
+        if: inputs.publish_target == 'production'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: quay.io
@@ -310,6 +319,7 @@ jobs:
           password: ${{ secrets.QUAY_TOKEN_1 }}
 
       - name: Push candidate image to redhat-chaos Quay
+        if: inputs.publish_target == 'production'
         env:
           CANDIDATE_TAG: ${{ steps.candidate.outputs.tag }}
         run: |
@@ -426,6 +436,7 @@ jobs:
           echo "patch_tag=$patch_tag" >> "$GITHUB_OUTPUT"
 
       - name: Log in to redhat-chaos Quay
+        if: inputs.publish_target == 'production'
         uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: quay.io
@@ -433,6 +444,7 @@ jobs:
           password: ${{ secrets.QUAY_TOKEN_1 }}
 
       - name: Assemble, sign, verify, and promote redhat-chaos manifest
+        if: inputs.publish_target == 'production'
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -454,6 +466,7 @@ jobs:
           echo "Published and signed $repo:$patch_tag and $repo:latest at $digest" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Rebuild krkn-hub
+        if: inputs.publish_target == 'production'
         uses: redhat-chaos/actions/krkn-hub@b3118123a105aa4d208b282639d24f71d02fb25c # main
         with:
           QUAY_USER: ${{ secrets.QUAY_USERNAME }}
