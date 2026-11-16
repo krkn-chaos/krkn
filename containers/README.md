@@ -36,10 +36,14 @@ Two workflows handle the separate scan and remediation steps:
   runtime checks on arm64. After the gates pass it signs and promotes a
   `patch-<run>-<attempt>` tag and `latest` in the selected repository. The beta
   target stops there; the production target also promotes the redhat-chaos mirror
-  and rebuilds `krkn-hub`.
+  and rebuilds `krkn-hub`. Production manifests are both staged and verified
+  before public tags change; the manual and standard release workflows share a
+  publication lock, and a failed second-registry promotion restores prior
+  `latest` digests where possible.
 
 The image build in this workflow is separate from the existing tag-triggered
-release workflow. It does not change the standard release path.
+release workflow. The standard release flow is unchanged; both publishing paths
+share a lock so they cannot race while updating public image tags.
 
 The workflows require the existing Quay and Cosign secrets used by
 `docker-image.yml`, plus `SLACK_WEBHOOK_URL` for the scheduled notification.

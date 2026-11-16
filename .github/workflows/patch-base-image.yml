@@ -30,7 +30,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: patch-krkn-base-image
+  group: krkn-image-publish
   cancel-in-progress: false
 
 env:
@@ -87,6 +87,9 @@ jobs:
               }
             }
           set-host: true
+
+      - name: Test Grype-to-Copa version selection
+        run: python3 scripts/test_copa_grype.py
 
       - name: Install Grype, Copa, and the Grype adapter
         run: scripts/install-copa-grype-tools.sh
@@ -406,14 +409,35 @@ jobs:
       - name: Set up Buildx for manifest promotion
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
-      - name: Log in to krkn-chaos Quay
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USERNAME }}
-          password: ${{ secrets.QUAY_PASSWORD }}
+      - name: Prepare isolated Quay credentials
+        env:
+          PUBLISH_TARGET: ${{ inputs.publish_target }}
+          KRKN_QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          KRKN_QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+          MIRROR_QUAY_USERNAME: ${{ secrets.QUAY_USER_1 }}
+          MIRROR_QUAY_PASSWORD: ${{ secrets.QUAY_TOKEN_1 }}
+        run: |
+          set -Eeuo pipefail
+          krkn_config="$RUNNER_TEMP/docker-config-krkn"
+          mkdir -p "$krkn_config"
+          chmod 0700 "$krkn_config"
+          printf '%s' "$KRKN_QUAY_PASSWORD" \
+            | DOCKER_CONFIG="$krkn_config" docker login quay.io \
+                --username "$KRKN_QUAY_USERNAME" --password-stdin
+          echo "KRKN_DOCKER_CONFIG=$krkn_config" >> "$GITHUB_ENV"
 
-      - name: Assemble, sign, verify, and promote krkn-chaos manifest
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            mirror_config="$RUNNER_TEMP/docker-config-mirror"
+            mkdir -p "$mirror_config"
+            chmod 0700 "$mirror_config"
+            printf '%s' "$MIRROR_QUAY_PASSWORD" \
+              | DOCKER_CONFIG="$mirror_config" docker login quay.io \
+                  --username "$MIRROR_QUAY_USERNAME" --password-stdin
+            echo "MIRROR_DOCKER_CONFIG=$mirror_config" >> "$GITHUB_ENV"
+          fi
+
+      - name: Stage and sign krkn-chaos manifest
+        id: krkn_manifest
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -422,29 +446,27 @@ jobs:
           patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           staging_tag="${patch_tag}-signing"
           repo="$QUAY_REPOSITORY"
-          docker manifest create "$repo:$staging_tag" \
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker manifest create "$repo:$staging_tag" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
-          digest=$(docker manifest push "$repo:$staging_tag" | tail -n 1)
+          digest=$(DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
+            docker manifest push "$repo:$staging_tag" | tail -n 1)
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+            echo "error: unexpected krkn-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
           ref="$repo@$digest"
-          cosign sign --yes --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
-          cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign.pub"
-          cosign verify --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign.pub" "$ref"
-          docker buildx imagetools create --tag "$repo:$patch_tag" "$ref"
-          docker buildx imagetools create --tag "$repo:latest" "$ref"
-          echo "Published and signed $repo:$patch_tag and $repo:latest at $digest" >> "$GITHUB_STEP_SUMMARY"
-          echo "patch_tag=$patch_tag" >> "$GITHUB_OUTPUT"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" cosign sign --yes \
+            --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
+            cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign-krkn.pub"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" cosign verify \
+            --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign-krkn.pub" "$ref"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
 
-      - name: Log in to redhat-chaos Quay
+      - name: Stage and sign redhat-chaos manifest
         if: inputs.publish_target == 'production'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: quay.io
-          username: ${{ secrets.QUAY_USER_1 }}
-          password: ${{ secrets.QUAY_TOKEN_1 }}
-
-      - name: Assemble, sign, verify, and promote redhat-chaos manifest
-        if: inputs.publish_target == 'production'
+        id: mirror_manifest
         env:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
@@ -453,17 +475,121 @@ jobs:
           patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           staging_tag="${patch_tag}-signing"
           repo="$MIRROR_REPOSITORY"
-          docker manifest create "$repo:$staging_tag" \
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker manifest create "$repo:$staging_tag" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
-          digest=$(docker manifest push "$repo:$staging_tag" | tail -n 1)
+          digest=$(DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
+            docker manifest push "$repo:$staging_tag" | tail -n 1)
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+            echo "error: unexpected redhat-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
           ref="$repo@$digest"
-          cosign sign --yes --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
-          cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign-mirror.pub"
-          cosign verify --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign-mirror.pub" "$ref"
-          docker buildx imagetools create --tag "$repo:$patch_tag" "$ref"
-          docker buildx imagetools create --tag "$repo:latest" "$ref"
-          echo "Published and signed $repo:$patch_tag and $repo:latest at $digest" >> "$GITHUB_STEP_SUMMARY"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" cosign sign --yes \
+            --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
+            cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign-mirror.pub"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" cosign verify \
+            --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign-mirror.pub" "$ref"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Record current latest digests
+        id: previous
+        env:
+          PUBLISH_TARGET: ${{ inputs.publish_target }}
+        run: |
+          set -Eeuo pipefail
+          latest_digest() {
+            local config=$1
+            local repo=$2
+            local output
+            if ! output=$(DOCKER_CONFIG="$config" docker buildx imagetools inspect "$repo:latest" 2>/dev/null); then
+              return 1
+            fi
+            printf '%s\n' "$output" | awk '$1 == "Digest:" { print $2; exit }'
+          }
+
+          krkn_previous=NONE
+          if digest=$(latest_digest "$KRKN_DOCKER_CONFIG" "$QUAY_REPOSITORY"); then
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo "error: could not parse previous krkn-chaos latest digest" >&2
+              exit 1
+            }
+            krkn_previous=$digest
+          elif [[ "$PUBLISH_TARGET" == production ]]; then
+            echo "error: cannot read the existing krkn-chaos latest digest; refusing production promotion" >&2
+            exit 1
+          fi
+          echo "krkn=$krkn_previous" >> "$GITHUB_OUTPUT"
+
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            mirror_previous=$(latest_digest "$MIRROR_DOCKER_CONFIG" "$MIRROR_REPOSITORY") || {
+              echo "error: cannot read the existing redhat-chaos latest digest; refusing production promotion" >&2
+              exit 1
+            }
+            [[ "$mirror_previous" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo "error: could not parse previous redhat-chaos latest digest" >&2
+              exit 1
+            }
+            echo "mirror=$mirror_previous" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Promote validated manifests with rollback for latest
+        env:
+          PUBLISH_TARGET: ${{ inputs.publish_target }}
+          KRKN_DIGEST: ${{ steps.krkn_manifest.outputs.digest }}
+          MIRROR_DIGEST: ${{ steps.mirror_manifest.outputs.digest }}
+          KRKN_PREVIOUS_DIGEST: ${{ steps.previous.outputs.krkn }}
+          MIRROR_PREVIOUS_DIGEST: ${{ steps.previous.outputs.mirror }}
+        run: |
+          set -Eeuo pipefail
+          patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          krkn_ref="$QUAY_REPOSITORY@$KRKN_DIGEST"
+          mirror_ref="$MIRROR_REPOSITORY@$MIRROR_DIGEST"
+
+          rollback_latest() {
+            local status=$?
+            trap - EXIT
+            if (( status != 0 )); then
+              echo "Promotion failed; restoring previously recorded latest tags" >&2
+              set +e
+              if [[ "$KRKN_PREVIOUS_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+                  --tag "$QUAY_REPOSITORY:latest" \
+                  "$QUAY_REPOSITORY@$KRKN_PREVIOUS_DIGEST" || \
+                  echo "ERROR: failed to restore $QUAY_REPOSITORY:latest" >&2
+              fi
+              if [[ "$PUBLISH_TARGET" == production && "$MIRROR_PREVIOUS_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+                  --tag "$MIRROR_REPOSITORY:latest" \
+                  "$MIRROR_REPOSITORY@$MIRROR_PREVIOUS_DIGEST" || \
+                  echo "ERROR: failed to restore $MIRROR_REPOSITORY:latest" >&2
+              fi
+            fi
+            exit "$status"
+          }
+          trap rollback_latest EXIT
+
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+            --tag "$QUAY_REPOSITORY:latest" "$krkn_ref"
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+              --tag "$MIRROR_REPOSITORY:latest" "$mirror_ref"
+          fi
+
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+            --tag "$QUAY_REPOSITORY:$patch_tag" "$krkn_ref"
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+              --tag "$MIRROR_REPOSITORY:$patch_tag" "$mirror_ref"
+          fi
+
+          echo "Published $QUAY_REPOSITORY:$patch_tag and $QUAY_REPOSITORY:latest at $KRKN_DIGEST" \
+            >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            echo "Published $MIRROR_REPOSITORY:$patch_tag and $MIRROR_REPOSITORY:latest at $MIRROR_DIGEST" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Rebuild krkn-hub
         if: inputs.publish_target == 'production'

@@ -13,6 +13,7 @@ PATCH_LEVELS = {"patch", "minor", "major"}
 
 
 def version_parts(value):
+    """Return an orderable version tuple, or None when the version is unsupported."""
     match = VERSION_PREFIX.match(str(value))
     if not match:
         return None
@@ -33,7 +34,7 @@ def version_parts(value):
             (0, int(token)) if token.isdigit() else (1, token)
             for token in re.findall(r"\d+|[a-z]+", suffix)
         )
-    elif suffix.startswith((".post", ".rev", ".r")):
+    elif re.match(r"\.(?:post|rev|r)(?:\d|$)", suffix):
         rank = 2
         suffix_key = tuple(
             (0, int(token)) if token.isdigit() else (1, token)
@@ -52,6 +53,7 @@ def version_parts(value):
 
 
 def compatible(candidate, current, patch_level):
+    """Return whether a fix is newer and within the selected update boundary."""
     if candidate <= current:
         return False
     if patch_level == "patch":
@@ -62,6 +64,7 @@ def compatible(candidate, current, patch_level):
 
 
 def best_fix(installed, versions, patch_level):
+    """Choose the smallest compatible fix, or None when no fix fits the policy."""
     current = version_parts(installed)
     if current is None:
         return None
@@ -77,11 +80,13 @@ def best_fix(installed, versions, patch_level):
 
 
 def detect_arch():
+    """Return the current machine architecture in Copa's expected naming scheme."""
     machine = platform.machine().lower()
     return {"x86_64": "amd64", "aarch64": "arm64"}.get(machine, machine)
 
 
 def main():
+    """Translate one Grype JSON report; return 0 on success and 1 or 2 on errors."""
     if len(sys.argv) != 2:
         print(f"usage: {sys.argv[0]} GRYPE_REPORT.json", file=sys.stderr)
         return 2
