@@ -442,13 +442,23 @@ jobs:
           patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           staging_tag="${patch_tag}-signing"
           repo="$QUAY_REPOSITORY"
-          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker manifest create "$repo:$staging_tag" \
+          metadata_file="$RUNNER_TEMP/krkn-manifest-metadata.json"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+            --platform linux/amd64,linux/arm64 \
+            --metadata-file "$metadata_file" \
+            --tag "$repo:$staging_tag" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
-          digest=$(DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
-            docker manifest push "$repo:$staging_tag" | tail -n 1)
+          digest=$(jq -er '."containerimage.descriptor".digest' "$metadata_file")
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
             echo "error: unexpected krkn-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
+          platforms=$(DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
+            docker buildx imagetools inspect --raw "$repo:$staging_tag" | \
+            jq -r '[.manifests[]?.platform? | select(.os == "linux") | "\(.os)/\(.architecture)"] | unique | sort | join(",")')
+          [[ "$platforms" == "linux/amd64,linux/arm64" ]] || {
+            echo "error: staged krkn-chaos manifest has unexpected platforms '$platforms'" >&2
             exit 1
           }
           ref="$repo@$digest"
@@ -471,13 +481,23 @@ jobs:
           patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           staging_tag="${patch_tag}-signing"
           repo="$MIRROR_REPOSITORY"
-          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker manifest create "$repo:$staging_tag" \
+          metadata_file="$RUNNER_TEMP/mirror-manifest-metadata.json"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+            --platform linux/amd64,linux/arm64 \
+            --metadata-file "$metadata_file" \
+            --tag "$repo:$staging_tag" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
-          digest=$(DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
-            docker manifest push "$repo:$staging_tag" | tail -n 1)
+          digest=$(jq -er '."containerimage.descriptor".digest' "$metadata_file")
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
             echo "error: unexpected redhat-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
+          platforms=$(DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
+            docker buildx imagetools inspect --raw "$repo:$staging_tag" | \
+            jq -r '[.manifests[]?.platform? | select(.os == "linux") | "\(.os)/\(.architecture)"] | unique | sort | join(",")')
+          [[ "$platforms" == "linux/amd64,linux/arm64" ]] || {
+            echo "error: staged redhat-chaos manifest has unexpected platforms '$platforms'" >&2
             exit 1
           }
           ref="$repo@$digest"
