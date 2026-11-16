@@ -41,4 +41,5 @@ chmod 0755 "$BIN_DIR/copa-grype"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
 
 "$BIN_DIR/grype" version
-"$BIN_DIR/copa" version
+"$BIN_DIR/copa" --help >/dev/null
+echo "Installed Copa v${COPA_VERSION}"
