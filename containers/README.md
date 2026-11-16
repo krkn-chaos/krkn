@@ -47,7 +47,8 @@ release workflow. The standard release flow is unchanged; both publishing paths
 share a lock so they cannot race while updating public image tags.
 
 The workflows require the existing Quay and Cosign secrets used by
-`docker-image.yml`, plus `SLACK_WEBHOOK_URL` for both scheduled scan and final remediation notifications.
+`docker-image.yml`, plus `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` for
+scheduled scan and final remediation notifications.
 Copa language dependency patching remains experimental; the workflow applies
 the selected update level where possible, records remaining findings in its
 reports without failing solely because they remain, runs `pip check`, and uses

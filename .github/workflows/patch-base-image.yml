@@ -261,7 +261,9 @@ jobs:
           local_image="localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
           candidate_tag="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
           candidate_image="${QUAY_REPOSITORY}:${candidate_tag}"
-          docker build --pull --platform "linux/${{ matrix.arch }}" \
+          # The runtime image is the locally patched Python image produced above.
+          # Do not force a registry pull for this local FROM image.
+          docker build --platform "linux/${{ matrix.arch }}" \
             --build-arg "KRKN_RUNTIME_IMAGE=$PYTHON_IMAGE" \
             --build-arg "TAG=${{ steps.source.outputs.source_commit }}" \
             --tag "$local_image" "$RUNNER_TEMP/krkn-image-context"
@@ -688,7 +690,7 @@ jobs:
         if: always()
         continue-on-error: true
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
           REPORT_AVAILABLE: ${{ steps.summary.outputs.report_available }}
           ARCHITECTURES: ${{ steps.summary.outputs.architectures }}
           FINDINGS: ${{ steps.summary.outputs.unique }}
@@ -706,8 +708,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
-            echo "::warning::SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
+          if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
+            echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
             exit 0
           fi
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
@@ -725,4 +727,4 @@ jobs:
           jq -n --arg text "$message" '{text: $text}' \
             | curl --fail --silent --show-error -X POST \
                 -H 'Content-Type: application/json' \
-                --data-binary @- "$SLACK_WEBHOOK_URL"
+                --data-binary @- "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"
