@@ -94,9 +94,6 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                     policy_name=policy_name,
                 )
                 yaml_spec = yaml.safe_load(rendered_spec)
-                # Block the traffic by creating network policy
-                logging.info("Creating the network policy")
-
                 if not self.rollback_handler.set_rollback_callable(
                     self.rollback_network_policy,
                     RollbackContent(
@@ -105,10 +102,14 @@ class ApplicationOutageScenarioPlugin(AbstractScenarioPlugin):
                     ),
                 ):
                     logging.error(
-                        "ApplicationOutageScenarioPlugin failed to register rollback, "
-                        "aborting before creating the network policy"
+                        "ApplicationOutageScenarioPlugin failed to register rollback for %s/%s, "
+                        "aborting before creating the network policy",
+                        namespace,
+                        policy_name,
                     )
                     return 1
+                # Block the traffic by creating network policy
+                logging.info("Creating the network policy")
                 lib_telemetry.get_lib_kubernetes().create_net_policy(
                     yaml_spec, namespace
                 )

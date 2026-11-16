@@ -66,8 +66,22 @@ class TestApplicationOutageScenarioPlugin(unittest.TestCase):
             result = self.plugin.run("test-uuid", path, lib_telemetry, MagicMock())
         self.assertEqual(result, 1)
         kubecli.create_net_policy.assert_not_called()
+        kubecli.delete_net_policy.assert_not_called()
+        self.plugin.rollback_handler.set_rollback_callable.assert_called_once()
+        content = self.plugin.rollback_handler.set_rollback_callable.call_args[0][1]
+        self.assertEqual(content.namespace, "test-ns")
+        self.assertTrue(content.resource_identifier.startswith("krkn-deny-"))
 
-    def _rendered_policy(self, exclude_label=None, raw_yaml=None):
+    def test_run_registers_rollback_before_creating_policy(self):
+        """The rollback must be saved before the policy touches the cluster."""
+        manager = MagicMock()
+        manager.attach_mock(MagicMock(return_value=True), "set_rollback_callable")
+        manager.attach_mock(MagicMock(), "create_net_policy")
+        self._rendered_policy(manager=manager)
+        names = [c[0] for c in manager.mock_calls]
+        self.assertLess(names.index("set_rollback_callable"), names.index("create_net_policy"))
+
+    def _rendered_policy(self, exclude_label=None, raw_yaml=None, manager=None):
         """Run the scenario with a mocked cluster and return the NetworkPolicy spec sent to the API."""
         config = {
             "application_outage": {
@@ -89,6 +103,10 @@ class TestApplicationOutageScenarioPlugin(unittest.TestCase):
             kubecli = MagicMock(spec=KrknKubernetes)
             lib_telemetry.get_lib_kubernetes.return_value = kubecli
             self.plugin.rollback_handler = MagicMock()
+            self.plugin.rollback_handler.set_rollback_callable.return_value = True
+            if manager is not None:
+                self.plugin.rollback_handler.set_rollback_callable = manager.set_rollback_callable
+                kubecli.create_net_policy = manager.create_net_policy
             with patch("time.sleep"):
                 result = self.plugin.run("test-uuid", path, lib_telemetry, MagicMock())
         self.assertEqual(result, 0)
