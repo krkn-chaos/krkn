@@ -1,0 +1,463 @@
+name: Patch Krkn Base Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      krkn_ref:
+        description: Krkn source ref to package into the image
+        required: true
+        default: main
+        type: string
+      library_patch_level:
+        description: Highest allowed dependency update level
+        required: true
+        default: minor
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: read
+
+concurrency:
+  group: patch-krkn-base-image
+  cancel-in-progress: false
+
+env:
+  COPA_VERSION: 0.15.0
+  GRYPE_VERSION: 0.121.3
+  QUAY_REPOSITORY: quay.io/krkn-chaos/krkn
+  MIRROR_REPOSITORY: quay.io/redhat-chaos/krkn
+  COPA_EXPERIMENTAL: '1'
+  KRKN_COPA_LIBRARY_PATCH_LEVEL: ${{ inputs.library_patch_level }}
+
+jobs:
+  build-tools:
+    name: Patch and build ${{ matrix.tool }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: oc
+            arch: amd64
+            runner: ubuntu-latest
+          - tool: virtctl
+            arch: amd64
+            runner: ubuntu-latest
+          - tool: yq
+            arch: amd64
+            runner: ubuntu-latest
+          - tool: oc
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - tool: virtctl
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - tool: yq
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
+        with:
+          go-version: '1.26.9'
+
+      - name: Set up Docker with containerd image store
+        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+          set-host: true
+
+      - name: Install Grype, Copa, and the Grype adapter
+        run: scripts/install-copa-grype-tools.sh
+
+      - name: Patch Go dependencies with Copa and compile the tool
+        env:
+          GOMAXPROCS: '2'
+          GOFLAGS: -p=2
+        run: |
+          set -Eeuo pipefail
+          work="$RUNNER_TEMP/krkn-go-tools/${{ matrix.tool }}"
+          scripts/build-patched-go-tool.sh \
+            '${{ matrix.tool }}' '${{ matrix.arch }}' \
+            "$work/bin" "$work/metadata" "$work/reports"
+
+      - name: Upload compiled binary artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tool-binary-${{ matrix.arch }}-${{ matrix.tool }}
+          path: ${{ runner.temp }}/krkn-go-tools/${{ matrix.tool }}/bin/${{ matrix.tool }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload patched Go manifests and scan reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tool-evidence-${{ matrix.arch }}-${{ matrix.tool }}
+          path: |
+            ${{ runner.temp }}/krkn-go-tools/${{ matrix.tool }}/metadata/
+            ${{ runner.temp }}/krkn-go-tools/${{ matrix.tool }}/reports/
+          if-no-files-found: error
+          retention-days: 30
+
+  build-candidates:
+    name: Patch Python dependencies and build (${{ matrix.arch }})
+    needs: build-tools
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
+        with:
+          go-version: '1.26.9'
+
+      - name: Set up Docker with containerd image store
+        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+          set-host: true
+
+      - name: Install Grype, Copa, and the Grype adapter
+        run: scripts/install-copa-grype-tools.sh
+
+      - name: Download Go binaries for this architecture
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: tool-binary-${{ matrix.arch }}-*
+          path: containers/tools/${{ matrix.arch }}
+          merge-multiple: true
+
+      - name: Resolve Krkn source and prepare Python dependency build context
+        id: source
+        env:
+          KRKN_REF: ${{ inputs.krkn_ref }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source_dir="$RUNNER_TEMP/krkn-source"
+          git clone https://github.com/krkn-chaos/krkn.git "$source_dir"
+          git -C "$source_dir" checkout --detach "$KRKN_REF"
+          mkdir -p "$RUNNER_TEMP/python-deps-context"
+          cp "$source_dir/requirements.txt" "$RUNNER_TEMP/python-deps-context/requirements.txt"
+          cp containers/Dockerfile.python-dependencies "$RUNNER_TEMP/python-deps-context/Dockerfile"
+          echo "source_commit=$(git -C "$source_dir" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build Python dependency image from Krkn requirements
+        id: deps
+        run: |
+          set -Eeuo pipefail
+          image="localhost/krkn-python-deps:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          docker build --pull --platform "linux/${{ matrix.arch }}" \
+            --tag "$image" "$RUNNER_TEMP/python-deps-context"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Scan Python dependencies with Grype
+        id: python_scan
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/grype-python-before-${{ matrix.arch }}.json"
+          grype "docker:${{ steps.deps.outputs.image }}" --output json --file "$report"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
+            > "$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
+          count=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json")
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "updates=$count" >> "$GITHUB_OUTPUT"
+          echo "Grype/Copa Python update entries for linux/${{ matrix.arch }}: $count"
+
+      - name: Apply Copa Python dependency updates
+        id: patch
+        env:
+          SOURCE_IMAGE: ${{ steps.deps.outputs.image }}
+          UPDATE_COUNT: ${{ steps.python_scan.outputs.updates }}
+        run: |
+          set -Eeuo pipefail
+          image="localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          if (( UPDATE_COUNT > 0 )); then
+            copa patch \
+              --image "$SOURCE_IMAGE" \
+              --report "${{ steps.python_scan.outputs.report }}" \
+              --tag "$image" \
+              --addr docker:// \
+              --scanner grype \
+              --pkg-types library \
+              --library-patch-level "$KRKN_COPA_LIBRARY_PATCH_LEVEL"
+          else
+            docker tag "$SOURCE_IMAGE" "$image"
+            echo 'No Python dependency updates are applicable at the selected patch level.'
+          fi
+          docker image inspect "$image" >/dev/null
+          docker run --rm --entrypoint python3.11 "$image" -m pip check
+          docker run --rm --entrypoint python3.11 "$image" -m pip freeze --all \
+            > "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Rescan Python dependencies after Copa
+        id: python_rescan
+        env:
+          PATCHED_IMAGE: ${{ steps.patch.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/grype-python-after-${{ matrix.arch }}.json"
+          grype "docker:$PATCHED_IMAGE" --output json --file "$report"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
+            > "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json"
+          remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          if (( remaining > 0 )); then
+            echo "error: $remaining patch-level eligible Python updates remain after Copa" >&2
+            exit 1
+          fi
+
+      - name: Prepare remediation image context
+        run: |
+          set -Eeuo pipefail
+          scripts/prepare-remediation-dockerfile.sh
+          mkdir -p "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}"
+          cp "containers/Dockerfile.remediation" "$RUNNER_TEMP/krkn-image-context/Dockerfile"
+          cp containers/krknctl-input.json "$RUNNER_TEMP/krkn-image-context/containers/krknctl-input.json"
+          cp "containers/tools/${{ matrix.arch }}/"* \
+            "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}/"
+
+      - name: Build and scan candidate image
+        id: candidate
+        env:
+          KRKN_REF: ${{ inputs.krkn_ref }}
+          PYTHON_IMAGE: ${{ steps.patch.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          local_image="localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          candidate_tag="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          candidate_image="${QUAY_REPOSITORY}:${candidate_tag}"
+          docker build --pull --platform "linux/${{ matrix.arch }}" \
+            --build-arg "KRKN_RUNTIME_IMAGE=$PYTHON_IMAGE" \
+            --build-arg "TAG=${{ steps.source.outputs.source_commit }}" \
+            --tag "$local_image" "$RUNNER_TEMP/krkn-image-context"
+          docker run --rm --entrypoint /bin/bash "$local_image" -lc \
+            'python3.11 -m pip check && oc version --client && virtctl version --client && yq --version'
+          final_report="$RUNNER_TEMP/grype-candidate-${{ matrix.arch }}.json"
+          grype "docker:$local_image" --output json --file "$final_report"
+          jq '.matches |= map(select(.artifact.type == "python" or .artifact.type == "python-pkg"))' \
+            "$final_report" > "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype \
+            "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json" \
+            > "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json"
+          remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json")
+          if (( remaining > 0 )); then
+            echo "error: $remaining selected-level Python updates remain in final candidate" >&2
+            exit 1
+          fi
+          echo "image=$candidate_image" >> "$GITHUB_OUTPUT"
+          echo "tag=$candidate_tag" >> "$GITHUB_OUTPUT"
+          echo "source_commit=${{ steps.source.outputs.source_commit }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Candidate image linux/${{ matrix.arch }}"
+            echo
+            echo "- Krkn ref: `$KRKN_REF` (${{ steps.source.outputs.source_commit }})"
+            echo "- Python updates applied: ${{ steps.python_scan.outputs.updates }}"
+            echo "- Remaining patch-level eligible Python updates: $remaining"
+            echo "- Candidate: `$candidate_image`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log in to krkn-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Push candidate image to krkn-chaos Quay
+        env:
+          CANDIDATE_IMAGE: ${{ steps.candidate.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          docker tag "localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}" "$CANDIDATE_IMAGE"
+          docker push "$CANDIDATE_IMAGE"
+
+      - name: Log in to redhat-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER_1 }}
+          password: ${{ secrets.QUAY_TOKEN_1 }}
+
+      - name: Push candidate image to redhat-chaos Quay
+        env:
+          CANDIDATE_TAG: ${{ steps.candidate.outputs.tag }}
+        run: |
+          set -Eeuo pipefail
+          image="localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          docker tag "$image" "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
+          docker push "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
+
+      - name: Upload Python dependency and candidate scan evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-copa-evidence-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/copa-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/copa-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-python-before-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-candidate-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-candidate-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/copa-candidate-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/patched-python-freeze-${{ matrix.arch }}.txt
+          if-no-files-found: ignore
+          retention-days: 30
+
+  functional-tests:
+    name: Functional tests v2 (amd64 candidate)
+    needs: build-candidates
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Set up Docker with containerd image store
+        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+          set-host: true
+
+      - name: Run the full functional tests v2 against the amd64 candidate
+        env:
+          KRKN_REF: ${{ inputs.krkn_ref }}
+          KRKN_TEST_RESULTS_DIR: ${{ github.workspace }}/CI/tests_v2
+        run: |
+          set -Eeuo pipefail
+          image="${QUAY_REPOSITORY}:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64"
+          docker pull "$image"
+          scripts/test-patched-image.sh "$image"
+
+      - name: Upload functional test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tests-v2-results-${{ github.run_id }}
+          path: |
+            CI/tests_v2/report.html
+            CI/tests_v2/results.xml
+          if-no-files-found: ignore
+          retention-days: 30
+
+  publish:
+    name: Sign, tag, and promote the tested multi-arch image
+    needs:
+      - build-candidates
+      - functional-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Locate offline signing config
+        run: echo "SIGNING_CONFIG=${GITHUB_WORKSPACE}/.github/cosign/signing-config.json" >> "$GITHUB_ENV"
+
+      - name: Set up Buildx for manifest promotion
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to krkn-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Assemble, sign, verify, and promote krkn-chaos manifest
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          staging_tag="${patch_tag}-signing"
+          repo="$QUAY_REPOSITORY"
+          docker manifest create "$repo:$staging_tag" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
+          digest=$(docker manifest push "$repo:$staging_tag" | tail -n 1)
+          ref="$repo@$digest"
+          cosign sign --yes --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
+          cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign.pub"
+          cosign verify --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign.pub" "$ref"
+          docker buildx imagetools create --tag "$repo:$patch_tag" "$ref"
+          docker buildx imagetools create --tag "$repo:latest" "$ref"
+          echo "Published and signed $repo:$patch_tag and $repo:latest at $digest" >> "$GITHUB_STEP_SUMMARY"
+          echo "patch_tag=$patch_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to redhat-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER_1 }}
+          password: ${{ secrets.QUAY_TOKEN_1 }}
+
+      - name: Assemble, sign, verify, and promote redhat-chaos manifest
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          staging_tag="${patch_tag}-signing"
+          repo="$MIRROR_REPOSITORY"
+          docker manifest create "$repo:$staging_tag" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
+          digest=$(docker manifest push "$repo:$staging_tag" | tail -n 1)
+          ref="$repo@$digest"
+          cosign sign --yes --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
+          cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign-mirror.pub"
+          cosign verify --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign-mirror.pub" "$ref"
+          docker buildx imagetools create --tag "$repo:$patch_tag" "$ref"
+          docker buildx imagetools create --tag "$repo:latest" "$ref"
+          echo "Published and signed $repo:$patch_tag and $repo:latest at $digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Rebuild krkn-hub
+        uses: redhat-chaos/actions/krkn-hub@b3118123a105aa4d208b282639d24f71d02fb25c # main
+        with:
+          QUAY_USER: ${{ secrets.QUAY_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
+          AUTOPUSH: ${{ secrets.AUTOPUSH }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}

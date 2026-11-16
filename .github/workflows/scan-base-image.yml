@@ -1,0 +1,99 @@
+name: Scan Krkn Base Image
+
+on:
+  schedule:
+    - cron: '0 9 * * *'
+      timezone: America/New_York
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan latest base image and notify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE: quay.io/krkn-chaos/krkn:latest
+      GRYPE_VERSION: 0.121.3
+    steps:
+      - name: Install pinned Grype
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          case "$(uname -m)" in
+            x86_64) arch=amd64; sha=e9da18cc1429e786722e32161288103600efffd8e483c90761f90485bd1bec85 ;;
+            aarch64|arm64) arch=arm64; sha=b7815598d48da78bfd16f5b98ef28e1bb09c03d34fc8c3e350f99b6ccb3c7cba ;;
+            *) echo "Unsupported runner architecture: $(uname -m)" >&2; exit 2 ;;
+          esac
+          archive="grype_${GRYPE_VERSION}_linux_${arch}.tar.gz"
+          curl --fail --location --silent --show-error \
+            "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/${archive}" \
+            --output "$RUNNER_TEMP/$archive"
+          echo "$sha  $RUNNER_TEMP/$archive" | sha256sum --check --status
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" grype
+          sudo install -m 0755 "$RUNNER_TEMP/grype" /usr/local/bin/grype
+          grype version
+
+      - name: Pull and scan latest image
+        id: scan
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/grype-base-image.json"
+          docker pull "$IMAGE"
+          grype "docker:$IMAGE" --output json --file "$report"
+          total=$(jq '[.matches[]?] | length' "$report")
+          fixable=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed")] | length' "$report")
+          critical=$(jq '[.matches[]? | select(.vulnerability.severity == "Critical")] | length' "$report")
+          high=$(jq '[.matches[]? | select(.vulnerability.severity == "High")] | length' "$report")
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+          echo "fixable=$fixable" >> "$GITHUB_OUTPUT"
+          echo "critical=$critical" >> "$GITHUB_OUTPUT"
+          echo "high=$high" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Krkn base image Grype scan'
+            echo
+            echo "- Image: `$IMAGE`"
+            echo "- Findings: $total total, $fixable with published fixes"
+            echo "- Critical: $critical; High: $high"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Grype report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: grype-base-image-${{ github.run_id }}
+          path: ${{ runner.temp }}/grype-base-image.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Notify Slack with manual fix workflow link
+        if: always()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          FINDINGS: ${{ steps.scan.outputs.total }}
+          FIXABLE: ${{ steps.scan.outputs.fixable }}
+          CRITICAL: ${{ steps.scan.outputs.critical }}
+          HIGH: ${{ steps.scan.outputs.high }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+            echo "SLACK_WEBHOOK_URL secret is required for the scheduled scan notification" >&2
+            exit 1
+          fi
+          workflow_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/patch-base-image.yml"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if [[ "$SCAN_OUTCOME" == success ]]; then
+            message="Krkn base image scan completed: ${FIXABLE:-0} findings have fixes (${FINDINGS:-0} total; critical ${CRITICAL:-0}, high ${HIGH:-0}). Run the manual remediation workflow: ${workflow_url}"
+          else
+            message="Krkn base image scan failed. Inspect ${run_url} and launch remediation when ready: ${workflow_url}"
+          fi
+          jq -n --arg text "$message" '{text: $text}' \
+            | curl --fail --silent --show-error -X POST \
+                -H 'Content-Type: application/json' \
+                --data-binary @- "$SLACK_WEBHOOK_URL"
