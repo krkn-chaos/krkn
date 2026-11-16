@@ -199,40 +199,28 @@ jobs:
         run: |
           set -Eeuo pipefail
           report="$RUNNER_TEMP/grype-python-before-${{ matrix.arch }}.json"
+          freeze="$RUNNER_TEMP/python-freeze-before-${{ matrix.arch }}.txt"
+          manifest="$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
           grype "docker:${{ steps.deps.outputs.image }}" --output json --file "$report"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
-            > "$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
-          count=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json")
-          echo "report=$report" >> "$GITHUB_OUTPUT"
+          docker run --rm --entrypoint python3.11 '${{ steps.deps.outputs.image }}' \
+            -m pip freeze --all > "$freeze"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" "$freeze" > "$manifest"
+          count=$(jq '[.langupdates[]?.name] | unique | length' "$manifest")
+          echo "report=$manifest" >> "$GITHUB_OUTPUT"
+          echo "grype_report=$report" >> "$GITHUB_OUTPUT"
           echo "updates=$count" >> "$GITHUB_OUTPUT"
-          echo "Grype/Copa Python update entries for linux/${{ matrix.arch }}: $count"
+          echo "Grype/Copa Python package updates for linux/${{ matrix.arch }}: $count"
 
-      - name: Apply Copa Python dependency updates
+      - name: Apply and validate Copa Python dependency updates
         id: patch
         env:
           SOURCE_IMAGE: ${{ steps.deps.outputs.image }}
-          UPDATE_COUNT: ${{ steps.python_scan.outputs.updates }}
+          COPA_REPORT: ${{ steps.python_scan.outputs.report }}
         run: |
           set -Eeuo pipefail
           image="localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
-          if (( UPDATE_COUNT > 0 )); then
-            copa patch \
-              --image "$SOURCE_IMAGE" \
-              --report "${{ steps.python_scan.outputs.report }}" \
-              --tag "$image" \
-              --addr docker:// \
-              --scanner grype \
-              --pkg-types library \
-              --library-patch-level "$KRKN_COPA_LIBRARY_PATCH_LEVEL"
-          else
-            docker tag "$SOURCE_IMAGE" "$image"
-            echo 'No Python dependency updates are applicable at the selected patch level.'
-          fi
-          docker image inspect "$image" >/dev/null
-          docker run --rm --entrypoint python3.11 "$image" -m pip check
-          docker run --rm --entrypoint python3.11 "$image" -m pip freeze --all \
-            > "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt"
-          echo "image=$image" >> "$GITHUB_OUTPUT"
+          scripts/apply-copa-python-updates.sh \
+            "$SOURCE_IMAGE" "$COPA_REPORT" "$image" '${{ matrix.arch }}'
 
       - name: Rescan Python dependencies after Copa
         id: python_rescan
@@ -243,8 +231,10 @@ jobs:
           report="$RUNNER_TEMP/grype-python-after-${{ matrix.arch }}.json"
           grype "docker:$PATCHED_IMAGE" --output json --file "$report"
           KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
+            "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt" \
             > "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json"
-          remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
+          remaining=$(jq '[.langupdates[]?.name] | unique | length' \
+            "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
           echo "report=$report" >> "$GITHUB_OUTPUT"
           echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
           if (( remaining > 0 )); then
@@ -295,7 +285,8 @@ jobs:
             echo "## Candidate image linux/${{ matrix.arch }}"
             echo
             echo "- Krkn ref: `$KRKN_REF` (${{ steps.source.outputs.source_commit }})"
-            echo "- Python updates applied: ${{ steps.python_scan.outputs.updates }}"
+            echo "- Python package updates accepted: ${{ steps.patch.outputs.applied }} of ${{ steps.patch.outputs.eligible }}"
+            echo "- Python package updates skipped: ${{ steps.patch.outputs.skipped }}"
             echo "- Remaining patch-level eligible Python updates: $remaining"
             echo "- Candidate: `$candidate_image`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -346,6 +337,7 @@ jobs:
             ${{ runner.temp }}/grype-candidate-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-candidate-python-${{ matrix.arch }}.json
             ${{ runner.temp }}/copa-candidate-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/python-freeze-before-${{ matrix.arch }}.txt
             ${{ runner.temp }}/patched-python-freeze-${{ matrix.arch }}.txt
           if-no-files-found: ignore
           retention-days: 30
