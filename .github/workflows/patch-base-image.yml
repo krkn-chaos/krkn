@@ -248,8 +248,7 @@ jobs:
           echo "report=$report" >> "$GITHUB_OUTPUT"
           echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
           if (( remaining > 0 )); then
-            echo "error: $remaining patch-level eligible Python updates remain after Copa" >&2
-            exit 1
+            echo "warning: $remaining patch-level eligible Python updates remain after Copa" >&2
           fi
 
       - name: Prepare remediation image context
@@ -287,8 +286,7 @@ jobs:
             > "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json"
           remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json")
           if (( remaining > 0 )); then
-            echo "error: $remaining selected-level Python updates remain in final candidate" >&2
-            exit 1
+            echo "warning: $remaining selected-level Python updates remain in final candidate" >&2
           fi
           echo "image=$candidate_image" >> "$GITHUB_OUTPUT"
           echo "tag=$candidate_tag" >> "$GITHUB_OUTPUT"

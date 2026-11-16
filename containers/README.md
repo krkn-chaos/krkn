@@ -48,9 +48,10 @@ share a lock so they cannot race while updating public image tags.
 
 The workflows require the existing Quay and Cosign secrets used by
 `docker-image.yml`, plus `SLACK_WEBHOOK_URL` for both scheduled scan and final remediation notifications.
-Copa language dependency patching remains experimental; the workflow checks the
-selected update level, runs `pip check`, rescans after patching, and uses the
-functional suite as the release gate. At the end, Slack receives a summary
+Copa language dependency patching remains experimental; the workflow applies
+the selected update level where possible, records remaining findings in its
+reports without failing solely because they remain, runs `pip check`, and uses
+the functional suite as the release gate. At the end, Slack receives a summary
 of unique vulnerability IDs by severity from the final amd64 and arm64 candidate
 scans, and the full JSON is uploaded as a workflow artifact even when a gate
 fails. Python package versions are captured in a `pip freeze` artifact because
