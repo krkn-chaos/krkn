@@ -91,6 +91,10 @@ jobs:
       - name: Test Grype-to-Copa version selection
         run: python3 scripts/test_copa_grype.py
 
+      - name: Test Grype report severity aggregation
+        if: matrix.tool == 'oc' && matrix.arch == 'amd64'
+        run: python3 scripts/test_summarize_grype_report.py
+
       - name: Install Grype, Copa, and the Grype adapter
         run: scripts/install-copa-grype-tools.sh
 
@@ -600,3 +604,135 @@ jobs:
           AUTOPUSH: ${{ secrets.AUTOPUSH }}
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+  notify:
+    name: Publish final vulnerability report
+    if: always()
+    needs:
+      - build-tools
+      - build-candidates
+      - functional-tests
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out pipeline scripts
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Download candidate Grype reports
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: python-copa-evidence-*
+          path: ${{ runner.temp }}/post-patch-evidence
+          merge-multiple: true
+
+      - name: Summarize final candidate vulnerability reports
+        id: summary
+        env:
+          BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
+          BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
+          FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          evidence_dir="$RUNNER_TEMP/post-patch-evidence"
+          summary="$RUNNER_TEMP/post-patch-grype-report.json"
+          mkdir -p "$evidence_dir"
+          mapfile -t reports < <(find "$evidence_dir" -maxdepth 1 -type f \
+            -name 'grype-candidate-*.json' ! -name 'grype-candidate-python-*.json' -print | sort)
+          if (( ${#reports[@]} > 0 )); then
+            python3 scripts/summarize_grype_report.py "${reports[@]}" > "$summary"
+            jq \
+              --arg build_tools "$BUILD_TOOLS_RESULT" \
+              --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
+              --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
+              --arg publish "$PUBLISH_RESULT" \
+              '. + {report_available: true, job_results: {build_tools: $build_tools, build_candidates: $build_candidates, functional_tests: $functional_tests, publish: $publish}}' \
+              "$summary" > "$summary.tmp"
+            mv "$summary.tmp" "$summary"
+          else
+            jq -n \
+              --arg build_tools "$BUILD_TOOLS_RESULT" \
+              --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
+              --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
+              --arg publish "$PUBLISH_RESULT" \
+              '{report_available: false, reports: [], architectures: [], total_matches: 0, unique_vulnerability_ids: 0, unique_fixable_vulnerability_ids: 0, counts_by_severity: {Critical: 0, High: 0, Medium: 0, Low: 0, Negligible: 0, Unknown: 0}, ids_by_severity: {Critical: [], High: [], Medium: [], Low: [], Negligible: [], Unknown: []}, findings: [], job_results: {build_tools: $build_tools, build_candidates: $build_candidates, functional_tests: $functional_tests, publish: $publish}}' \
+              > "$summary"
+          fi
+          echo "report_available=$(jq -r '.report_available' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "unique=$(jq -r '.unique_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "fixable=$(jq -r '.unique_fixable_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
+          for severity in Critical High Medium Low Negligible Unknown; do
+            key=$(printf '%s' "$severity" | tr '[:upper:]' '[:lower:]')
+            count=$(jq -r --arg severity "$severity" '.counts_by_severity[$severity]' "$summary")
+            echo "$key=$count" >> "$GITHUB_OUTPUT"
+          done
+          echo "architectures=$(jq -r '(.architectures // []) | join(", ")' "$summary")" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Post-patch Grype report'
+            echo
+            echo "- Pipeline jobs: build-tools=$BUILD_TOOLS_RESULT; build-candidates=$BUILD_CANDIDATES_RESULT; functional-tests=$FUNCTIONAL_TESTS_RESULT; publish=$PUBLISH_RESULT"
+            if [[ "$(jq -r '.report_available' "$summary")" == true ]]; then
+              echo "- Candidate architectures scanned: $(jq -r '(.architectures // []) | join(", ")' "$summary")"
+              echo "- Unique vulnerability IDs: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              echo "- Critical: $(jq -r '.counts_by_severity.Critical' "$summary"); High: $(jq -r '.counts_by_severity.High' "$summary"); Medium: $(jq -r '.counts_by_severity.Medium' "$summary"); Low: $(jq -r '.counts_by_severity.Low' "$summary")"
+              echo "- Negligible: $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown: $(jq -r '.counts_by_severity.Unknown' "$summary")"
+            else
+              echo '- No final candidate Grype report was produced.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload post-patch Grype report
+        if: always() && steps.summary.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: post-patch-grype-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post-patch-grype-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Send final Grype report to Slack
+        if: always()
+        continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPORT_AVAILABLE: ${{ steps.summary.outputs.report_available }}
+          ARCHITECTURES: ${{ steps.summary.outputs.architectures }}
+          FINDINGS: ${{ steps.summary.outputs.unique }}
+          FIXABLE: ${{ steps.summary.outputs.fixable }}
+          CRITICAL: ${{ steps.summary.outputs.critical }}
+          HIGH: ${{ steps.summary.outputs.high }}
+          MEDIUM: ${{ steps.summary.outputs.medium }}
+          LOW: ${{ steps.summary.outputs.low }}
+          NEGLIGIBLE: ${{ steps.summary.outputs.negligible }}
+          UNKNOWN: ${{ steps.summary.outputs.unknown }}
+          BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
+          BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
+          FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+            echo "::warning::SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
+            exit 0
+          fi
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if [[ "$BUILD_TOOLS_RESULT" == success && "$BUILD_CANDIDATES_RESULT" == success && "$FUNCTIONAL_TESTS_RESULT" == success && "$PUBLISH_RESULT" == success ]]; then
+            pipeline_state=passed
+          else
+            pipeline_state=failed
+          fi
+          status="build-tools ${BUILD_TOOLS_RESULT}; candidates ${BUILD_CANDIDATES_RESULT}; functional tests ${FUNCTIONAL_TESTS_RESULT}; publish ${PUBLISH_RESULT}"
+          if [[ "$REPORT_AVAILABLE" == true ]]; then
+            message="Krkn post-patch vulnerability report (${pipeline_state}). Candidate architectures: ${ARCHITECTURES:-unknown}. *${FINDINGS:-0} unique vulnerability IDs* (${FIXABLE:-0} with published fixes): Critical ${CRITICAL:-0}, High ${HIGH:-0}, Medium ${MEDIUM:-0}, Low ${LOW:-0}, Negligible ${NEGLIGIBLE:-0}, Unknown ${UNKNOWN:-0}. Pipeline jobs: ${status}. <${run_url}|Download the full JSON report and view workflow details>."
+          else
+            message="Krkn remediation workflow ${pipeline_state}, but no final post-patch Grype report was produced. Pipeline jobs: ${status}. Inspect <${run_url}|the workflow run>."
+          fi
+          jq -n --arg text "$message" '{text: $text}' \
+            | curl --fail --silent --show-error -X POST \
+                -H 'Content-Type: application/json' \
+                --data-binary @- "$SLACK_WEBHOOK_URL"

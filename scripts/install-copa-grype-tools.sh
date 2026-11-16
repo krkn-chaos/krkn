@@ -28,6 +28,14 @@ tar -xzf "$TMP_DIR/$asset" -C "$TMP_DIR" grype
 install -m 0755 "$TMP_DIR/grype" "$BIN_DIR/grype"
 
 GOBIN="$BIN_DIR" go install "github.com/project-copacetic/copacetic@v${COPA_VERSION}"
+# The Go module's package is named "copacetic"; the release CLI command is "copa".
+if [[ -x "$BIN_DIR/copacetic" ]]; then
+  mv "$BIN_DIR/copacetic" "$BIN_DIR/copa"
+fi
+if [[ ! -x "$BIN_DIR/copa" ]]; then
+  echo "error: Copa installation did not produce the copa executable in $BIN_DIR" >&2
+  exit 1
+fi
 cp scripts/copa-grype "$BIN_DIR/copa-grype"
 chmod 0755 "$BIN_DIR/copa-grype"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
