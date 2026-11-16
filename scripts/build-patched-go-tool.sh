@@ -111,13 +111,13 @@ if (( remaining > 0 )); then
   exit 1
 fi
 
-build_command="set -Eeuo pipefail; cd /workspace; for attempt in 1 2 3; do if go mod download; then break; fi; if [ \"\$attempt\" -eq 3 ]; then exit 1; fi; sleep \$((1 << (attempt - 1))); done; $build_command"
+build_command="set -Eeuo pipefail; cd /workspace; command -v go; go version; for attempt in 1 2 3; do if go mod download; then break; fi; if [ \"\$attempt\" -eq 3 ]; then exit 1; fi; sleep \$((1 << (attempt - 1))); done; $build_command"
 docker run --rm --platform "linux/$arch" \
   -e "GOMAXPROCS=${GOMAXPROCS:-2}" \
   -e "GOFLAGS=${GOFLAGS:--p=2}" \
   -v "$binary_output:/out" \
   --entrypoint /bin/bash \
-  "$patched_image" -lc "$build_command"
+  "$patched_image" -c "$build_command"
 
 if [[ ! -s "$binary_output/$tool" ]]; then
   echo "error: build did not produce $binary_output/$tool" >&2
