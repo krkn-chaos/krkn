@@ -718,13 +718,64 @@ jobs:
           else
             pipeline_state=failed
           fi
-          status="build-tools ${BUILD_TOOLS_RESULT}; candidates ${BUILD_CANDIDATES_RESULT}; functional tests ${FUNCTIONAL_TESTS_RESULT}; publish ${PUBLISH_RESULT}"
-          if [[ "$REPORT_AVAILABLE" == true ]]; then
-            message="Krkn post-patch vulnerability report (${pipeline_state}). Candidate architectures: ${ARCHITECTURES:-unknown}. *${FINDINGS:-0} unique vulnerability IDs* (${FIXABLE:-0} with published fixes): Critical ${CRITICAL:-0}, High ${HIGH:-0}, Medium ${MEDIUM:-0}, Low ${LOW:-0}, Negligible ${NEGLIGIBLE:-0}, Unknown ${UNKNOWN:-0}. Pipeline jobs: ${status}. <${run_url}|Download the full JSON report and view workflow details>."
-          else
-            message="Krkn remediation workflow ${pipeline_state}, but no final post-patch Grype report was produced. Pipeline jobs: ${status}. Inspect <${run_url}|the workflow run>."
-          fi
-          jq -n --arg text "$message" '{text: $text}' \
-            | curl --fail --silent --show-error -X POST \
+          payload=$(jq -n \
+            --arg report "$REPORT_AVAILABLE" \
+            --arg pipeline_state "$pipeline_state" \
+            --arg architectures "${ARCHITECTURES:-unknown}" \
+            --arg findings "${FINDINGS:-0}" \
+            --arg fixable "${FIXABLE:-0}" \
+            --arg critical "${CRITICAL:-0}" \
+            --arg high "${HIGH:-0}" \
+            --arg medium "${MEDIUM:-0}" \
+            --arg low "${LOW:-0}" \
+            --arg negligible "${NEGLIGIBLE:-0}" \
+            --arg unknown "${UNKNOWN:-0}" \
+            --arg build_tools "$BUILD_TOOLS_RESULT" \
+            --arg candidates "$BUILD_CANDIDATES_RESULT" \
+            --arg tests "$FUNCTIONAL_TESTS_RESULT" \
+            --arg publish "$PUBLISH_RESULT" \
+            --arg run_url "$run_url" '
+            def status_icon($status):
+              if $status == "success" then ":white_check_mark:"
+              elif $status == "failure" then ":x:"
+              elif $status == "cancelled" then ":no_entry_sign:"
+              elif $status == "skipped" then ":fast_forward:"
+              else ":hourglass_flowing_sand:" end;
+            {
+              text:("Krkn post-patch report (" + $pipeline_state + ")" + (if $report == "true" then ": " + $findings + " unique CVEs, " + $fixable + " fixable." else ": final scan report unavailable." end)),
+              blocks:[
+                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" then "✅ Krkn remediation complete" else "⚠️ Krkn remediation report" end), emoji:true}},
+                {type:"section", fields:[
+                  {type:"mrkdwn", text:("*Status*\n" + $pipeline_state)},
+                  {type:"mrkdwn", text:("*Architectures*\n" + $architectures)}
+                ]},
+                (if $report == "true" then
+                  {type:"section", text:{type:"mrkdwn", text:("*Post-patch result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*")}}
+                else
+                  {type:"section", text:{type:"mrkdwn", text:"⚠️ The final Grype report was not produced. See the workflow run for the failing step."}}
+                end),
+                (if $report == "true" then
+                  {type:"section", fields:[
+                    {type:"mrkdwn", text:(":rotating_light: *Critical*\n" + $critical)},
+                    {type:"mrkdwn", text:(":red_circle: *High*\n" + $high)},
+                    {type:"mrkdwn", text:(":large_orange_circle: *Medium*\n" + $medium)},
+                    {type:"mrkdwn", text:(":large_yellow_circle: *Low*\n" + $low)},
+                    {type:"mrkdwn", text:(":white_circle: *Negligible*\n" + $negligible)},
+                    {type:"mrkdwn", text:(":grey_question: *Unknown*\n" + $unknown)}
+                  ]}
+                else empty end),
+                {type:"divider"},
+                {type:"section", text:{type:"mrkdwn", text:"*Pipeline stages*"}},
+                {type:"section", fields:[
+                  {type:"mrkdwn", text:(status_icon($build_tools) + " *Tool builds*\n" + $build_tools)},
+                  {type:"mrkdwn", text:(status_icon($candidates) + " *Candidate images*\n" + $candidates)},
+                  {type:"mrkdwn", text:(status_icon($tests) + " *Functional tests*\n" + $tests)},
+                  {type:"mrkdwn", text:(status_icon($publish) + " *Publish*\n" + $publish)}
+                ]},
+                {type:"divider"},
+                {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|📋 Open workflow run" + (if $report == "true" then " · Download full JSON report" else "" end) + ">")}}
+              ]
+            }')
+          curl --fail --silent --show-error -X POST \
                 -H 'Content-Type: application/json' \
-                --data-binary @- "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"
+                --data-binary "$payload" "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"

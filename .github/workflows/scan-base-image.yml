@@ -110,11 +110,49 @@ jobs:
           workflow_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/patch-base-image.yml"
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           if [[ "$SCAN_OUTCOME" == success ]]; then
-            message="Krkn base image scan completed: *${FINDINGS:-0} unique vulnerability IDs*, ${FIXABLE:-0} with published fixes. Critical ${CRITICAL:-0}, High ${HIGH:-0}, Medium ${MEDIUM:-0}, Low ${LOW:-0}, Negligible ${NEGLIGIBLE:-0}, Unknown ${UNKNOWN:-0}. <${run_url}|View the scan report>. Launch remediation: <${workflow_url}|Patch Krkn Base Image>."
+            payload=$(jq -n \
+              --arg image "$IMAGE" \
+              --arg findings "${FINDINGS:-0}" \
+              --arg fixable "${FIXABLE:-0}" \
+              --arg critical "${CRITICAL:-0}" \
+              --arg high "${HIGH:-0}" \
+              --arg medium "${MEDIUM:-0}" \
+              --arg low "${LOW:-0}" \
+              --arg negligible "${NEGLIGIBLE:-0}" \
+              --arg unknown "${UNKNOWN:-0}" \
+              --arg run_url "$run_url" \
+              --arg workflow_url "$workflow_url" '
+              {
+                text: ("Krkn image scan complete: " + $findings + " unique CVEs, " + $fixable + " fixable."),
+                blocks: [
+                  {type:"header", text:{type:"plain_text", text:"🛡️ Krkn base image scan", emoji:true}},
+                  {type:"section", text:{type:"mrkdwn", text:("*Image:* `" + $image + "`\n*Result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*")}},
+                  {type:"section", fields:[
+                    {type:"mrkdwn", text:(":rotating_light: *Critical*\n" + $critical)},
+                    {type:"mrkdwn", text:(":red_circle: *High*\n" + $high)},
+                    {type:"mrkdwn", text:(":large_orange_circle: *Medium*\n" + $medium)},
+                    {type:"mrkdwn", text:(":large_yellow_circle: *Low*\n" + $low)},
+                    {type:"mrkdwn", text:(":white_circle: *Negligible*\n" + $negligible)},
+                    {type:"mrkdwn", text:(":grey_question: *Unknown*\n" + $unknown)}
+                  ]},
+                  {type:"divider"},
+                  {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|📊 Open scan report>\n<" + $workflow_url + "|🩹 Launch remediation>")}}
+                ]
+              }')
           else
-            message="Krkn base image scan failed. Inspect <${run_url}|the workflow run> and launch remediation when ready: <${workflow_url}|Patch Krkn Base Image>."
+            payload=$(jq -n \
+              --arg run_url "$run_url" \
+              --arg workflow_url "$workflow_url" '
+              {
+                text:"Krkn base image scan failed.",
+                blocks:[
+                  {type:"header", text:{type:"plain_text", text:"🚨 Krkn base image scan failed", emoji:true}},
+                  {type:"section", text:{type:"mrkdwn", text:"The vulnerability scan did not complete. Check the run details before launching remediation."}},
+                  {type:"divider"},
+                  {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|🔎 Open failed scan>\n<" + $workflow_url + "|🩹 Launch remediation>")}}
+                ]
+              }')
           fi
-          jq -n --arg text "$message" '{text: $text}' \
-            | curl --fail --silent --show-error -X POST \
+          curl --fail --silent --show-error -X POST \
                 -H 'Content-Type: application/json' \
-                --data-binary @- "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"
+                --data-binary "$payload" "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"
