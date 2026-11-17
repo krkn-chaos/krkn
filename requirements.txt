@@ -1,4 +1,4 @@
-setuptools<82.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored jaraco-context
+setuptools>=83.0.0,<85.0.0  # Security fixes; compatible with vmware-vcenter
 wheel>=0.46.2  # Fixes GHSA-8rrh-rw8j-w5fx
 aliyun-python-sdk-core==2.16.1
 aliyun-python-sdk-ecs==4.24.25
@@ -37,6 +37,6 @@ service_identity==24.1.0
 PyYAML==6.0.1
 colorlog==6.10.1
 
-git+https://github.com/vmware/vsphere-automation-sdk-python.git@v8.0.0.0
+vmware-vcenter==9.1.1.0
 cryptography>=46.0.7 # pinned to avoid multiple CVEs (subgroup attack, buffer overflow, DNS constraints)
 protobuf>=4.25.8 # not directly required, pinned by Snyk to avoid a vulnerability
