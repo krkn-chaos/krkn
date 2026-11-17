@@ -794,7 +794,8 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
     @patch('logging.info')
     def test_multiprocess_nodes_with_exception(self, mock_logging):
         """
-        Test multiprocess_nodes handles exceptions gracefully
+        Test multiprocess_nodes logs a pool error and raises it, so the
+        scenario fails like it does in serial mode (#1633)
         """
         nodes = ["node1", "node2"]
         mock_scenario_object = Mock()
@@ -804,10 +805,167 @@ class TestNodeActionsScenarioPlugin(unittest.TestCase):
         with patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
             mock_pool.side_effect = Exception("Pool error")
 
-            self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
+            with self.assertRaises(Exception) as ctx:
+                self.plugin.multiprocess_nodes(nodes, mock_scenario_object, action, node_scenario)
 
+            self.assertEqual(str(ctx.exception), "Pool error")
             mock_logging.assert_called()
             self.assertIn("Error on pool multiprocessing", str(mock_logging.call_args))
+
+    def test_multiprocess_nodes_raises_when_a_node_fails(self):
+        """
+        A node action that raises in the pool fails multiprocess_nodes;
+        the other nodes still run
+        """
+        ran = []
+
+        def run_node(node, *args):
+            if node == "bad":
+                raise RuntimeError("stop failed on bad")
+            ran.append(node)
+
+        with patch.object(self.plugin, 'run_node', side_effect=run_node):
+            with self.assertRaises(RuntimeError):
+                self.plugin.multiprocess_nodes(
+                    ["good1", "bad", "good2"], Mock(), "node_stop_scenario", {}
+                )
+
+        self.assertEqual(sorted(ran), ["good1", "good2"])
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def _run_with_one_failing_node(self, parallel, mock_file, mock_general_scenarios, mock_common_funcs, mock_cerberus):
+        scenario_yaml = {
+            "node_scenarios": [
+                {
+                    "cloud_type": "generic",
+                    "node_name": "good1,bad",
+                    "actions": ["stop_kubelet_scenario"],
+                    "parallel": parallel,
+                }
+            ]
+        }
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+
+        def stop_kubelet(count, node, timeout):
+            if node == "bad":
+                raise RuntimeError("stop failed on bad")
+
+        mock_scenario_object.stop_kubelet_scenario.side_effect = stop_kubelet
+        mock_general_scenarios.return_value = mock_scenario_object
+        mock_common_funcs.get_node_by_name.return_value = ["good1", "bad"]
+
+        with patch('yaml.safe_load', return_value=scenario_yaml):
+            return self.plugin.run(
+                "test-uuid",
+                "/path/to/scenario.yaml",
+                self.mock_lib_telemetry,
+                self.mock_scenario_telemetry
+            )
+
+    def test_run_fails_when_a_node_fails_in_parallel(self):
+        """A failed node fails the scenario in parallel mode (#1633)"""
+        self.assertEqual(self._run_with_one_failing_node(True), 1)
+
+    def test_run_fails_when_a_node_fails_in_serial(self):
+        """A failed node fails the scenario in serial mode"""
+        self.assertEqual(self._run_with_one_failing_node(False), 1)
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def _run_with_every_node_excluded(self, parallel, mock_file, mock_general_scenarios, mock_common_funcs, mock_cerberus):
+        scenario_yaml = {
+            "node_scenarios": [
+                {
+                    "cloud_type": "generic",
+                    "label_selector": "node-role.kubernetes.io/worker",
+                    "exclude_label": "node-role.kubernetes.io/infra",
+                    "instance_count": 2,
+                    "actions": ["stop_kubelet_scenario"],
+                    "parallel": parallel,
+                }
+            ]
+        }
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+        mock_general_scenarios.return_value = mock_scenario_object
+        # the exclude label matches every selected node
+        mock_common_funcs.get_node.side_effect = [["node-A", "node-B"], ["node-A", "node-B"]]
+
+        with patch('yaml.safe_load', return_value=scenario_yaml):
+            rc = self.plugin.run(
+                "test-uuid",
+                "/path/to/scenario.yaml",
+                self.mock_lib_telemetry,
+                self.mock_scenario_telemetry
+            )
+        mock_scenario_object.stop_kubelet_scenario.assert_not_called()
+        return rc
+
+    def test_run_passes_with_every_node_excluded_in_parallel(self):
+        """An empty selection is not a failure in parallel mode either"""
+        self.assertEqual(self._run_with_every_node_excluded(True), 0)
+
+    def test_run_passes_with_every_node_excluded_in_serial(self):
+        self.assertEqual(self._run_with_every_node_excluded(False), 0)
+
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.cerberus')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
+    @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.general_node_scenarios')
+    @patch('builtins.open', new_callable=mock_open)
+    def _run_with_a_missing_named_node(self, parallel, mock_file, mock_general_scenarios, mock_common_funcs, mock_cerberus):
+        scenario_yaml = {
+            "node_scenarios": [
+                {
+                    "cloud_type": "generic",
+                    "node_name": "ghost-node",
+                    "actions": ["stop_kubelet_scenario"],
+                    "parallel": parallel,
+                }
+            ]
+        }
+        mock_scenario_object = Mock()
+        mock_scenario_object.affected_nodes_status = AffectedNodeStatus()
+        mock_scenario_object.affected_nodes_status.affected_nodes = []
+        mock_general_scenarios.return_value = mock_scenario_object
+        # get_node_by_name returns None when a named node isn't killable
+        mock_common_funcs.get_node_by_name.return_value = None
+
+        with patch('yaml.safe_load', return_value=scenario_yaml):
+            return self.plugin.run(
+                "test-uuid",
+                "/path/to/scenario.yaml",
+                self.mock_lib_telemetry,
+                self.mock_scenario_telemetry
+            )
+
+    def test_run_fails_with_a_missing_named_node_in_parallel(self):
+        """A missing named node is a failure, not an empty selection"""
+        self.assertEqual(self._run_with_a_missing_named_node(True), 1)
+
+    def test_run_fails_with_a_missing_named_node_in_serial(self):
+        self.assertEqual(self._run_with_a_missing_named_node(False), 1)
+
+    def test_multiprocess_nodes_closes_and_joins_pool_when_a_node_fails(self):
+        """The pool is cleaned up when a node fails, and the error still
+        reaches run()"""
+        with patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.ThreadPool') as mock_pool:
+            mock_pool_instance = Mock()
+            mock_pool_instance.starmap.side_effect = RuntimeError("node failed")
+            mock_pool.return_value = mock_pool_instance
+
+            with self.assertRaises(RuntimeError):
+                self.plugin.multiprocess_nodes(["node1", "node2"], Mock(), "node_stop_scenario", {})
+
+            mock_pool_instance.close.assert_called_once()
+            mock_pool_instance.join.assert_called_once()
 
     @patch('krkn.scenario_plugins.node_actions.node_actions_scenario_plugin.common_node_functions')
     def test_inject_node_scenario_excludes_consecutive_nodes(self, mock_common_funcs):
