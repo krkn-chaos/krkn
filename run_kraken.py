@@ -74,6 +74,7 @@ from krkn.rollback.command import (
     execute_rollback as execute_rollback_command,
 )
 from krkn.scenario_config_parser import parse_scenario_config, extract_scenario_types
+from krkn.dry_run import run_dry_run
 from krkn.summarized_reports.transform import build_chaos_report, build_chaos_report_pdf
 from krkn.summarized_reports.transform_html import build_chaos_report_html
 from krkn.scenario_plugins.triggers.trigger_manager import TriggerManager
@@ -142,6 +143,26 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
         kraken_config = cfg
 
         chaos_scenarios = get_yaml_item_value(config["kraken"], "chaos_scenarios", [])
+
+        if getattr(options, "dry_run", False):
+            # Branch out before rollback setup, the historical resiliency
+            # window and anything that talks to or changes the cluster
+            # (status server, telemetry, triggers, health checks, plugins).
+            if command:
+                logging.error("--dry-run cannot be combined with the '%s' command", command)
+                return -1
+            if not os.path.isfile(kubeconfig_path) and not os.path.isfile(
+                    "/var/run/secrets/kubernetes.io/serviceaccount/token"
+            ):
+                logging.error("Cannot read the kubeconfig file at %s, please check", kubeconfig_path)
+                return -1
+            try:
+                kubecli = KrknKubernetes(kubeconfig_path=kubeconfig_path)
+            except Exception as e:
+                logging.error("DRY RUN: failed to initialize the Kubernetes client: %s", e)
+                return 1
+            return run_dry_run(chaos_scenarios, kubecli, ScenarioPluginFactory())
+
         publish_running_status = get_yaml_item_value(
             config["kraken"], "publish_kraken_status", False
         )
@@ -1128,6 +1149,16 @@ if __name__ == "__main__":
              "Must be used together with --start-time and --resiliency-score. "
              "Mutually exclusive with --past-resiliency-score.",
         default=None,
+    )
+
+    parser.add_option(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Preview the targets each configured scenario would match "
+             "without executing any chaos. Exits non-zero if a scenario "
+             "cannot be previewed or would fail.",
+        default=False,
     )
 
     (options, args) = parser.parse_args()
