@@ -27,6 +27,8 @@ case "$arch" in
   *) echo "unsupported architecture: $arch" >&2; exit 2 ;;
 esac
 
+image_vendor_command=
+download_command='go mod download'
 case "$tool" in
   oc)
     source_url=https://github.com/openshift/oc.git
@@ -38,6 +40,8 @@ case "$tool" in
     source_url=https://github.com/kubevirt/kubevirt.git
     git clone --depth 1 "$source_url" "$source_dir"
     vendor_command='go work vendor'
+    image_vendor_command='GOWORK=off go mod vendor'
+    download_command='GOWORK=off go mod download'
     build_command='cd /workspace && go work vendor && go build -o /out/virtctl ./cmd/virtctl/'
     ;;
   yq)
@@ -64,6 +68,12 @@ printf '%s\n' "$source_commit" > "$metadata_dir/source-commit.txt"
 ) | tar --extract --file=- --directory "$metadata_dir/baseline"
 
 cp -R "$source_dir/." "$context_dir/source/"
+if [[ "$tool" == virtctl ]]; then
+  # Copa currently runs `go mod vendor` after patching. Hide workspace files
+  # from its builder image, then restore them from the source checkout when
+  # compiling the patched workspace below.
+  rm -f "$context_dir/source/go.work" "$context_dir/source/go.work.sum"
+fi
 printf '**/.git\n**/.git/**\n' > "$context_dir/.dockerignore"
 cat > "$context_dir/Dockerfile" <<'DOCKERFILE'
 FROM golang:1.26
@@ -73,7 +83,8 @@ RUN apt-get update \
 WORKDIR /workspace
 COPY source/ /workspace/
 DOCKERFILE
-printf 'RUN %s\n' "$vendor_command" >> "$context_dir/Dockerfile"
+image_vendor_command=${image_vendor_command:-$vendor_command}
+printf 'RUN %s\n' "$image_vendor_command" >> "$context_dir/Dockerfile"
 
 run_id=${GITHUB_RUN_ID:-local}
 image="localhost/krkn-go-tool:${tool}-${run_id}-${arch}"
@@ -84,21 +95,46 @@ docker build --pull --platform "linux/$arch" -t "$image" "$context_dir"
 before_report="$report_dir/grype-${tool}-${arch}-before.json"
 after_report="$report_dir/grype-${tool}-${arch}-after.json"
 copa_manifest="$report_dir/copa-${tool}-${arch}.json"
+exclude_modules=()
+if [[ "$tool" == oc ]]; then
+  # This release of distribution/v3 removed packages still imported by oc.
+  exclude_modules=(github.com/distribution/distribution/v3)
+fi
+if ((${#exclude_modules[@]})); then
+  excluded_modules_json=$(printf '%s\n' "${exclude_modules[@]}" | jq -R . | jq -s .)
+else
+  excluded_modules_json='[]'
+fi
+filter_copa_report() {
+  local input_report=$1
+  local output_report=$2
+  jq --argjson excluded "$excluded_modules_json" '
+    .matches |= map(select(
+      .artifact.type != "go-module"
+      or (.artifact.name as $name | ($excluded | index($name)) == null)
+    ))
+  ' "$input_report" > "$output_report"
+}
 # Grype's image catalogers discover Go modules from compiled binaries; the
 # Go module file cataloger is enabled for directory scans. Scan the checked
 # out source so Copa receives vulnerable module versions from go.mod.
 SYFT_GOLANG_USE_PACKAGES_LIB=false \
   grype "dir:$source_dir" --output json --file "$before_report"
+before_copa_report="$report_dir/grype-${tool}-${arch}-copa.json"
+filter_copa_report "$before_report" "$before_copa_report"
 go_module_matches=$(jq '[.matches[]? | select(.artifact.type == "go-module")] | length' "$before_report")
-KRKN_COPA_ARCH="$arch" copa-grype "$before_report" > "$copa_manifest"
+KRKN_COPA_ARCH="$arch" copa-grype "$before_copa_report" > "$copa_manifest"
 update_count=$(jq '.langupdates | length' "$copa_manifest")
 echo "Grype Go module vulnerability matches for $tool ($arch): $go_module_matches"
 echo "Grype language updates for $tool ($arch): $update_count"
+if ((${#exclude_modules[@]})); then
+  echo "Excluding module updates for $tool: ${exclude_modules[*]}"
+fi
 
 if (( update_count > 0 )); then
   KRKN_COPA_ARCH="$arch" COPA_EXPERIMENTAL=1 copa patch \
     -i "$image" \
-    -r "$before_report" \
+    -r "$before_copa_report" \
     -t "$patched_image" \
     -a docker:// \
     --scanner grype \
@@ -123,16 +159,19 @@ tar --extract --file="$patched_manifests_archive" --directory "$patched_source_d
 # binaries and misses changes in go.mod/go.work.
 SYFT_GOLANG_USE_PACKAGES_LIB=false \
   grype "dir:$patched_source_dir" --output json --file "$after_report"
-KRKN_COPA_ARCH="$arch" copa-grype "$after_report" > "$report_dir/copa-${tool}-${arch}-after.json"
+after_copa_report="$report_dir/grype-${tool}-${arch}-after-copa.json"
+filter_copa_report "$after_report" "$after_copa_report"
+KRKN_COPA_ARCH="$arch" copa-grype "$after_copa_report" > "$report_dir/copa-${tool}-${arch}-after.json"
 remaining=$(jq '.langupdates | length' "$report_dir/copa-${tool}-${arch}-after.json")
 if (( remaining > 0 )); then
   echo "warning: $remaining patch-level eligible Go module findings remain for $tool ($arch) after Copa" >&2
 fi
 
-build_command="set -Eeuo pipefail; cd /workspace; command -v go; go version; for attempt in 1 2 3; do if go mod download; then break; fi; if [ \"\$attempt\" -eq 3 ]; then exit 1; fi; sleep \$((1 << (attempt - 1))); done; $build_command"
+build_command="set -Eeuo pipefail; cd /workspace; command -v go; go version; for attempt in 1 2 3; do if $download_command; then break; fi; if [ \"\$attempt\" -eq 3 ]; then exit 1; fi; sleep \$((1 << (attempt - 1))); done; $build_command"
 docker run --rm --platform "linux/$arch" \
   -e "GOMAXPROCS=${GOMAXPROCS:-2}" \
   -e "GOFLAGS=${GOFLAGS:--p=2}" \
+  -v "$patched_source_dir:/workspace" \
   -v "$binary_output:/out" \
   --entrypoint /bin/bash \
   "$patched_image" -c "$build_command"
@@ -145,7 +184,9 @@ fi
 binary_report="$report_dir/grype-${tool}-${arch}-binary.json"
 binary_manifest="$report_dir/copa-${tool}-${arch}-binary.json"
 grype "dir:$binary_output" --output json --file "$binary_report"
-KRKN_COPA_ARCH="$arch" copa-grype "$binary_report" > "$binary_manifest"
+binary_copa_report="$report_dir/grype-${tool}-${arch}-binary-copa.json"
+filter_copa_report "$binary_report" "$binary_copa_report"
+KRKN_COPA_ARCH="$arch" copa-grype "$binary_copa_report" > "$binary_manifest"
 binary_remaining=$(jq '.langupdates | length' "$binary_manifest")
 if (( binary_remaining > 0 )); then
   echo "warning: $binary_remaining patch-level eligible Go module findings remain in rebuilt $tool ($arch)" >&2
@@ -161,6 +202,9 @@ fi
   jq -r '.langupdates[]? | "- Updated: \(.name) \(.installedVersion) → \(.fixedVersion) (\(.vulnerabilityID))"' "$copa_manifest"
   echo "- Grype eligible module updates after Copa: $remaining"
   echo "- Grype eligible module updates in rebuilt binary: $binary_remaining"
+  if ((${#exclude_modules[@]})); then
+    echo "- Copa-excluded modules (compile compatibility): ${exclude_modules[*]}"
+  fi
   echo
   for manifest in go.mod go.work; do
     baseline="$metadata_dir/baseline/$manifest"
