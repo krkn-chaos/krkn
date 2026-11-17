@@ -1,8 +1,7 @@
 """Local schema and execution support for native scenario steps.
 
-The native scenarios use YAML and Python functions; they do not use the
-Arcaflow transport protocol. This module keeps their input and output contract
-without bringing that protocol's CBOR dependency into the Krkn image.
+The native scenarios use YAML and Python functions. This module keeps their
+input and output contract while providing local validation and serialization.
 """
 
 import dataclasses
