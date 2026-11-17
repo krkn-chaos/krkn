@@ -205,12 +205,24 @@ jobs:
           set -Eeuo pipefail
           source_dir="$RUNNER_TEMP/krkn-source"
           git clone https://github.com/krkn-chaos/krkn.git "$source_dir"
-          git -C "$source_dir" fetch --no-tags origin "$KRKN_REF"
+          case "$KRKN_REF" in
+            origin/*)
+              fetch_ref="refs/heads/${KRKN_REF#origin/}"
+              ;;
+            refs/remotes/origin/*)
+              fetch_ref="refs/heads/${KRKN_REF#refs/remotes/origin/}"
+              ;;
+            *)
+              fetch_ref="$KRKN_REF"
+              ;;
+          esac
+          git -C "$source_dir" fetch --no-tags origin "$fetch_ref"
           source_commit=$(git -C "$source_dir" rev-parse --verify 'FETCH_HEAD^{commit}')
           git -C "$source_dir" checkout --detach "$source_commit"
           mkdir -p "$RUNNER_TEMP/python-deps-context"
           cp "$source_dir/requirements.txt" "$RUNNER_TEMP/python-deps-context/requirements.txt"
-          cp containers/Dockerfile.python-dependencies "$RUNNER_TEMP/python-deps-context/Dockerfile"
+          cp "$source_dir/containers/Dockerfile.python-dependencies" \
+            "$RUNNER_TEMP/python-deps-context/Dockerfile"
           echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
 
       - name: Build Python dependency image from Krkn requirements
@@ -270,14 +282,20 @@ jobs:
           fi
 
       - name: Prepare remediation image context
+        env:
+          KRKN_SOURCE_DIR: ${{ runner.temp }}/krkn-source
+          KRKN_SOURCE_COMMIT: ${{ steps.source.outputs.source_commit }}
         run: |
           set -Eeuo pipefail
           scripts/prepare-remediation-dockerfile.sh
-          mkdir -p "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}"
+          mkdir -p "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}" \
+            "$RUNNER_TEMP/krkn-image-context/kraken"
           cp "containers/Dockerfile.remediation" "$RUNNER_TEMP/krkn-image-context/Dockerfile"
           cp containers/krknctl-input.json "$RUNNER_TEMP/krkn-image-context/containers/krknctl-input.json"
           cp "containers/tools/${{ matrix.arch }}/"* \
             "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}/"
+          git -C "$KRKN_SOURCE_DIR" archive "$KRKN_SOURCE_COMMIT" \
+            | tar -x -C "$RUNNER_TEMP/krkn-image-context/kraken"
 
       - name: Build and scan candidate image
         id: candidate
@@ -293,7 +311,6 @@ jobs:
           # Do not force a registry pull for this local FROM image.
           docker build --platform "linux/${{ matrix.arch }}" \
             --build-arg "KRKN_RUNTIME_IMAGE=$PYTHON_IMAGE" \
-            --build-arg "TAG=${{ steps.source.outputs.source_commit }}" \
             --tag "$local_image" "$RUNNER_TEMP/krkn-image-context"
           docker run --rm --entrypoint /bin/bash "$local_image" -lc \
             'python3.11 -m pip check && oc version --client && virtctl version --client && yq --version'

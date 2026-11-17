@@ -31,17 +31,20 @@ case "$tool" in
   oc)
     source_url=https://github.com/openshift/oc.git
     git clone --depth 1 --branch release-5.1 --single-branch "$source_url" "$source_dir"
+    vendor_command='go mod vendor'
     build_command='cd /workspace && go mod vendor && make GO_REQUIRED_MIN_VERSION:= oc && install -m 0755 /workspace/oc /out/oc'
     ;;
   virtctl)
     source_url=https://github.com/kubevirt/kubevirt.git
     git clone --depth 1 "$source_url" "$source_dir"
+    vendor_command='go work vendor'
     build_command='cd /workspace && go work vendor && go build -o /out/virtctl ./cmd/virtctl/'
     ;;
   yq)
     source_url=https://github.com/mikefarah/yq.git
     git clone --depth 1 --branch v4.44.6 "$source_url" "$source_dir"
-    build_command='cd /workspace && go build -ldflags="-s -w" -o /out/yq .'
+    vendor_command='go mod vendor'
+    build_command='cd /workspace && go mod vendor && go build -ldflags="-s -w" -o /out/yq .'
     ;;
   *)
     echo "unsupported Go tool: $tool" >&2
@@ -70,6 +73,7 @@ RUN apt-get update \
 WORKDIR /workspace
 COPY source/ /workspace/
 DOCKERFILE
+printf 'RUN %s\n' "$vendor_command" >> "$context_dir/Dockerfile"
 
 run_id=${GITHUB_RUN_ID:-local}
 image="localhost/krkn-go-tool:${tool}-${run_id}-${arch}"
@@ -81,8 +85,10 @@ before_report="$report_dir/grype-${tool}-${arch}-before.json"
 after_report="$report_dir/grype-${tool}-${arch}-after.json"
 copa_manifest="$report_dir/copa-${tool}-${arch}.json"
 grype "docker:$image" --output json --file "$before_report"
+go_module_matches=$(jq '[.matches[]? | select(.artifact.type == "go-module")] | length' "$before_report")
 KRKN_COPA_ARCH="$arch" copa-grype "$before_report" > "$copa_manifest"
 update_count=$(jq '.langupdates | length' "$copa_manifest")
+echo "Grype Go module vulnerability matches for $tool ($arch): $go_module_matches"
 echo "Grype language updates for $tool ($arch): $update_count"
 
 if (( update_count > 0 )); then
@@ -136,6 +142,7 @@ fi
   echo "### Go dependency patch: $tool ($arch)"
   echo
   echo "- Source: $source_url@$source_commit"
+  echo "- Grype Go module vulnerability matches before patch: $go_module_matches"
   echo "- Grype fixed module findings before patch: $(jq '[.matches[]? | select(.artifact.type == "go-module" and .vulnerability.fix.state == "fixed")] | length' "$before_report")"
   echo "- Copa update entries: $update_count"
   jq -r '.langupdates[]? | "- Updated: \(.name) \(.installedVersion) → \(.fixedVersion) (\(.vulnerabilityID))"' "$copa_manifest"

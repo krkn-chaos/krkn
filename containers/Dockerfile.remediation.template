@@ -1,8 +1,6 @@
 ARG KRKN_RUNTIME_IMAGE=fedora:45
 FROM ${KRKN_RUNTIME_IMAGE}
 
-ARG PR_NUMBER
-ARG TAG
 ARG PYTHON_VERSION=3.11
 ARG TARGETARCH
 ENV PYTHON_CMD=python${PYTHON_VERSION}
@@ -18,13 +16,11 @@ COPY containers/tools/${TARGETARCH}/yq /usr/bin/yq
 RUN chmod 0755 /usr/bin/oc /usr/bin/virtctl /usr/bin/yq \
     && ln -s /usr/bin/oc /usr/bin/kubectl
 
-RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken \
-    && mkdir -p /home/krkn/.kube /home/krkn/.ssh \
+COPY kraken/ /home/krkn/kraken/
+RUN mkdir -p /home/krkn/.kube /home/krkn/.ssh \
     && chmod 700 /home/krkn/.ssh
 
 WORKDIR /home/krkn/kraken
-RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER}; fi
-RUN if [ -n "$TAG" ]; then git checkout "$TAG"; fi
 
 LABEL krknctl.title.global="Krkn Base Image"
 LABEL krknctl.description.global="This is the krkn base image."
