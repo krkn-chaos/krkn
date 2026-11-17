@@ -163,6 +163,32 @@ jobs:
       - name: Install Grype, Copa, and the Grype adapter
         run: scripts/install-copa-grype-tools.sh
 
+      - name: Scan the published latest image before remediation
+        id: baseline_scan
+        continue-on-error: true
+        env:
+          BASELINE_IMAGE: quay.io/krkn-chaos/krkn:latest
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/grype-base-before-${{ matrix.arch }}.json"
+          summary="$RUNNER_TEMP/grype-base-before-summary-${{ matrix.arch }}.json"
+          docker pull --platform "linux/${{ matrix.arch }}" "$BASELINE_IMAGE"
+          grype "docker:$BASELINE_IMAGE" --output json --file "$report"
+          python3 scripts/summarize_grype_report.py "$report" > "$summary"
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pre-patch Grype report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pre-patch-grype-report-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/grype-base-before-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-base-before-summary-${{ matrix.arch }}.json
+          if-no-files-found: ignore
+          retention-days: 30
+
       - name: Download Go binaries for this architecture
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
@@ -644,12 +670,23 @@ jobs:
           path: ${{ runner.temp }}/post-patch-evidence
           merge-multiple: true
 
-      - name: Summarize final candidate vulnerability reports
+      - name: Download pre-patch Grype reports
+        id: baseline_reports
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: pre-patch-grype-report-*
+          path: ${{ runner.temp }}/pre-patch-evidence
+          merge-multiple: true
+
+      - name: Summarize before and after vulnerability reports
         id: summary
         if: always()
         env:
           CHECKOUT_RESULT: ${{ steps.checkout_scripts.outcome }}
           DOWNLOAD_RESULT: ${{ steps.candidate_reports.outcome }}
+          BASELINE_DOWNLOAD_RESULT: ${{ steps.baseline_reports.outcome }}
           BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
           BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
           FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
@@ -658,13 +695,17 @@ jobs:
         run: |
           set -Eeuo pipefail
           evidence_dir="$RUNNER_TEMP/post-patch-evidence"
-          summary="$RUNNER_TEMP/post-patch-grype-report.json"
-          mkdir -p "$evidence_dir"
+          baseline_dir="$RUNNER_TEMP/pre-patch-evidence"
+          summary="$RUNNER_TEMP/before-after-grype-report.json"
+          mkdir -p "$evidence_dir" "$baseline_dir"
           mapfile -t reports < <(find "$evidence_dir" -maxdepth 1 -type f \
             -name 'grype-candidate-*.json' ! -name 'grype-candidate-python-*.json' -print | sort)
+          mapfile -t baseline_reports < <(find "$baseline_dir" -maxdepth 1 -type f \
+            -name 'grype-base-before-*.json' ! -name '*-summary-*' -print | sort)
 
           checkout_result=${CHECKOUT_RESULT:-unknown}
           download_result=${DOWNLOAD_RESULT:-unknown}
+          baseline_download_result=${BASELINE_DOWNLOAD_RESULT:-unknown}
           summary_error=""
           if [[ "$checkout_result" != success ]]; then
             report_status=checkout_failed
@@ -763,10 +804,67 @@ jobs:
               }' > "$summary"
           fi
 
+          baseline_status=available
+          baseline_error=""
+          baseline_summary="$RUNNER_TEMP/baseline-grype-summary.json"
+          if [[ "$baseline_download_result" != success ]]; then
+            baseline_status=artifact_download_failed
+            baseline_error="Pre-patch report artifact download failed."
+          elif (( ${#baseline_reports[@]} == 0 )); then
+            baseline_status=no_baseline_report
+            baseline_error="No pre-patch Grype report was uploaded."
+          elif [[ "$checkout_result" != success ]]; then
+            baseline_status=checkout_failed
+            baseline_error="Could not check out the report summarizer."
+          elif ! python3 scripts/summarize_grype_report.py "${baseline_reports[@]}" > "$baseline_summary"; then
+            baseline_status=summary_failed
+            baseline_error="The pre-patch Grype reports could not be summarized."
+          elif ! jq -e --slurpfile after "$summary" \
+            '.architectures == $after[0].architectures' "$baseline_summary" >/dev/null; then
+            baseline_status=partial
+            baseline_error="Pre-patch and candidate reports do not cover the same architectures."
+          fi
+
+          if [[ "$baseline_status" == available ]]; then
+            jq --slurpfile before "$baseline_summary" \
+              --arg baseline_image 'quay.io/krkn-chaos/krkn:latest' \
+              '. + {
+                baseline_report_available: true,
+                baseline_report_status: "available",
+                baseline_image: $baseline_image,
+                before: $before[0],
+                delta: {
+                  removed_vulnerability_ids: ((([$before[0].ids_by_severity[]?[]] | unique) - ([.ids_by_severity[]?[]] | unique)) | length),
+                  new_vulnerability_ids: ((([.ids_by_severity[]?[]] | unique) - ([$before[0].ids_by_severity[]?[]] | unique)) | length),
+                  removed_ids: (([$before[0].ids_by_severity[]?[]] | unique) - ([.ids_by_severity[]?[]] | unique)),
+                  new_ids: (([.ids_by_severity[]?[]] | unique) - ([$before[0].ids_by_severity[]?[]] | unique))
+                }
+              }' "$summary" > "$summary.tmp"
+            mv "$summary.tmp" "$summary"
+          else
+            jq --arg baseline_status "$baseline_status" \
+              --arg baseline_error "$baseline_error" \
+              '. + {
+                baseline_report_available: false,
+                baseline_report_status: $baseline_status,
+                baseline_image: "quay.io/krkn-chaos/krkn:latest",
+                before: null,
+                delta: null,
+                baseline_diagnostics: {message: $baseline_error}
+              }' "$summary" > "$summary.tmp"
+            mv "$summary.tmp" "$summary"
+          fi
+
           report_available=$(jq -r '.report_available' "$summary")
           report_status=$(jq -r '.report_status' "$summary")
           echo "report_available=$report_available" >> "$GITHUB_OUTPUT"
           echo "report_status=$report_status" >> "$GITHUB_OUTPUT"
+          echo "baseline_available=$(jq -r '.baseline_report_available' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "baseline_status=$(jq -r '.baseline_report_status' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "before_unique=$(jq -r '.before.unique_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "before_fixable=$(jq -r '.before.unique_fixable_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "removed=$(jq -r '.delta.removed_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "added=$(jq -r '.delta.new_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
           echo "unique=$(jq -r '.unique_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
           echo "fixable=$(jq -r '.unique_fixable_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
           for severity in Critical High Medium Low Negligible Unknown; do
@@ -774,11 +872,24 @@ jobs:
             count=$(jq -r --arg severity "$severity" '.counts_by_severity[$severity]' "$summary")
             echo "$key=$count" >> "$GITHUB_OUTPUT"
           done
+          for severity in Critical High Medium Low Negligible Unknown; do
+            key=$(printf '%s' "$severity" | tr '[:upper:]' '[:lower:]')
+            count=$(jq -r --arg severity "$severity" '.before.counts_by_severity[$severity] // 0' "$summary")
+            echo "before_$key=$count" >> "$GITHUB_OUTPUT"
+          done
           echo "architectures=$(jq -r '(.architectures // []) | join(", ")' "$summary")" >> "$GITHUB_OUTPUT"
           {
-            echo '## Post-patch Grype report'
+            echo '## Before and after Grype report'
             echo
-            echo "- Report status: $report_status"
+            echo "- Pre-patch baseline: $baseline_status"
+            if [[ "$baseline_status" == available ]]; then
+              echo "- Before: $(jq -r '.before.unique_vulnerability_ids' "$summary") unique vulnerability IDs; $(jq -r '.before.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              echo "- After: $(jq -r '.unique_vulnerability_ids' "$summary") unique vulnerability IDs; $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              echo "- Change: $(jq -r '.delta.removed_vulnerability_ids' "$summary") IDs no longer present; $(jq -r '.delta.new_vulnerability_ids' "$summary") new IDs"
+            else
+              echo "- Baseline diagnostic: $baseline_error"
+            fi
+            echo "- Candidate report status: $report_status"
             echo "- Pipeline jobs: build-tools=$BUILD_TOOLS_RESULT; build-candidates=$BUILD_CANDIDATES_RESULT; functional-tests=$FUNCTIONAL_TESTS_RESULT; publish=$PUBLISH_RESULT"
             if [[ "$report_available" == true ]]; then
               echo "- Candidate architectures scanned: $(jq -r '(.architectures // []) | join(", ")' "$summary")"
@@ -794,12 +905,12 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload post-patch Grype report
+      - name: Upload before-and-after Grype report
         if: always() && steps.summary.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: post-patch-grype-report-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/post-patch-grype-report.json
+          name: before-after-grype-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/before-after-grype-report.json
           if-no-files-found: error
           retention-days: 30
 
@@ -810,6 +921,12 @@ jobs:
           KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
           REPORT_AVAILABLE: ${{ steps.summary.outputs.report_available }}
           REPORT_STATUS: ${{ steps.summary.outputs.report_status }}
+          BASELINE_AVAILABLE: ${{ steps.summary.outputs.baseline_available }}
+          BASELINE_STATUS: ${{ steps.summary.outputs.baseline_status }}
+          BEFORE_FINDINGS: ${{ steps.summary.outputs.before_unique }}
+          BEFORE_FIXABLE: ${{ steps.summary.outputs.before_fixable }}
+          REMOVED: ${{ steps.summary.outputs.removed }}
+          ADDED: ${{ steps.summary.outputs.added }}
           ARCHITECTURES: ${{ steps.summary.outputs.architectures }}
           FINDINGS: ${{ steps.summary.outputs.unique }}
           FIXABLE: ${{ steps.summary.outputs.fixable }}
@@ -819,6 +936,12 @@ jobs:
           LOW: ${{ steps.summary.outputs.low }}
           NEGLIGIBLE: ${{ steps.summary.outputs.negligible }}
           UNKNOWN: ${{ steps.summary.outputs.unknown }}
+          BEFORE_CRITICAL: ${{ steps.summary.outputs.before_critical }}
+          BEFORE_HIGH: ${{ steps.summary.outputs.before_high }}
+          BEFORE_MEDIUM: ${{ steps.summary.outputs.before_medium }}
+          BEFORE_LOW: ${{ steps.summary.outputs.before_low }}
+          BEFORE_NEGLIGIBLE: ${{ steps.summary.outputs.before_negligible }}
+          BEFORE_UNKNOWN: ${{ steps.summary.outputs.before_unknown }}
           BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
           BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
           FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
@@ -827,7 +950,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
-            echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
+            echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final before-and-after report was not sent"
             exit 0
           fi
           report_available=${REPORT_AVAILABLE:-false}
@@ -841,6 +964,18 @@ jobs:
           payload=$(jq -n \
             --arg report "$report_available" \
             --arg report_status "$report_status" \
+            --arg baseline_available "${BASELINE_AVAILABLE:-false}" \
+            --arg baseline_status "${BASELINE_STATUS:-unknown}" \
+            --arg before_findings "${BEFORE_FINDINGS:-0}" \
+            --arg before_fixable "${BEFORE_FIXABLE:-0}" \
+            --arg removed "${REMOVED:-0}" \
+            --arg added "${ADDED:-0}" \
+            --arg before_critical "${BEFORE_CRITICAL:-0}" \
+            --arg before_high "${BEFORE_HIGH:-0}" \
+            --arg before_medium "${BEFORE_MEDIUM:-0}" \
+            --arg before_low "${BEFORE_LOW:-0}" \
+            --arg before_negligible "${BEFORE_NEGLIGIBLE:-0}" \
+            --arg before_unknown "${BEFORE_UNKNOWN:-0}" \
             --arg pipeline_state "$pipeline_state" \
             --arg architectures "${ARCHITECTURES:-unknown}" \
             --arg findings "${FINDINGS:-0}" \
@@ -870,39 +1005,39 @@ jobs:
               elif $status == "summary_failed" then "candidate report summarization failed"
               else "final candidate report status is unknown" end;
             {
-              text: ("Krkn post-patch report (" + $pipeline_state + "): " +
+              text: ("Krkn before/after report (" + $pipeline_state + "): " +
                 (if $report == "true" then
-                  (if $report_status == "artifact_download_failed" then
-                    "partial summary: " + $findings + " unique CVEs, " + $fixable + " fixable."
+                  (if $baseline_available == "true" then
+                    $before_findings + " → " + $findings + " unique CVEs; " + $removed + " removed, " + $added + " new."
                   else
-                    $findings + " unique CVEs, " + $fixable + " fixable."
+                    "baseline " + $baseline_status + "; after " + $findings + " unique CVEs, " + $fixable + " fixable."
                   end)
                 else report_description($report_status) end)),
               blocks:[
-                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" and $report_status == "available" then "✅ Krkn remediation complete" else "⚠️ Krkn remediation report" end), emoji:true}},
+                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" and $report_status == "available" and $baseline_available == "true" then "✅ Krkn remediation: before → after" else "⚠️ Krkn remediation report" end), emoji:true}},
                 {type:"section", fields:[
                   {type:"mrkdwn", text:("*Pipeline status:* " + $pipeline_state)},
                   {type:"mrkdwn", text:("*Report status:* " + $report_status)},
                   {type:"mrkdwn", text:("*Architectures:* " + $architectures)}
                 ]},
                 (if $report == "true" then
-                  {type:"section", text:{type:"mrkdwn", text:(if $report_status == "artifact_download_failed" then
-                    "⚠️ Candidate artifact retrieval failed; the findings below may be incomplete."
-                  else
-                    "*Post-patch result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*"
-                  end)}}
+                  {type:"section", text:{type:"mrkdwn", text:(
+                    (if $baseline_available == "true" then
+                      "*Before (`quay.io/krkn-chaos/krkn:latest`):* *" + $before_findings + " unique CVEs* · *" + $before_fixable + " fixable*\n"
+                    else
+                      "⚠️ *Before report unavailable:* " + $baseline_status + "\n"
+                    end) +
+                    "*After (candidate):* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*" +
+                    (if $baseline_available == "true" then "\n*Change:* " + $removed + " IDs removed · " + $added + " new IDs" else "" end)
+                  )}}
                 else
                   {type:"section", text:{type:"mrkdwn", text:report_description($report_status)}}
                 end),
                 (if $report == "true" then
-                  {type:"section", fields:[
-                    {type:"mrkdwn", text:(":rotating_light: *Critical* " + $critical)},
-                    {type:"mrkdwn", text:(":red_circle: *High* " + $high)},
-                    {type:"mrkdwn", text:(":large_orange_circle: *Medium* " + $medium)},
-                    {type:"mrkdwn", text:(":large_yellow_circle: *Low* " + $low)},
-                    {type:"mrkdwn", text:(":white_circle: *Negligible* " + $negligible)},
-                    {type:"mrkdwn", text:(":grey_question: *Unknown* " + $unknown)}
-                  ]}
+                  (if $baseline_available == "true" then
+                    {type:"section", text:{type:"mrkdwn", text:(":bar_chart: *Before severity:* Critical " + $before_critical + " · High " + $before_high + " · Medium " + $before_medium + " · Low " + $before_low + " · Negligible " + $before_negligible + " · Unknown " + $before_unknown)}}
+                  else empty end),
+                  {type:"section", text:{type:"mrkdwn", text:(":bar_chart: *After severity:* Critical " + $critical + " · High " + $high + " · Medium " + $medium + " · Low " + $low + " · Negligible " + $negligible + " · Unknown " + $unknown)}}
                 else empty end),
                 {type:"divider"},
                 {type:"section", text:{type:"mrkdwn", text:"*Pipeline stages*"}},
