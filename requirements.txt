@@ -1,4 +1,4 @@
-setuptools<82.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored jaraco-context
+setuptools>=83.0.0,<85.0.0  # CVE fix; verify VMware SDK pkg_resources compatibility
 wheel>=0.46.2  # Fixes GHSA-8rrh-rw8j-w5fx
 aliyun-python-sdk-core==2.16.1
 aliyun-python-sdk-ecs==4.24.25
