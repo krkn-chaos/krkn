@@ -94,7 +94,6 @@ docker build --pull --platform "linux/$arch" -t "$image" "$context_dir"
 
 before_report="$report_dir/grype-${tool}-${arch}-before.json"
 after_report="$report_dir/grype-${tool}-${arch}-after.json"
-copa_manifest="$report_dir/copa-${tool}-${arch}.json"
 exclude_modules=()
 if [[ "$tool" == oc ]]; then
   # These updates are incompatible with the source versions used by oc:
@@ -129,46 +128,109 @@ SYFT_GOLANG_USE_PACKAGES_LIB=false \
 before_copa_report="$report_dir/grype-${tool}-${arch}-copa.json"
 filter_copa_report "$before_report" "$before_copa_report"
 go_module_matches=$(jq '[.matches[]? | select(.artifact.type == "go-module")] | length' "$before_report")
-KRKN_COPA_ARCH="$arch" copa-grype "$before_copa_report" > "$copa_manifest"
-update_count=$(jq '.langupdates | length' "$copa_manifest")
 echo "Grype Go module vulnerability matches for $tool ($arch): $go_module_matches"
-echo "Grype language updates for $tool ($arch): $update_count"
 if ((${#exclude_modules[@]})); then
   echo "Excluding module updates for $tool: ${exclude_modules[*]}"
 fi
 
-if (( update_count > 0 )); then
+fingerprint_manifests() {
+  local directory=$1
+  (
+    cd "$directory"
+    find . -type d \( -name .git -o -name vendor \) -prune -o \
+      -type f \( -name go.mod -o -name go.sum -o -name go.work -o -name go.work.sum \) -print0 \
+      | sort -z \
+      | xargs -0 -r sha256sum \
+      | sha256sum \
+      | awk '{print $1}'
+  )
+}
+
+# A single Copa run may apply several `go get`s in sequence. A later module
+# update can lower a version upgraded earlier in that same run. Re-scan the
+# resulting manifests and patch only the residual findings, with a strict cap
+# and a manifest-progress check to prevent loops. Remaining findings are still
+# reported as warnings below and do not block publication.
+max_patch_passes=3
+current_image=$image
+current_source_dir=$source_dir
+current_report=$before_report
+current_copa_report=$before_copa_report
+total_update_count=0
+patch_pass_count=0
+applied_manifests=()
+
+for ((pass = 1; pass <= max_patch_passes; pass++)); do
+  if ((pass > 1)); then
+    current_report="$report_dir/grype-${tool}-${arch}-pass-${pass}-before.json"
+    SYFT_GOLANG_USE_PACKAGES_LIB=false \
+      grype "dir:$current_source_dir" --output json --file "$current_report"
+    current_copa_report="$report_dir/grype-${tool}-${arch}-pass-${pass}-copa.json"
+    filter_copa_report "$current_report" "$current_copa_report"
+  fi
+
+  copa_manifest="$report_dir/copa-${tool}-${arch}-pass-${pass}.json"
+  KRKN_COPA_ARCH="$arch" copa-grype "$current_copa_report" > "$copa_manifest"
+  update_count=$(jq '.langupdates | length' "$copa_manifest")
+  echo "Grype language updates for $tool ($arch), pass $pass: $update_count"
+  if ((update_count == 0)); then
+    break
+  fi
+
+  patch_pass_count=$pass
+  total_update_count=$((total_update_count + update_count))
+  applied_manifests+=("$copa_manifest")
+  candidate_image="localhost/krkn-go-tool:${tool}-${run_id}-${arch}-pass-${pass}"
   KRKN_COPA_ARCH="$arch" COPA_EXPERIMENTAL=1 copa patch \
-    -i "$image" \
-    -r "$before_copa_report" \
-    -t "$patched_image" \
+    -i "$current_image" \
+    -r "$current_copa_report" \
+    -t "$candidate_image" \
     -a docker:// \
     --scanner grype \
     --pkg-types library \
     --library-patch-level "${KRKN_COPA_LIBRARY_PATCH_LEVEL:-minor}"
-else
-  docker tag "$image" "$patched_image"
-fi
+  docker image inspect "$candidate_image" >/dev/null
 
+  next_source_dir="$work_dir/patched-source-pass-$pass"
+  patched_manifests_archive="$work_dir/patched-manifests-pass-$pass.tar"
+  mkdir -p "$next_source_dir"
+  cp -R "$current_source_dir/." "$next_source_dir/"
+  docker run --rm --entrypoint /bin/bash "$candidate_image" -lc \
+    'cd /workspace && find . -type d \( -name .git -o -name vendor \) -prune -o -type f \( -name go.mod -o -name go.sum -o -name go.work -o -name go.work.sum \) -print0 | tar --null --files-from=- --create --file=-' \
+    > "$patched_manifests_archive"
+  tar --extract --file="$patched_manifests_archive" --directory "$next_source_dir"
+
+  previous_fingerprint=$(fingerprint_manifests "$current_source_dir")
+  next_fingerprint=$(fingerprint_manifests "$next_source_dir")
+  current_image=$candidate_image
+  current_source_dir=$next_source_dir
+  if [[ "$previous_fingerprint" == "$next_fingerprint" ]]; then
+    echo "warning: Copa pass $pass made no Go manifest progress for $tool ($arch); stopping retries" >&2
+    break
+  fi
+done
+
+docker tag "$current_image" "$patched_image"
 docker image inspect "$patched_image" >/dev/null
-patched_source_dir="$work_dir/patched-source"
-patched_manifests_archive="$work_dir/patched-manifests.tar"
-mkdir -p "$patched_source_dir"
-cp -R "$source_dir/." "$patched_source_dir/"
-docker run --rm --entrypoint /bin/bash "$patched_image" -lc \
-  'cd /workspace && find . -type d \( -name .git -o -name vendor \) -prune -o -type f \( -name go.mod -o -name go.sum -o -name go.work -o -name go.work.sum \) -print0 | tar --null --files-from=- --create --file=-' \
-  > "$patched_manifests_archive"
-tar --extract --file="$patched_manifests_archive" --directory "$metadata_dir/patched"
-tar --extract --file="$patched_manifests_archive" --directory "$patched_source_dir"
+patched_source_dir=$current_source_dir
 
-# Re-scan the updated source manifests; an image scan only sees compiled Go
-# binaries and misses changes in go.mod/go.work.
+# Save the final patched Go module metadata for the build artifact and summary.
+(
+  cd "$patched_source_dir"
+  find . -type d \( -name .git -o -name vendor \) -prune -o \
+    -type f \( -name go.mod -o -name go.sum -o -name go.work -o -name go.work.sum \) -print0 \
+    | tar --null --files-from=- --create --file=-
+) | tar --extract --file=- --directory "$metadata_dir/patched"
+
+# Rescan the final source manifests. The binary scan alone cannot show the
+# module-file state Copa changed and may not catalog all Go dependency records.
 SYFT_GOLANG_USE_PACKAGES_LIB=false \
   grype "dir:$patched_source_dir" --output json --file "$after_report"
 after_copa_report="$report_dir/grype-${tool}-${arch}-after-copa.json"
 filter_copa_report "$after_report" "$after_copa_report"
-KRKN_COPA_ARCH="$arch" copa-grype "$after_copa_report" > "$report_dir/copa-${tool}-${arch}-after.json"
-remaining=$(jq '.langupdates | length' "$report_dir/copa-${tool}-${arch}-after.json")
+after_copa_manifest="$report_dir/copa-${tool}-${arch}-after.json"
+KRKN_COPA_ARCH="$arch" copa-grype "$after_copa_report" > "$after_copa_manifest"
+remaining=$(jq '.langupdates | length' "$after_copa_manifest")
 if (( remaining > 0 )); then
   echo "warning: $remaining patch-level eligible Go module findings remain for $tool ($arch) after Copa" >&2
 fi
@@ -211,10 +273,30 @@ fi
   echo "- Source: $source_url@$source_commit"
   echo "- Grype Go module vulnerability matches before patch: $go_module_matches"
   echo "- Grype fixed module findings before patch: $(jq '[.matches[]? | select(.artifact.type == "go-module" and .vulnerability.fix.state == "fixed")] | length' "$before_report")"
-  echo "- Copa update entries: $update_count"
-  jq -r '.langupdates[]? | "- Updated: \(.name) \(.installedVersion) → \(.fixedVersion) (\(.vulnerabilityID))"' "$copa_manifest"
+  echo "- Copa patch passes: $patch_pass_count/$max_patch_passes"
+  echo "- Copa update entries across passes: $total_update_count"
+  for manifest in "${applied_manifests[@]}"; do
+    pass_number=${manifest##*-pass-}
+    pass_number=${pass_number%.json}
+    jq -r --arg pass "$pass_number" '.langupdates[]? | "- Pass \($pass): updated \(.name) \(.installedVersion) → \(.fixedVersion) (\(.vulnerabilityID))"' "$manifest"
+  done
   echo "- Grype eligible module updates after Copa: $remaining"
   echo "- Grype eligible module updates in rebuilt binary: $binary_remaining"
+  if jq -e '[.matches[]? | select(.artifact.type == "go-module")] | length > 0' "$after_report" >/dev/null; then
+    echo "- Remaining Go module vulnerability findings (full list):"
+    jq -r '
+      [.matches[]?
+       | select(.artifact.type == "go-module")
+       | {
+           module: .artifact.name,
+           version: .artifact.version,
+           id: .vulnerability.id,
+           fixes: (.vulnerability.fix.versions // [])
+         }]
+      | unique_by([.module, .version, .id])[]
+      | "  - \(.module)@\(.version): \(.id) (fixed versions: \(if (.fixes | length) > 0 then (.fixes | join(", ")) else "none reported" end))"
+    ' "$after_report"
+  fi
   if ((${#exclude_modules[@]})); then
     echo "- Copa-excluded modules (compile compatibility): ${exclude_modules[*]}"
   fi
