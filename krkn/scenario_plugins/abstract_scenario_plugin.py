@@ -76,6 +76,24 @@ class AbstractScenarioPlugin(ABC):
         """
         pass
 
+    def preview_targets(self, scenario: str, kubecli) -> list[dict]:
+        """
+        Dry-run support: resolves the targets the scenario would hit using
+        read-only API calls only. It must never create, modify or delete
+        cluster resources. Plugins that cannot preview safely keep this
+        default, and `--dry-run` reports them as unsupported.
+
+        :param scenario: the scenario file path
+        :param kubecli: a `KrknKubernetes` client
+        :return: one dict per scenario entry with the keys `id`,
+            `criteria` (dict), `targets` (list of (name, namespace) tuples),
+            `count` (how many of the targets would be hit) and `issues`
+            (list of strings explaining why a real run would fail)
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not support dry-run"
+        )
+
     def run_scenarios(
         self,
         run_uuid: str,
