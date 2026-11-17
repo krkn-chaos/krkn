@@ -87,7 +87,8 @@ copa_manifest="$report_dir/copa-${tool}-${arch}.json"
 # Grype's image catalogers discover Go modules from compiled binaries; the
 # Go module file cataloger is enabled for directory scans. Scan the checked
 # out source so Copa receives vulnerable module versions from go.mod.
-grype "dir:$source_dir" --output json --file "$before_report"
+SYFT_GOLANG_USE_PACKAGES_LIB=false \
+  grype "dir:$source_dir" --output json --file "$before_report"
 go_module_matches=$(jq '[.matches[]? | select(.artifact.type == "go-module")] | length' "$before_report")
 KRKN_COPA_ARCH="$arch" copa-grype "$before_report" > "$copa_manifest"
 update_count=$(jq '.langupdates | length' "$copa_manifest")
@@ -120,7 +121,8 @@ tar --extract --file="$patched_manifests_archive" --directory "$patched_source_d
 
 # Re-scan the updated source manifests; an image scan only sees compiled Go
 # binaries and misses changes in go.mod/go.work.
-grype "dir:$patched_source_dir" --output json --file "$after_report"
+SYFT_GOLANG_USE_PACKAGES_LIB=false \
+  grype "dir:$patched_source_dir" --output json --file "$after_report"
 KRKN_COPA_ARCH="$arch" copa-grype "$after_report" > "$report_dir/copa-${tool}-${arch}-after.json"
 remaining=$(jq '.langupdates | length' "$report_dir/copa-${tool}-${arch}-after.json")
 if (( remaining > 0 )); then
