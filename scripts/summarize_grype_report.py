@@ -38,6 +38,12 @@ def summarize_reports(report_paths):
             artifact = match.get("artifact") or {}
             fix = vulnerability.get("fix") or {}
             fixed_versions = fix.get("versions") or []
+            artifact_type = artifact.get("type") or "unknown"
+            artifact_id = artifact.get("purl") or artifact.get("id")
+            if not artifact_id:
+                artifact_id = (
+                    f"{artifact_type}:{artifact.get('name') or ''}@{artifact.get('version') or ''}"
+                )
             if isinstance(fixed_versions, str):
                 fixed_versions = [fixed_versions]
 
@@ -45,6 +51,8 @@ def summarize_reports(report_paths):
                 "id": vulnerability_id,
                 "severity": severity,
                 "package": artifact.get("name"),
+                "artifact_type": artifact_type,
+                "artifact_id": artifact_id,
                 "installed_version": artifact.get("version"),
                 "fix_state": fix.get("state") or "unknown",
                 "fixed_versions": fixed_versions,
@@ -57,6 +65,8 @@ def summarize_reports(report_paths):
                     "severity",
                     "package",
                     "installed_version",
+                    "artifact_type",
+                    "artifact_id",
                     "fix_state",
                     "architecture",
                 )
@@ -69,6 +79,8 @@ def summarize_reports(report_paths):
             SEVERITIES.index(finding["severity"]),
             finding["id"],
             finding["package"] or "",
+            finding["artifact_type"],
+            finding["artifact_id"],
             finding["installed_version"] or "",
             finding["architecture"] or "",
         ),

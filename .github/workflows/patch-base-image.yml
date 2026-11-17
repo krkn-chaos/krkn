@@ -629,9 +629,11 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out pipeline scripts
+        id: checkout_scripts
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
       - name: Download candidate Grype reports
+        id: candidate_reports
         if: always()
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -642,7 +644,10 @@ jobs:
 
       - name: Summarize final candidate vulnerability reports
         id: summary
+        if: always()
         env:
+          CHECKOUT_RESULT: ${{ steps.checkout_scripts.outcome }}
+          DOWNLOAD_RESULT: ${{ steps.candidate_reports.outcome }}
           BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
           BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
           FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
@@ -655,26 +660,111 @@ jobs:
           mkdir -p "$evidence_dir"
           mapfile -t reports < <(find "$evidence_dir" -maxdepth 1 -type f \
             -name 'grype-candidate-*.json' ! -name 'grype-candidate-python-*.json' -print | sort)
-          if (( ${#reports[@]} > 0 )); then
-            python3 scripts/summarize_grype_report.py "${reports[@]}" > "$summary"
-            jq \
-              --arg build_tools "$BUILD_TOOLS_RESULT" \
-              --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
-              --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
-              --arg publish "$PUBLISH_RESULT" \
-              '. + {report_available: true, job_results: {build_tools: $build_tools, build_candidates: $build_candidates, functional_tests: $functional_tests, publish: $publish}}' \
-              "$summary" > "$summary.tmp"
-            mv "$summary.tmp" "$summary"
+
+          checkout_result=${CHECKOUT_RESULT:-unknown}
+          download_result=${DOWNLOAD_RESULT:-unknown}
+          summary_error=""
+          if [[ "$checkout_result" != success ]]; then
+            report_status=checkout_failed
+            summary_error="Could not check out the pipeline scripts; candidate reports were not aggregated."
+          elif [[ "$download_result" != success ]]; then
+            report_status=artifact_download_failed
+            summary_error="Candidate artifact retrieval failed; any aggregated findings may be partial."
+          elif (( ${#reports[@]} == 0 )); then
+            report_status=no_candidate_report
+            summary_error="Artifact download succeeded, but no candidate Grype report was present."
           else
+            report_status=available
+          fi
+
+          if [[ "$checkout_result" == success && ${#reports[@]} -gt 0 ]]; then
+            if python3 scripts/summarize_grype_report.py "${reports[@]}" > "$summary"; then
+              if jq \
+                --arg report_status "$report_status" \
+                --arg checkout_result "$checkout_result" \
+                --arg download_result "$download_result" \
+                --arg summary_error "$summary_error" \
+                --argjson candidate_report_files "${#reports[@]}" \
+                --arg build_tools "$BUILD_TOOLS_RESULT" \
+                --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
+                --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
+                --arg publish "$PUBLISH_RESULT" \
+                '. + {
+                  report_available: true,
+                  report_status: $report_status,
+                  artifact_download_complete: ($download_result == "success"),
+                  candidate_report_files_found: $candidate_report_files,
+                  diagnostics: {
+                    checkout_result: $checkout_result,
+                    artifact_download_result: $download_result,
+                    message: (if $summary_error == "" then null else $summary_error end)
+                  },
+                  job_results: {
+                    build_tools: $build_tools,
+                    build_candidates: $build_candidates,
+                    functional_tests: $functional_tests,
+                    publish: $publish
+                  }
+                }' "$summary" > "$summary.tmp"; then
+                mv "$summary.tmp" "$summary"
+              else
+                report_status=summary_failed
+                summary_error="The Grype summary could not be enriched with workflow results."
+                rm -f "$summary" "$summary.tmp"
+              fi
+            else
+              report_status=summary_failed
+              summary_error="The Grype report summarizer failed; see the workflow logs."
+              rm -f "$summary" "$summary.tmp"
+            fi
+          fi
+
+          if [[ ! -s "$summary" ]]; then
             jq -n \
+              --arg report_status "$report_status" \
+              --arg checkout_result "$checkout_result" \
+              --arg download_result "$download_result" \
+              --arg summary_error "$summary_error" \
+              --argjson candidate_report_files "${#reports[@]}" \
               --arg build_tools "$BUILD_TOOLS_RESULT" \
               --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
               --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
               --arg publish "$PUBLISH_RESULT" \
-              '{report_available: false, reports: [], architectures: [], total_matches: 0, unique_vulnerability_ids: 0, unique_fixable_vulnerability_ids: 0, counts_by_severity: {Critical: 0, High: 0, Medium: 0, Low: 0, Negligible: 0, Unknown: 0}, ids_by_severity: {Critical: [], High: [], Medium: [], Low: [], Negligible: [], Unknown: []}, findings: [], job_results: {build_tools: $build_tools, build_candidates: $build_candidates, functional_tests: $functional_tests, publish: $publish}}' \
-              > "$summary"
+              '{
+                report_available: false,
+                report_status: $report_status,
+                artifact_download_complete: ($download_result == "success"),
+                candidate_report_files_found: $candidate_report_files,
+                reports: [],
+                architectures: [],
+                total_matches: 0,
+                unique_vulnerability_ids: 0,
+                unique_fixable_vulnerability_ids: 0,
+                counts_by_severity: {
+                  Critical: 0, High: 0, Medium: 0, Low: 0, Negligible: 0, Unknown: 0
+                },
+                ids_by_severity: {
+                  Critical: [], High: [], Medium: [], Low: [], Negligible: [], Unknown: []
+                },
+                findings: [],
+                diagnostics: {
+                  checkout_result: $checkout_result,
+                  artifact_download_result: $download_result,
+                  message: $summary_error
+                },
+                job_results: {
+                  build_tools: $build_tools,
+                  build_candidates: $build_candidates,
+                  functional_tests: $functional_tests,
+                  publish: $publish
+                }
+              }' > "$summary"
           fi
-          echo "report_available=$(jq -r '.report_available' "$summary")" >> "$GITHUB_OUTPUT"
+
+          report_available=$(jq -r '.report_available' "$summary")
+          report_status=$(jq -r '.report_status' "$summary")
+          echo "report_available=$report_available" >> "$GITHUB_OUTPUT"
+          echo "report_status=$report_status" >> "$GITHUB_OUTPUT"
           echo "unique=$(jq -r '.unique_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
           echo "fixable=$(jq -r '.unique_fixable_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
           for severity in Critical High Medium Low Negligible Unknown; do
@@ -686,14 +776,19 @@ jobs:
           {
             echo '## Post-patch Grype report'
             echo
+            echo "- Report status: $report_status"
             echo "- Pipeline jobs: build-tools=$BUILD_TOOLS_RESULT; build-candidates=$BUILD_CANDIDATES_RESULT; functional-tests=$FUNCTIONAL_TESTS_RESULT; publish=$PUBLISH_RESULT"
-            if [[ "$(jq -r '.report_available' "$summary")" == true ]]; then
+            if [[ "$report_available" == true ]]; then
               echo "- Candidate architectures scanned: $(jq -r '(.architectures // []) | join(", ")' "$summary")"
               echo "- Unique vulnerability IDs: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
               echo "- Critical: $(jq -r '.counts_by_severity.Critical' "$summary"); High: $(jq -r '.counts_by_severity.High' "$summary"); Medium: $(jq -r '.counts_by_severity.Medium' "$summary"); Low: $(jq -r '.counts_by_severity.Low' "$summary")"
               echo "- Negligible: $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown: $(jq -r '.counts_by_severity.Unknown' "$summary")"
+              if [[ "$report_status" == artifact_download_failed ]]; then
+                echo "- Warning: artifact download failed; the findings above may be partial."
+              fi
             else
-              echo '- No final candidate Grype report was produced.'
+              echo "- Diagnostic: $(jq -r '.diagnostics.message' "$summary")"
+              echo "- Candidate report files found: $(jq -r '.candidate_report_files_found' "$summary")"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -712,6 +807,7 @@ jobs:
         env:
           KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
           REPORT_AVAILABLE: ${{ steps.summary.outputs.report_available }}
+          REPORT_STATUS: ${{ steps.summary.outputs.report_status }}
           ARCHITECTURES: ${{ steps.summary.outputs.architectures }}
           FINDINGS: ${{ steps.summary.outputs.unique }}
           FIXABLE: ${{ steps.summary.outputs.fixable }}
@@ -732,6 +828,8 @@ jobs:
             echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
             exit 0
           fi
+          report_available=${REPORT_AVAILABLE:-false}
+          report_status=${REPORT_STATUS:-summary_failed}
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           if [[ "$BUILD_TOOLS_RESULT" == success && "$BUILD_CANDIDATES_RESULT" == success && "$FUNCTIONAL_TESTS_RESULT" == success && "$PUBLISH_RESULT" == success ]]; then
             pipeline_state=passed
@@ -739,7 +837,8 @@ jobs:
             pipeline_state=failed
           fi
           payload=$(jq -n \
-            --arg report "$REPORT_AVAILABLE" \
+            --arg report "$report_available" \
+            --arg report_status "$report_status" \
             --arg pipeline_state "$pipeline_state" \
             --arg architectures "${ARCHITECTURES:-unknown}" \
             --arg findings "${FINDINGS:-0}" \
@@ -761,39 +860,58 @@ jobs:
               elif $status == "cancelled" then ":no_entry_sign:"
               elif $status == "skipped" then ":fast_forward:"
               else ":hourglass_flowing_sand:" end;
+            def report_description($status):
+              if $status == "available" then "candidate scan report available"
+              elif $status == "artifact_download_failed" then "candidate artifact download failed; any findings shown may be partial"
+              elif $status == "checkout_failed" then "pipeline script checkout failed; candidate reports were not aggregated"
+              elif $status == "no_candidate_report" then "artifact download completed but no candidate Grype report was present"
+              elif $status == "summary_failed" then "candidate report summarization failed"
+              else "final candidate report status is unknown" end;
             {
-              text:("Krkn post-patch report (" + $pipeline_state + ")" + (if $report == "true" then ": " + $findings + " unique CVEs, " + $fixable + " fixable." else ": final scan report unavailable." end)),
+              text: ("Krkn post-patch report (" + $pipeline_state + "): " +
+                (if $report == "true" then
+                  (if $report_status == "artifact_download_failed" then
+                    "partial summary: " + $findings + " unique CVEs, " + $fixable + " fixable."
+                  else
+                    $findings + " unique CVEs, " + $fixable + " fixable."
+                  end)
+                else report_description($report_status) end)),
               blocks:[
-                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" then "✅ Krkn remediation complete" else "⚠️ Krkn remediation report" end), emoji:true}},
+                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" and $report_status == "available" then "✅ Krkn remediation complete" else "⚠️ Krkn remediation report" end), emoji:true}},
                 {type:"section", fields:[
-                  {type:"mrkdwn", text:("*Status*\n" + $pipeline_state)},
-                  {type:"mrkdwn", text:("*Architectures*\n" + $architectures)}
+                  {type:"mrkdwn", text:("*Pipeline status:* " + $pipeline_state)},
+                  {type:"mrkdwn", text:("*Report status:* " + $report_status)},
+                  {type:"mrkdwn", text:("*Architectures:* " + $architectures)}
                 ]},
                 (if $report == "true" then
-                  {type:"section", text:{type:"mrkdwn", text:("*Post-patch result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*")}}
+                  {type:"section", text:{type:"mrkdwn", text:(if $report_status == "artifact_download_failed" then
+                    "⚠️ Candidate artifact retrieval failed; the findings below may be incomplete."
+                  else
+                    "*Post-patch result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*"
+                  end)}}
                 else
-                  {type:"section", text:{type:"mrkdwn", text:"⚠️ The final Grype report was not produced. See the workflow run for the failing step."}}
+                  {type:"section", text:{type:"mrkdwn", text:report_description($report_status)}}
                 end),
                 (if $report == "true" then
                   {type:"section", fields:[
-                    {type:"mrkdwn", text:(":rotating_light: *Critical*\n" + $critical)},
-                    {type:"mrkdwn", text:(":red_circle: *High*\n" + $high)},
-                    {type:"mrkdwn", text:(":large_orange_circle: *Medium*\n" + $medium)},
-                    {type:"mrkdwn", text:(":large_yellow_circle: *Low*\n" + $low)},
-                    {type:"mrkdwn", text:(":white_circle: *Negligible*\n" + $negligible)},
-                    {type:"mrkdwn", text:(":grey_question: *Unknown*\n" + $unknown)}
+                    {type:"mrkdwn", text:(":rotating_light: *Critical* " + $critical)},
+                    {type:"mrkdwn", text:(":red_circle: *High* " + $high)},
+                    {type:"mrkdwn", text:(":large_orange_circle: *Medium* " + $medium)},
+                    {type:"mrkdwn", text:(":large_yellow_circle: *Low* " + $low)},
+                    {type:"mrkdwn", text:(":white_circle: *Negligible* " + $negligible)},
+                    {type:"mrkdwn", text:(":grey_question: *Unknown* " + $unknown)}
                   ]}
                 else empty end),
                 {type:"divider"},
                 {type:"section", text:{type:"mrkdwn", text:"*Pipeline stages*"}},
                 {type:"section", fields:[
-                  {type:"mrkdwn", text:(status_icon($build_tools) + " *Tool builds*\n" + $build_tools)},
-                  {type:"mrkdwn", text:(status_icon($candidates) + " *Candidate images*\n" + $candidates)},
-                  {type:"mrkdwn", text:(status_icon($tests) + " *Functional tests*\n" + $tests)},
-                  {type:"mrkdwn", text:(status_icon($publish) + " *Publish*\n" + $publish)}
+                  {type:"mrkdwn", text:(status_icon($build_tools) + " *Tool builds* " + $build_tools)},
+                  {type:"mrkdwn", text:(status_icon($candidates) + " *Candidate images* " + $candidates)},
+                  {type:"mrkdwn", text:(status_icon($tests) + " *Functional tests* " + $tests)},
+                  {type:"mrkdwn", text:(status_icon($publish) + " *Publish* " + $publish)}
                 ]},
                 {type:"divider"},
-                {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|📋 Open workflow run" + (if $report == "true" then " · Download full JSON report" else "" end) + ">")}}
+                {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|📋 Open workflow run · Download JSON report/diagnostics>")}}
               ]
             }')
           curl --fail --silent --show-error -X POST \

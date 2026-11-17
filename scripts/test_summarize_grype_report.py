@@ -44,10 +44,55 @@ class GrypeReportSummaryTests(unittest.TestCase):
         self.assertEqual(summary["counts_by_severity"]["Low"], 1)
         self.assertEqual(len(summary["findings"]), 5)
 
+    def test_preserves_same_name_version_for_different_artifact_types(self):
+        report = {
+            "matches": [
+                self.match(
+                    "CVE-2026-0003",
+                    "High",
+                    "openssl",
+                    "fixed",
+                    artifact_type="rpm",
+                    purl="pkg:rpm/fedora/openssl@1.0.0",
+                ),
+                self.match(
+                    "CVE-2026-0003",
+                    "High",
+                    "openssl",
+                    "fixed",
+                    artifact_type="python",
+                    purl="pkg:pypi/openssl@1.0.0",
+                ),
+            ]
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            report_path = Path(temp_dir) / "grype-report.json"
+            report_path.write_text(json.dumps(report), encoding="utf-8")
+
+            summary = summarize_reports([str(report_path)])
+
+        self.assertEqual(summary["total_matches"], 2)
+        self.assertEqual(summary["unique_vulnerability_ids"], 1)
+        self.assertEqual(summary["unique_fixable_vulnerability_ids"], 1)
+        self.assertEqual(len(summary["findings"]), 2)
+        self.assertEqual(
+            {finding["artifact_type"] for finding in summary["findings"]},
+            {"rpm", "python"},
+        )
+        self.assertEqual(
+            {finding["artifact_id"] for finding in summary["findings"]},
+            {"pkg:rpm/fedora/openssl@1.0.0", "pkg:pypi/openssl@1.0.0"},
+        )
+
     @staticmethod
-    def match(vulnerability_id, severity, package, fix_state):
+    def match(vulnerability_id, severity, package, fix_state, artifact_type=None, purl=None):
+        artifact = {"name": package, "version": "1.0.0"}
+        if artifact_type:
+            artifact["type"] = artifact_type
+        if purl:
+            artifact["purl"] = purl
         return {
-            "artifact": {"name": package, "version": "1.0.0"},
+            "artifact": artifact,
             "vulnerability": {
                 "id": vulnerability_id,
                 "severity": severity,
