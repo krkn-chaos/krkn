@@ -31,7 +31,7 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.models.pod_monitor.models import PodsSnapshot
 
 from krkn.scenario_plugins.pod_disruption.models.models import InputParams
-from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin, ScenarioPreview
 
 @dataclass
 class Pod:
@@ -97,6 +97,167 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
 
     def get_scenario_types(self) -> list[str]:
         return ["pod_disruption_scenarios"]
+
+    def preview(self, scenario, kubecli):
+        """Resolve pod targets without executing chaos.
+
+        Reuses the existing get_pods() read-only selection logic with the
+        same selectors, exclusions, and field selectors as killing_pods().
+        """
+        previews = []
+
+        try:
+            with open(scenario, "r") as f:
+                scenario_configs = yaml.safe_load(f)
+        except FileNotFoundError:
+            return [ScenarioPreview(
+                scenario_type="pod_disruption_scenarios",
+                scenario_file=scenario,
+                target_kind="Pod",
+                selectors={},
+                matched_targets=[],
+                excluded_targets=[],
+                planned_targets=[],
+                planned_action="N/A",
+                warnings=[f"scenario file not found: {scenario}"],
+                supported=False,
+            )]
+        except yaml.YAMLError as e:
+            return [ScenarioPreview(
+                scenario_type="pod_disruption_scenarios",
+                scenario_file=scenario,
+                target_kind="Pod",
+                selectors={},
+                matched_targets=[],
+                excluded_targets=[],
+                planned_targets=[],
+                planned_action="N/A",
+                warnings=[f"invalid YAML: {e}"],
+                supported=False,
+            )]
+
+        if not scenario_configs or not isinstance(scenario_configs, list):
+            return [ScenarioPreview(
+                scenario_type="pod_disruption_scenarios",
+                scenario_file=scenario,
+                target_kind="Pod",
+                selectors={},
+                matched_targets=[],
+                excluded_targets=[],
+                planned_targets=[],
+                planned_action="N/A",
+                warnings=["scenario file is empty or has invalid format"],
+                supported=False,
+            )]
+
+        for kill_scenario in scenario_configs:
+            try:
+                config = InputParams(kill_scenario.get("config", {}))
+            except (ValueError, TypeError) as e:
+                previews.append(ScenarioPreview(
+                    scenario_type="pod_disruption_scenarios",
+                    scenario_file=scenario,
+                    target_kind="Pod",
+                    selectors={},
+                    matched_targets=[],
+                    excluded_targets=[],
+                    planned_targets=[],
+                    planned_action="N/A",
+                    warnings=[f"invalid scenario configuration: {e}"],
+                    supported=False,
+                ))
+                continue
+
+            # Reuse existing read-only get_pods() -- same as killing_pods()
+            pods = self.get_pods(
+                config.name_pattern,
+                config.label_selector,
+                config.namespace_pattern,
+                kubecli,
+                field_selector="status.phase=Running",
+                node_label_selector=config.node_label_selector,
+                node_names=config.node_names,
+            ) or []
+
+            # Resolve exclusions -- same as killing_pods()
+            excluded = []
+            if config.exclude_label:
+                excluded = self.get_pods(
+                    "",
+                    config.exclude_label,
+                    config.namespace_pattern,
+                    kubecli,
+                    field_selector="status.phase=Running",
+                    node_label_selector=config.node_label_selector,
+                    node_names=config.node_names,
+                ) or []
+
+            exclude_set = {(p[0], p[1]) for p in excluded}
+            eligible = [p for p in pods if (p[0], p[1]) not in exclude_set]
+
+            # Build selectors for display
+            selectors = {}
+            if config.namespace_pattern:
+                selectors["namespace_pattern"] = config.namespace_pattern
+            if config.label_selector:
+                selectors["label_selector"] = config.label_selector
+            if config.name_pattern:
+                selectors["name_pattern"] = config.name_pattern
+            if config.node_label_selector:
+                selectors["node_label_selector"] = config.node_label_selector
+            if config.node_names:
+                selectors["node_names"] = config.node_names
+            if config.exclude_label:
+                selectors["exclude_label"] = config.exclude_label
+
+            # Build warnings
+            warnings = []
+            if len(eligible) < config.kill:
+                warnings.append(
+                    f"not enough eligible pods: need {config.kill}, "
+                    f"found {len(eligible)}"
+                )
+            if 0 < config.kill < len(eligible):
+                warnings.append(
+                    f"execution will randomly select {config.kill} of "
+                    f"{len(eligible)} eligible pods; exact targets are "
+                    f"not fixed without --seed"
+                )
+
+            # Determine planned action
+            if len(eligible) < config.kill:
+                planned_action = (
+                    f"would fail: need {config.kill} pods, "
+                    f"only {len(eligible)} eligible"
+                )
+            elif config.kill == 0:
+                planned_action = "no pods would be deleted (kill=0)"
+            else:
+                force_str = " (force)" if config.force else ""
+                planned_action = (
+                    f"delete {config.kill} of {len(eligible)} eligible "
+                    f"pods{force_str}, {config.execution} execution"
+                )
+
+            previews.append(ScenarioPreview(
+                scenario_type="pod_disruption_scenarios",
+                scenario_file=scenario,
+                target_kind="Pod",
+                selectors=selectors,
+                matched_targets=[
+                    {"name": p[0], "namespace": p[1]} for p in pods
+                ],
+                excluded_targets=[
+                    {"name": p[0], "namespace": p[1]} for p in excluded
+                ],
+                planned_targets=[
+                    {"name": p[0], "namespace": p[1]} for p in eligible
+                ],
+                planned_action=planned_action,
+                warnings=warnings,
+            ))
+
+        return previews
 
     def start_monitoring(self, kill_scenario: InputParams, lib_telemetry: KrknTelemetryOpenshift) -> Future:
 
