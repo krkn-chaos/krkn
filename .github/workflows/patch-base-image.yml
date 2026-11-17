@@ -893,9 +893,17 @@ jobs:
             echo "- Pipeline jobs: build-tools=$BUILD_TOOLS_RESULT; build-candidates=$BUILD_CANDIDATES_RESULT; functional-tests=$FUNCTIONAL_TESTS_RESULT; publish=$PUBLISH_RESULT"
             if [[ "$report_available" == true ]]; then
               echo "- Candidate architectures scanned: $(jq -r '(.architectures // []) | join(", ")' "$summary")"
-              echo "- Unique vulnerability IDs: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
-              echo "- Critical: $(jq -r '.counts_by_severity.Critical' "$summary"); High: $(jq -r '.counts_by_severity.High' "$summary"); Medium: $(jq -r '.counts_by_severity.Medium' "$summary"); Low: $(jq -r '.counts_by_severity.Low' "$summary")"
-              echo "- Negligible: $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown: $(jq -r '.counts_by_severity.Unknown' "$summary")"
+              echo "- Unique vulnerability IDs after: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              if [[ "$baseline_status" == available ]]; then
+                echo "- Before severity: Critical $(jq -r '.before.counts_by_severity.Critical' "$summary"); High $(jq -r '.before.counts_by_severity.High' "$summary"); Medium $(jq -r '.before.counts_by_severity.Medium' "$summary"); Low $(jq -r '.before.counts_by_severity.Low' "$summary"); Negligible $(jq -r '.before.counts_by_severity.Negligible' "$summary"); Unknown $(jq -r '.before.counts_by_severity.Unknown' "$summary")"
+              fi
+              echo "- After severity: Critical $(jq -r '.counts_by_severity.Critical' "$summary"); High $(jq -r '.counts_by_severity.High' "$summary"); Medium $(jq -r '.counts_by_severity.Medium' "$summary"); Low $(jq -r '.counts_by_severity.Low' "$summary"); Negligible $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown $(jq -r '.counts_by_severity.Unknown' "$summary")"
+              echo
+              echo '### CVE IDs still present in the candidate'
+              for severity in Critical High Medium Low Negligible Unknown; do
+                ids=$(jq -r --arg severity "$severity" '.ids_by_severity[$severity] | if length == 0 then "none" else join(", ") end' "$summary")
+                echo "- **$severity**: $ids"
+              done
               if [[ "$report_status" == artifact_download_failed ]]; then
                 echo "- Warning: artifact download failed; the findings above may be partial."
               fi
