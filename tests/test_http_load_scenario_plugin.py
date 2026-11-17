@@ -13,11 +13,12 @@ import tempfile
 import unittest
 import uuid
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import yaml
 
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.http_load.http_load_scenario_plugin import HttpLoadScenarioPlugin
 
 
@@ -251,6 +252,12 @@ class TestParseMetricsFromLogs(unittest.TestCase):
 
 class TestHttpLoadRun(unittest.TestCase):
 
+    def setUp(self):
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        self.set_rollback_callable = patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _create_scenario_file(self, tmp_dir, config=None):
         default_config = [{
             "http_load_scenario": {
@@ -306,6 +313,27 @@ class TestHttpLoadRun(unittest.TestCase):
             self.assertEqual(result, 0)
             mock_lib_kubernetes.deploy_http_load.assert_called_once()
 
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """No load pod is deployed if the rollback can't be persisted."""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
+
+            plugin = HttpLoadScenarioPlugin()
+            plugin.rollback_handler = MagicMock()
+            plugin.rollback_handler.set_rollback_callable.return_value = False
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            self.assertEqual(result, 1)
+            mock_lib_kubernetes.deploy_http_load.assert_not_called()
+
     def test_run_multiple_pods(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
             scenario_file = self._create_scenario_file(tmp_dir, {"number-of-pods": 3})
@@ -330,6 +358,8 @@ class TestHttpLoadRun(unittest.TestCase):
 
             self.assertEqual(result, 0)
             self.assertEqual(mock_lib_kubernetes.deploy_http_load.call_count, 3)
+            # One rollback entry covering all three pods, written once
+            self.set_rollback_callable.assert_called_once()
 
     def test_run_invalid_config(self):
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -434,6 +464,34 @@ class TestRollbackHttpLoadPods(unittest.TestCase):
 
         self.assertTrue(any('error' in log.lower() for log in log_context.output))
         mock_lib_kubernetes.delete_pod.assert_not_called()
+
+    def test_rollback_runs_from_serialized_source(self):
+        """The rollback file only carries the function body, so it must
+        import what it needs itself."""
+        from krkn.rollback.serialization import Serializer
+
+        name, code = Serializer("http_load_scenarios")._parse_rollback_callable_code(
+            HttpLoadScenarioPlugin.rollback_http_load_pods
+        )
+        # Same names the generated rollback file has in scope
+        namespace = {
+            "logging": __import__("logging"),
+            "RollbackContent": RollbackContent,
+            "KrknTelemetryOpenshift": MagicMock,
+        }
+        exec(code, namespace)
+
+        encoded_data = base64.b64encode(json.dumps(["http-load-abc123"]).encode()).decode()
+        mock_lib_telemetry = MagicMock()
+        mock_lib_kubernetes = MagicMock()
+        mock_lib_telemetry.get_lib_kubernetes.return_value = mock_lib_kubernetes
+
+        namespace[name](
+            RollbackContent(resource_identifier=encoded_data, namespace="default"),
+            mock_lib_telemetry,
+        )
+
+        mock_lib_kubernetes.delete_pod.assert_called_once_with("http-load-abc123", "default")
 
 
 if __name__ == "__main__":
