@@ -1,0 +1,19 @@
+# DRAFT - Scenario C: GPU telemetry blackout (NVIDIA DCGM exporter disruption)
+# Runs with the existing pod_disruption_scenarios plugin; no new krkn code.
+# Untested on real GPU.
+#
+# UNVERIFIED values - confirm against your GPU Operator install before use:
+#   namespace_pattern    nvidia-gpu-operator is the OpenShift (OLM) default;
+#                        upstream Helm installs commonly use gpu-operator.
+#   label_selector       app=nvidia-dcgm-exporter is assumed from GPU Operator
+#                        conventions; check with
+#                        kubectl get pods -n <ns> --show-labels
+#   node_label_selector  nvidia.com/gpu.present=true is assumed to be set by
+#                        GPU Feature Discovery.
+- id: gpu-dcgm-exporter-disruption
+  config:
+    namespace_pattern: ^nvidia-gpu-operator$         # UNVERIFIED
+    label_selector: app=nvidia-dcgm-exporter         # UNVERIFIED
+    node_label_selector: nvidia.com/gpu.present=true # UNVERIFIED
+    kill: 1                                          # exporter pods to delete
+    krkn_pod_recovery_time: 120                      # seconds to wait for the DaemonSet to recreate them
