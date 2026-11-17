@@ -51,10 +51,9 @@ All accepted risks are documented below and will be remediated as soon as compat
 
 ## Current Security Baseline
 
-The last documented image scan, from May 2026, reported 12 CVEs, including two in
-`cbor2`. Krkn no longer declares `arcaflow-plugin-sdk` or `cbor2` as Python
-dependencies. The resulting image vulnerability count must be confirmed by a
-fresh image build and Grype scan before updating the scanned baseline.
+The last documented image scan, from May 2026, reported 12 CVEs. The resulting
+image vulnerability count after dependency cleanup must be confirmed by a fresh
+image build and Grype scan before updating the scanned baseline.
 
 
 ## Known Accepted Risks

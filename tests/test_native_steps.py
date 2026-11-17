@@ -1,4 +1,4 @@
-"""Contract tests for native scenario inputs after removing Arcaflow."""
+"""Contract tests for native scenario inputs."""
 
 import json
 import tempfile
