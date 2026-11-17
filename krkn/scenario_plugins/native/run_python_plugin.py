@@ -16,7 +16,7 @@ import subprocess
 import sys
 import typing
 
-from arcaflow_plugin_sdk import plugin
+from krkn.scenario_plugins.native.steps import plugin
 
 
 @dataclasses.dataclass

@@ -1,0 +1,8 @@
+- id: network_chaos
+  config:
+    node_interface_name: {}
+    execution_type: parallel
+    network_params:
+      latency: 2s
+    test_duration: 12
+    wait_duration: 40
