@@ -16,6 +16,7 @@ google-cloud-compute==1.22.0
 ibm-cloud-sdk-core>=3.24.4  # Requires requests>=2.32.4
 ibm_vpc==0.26.3  # Requires ibm_cloud_sdk_core
 jinja2==3.1.6
+jsonschema
 jaraco-context>=6.1.0  # Fixes GHSA-58pv-8j8x-9vj2
 reportlab>=4.0
 lxml==6.1.0
