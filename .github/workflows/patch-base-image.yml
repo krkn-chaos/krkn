@@ -179,11 +179,13 @@ jobs:
           set -Eeuo pipefail
           source_dir="$RUNNER_TEMP/krkn-source"
           git clone https://github.com/krkn-chaos/krkn.git "$source_dir"
-          git -C "$source_dir" checkout --detach "$KRKN_REF"
+          git -C "$source_dir" fetch --no-tags origin "$KRKN_REF"
+          source_commit=$(git -C "$source_dir" rev-parse --verify 'FETCH_HEAD^{commit}')
+          git -C "$source_dir" checkout --detach "$source_commit"
           mkdir -p "$RUNNER_TEMP/python-deps-context"
           cp "$source_dir/requirements.txt" "$RUNNER_TEMP/python-deps-context/requirements.txt"
           cp containers/Dockerfile.python-dependencies "$RUNNER_TEMP/python-deps-context/Dockerfile"
-          echo "source_commit=$(git -C "$source_dir" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
 
       - name: Build Python dependency image from Krkn requirements
         id: deps
