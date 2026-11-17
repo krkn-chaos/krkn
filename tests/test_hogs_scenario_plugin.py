@@ -62,6 +62,16 @@ class TestHogsScenarioPlugin(unittest.TestCase):
             self.plugin.run_scenario(self._stub_config(), MagicMock(), [], q)
         self.assertIn("only failure", str(ctx.exception))
 
+    def test_worker_does_not_deploy_when_rollback_registration_fails(self):
+        """The hog pod is never deployed if the rollback can't be persisted."""
+        self.plugin.rollback_handler = MagicMock()
+        self.plugin.rollback_handler.set_rollback_callable.return_value = False
+        lib_k8s = MagicMock()
+        q = queue.Queue()
+        self.plugin.run_scenario_worker(self._stub_config(), lib_k8s, "node-a", q)
+        lib_k8s.deploy_hog.assert_not_called()
+        self.assertIn("failed to register rollback", str(q.get_nowait()))
+
     def test_run_scenario_no_exception(self):
         """Empty exception queue means run_scenario does not raise."""
         q = queue.Queue()

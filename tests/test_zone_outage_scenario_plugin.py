@@ -21,6 +21,7 @@ from unittest.mock import MagicMock, patch
 import yaml
 
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.zone_outage.zone_outage_scenario_plugin import (
     ZoneOutageScenarioPlugin,
 )
@@ -334,6 +335,10 @@ class TestZoneOutageRun(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.tmp_path = Path(self.temp_dir.name)
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def tearDown(self):
         self.temp_dir.cleanup()
@@ -468,6 +473,39 @@ class TestZoneOutageRun(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("No killable nodes found in zone us-central1-a", logs.output[0])
         mock_set_rollback.assert_not_called()
+        mock_thread_pool.assert_not_called()
+
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.ThreadPool"
+    )
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.gcp_node_scenarios"
+    )
+    def test_run_gcp_aborts_when_rollback_registration_fails(
+        self, mock_gcp_class, mock_thread_pool, mock_sleep
+    ):
+        """Nodes are never stopped if the rollback can't be persisted"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.list_killable_nodes.return_value = ["node-1"]
+
+        plugin = ZoneOutageScenarioPlugin()
+        with patch.object(
+            plugin.rollback_handler, "set_rollback_callable", return_value=False
+        ):
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
         mock_thread_pool.assert_not_called()
 
 
