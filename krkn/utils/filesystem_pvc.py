@@ -39,6 +39,7 @@ def fill_filesystem_pvc(
     volume_target: Optional[PodVolumeTarget] = None,
     on_file_created: Optional[Callable[[dict], None]] = None,
     pod: Any = None,
+    shell: Any = None,
 ):
     """Fill a filesystem-backed PVC and return ``(status, rollback_data)``."""
     if target_fill_percentage is None or (
@@ -64,7 +65,8 @@ def fill_filesystem_pvc(
     container_name = target.container_name
     mount_path = target.path
 
-    shell = kubecli.get_pod_shell(pod_name, namespace, container_name)
+    if shell is None:
+        shell = kubecli.get_pod_shell(pod_name, namespace, container_name)
     if shell is None:
         logging.error(
             "Container '%s' in pod '%s' has no usable shell",
