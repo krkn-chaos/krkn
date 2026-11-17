@@ -167,8 +167,14 @@ if (( remaining > 0 )); then
   echo "warning: $remaining patch-level eligible Go module findings remain for $tool ($arch) after Copa" >&2
 fi
 
-build_command="set -Eeuo pipefail; cd /workspace; command -v go; go version; for attempt in 1 2 3; do if $download_command; then break; fi; if [ \"\$attempt\" -eq 3 ]; then exit 1; fi; sleep \$((1 << (attempt - 1))); done; $build_command"
+build_command="set -Eeuo pipefail; mkdir -p /tmp/go-home /tmp/go-cache /tmp/go-mod-cache; cd /workspace; command -v go; go version; for attempt in 1 2 3; do if $download_command; then break; fi; if [ \"\$attempt\" -eq 3 ]; then exit 1; fi; sleep \$((1 << (attempt - 1))); done; $build_command"
+runner_uid=$(id -u)
+runner_gid=$(id -g)
 docker run --rm --platform "linux/$arch" \
+  --user "$runner_uid:$runner_gid" \
+  -e HOME=/tmp/go-home \
+  -e GOCACHE=/tmp/go-cache \
+  -e GOMODCACHE=/tmp/go-mod-cache \
   -e "GOMAXPROCS=${GOMAXPROCS:-2}" \
   -e "GOFLAGS=${GOFLAGS:--p=2}" \
   -v "$patched_source_dir:/workspace" \
