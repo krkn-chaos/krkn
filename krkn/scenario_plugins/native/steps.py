@@ -31,43 +31,83 @@ def _annotation_parts(annotation):
 
 
 def _check_type(value, annotation, path):
-    """Check YAML values against the dataclass's declared Python types."""
+    """Validate values and apply Arcaflow's supported scalar conversions."""
     annotation, _ = _annotation_parts(annotation)
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
     if origin in (typing.Union, UnionType):
         if value is None and type(None) in args:
-            return
+            return None
         errors = []
         for option in args:
             try:
-                _check_type(value, option, path)
-                return
+                return _check_type(value, option, path)
             except ValueError as exc:
                 errors.append(exc)
-        raise ValueError(f"{path}: expected {annotation}, got {type(value).__name__}") from errors[-1]
+        cause = errors[-1] if errors else None
+        raise ValueError(
+            f"{path}: expected {annotation}, got {type(value).__name__}"
+        ) from cause
     if annotation is type(None):
         if value is not None:
             raise ValueError(f"{path}: expected null")
-        return
+        return None
     if annotation is typing.Any:
-        return
+        return value
     if origin in (list, typing.List):
         if not isinstance(value, list):
-            raise ValueError(f"{path}: expected list, got {type(value).__name__}")
-        for index, item in enumerate(value):
+            raise ValueError(
+                f"{path}: expected list, got {type(value).__name__}"
+            )
+        return [
             _check_type(item, args[0], f"{path}[{index}]")
-    elif origin in (dict, typing.Dict):
+            for index, item in enumerate(value)
+        ]
+    if origin in (dict, typing.Dict):
         if not isinstance(value, dict):
-            raise ValueError(f"{path}: expected dict, got {type(value).__name__}")
-        for key, item in value.items():
-            _check_type(key, args[0], f"{path} key")
+            raise ValueError(
+                f"{path}: expected dict, got {type(value).__name__}"
+            )
+        return {
+            _check_type(key, args[0], f"{path} key"):
             _check_type(item, args[1], f"{path}[{key!r}]")
-    elif annotation in (str, int, float, bool):
-        if type(value) is not annotation and not (
-            annotation is float and type(value) is int
-        ):
-            raise ValueError(f"{path}: expected {annotation.__name__}, got {type(value).__name__}")
+            for key, item in value.items()
+        }
+    if annotation is str:
+        if type(value) is int:
+            return str(value)
+        if type(value) is not str:
+            raise ValueError(
+                f"{path}: expected str, got {type(value).__name__}"
+            )
+        return value
+    if annotation is int:
+        if type(value) is str:
+            try:
+                value = int(value)
+            except ValueError as exc:
+                raise ValueError(f"{path}: expected int, got str") from exc
+        elif type(value) is not int:
+            raise ValueError(
+                f"{path}: expected int, got {type(value).__name__}"
+            )
+        return value
+    if annotation is float:
+        if type(value) is str:
+            try:
+                value = float(value)
+            except ValueError as exc:
+                raise ValueError(f"{path}: expected float, got str") from exc
+        elif type(value) is int:
+            value = float(value)
+        elif type(value) is not float:
+            raise ValueError(
+                f"{path}: expected float, got {type(value).__name__}"
+            )
+        return value
+    if annotation is bool and type(value) is not bool:
+        raise ValueError(f"{path}: expected bool, got {type(value).__name__}")
+    return value
 
 
 class InputSchema:
@@ -98,7 +138,9 @@ class InputSchema:
                 raise ValueError(f"{self.input_type.__name__} -> {name}: this field is required")
             annotation, constraints = _annotation_parts(self.annotations[name])
             if value is not None:
-                _check_type(value, annotation, f"{self.input_type.__name__} -> {name}")
+                value = _check_type(
+                    value, annotation, f"{self.input_type.__name__} -> {name}"
+                )
             for constraint in constraints:
                 if isinstance(constraint, Minimum) and value is not None:
                     measured = len(value) if isinstance(value, (str, list, dict)) else value
@@ -160,28 +202,53 @@ def load_from_file(path):
         return yaml.safe_load(stream)
 
 
+def _allow_null(schema):
+    schema_type = schema.get("type")
+    if isinstance(schema_type, str):
+        schema["type"] = [schema_type, "null"]
+    elif isinstance(schema_type, list) and "null" not in schema_type:
+        schema_type.append("null")
+
+
 def _json_type(annotation):
     annotation, constraints = _annotation_parts(annotation)
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
-    if origin in (typing.Union, UnionType):
+    if annotation is typing.Any:
+        result = {}
+    elif origin in (typing.Union, UnionType):
         non_null = [arg for arg in args if arg is not type(None)]
         result = _json_type(non_null[0])
-        if len(non_null) != len(args):
-            result["type"] = [result["type"], "null"]
+        if len(non_null) != len(args) and "type" in result:
+            _allow_null(result)
     elif origin in (list, typing.List):
         result = {"type": "array", "items": _json_type(args[0])}
     elif origin in (dict, typing.Dict):
-        result = {"type": "object", "additionalProperties": _json_type(args[1])}
+        result = {
+            "type": "object",
+            "additionalProperties": _json_type(args[1]),
+        }
     else:
-        result = {"type": {str: "string", int: "integer", float: "number", bool: "boolean"}.get(annotation, "object")}
+        json_type = {
+            str: "string",
+            int: "integer",
+            float: "number",
+            bool: "boolean",
+            type(None): "null",
+        }.get(annotation)
+        result = {"type": json_type} if json_type is not None else {}
     for constraint in constraints:
         if isinstance(constraint, Minimum):
-            kind = result["type"]
+            kind = result.get("type")
             if isinstance(kind, list):
-                kind = next(item for item in kind if item != "null")
-            key = {"string": "minLength", "array": "minItems", "object": "minProperties"}.get(kind, "minimum")
-            result[key] = constraint.value
+                kind = next((item for item in kind if item != "null"), None)
+            key = {
+                "string": "minLength",
+                "array": "minItems",
+                "object": "minProperties",
+            }.get(kind, "minimum" if kind in ("integer", "number") else None)
+            if key:
+                result[key] = constraint.value
     return result
 
 
@@ -193,9 +260,15 @@ def step_input(step_schema):
     for name, field in input_schema.properties.items():
         value = _json_type(input_schema.annotations[name])
         if field.default is not dataclasses.MISSING:
-            value["default"] = field.default
+            default = field.default
         elif field.default_factory is not dataclasses.MISSING:
-            value["default"] = field.default_factory()
+            default = field.default_factory()
+        else:
+            default = dataclasses.MISSING
+        if default is not dataclasses.MISSING:
+            value["default"] = default
+            if default is None:
+                _allow_null(value)
         else:
             required.append(name)
         if field.metadata:
@@ -216,9 +289,15 @@ def step_input(step_schema):
         "additionalProperties": False,
     }
     if alternatives:
+        def non_null_required(name):
+            return {
+                "required": [name],
+                "properties": {name: {"not": {"type": "null"}}},
+            }
+
         result["allOf"] = [
-            {"anyOf": [{"required": [name]} for name in pair]}
-            for pair in sorted(alternatives)
+            {"anyOf": [non_null_required(name), non_null_required(other)]}
+            for name, other in sorted(alternatives)
         ]
     return result
 

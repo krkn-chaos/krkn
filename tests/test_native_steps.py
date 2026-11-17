@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import jsonschema
+
 from krkn.scenario_plugins.native.plugins import PLUGINS
 
 
@@ -47,6 +49,7 @@ class NativeStepContractTest(unittest.TestCase):
         base = {"namespace": "demo", "pod_name": "pod-a"}
         for extra in (
             {"test_duration": 0},
+            {"test_duration": True},
             {"instance_count": "two"},
             {"ingress_ports": ["eighty"]},
             {"unexpected": True},
@@ -55,6 +58,68 @@ class NativeStepContractTest(unittest.TestCase):
                 schema.unserialize({**base, **extra})
         self.assertEqual(schema.unserialize({**base, "image": None}).image,
                          schema.unserialize(base).image)
+
+    def test_arcaflow_scalar_coercions_are_preserved(self):
+        pod = PLUGINS.steps_by_id["pod_network_outage"].schema.input
+        pod_params = pod.unserialize({
+            "namespace": 123,
+            "pod_name": "pod-a",
+            "test_duration": "60",
+        })
+        self.assertEqual(pod_params.namespace, "123")
+        self.assertEqual(pod_params.test_duration, 60)
+
+        shaping = PLUGINS.steps_by_id["pod_egress_shaping"].schema.input
+        shaping_params = shaping.unserialize({
+            "namespace": "demo",
+            "label_selector": "app=a",
+            "network_params": {"loss": 10},
+        })
+        self.assertEqual(shaping_params.network_params, {"loss": "10"})
+
+    def test_json_schema_matches_native_nullable_and_any_inputs(self):
+        document = json.loads(PLUGINS.json_schema())
+        steps = {
+            item["properties"]["id"]["const"]: item["properties"]["config"]
+            for item in document["items"]["oneOf"]
+        }
+
+        pod_validator = jsonschema.Draft202012Validator(
+            steps["pod_network_outage"]
+        )
+        self.assertTrue(pod_validator.is_valid({
+            "namespace": "demo",
+            "pod_name": "pod-a",
+            "kraken_config": {"scalar": "value", "nested": [1, True]},
+        }))
+        self.assertTrue(pod_validator.is_valid({
+            "namespace": "demo",
+            "label_selector": "app=a",
+            "kraken_config": None,
+        }))
+        invalid_pod = {
+            "namespace": "demo",
+            "pod_name": None,
+            "label_selector": None,
+        }
+        self.assertFalse(pod_validator.is_valid(invalid_pod))
+        with self.assertRaises(ValueError):
+            PLUGINS.steps_by_id["pod_network_outage"].schema.input.unserialize(
+                invalid_pod
+            )
+
+        network_validator = jsonschema.Draft202012Validator(
+            steps["network_chaos"]
+        )
+        self.assertTrue(network_validator.is_valid({
+            "node_interface_name": None,
+            "label_selector": "node-role=worker",
+            "network_params": None,
+        }))
+        self.assertFalse(network_validator.is_valid({
+            "node_interface_name": None,
+            "label_selector": None,
+        }))
 
     def test_both_pod_shaping_steps_accept_existing_input_shape(self):
         for step_id in ("pod_egress_shaping", "pod_ingress_shaping"):
