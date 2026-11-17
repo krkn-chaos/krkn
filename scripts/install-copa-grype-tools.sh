@@ -28,6 +28,13 @@ tar -xzf "$TMP_DIR/$asset" -C "$TMP_DIR" grype
 install -m 0755 "$TMP_DIR/grype" "$BIN_DIR/grype"
 
 GOBIN="$BIN_DIR" go install "github.com/project-copacetic/copacetic@v${COPA_VERSION}"
+if [[ ! -x "$BIN_DIR/copa" && -x "$BIN_DIR/copacetic" ]]; then
+  mv "$BIN_DIR/copacetic" "$BIN_DIR/copa"
+fi
+if [[ ! -x "$BIN_DIR/copa" ]]; then
+  echo "Copa executable not found after go install (expected copa or copacetic)" >&2
+  exit 1
+fi
 cp scripts/copa-grype "$BIN_DIR/copa-grype"
 chmod 0755 "$BIN_DIR/copa-grype"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
