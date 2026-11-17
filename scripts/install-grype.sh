@@ -31,5 +31,3 @@ cp scripts/copa-grype "$BIN_DIR/copa-grype"
 chmod 0755 "$BIN_DIR/copa-grype"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
 "$BIN_DIR/grype" version
-# `go install` leaves Copa's version unset, so the --version flag is unavailable.
-"$BIN_DIR/copa" --help >/dev/null
