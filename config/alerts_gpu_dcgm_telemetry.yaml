@@ -1,0 +1,36 @@
+# DRAFT - Prometheus alert profile for Scenario C (GPU telemetry blackout).
+# UNTESTED END-TO-END: not run against any Prometheus server. Untested on real GPU.
+#
+# Use with:
+#   performance_monitoring:
+#     enable_alerts: True
+#     alert_profile: config/alerts_gpu_dcgm_telemetry.yaml
+#     run_during: post
+#   tunings:
+#     wait_duration: 60   # >= 2x the exporter scrape interval, so check 2 does
+#                         # not fail just because the first post-restart scrape
+#                         # has not happened yet
+#
+# krkn semantics (krkn/prometheus/collector.py::slo_passed): an empty result
+# passes, a sample > 0 fails. Both expressions below return 1 only in the bad case.
+#
+# UNVERIFIED names:
+#   DCGM_FI_DEV_GPU_UTIL   - default dcgm-exporter field; confirm it is enabled
+#                            in your exporter's metrics CSV.
+#   DCGMExporterDown       - PLACEHOLDER. There is no confirmed default alert with
+#                            this name. Replace with the alert your cluster actually
+#                            uses for "GPU telemetry missing".
+#
+# Check 1: the expected "telemetry missing" alert fired at some point in the
+# last 15m. Default severity is warning (reported, does not fail the run):
+# one pod kill heals in seconds, which is usually shorter than the alert's
+# `for:` duration, so the alert may correctly never fire. Raise to error only
+# when the blackout is held longer than `for:` plus one scrape interval.
+- expr: absent_over_time(ALERTS{alertname="DCGMExporterDown", alertstate="firing"}[15m])
+  description: Expected GPU telemetry alert DCGMExporterDown did not fire during the DCGM exporter blackout
+  severity: warning
+#
+# Check 2: GPU metrics are flowing again after recovery.
+- expr: absent(DCGM_FI_DEV_GPU_UTIL)
+  description: DCGM_FI_DEV_GPU_UTIL is absent after the DCGM exporter disruption; GPU telemetry did not recover
+  severity: error
