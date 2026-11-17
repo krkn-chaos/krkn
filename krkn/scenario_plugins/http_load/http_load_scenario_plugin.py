@@ -259,6 +259,8 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
             import traceback
             logging.error(traceback.format_exc())
             return 1
+        finally:
+            self._cleanup_pods(pod_names, namespace, lib_telemetry)
 
     def _build_vegeta_json_targets(self, endpoints: List[Dict[str, Any]]) -> str:
         """
@@ -333,6 +335,35 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
         
         logging.info(f"All {len(finished_pods)}/{len(pod_names)} pods have completed")
     
+    def _cleanup_pods(
+        self,
+        pod_names: List[str],
+        namespace: str,
+        lib_telemetry: KrknTelemetryOpenshift,
+    ):
+        """
+        Clean up HTTP load pods.
+
+        Note: This duplicates the per-pod deletion loop in
+        rollback_http_load_pods. rollback_http_load_pods is serialized
+        independently via inspect.getsource for out-of-process/signal
+        rollback execution, so it cannot be shared directly.
+
+        :param pod_names: List of pod names to delete
+        :param namespace: Namespace where pods are running
+        :param lib_telemetry: Telemetry object for Kubernetes operations
+        """
+        if not pod_names:
+            return
+
+        logging.info("Cleaning up HTTP load pods...")
+        for pod_name in pod_names:
+            try:
+                lib_telemetry.get_lib_kubernetes().delete_pod(pod_name, namespace)
+                logging.info(f"Deleted pod: {pod_name}")
+            except Exception as e:
+                logging.warning(f"Failed to delete pod {pod_name}: {e}")
+
     def _collect_and_aggregate_results(
         self,
         pod_names: List[str],
