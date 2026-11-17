@@ -53,8 +53,27 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                 ):
                     logging.error(f"SynFloodScenarioPlugin {target} service not found")
                     return 1
-                for i in range(config["number-of-pods"]):
-                    pod_name = "syn-flood-" + krkn_lib_utils.get_random_string(10)
+                target_pods = [
+                    "syn-flood-" + krkn_lib_utils.get_random_string(10)
+                    for _ in range(config["number-of-pods"])
+                ]
+                pod_names.extend(target_pods)
+
+                # Register rollback before deploying so an interrupted run can still clean up
+                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
+                if not self.rollback_handler.set_rollback_callable(
+                    self.rollback_syn_flood_pods,
+                    RollbackContent(
+                        namespace=config["namespace"],
+                        resource_identifier=rollback_data,
+                    ),
+                ):
+                    logging.error(
+                        f"SynFloodScenarioPlugin failed to register rollback, not deploying attackers for {target}"
+                    )
+                    return 1
+
+                for pod_name in target_pods:
                     lib_telemetry.get_lib_kubernetes().deploy_syn_flood(
                         pod_name,
                         config["namespace"],
@@ -66,17 +85,6 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
                         config["duration"],
                         config["attacker-nodes"],
                     )
-                    pod_names.append(pod_name)
-                
-                # Set rollback callable to ensure pod cleanup on failure or interruption
-                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
-                self.rollback_handler.set_rollback_callable(
-                    self.rollback_syn_flood_pods,
-                    RollbackContent(
-                        namespace=config["namespace"],
-                        resource_identifier=rollback_data,
-                    ),
-                )
 
             logging.info("waiting all the attackers to finish:")
             did_finish = False
