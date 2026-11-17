@@ -1,0 +1,9 @@
+- id: pod_network_outage
+  config:
+    namespace: default
+    label_selector: "app=krkn-pod-network-chaos-target"
+    direction: [ingress]
+    ingress_ports: []
+    egress_ports: []
+    test_duration: 12
+    wait_duration: 40
