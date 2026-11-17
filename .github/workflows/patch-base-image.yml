@@ -91,6 +91,10 @@ jobs:
       - name: Test Grype-to-Copa version selection
         run: python3 scripts/test_copa_grype.py
 
+      - name: Test Grype report severity aggregation
+        if: matrix.tool == 'oc' && matrix.arch == 'amd64'
+        run: python3 scripts/test_summarize_grype_report.py
+
       - name: Install Grype, Copa, and the Grype adapter
         run: scripts/install-copa-grype-tools.sh
 
@@ -195,40 +199,28 @@ jobs:
         run: |
           set -Eeuo pipefail
           report="$RUNNER_TEMP/grype-python-before-${{ matrix.arch }}.json"
+          freeze="$RUNNER_TEMP/python-freeze-before-${{ matrix.arch }}.txt"
+          manifest="$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
           grype "docker:${{ steps.deps.outputs.image }}" --output json --file "$report"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
-            > "$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
-          count=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json")
-          echo "report=$report" >> "$GITHUB_OUTPUT"
+          docker run --rm --entrypoint python3.11 '${{ steps.deps.outputs.image }}' \
+            -m pip freeze --all > "$freeze"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" "$freeze" > "$manifest"
+          count=$(jq '[.langupdates[]?.name] | unique | length' "$manifest")
+          echo "report=$manifest" >> "$GITHUB_OUTPUT"
+          echo "grype_report=$report" >> "$GITHUB_OUTPUT"
           echo "updates=$count" >> "$GITHUB_OUTPUT"
-          echo "Grype/Copa Python update entries for linux/${{ matrix.arch }}: $count"
+          echo "Grype/Copa Python package updates for linux/${{ matrix.arch }}: $count"
 
-      - name: Apply Copa Python dependency updates
+      - name: Apply and validate Copa Python dependency updates
         id: patch
         env:
           SOURCE_IMAGE: ${{ steps.deps.outputs.image }}
-          UPDATE_COUNT: ${{ steps.python_scan.outputs.updates }}
+          COPA_REPORT: ${{ steps.python_scan.outputs.report }}
         run: |
           set -Eeuo pipefail
           image="localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
-          if (( UPDATE_COUNT > 0 )); then
-            copa patch \
-              --image "$SOURCE_IMAGE" \
-              --report "${{ steps.python_scan.outputs.report }}" \
-              --tag "$image" \
-              --addr docker:// \
-              --scanner grype \
-              --pkg-types library \
-              --library-patch-level "$KRKN_COPA_LIBRARY_PATCH_LEVEL"
-          else
-            docker tag "$SOURCE_IMAGE" "$image"
-            echo 'No Python dependency updates are applicable at the selected patch level.'
-          fi
-          docker image inspect "$image" >/dev/null
-          docker run --rm --entrypoint python3.11 "$image" -m pip check
-          docker run --rm --entrypoint python3.11 "$image" -m pip freeze --all \
-            > "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt"
-          echo "image=$image" >> "$GITHUB_OUTPUT"
+          scripts/apply-copa-python-updates.sh \
+            "$SOURCE_IMAGE" "$COPA_REPORT" "$image" '${{ matrix.arch }}'
 
       - name: Rescan Python dependencies after Copa
         id: python_rescan
@@ -239,13 +231,14 @@ jobs:
           report="$RUNNER_TEMP/grype-python-after-${{ matrix.arch }}.json"
           grype "docker:$PATCHED_IMAGE" --output json --file "$report"
           KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
+            "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt" \
             > "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json"
-          remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
+          remaining=$(jq '[.langupdates[]?.name] | unique | length' \
+            "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
           echo "report=$report" >> "$GITHUB_OUTPUT"
           echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
           if (( remaining > 0 )); then
-            echo "error: $remaining patch-level eligible Python updates remain after Copa" >&2
-            exit 1
+            echo "warning: $remaining patch-level eligible Python updates remain after Copa" >&2
           fi
 
       - name: Prepare remediation image context
@@ -268,7 +261,9 @@ jobs:
           local_image="localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
           candidate_tag="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
           candidate_image="${QUAY_REPOSITORY}:${candidate_tag}"
-          docker build --pull --platform "linux/${{ matrix.arch }}" \
+          # The runtime image is the locally patched Python image produced above.
+          # Do not force a registry pull for this local FROM image.
+          docker build --platform "linux/${{ matrix.arch }}" \
             --build-arg "KRKN_RUNTIME_IMAGE=$PYTHON_IMAGE" \
             --build-arg "TAG=${{ steps.source.outputs.source_commit }}" \
             --tag "$local_image" "$RUNNER_TEMP/krkn-image-context"
@@ -283,8 +278,7 @@ jobs:
             > "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json"
           remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json")
           if (( remaining > 0 )); then
-            echo "error: $remaining selected-level Python updates remain in final candidate" >&2
-            exit 1
+            echo "warning: $remaining selected-level Python updates remain in final candidate" >&2
           fi
           echo "image=$candidate_image" >> "$GITHUB_OUTPUT"
           echo "tag=$candidate_tag" >> "$GITHUB_OUTPUT"
@@ -293,7 +287,8 @@ jobs:
             echo "## Candidate image linux/${{ matrix.arch }}"
             echo
             echo "- Krkn ref: `$KRKN_REF` (${{ steps.source.outputs.source_commit }})"
-            echo "- Python updates applied: ${{ steps.python_scan.outputs.updates }}"
+            echo "- Python package updates accepted: ${{ steps.patch.outputs.applied }} of ${{ steps.patch.outputs.eligible }}"
+            echo "- Python package updates skipped: ${{ steps.patch.outputs.skipped }}"
             echo "- Remaining patch-level eligible Python updates: $remaining"
             echo "- Candidate: `$candidate_image`"
           } >> "$GITHUB_STEP_SUMMARY"
@@ -344,6 +339,7 @@ jobs:
             ${{ runner.temp }}/grype-candidate-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-candidate-python-${{ matrix.arch }}.json
             ${{ runner.temp }}/copa-candidate-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/python-freeze-before-${{ matrix.arch }}.txt
             ${{ runner.temp }}/patched-python-freeze-${{ matrix.arch }}.txt
           if-no-files-found: ignore
           retention-days: 30
@@ -446,13 +442,23 @@ jobs:
           patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           staging_tag="${patch_tag}-signing"
           repo="$QUAY_REPOSITORY"
-          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker manifest create "$repo:$staging_tag" \
+          metadata_file="$RUNNER_TEMP/krkn-manifest-metadata.json"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+            --platform linux/amd64,linux/arm64 \
+            --metadata-file "$metadata_file" \
+            --tag "$repo:$staging_tag" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
-          digest=$(DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
-            docker manifest push "$repo:$staging_tag" | tail -n 1)
+          digest=$(jq -er '."containerimage.descriptor".digest' "$metadata_file")
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
             echo "error: unexpected krkn-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
+          platforms=$(DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
+            docker buildx imagetools inspect --raw "$repo:$staging_tag" | \
+            jq -r '[.manifests[]?.platform? | select(.os == "linux") | "\(.os)/\(.architecture)"] | unique | sort | join(",")')
+          [[ "$platforms" == "linux/amd64,linux/arm64" ]] || {
+            echo "error: staged krkn-chaos manifest has unexpected platforms '$platforms'" >&2
             exit 1
           }
           ref="$repo@$digest"
@@ -475,13 +481,23 @@ jobs:
           patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           staging_tag="${patch_tag}-signing"
           repo="$MIRROR_REPOSITORY"
-          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker manifest create "$repo:$staging_tag" \
+          metadata_file="$RUNNER_TEMP/mirror-manifest-metadata.json"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+            --platform linux/amd64,linux/arm64 \
+            --metadata-file "$metadata_file" \
+            --tag "$repo:$staging_tag" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
             "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
-          digest=$(DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
-            docker manifest push "$repo:$staging_tag" | tail -n 1)
+          digest=$(jq -er '."containerimage.descriptor".digest' "$metadata_file")
           [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
             echo "error: unexpected redhat-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
+          platforms=$(DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
+            docker buildx imagetools inspect --raw "$repo:$staging_tag" | \
+            jq -r '[.manifests[]?.platform? | select(.os == "linux") | "\(.os)/\(.architecture)"] | unique | sort | join(",")')
+          [[ "$platforms" == "linux/amd64,linux/arm64" ]] || {
+            echo "error: staged redhat-chaos manifest has unexpected platforms '$platforms'" >&2
             exit 1
           }
           ref="$repo@$digest"
@@ -600,3 +616,304 @@ jobs:
           AUTOPUSH: ${{ secrets.AUTOPUSH }}
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+  notify:
+    name: Publish final vulnerability report
+    if: always()
+    needs:
+      - build-tools
+      - build-candidates
+      - functional-tests
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out pipeline scripts
+        id: checkout_scripts
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Download candidate Grype reports
+        id: candidate_reports
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: python-copa-evidence-*
+          path: ${{ runner.temp }}/post-patch-evidence
+          merge-multiple: true
+
+      - name: Summarize final candidate vulnerability reports
+        id: summary
+        if: always()
+        env:
+          CHECKOUT_RESULT: ${{ steps.checkout_scripts.outcome }}
+          DOWNLOAD_RESULT: ${{ steps.candidate_reports.outcome }}
+          BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
+          BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
+          FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          evidence_dir="$RUNNER_TEMP/post-patch-evidence"
+          summary="$RUNNER_TEMP/post-patch-grype-report.json"
+          mkdir -p "$evidence_dir"
+          mapfile -t reports < <(find "$evidence_dir" -maxdepth 1 -type f \
+            -name 'grype-candidate-*.json' ! -name 'grype-candidate-python-*.json' -print | sort)
+
+          checkout_result=${CHECKOUT_RESULT:-unknown}
+          download_result=${DOWNLOAD_RESULT:-unknown}
+          summary_error=""
+          if [[ "$checkout_result" != success ]]; then
+            report_status=checkout_failed
+            summary_error="Could not check out the pipeline scripts; candidate reports were not aggregated."
+          elif [[ "$download_result" != success ]]; then
+            report_status=artifact_download_failed
+            summary_error="Candidate artifact retrieval failed; any aggregated findings may be partial."
+          elif (( ${#reports[@]} == 0 )); then
+            report_status=no_candidate_report
+            summary_error="Artifact download succeeded, but no candidate Grype report was present."
+          else
+            report_status=available
+          fi
+
+          if [[ "$checkout_result" == success && ${#reports[@]} -gt 0 ]]; then
+            if python3 scripts/summarize_grype_report.py "${reports[@]}" > "$summary"; then
+              if jq \
+                --arg report_status "$report_status" \
+                --arg checkout_result "$checkout_result" \
+                --arg download_result "$download_result" \
+                --arg summary_error "$summary_error" \
+                --argjson candidate_report_files "${#reports[@]}" \
+                --arg build_tools "$BUILD_TOOLS_RESULT" \
+                --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
+                --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
+                --arg publish "$PUBLISH_RESULT" \
+                '. + {
+                  report_available: true,
+                  report_status: $report_status,
+                  artifact_download_complete: ($download_result == "success"),
+                  candidate_report_files_found: $candidate_report_files,
+                  diagnostics: {
+                    checkout_result: $checkout_result,
+                    artifact_download_result: $download_result,
+                    message: (if $summary_error == "" then null else $summary_error end)
+                  },
+                  job_results: {
+                    build_tools: $build_tools,
+                    build_candidates: $build_candidates,
+                    functional_tests: $functional_tests,
+                    publish: $publish
+                  }
+                }' "$summary" > "$summary.tmp"; then
+                mv "$summary.tmp" "$summary"
+              else
+                report_status=summary_failed
+                summary_error="The Grype summary could not be enriched with workflow results."
+                rm -f "$summary" "$summary.tmp"
+              fi
+            else
+              report_status=summary_failed
+              summary_error="The Grype report summarizer failed; see the workflow logs."
+              rm -f "$summary" "$summary.tmp"
+            fi
+          fi
+
+          if [[ ! -s "$summary" ]]; then
+            jq -n \
+              --arg report_status "$report_status" \
+              --arg checkout_result "$checkout_result" \
+              --arg download_result "$download_result" \
+              --arg summary_error "$summary_error" \
+              --argjson candidate_report_files "${#reports[@]}" \
+              --arg build_tools "$BUILD_TOOLS_RESULT" \
+              --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
+              --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
+              --arg publish "$PUBLISH_RESULT" \
+              '{
+                report_available: false,
+                report_status: $report_status,
+                artifact_download_complete: ($download_result == "success"),
+                candidate_report_files_found: $candidate_report_files,
+                reports: [],
+                architectures: [],
+                total_matches: 0,
+                unique_vulnerability_ids: 0,
+                unique_fixable_vulnerability_ids: 0,
+                counts_by_severity: {
+                  Critical: 0, High: 0, Medium: 0, Low: 0, Negligible: 0, Unknown: 0
+                },
+                ids_by_severity: {
+                  Critical: [], High: [], Medium: [], Low: [], Negligible: [], Unknown: []
+                },
+                findings: [],
+                diagnostics: {
+                  checkout_result: $checkout_result,
+                  artifact_download_result: $download_result,
+                  message: $summary_error
+                },
+                job_results: {
+                  build_tools: $build_tools,
+                  build_candidates: $build_candidates,
+                  functional_tests: $functional_tests,
+                  publish: $publish
+                }
+              }' > "$summary"
+          fi
+
+          report_available=$(jq -r '.report_available' "$summary")
+          report_status=$(jq -r '.report_status' "$summary")
+          echo "report_available=$report_available" >> "$GITHUB_OUTPUT"
+          echo "report_status=$report_status" >> "$GITHUB_OUTPUT"
+          echo "unique=$(jq -r '.unique_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "fixable=$(jq -r '.unique_fixable_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
+          for severity in Critical High Medium Low Negligible Unknown; do
+            key=$(printf '%s' "$severity" | tr '[:upper:]' '[:lower:]')
+            count=$(jq -r --arg severity "$severity" '.counts_by_severity[$severity]' "$summary")
+            echo "$key=$count" >> "$GITHUB_OUTPUT"
+          done
+          echo "architectures=$(jq -r '(.architectures // []) | join(", ")' "$summary")" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Post-patch Grype report'
+            echo
+            echo "- Report status: $report_status"
+            echo "- Pipeline jobs: build-tools=$BUILD_TOOLS_RESULT; build-candidates=$BUILD_CANDIDATES_RESULT; functional-tests=$FUNCTIONAL_TESTS_RESULT; publish=$PUBLISH_RESULT"
+            if [[ "$report_available" == true ]]; then
+              echo "- Candidate architectures scanned: $(jq -r '(.architectures // []) | join(", ")' "$summary")"
+              echo "- Unique vulnerability IDs: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              echo "- Critical: $(jq -r '.counts_by_severity.Critical' "$summary"); High: $(jq -r '.counts_by_severity.High' "$summary"); Medium: $(jq -r '.counts_by_severity.Medium' "$summary"); Low: $(jq -r '.counts_by_severity.Low' "$summary")"
+              echo "- Negligible: $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown: $(jq -r '.counts_by_severity.Unknown' "$summary")"
+              if [[ "$report_status" == artifact_download_failed ]]; then
+                echo "- Warning: artifact download failed; the findings above may be partial."
+              fi
+            else
+              echo "- Diagnostic: $(jq -r '.diagnostics.message' "$summary")"
+              echo "- Candidate report files found: $(jq -r '.candidate_report_files_found' "$summary")"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload post-patch Grype report
+        if: always() && steps.summary.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: post-patch-grype-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post-patch-grype-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Send final Grype report to Slack
+        if: always()
+        continue-on-error: true
+        env:
+          KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
+          REPORT_AVAILABLE: ${{ steps.summary.outputs.report_available }}
+          REPORT_STATUS: ${{ steps.summary.outputs.report_status }}
+          ARCHITECTURES: ${{ steps.summary.outputs.architectures }}
+          FINDINGS: ${{ steps.summary.outputs.unique }}
+          FIXABLE: ${{ steps.summary.outputs.fixable }}
+          CRITICAL: ${{ steps.summary.outputs.critical }}
+          HIGH: ${{ steps.summary.outputs.high }}
+          MEDIUM: ${{ steps.summary.outputs.medium }}
+          LOW: ${{ steps.summary.outputs.low }}
+          NEGLIGIBLE: ${{ steps.summary.outputs.negligible }}
+          UNKNOWN: ${{ steps.summary.outputs.unknown }}
+          BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
+          BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
+          FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
+            echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
+            exit 0
+          fi
+          report_available=${REPORT_AVAILABLE:-false}
+          report_status=${REPORT_STATUS:-summary_failed}
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if [[ "$BUILD_TOOLS_RESULT" == success && "$BUILD_CANDIDATES_RESULT" == success && "$FUNCTIONAL_TESTS_RESULT" == success && "$PUBLISH_RESULT" == success ]]; then
+            pipeline_state=passed
+          else
+            pipeline_state=failed
+          fi
+          payload=$(jq -n \
+            --arg report "$report_available" \
+            --arg report_status "$report_status" \
+            --arg pipeline_state "$pipeline_state" \
+            --arg architectures "${ARCHITECTURES:-unknown}" \
+            --arg findings "${FINDINGS:-0}" \
+            --arg fixable "${FIXABLE:-0}" \
+            --arg critical "${CRITICAL:-0}" \
+            --arg high "${HIGH:-0}" \
+            --arg medium "${MEDIUM:-0}" \
+            --arg low "${LOW:-0}" \
+            --arg negligible "${NEGLIGIBLE:-0}" \
+            --arg unknown "${UNKNOWN:-0}" \
+            --arg build_tools "$BUILD_TOOLS_RESULT" \
+            --arg candidates "$BUILD_CANDIDATES_RESULT" \
+            --arg tests "$FUNCTIONAL_TESTS_RESULT" \
+            --arg publish "$PUBLISH_RESULT" \
+            --arg run_url "$run_url" '
+            def status_icon($status):
+              if $status == "success" then ":white_check_mark:"
+              elif $status == "failure" then ":x:"
+              elif $status == "cancelled" then ":no_entry_sign:"
+              elif $status == "skipped" then ":fast_forward:"
+              else ":hourglass_flowing_sand:" end;
+            def report_description($status):
+              if $status == "available" then "candidate scan report available"
+              elif $status == "artifact_download_failed" then "candidate artifact download failed; any findings shown may be partial"
+              elif $status == "checkout_failed" then "pipeline script checkout failed; candidate reports were not aggregated"
+              elif $status == "no_candidate_report" then "artifact download completed but no candidate Grype report was present"
+              elif $status == "summary_failed" then "candidate report summarization failed"
+              else "final candidate report status is unknown" end;
+            {
+              text: ("Krkn post-patch report (" + $pipeline_state + "): " +
+                (if $report == "true" then
+                  (if $report_status == "artifact_download_failed" then
+                    "partial summary: " + $findings + " unique CVEs, " + $fixable + " fixable."
+                  else
+                    $findings + " unique CVEs, " + $fixable + " fixable."
+                  end)
+                else report_description($report_status) end)),
+              blocks:[
+                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" and $report_status == "available" then "✅ Krkn remediation complete" else "⚠️ Krkn remediation report" end), emoji:true}},
+                {type:"section", fields:[
+                  {type:"mrkdwn", text:("*Pipeline status:* " + $pipeline_state)},
+                  {type:"mrkdwn", text:("*Report status:* " + $report_status)},
+                  {type:"mrkdwn", text:("*Architectures:* " + $architectures)}
+                ]},
+                (if $report == "true" then
+                  {type:"section", text:{type:"mrkdwn", text:(if $report_status == "artifact_download_failed" then
+                    "⚠️ Candidate artifact retrieval failed; the findings below may be incomplete."
+                  else
+                    "*Post-patch result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*"
+                  end)}}
+                else
+                  {type:"section", text:{type:"mrkdwn", text:report_description($report_status)}}
+                end),
+                (if $report == "true" then
+                  {type:"section", fields:[
+                    {type:"mrkdwn", text:(":rotating_light: *Critical* " + $critical)},
+                    {type:"mrkdwn", text:(":red_circle: *High* " + $high)},
+                    {type:"mrkdwn", text:(":large_orange_circle: *Medium* " + $medium)},
+                    {type:"mrkdwn", text:(":large_yellow_circle: *Low* " + $low)},
+                    {type:"mrkdwn", text:(":white_circle: *Negligible* " + $negligible)},
+                    {type:"mrkdwn", text:(":grey_question: *Unknown* " + $unknown)}
+                  ]}
+                else empty end),
+                {type:"divider"},
+                {type:"section", text:{type:"mrkdwn", text:"*Pipeline stages*"}},
+                {type:"section", fields:[
+                  {type:"mrkdwn", text:(status_icon($build_tools) + " *Tool builds* " + $build_tools)},
+                  {type:"mrkdwn", text:(status_icon($candidates) + " *Candidate images* " + $candidates)},
+                  {type:"mrkdwn", text:(status_icon($tests) + " *Functional tests* " + $tests)},
+                  {type:"mrkdwn", text:(status_icon($publish) + " *Publish* " + $publish)}
+                ]},
+                {type:"divider"},
+                {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|📋 Open workflow run · Download JSON report/diagnostics>")}}
+              ]
+            }')
+          curl --fail --silent --show-error -X POST \
+                -H 'Content-Type: application/json' \
+                --data-binary "$payload" "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"

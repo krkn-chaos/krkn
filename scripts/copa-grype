@@ -85,10 +85,32 @@ def detect_arch():
     return {"x86_64": "amd64", "aarch64": "arm64"}.get(machine, machine)
 
 
+def canonical_python_name(name):
+    """Normalize a Python distribution name according to PEP 503."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def read_python_names(freeze_path):
+    """Map canonical Python distribution names to pip freeze's displayed names."""
+    names = {}
+    with open(freeze_path, encoding="utf-8") as freeze_file:
+        for line in freeze_file:
+            line = line.strip()
+            if "==" in line:
+                name = line.split("==", 1)[0].strip()
+            elif " @ " in line:
+                name = line.split(" @ ", 1)[0].strip()
+            else:
+                continue
+            if name:
+                names.setdefault(canonical_python_name(name), name)
+    return names
+
+
 def main():
     """Translate one Grype JSON report; return 0 on success and 1 or 2 on errors."""
-    if len(sys.argv) != 2:
-        print(f"usage: {sys.argv[0]} GRYPE_REPORT.json", file=sys.stderr)
+    if len(sys.argv) not in (2, 3):
+        print(f"usage: {sys.argv[0]} GRYPE_REPORT.json [PIP_FREEZE.txt]", file=sys.stderr)
         return 2
 
     patch_level = os.environ.get("KRKN_COPA_LIBRARY_PATCH_LEVEL", "minor")
@@ -101,6 +123,11 @@ def main():
             report = json.load(report_file)
     except (OSError, json.JSONDecodeError) as error:
         print(f"cannot read Grype report: {error}", file=sys.stderr)
+        return 1
+    try:
+        python_names = read_python_names(sys.argv[2]) if len(sys.argv) == 3 else None
+    except OSError as error:
+        print(f"cannot read pip freeze output: {error}", file=sys.stderr)
         return 1
 
     pending = defaultdict(list)
@@ -124,6 +151,12 @@ def main():
         vuln_id = vulnerability.get("id", "")
         if not name or not installed or not vuln_id:
             continue
+        if copa_type == "python-pkg" and python_names is not None:
+            installed_name = python_names.get(canonical_python_name(name))
+            if installed_name is None:
+                print(f"skipping Python package absent from pip freeze: {name}", file=sys.stderr)
+                continue
+            name = installed_name
         versions = fix.get("versions", [])
         if isinstance(versions, str):
             versions = [versions]

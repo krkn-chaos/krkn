@@ -19,9 +19,10 @@ Refer to [instructions](https://github.com/redhat-chaos/krkn/blob/main/container
 Two workflows handle the separate scan and remediation steps:
 
 - **Scan Krkn Base Image** runs every day at 09:00 Eastern time, scans
-  `quay.io/krkn-chaos/krkn:latest` with Grype, uploads the JSON report, and
-  sends a Slack message with a link to **Patch Krkn Base Image**. It can also
-  be run manually for a scan on demand.
+  `quay.io/krkn-chaos/krkn:latest` with Grype, uploads the JSON report and a
+  unique-ID severity summary, and sends Slack counts for Critical, High,
+  Medium, Low, Negligible, and Unknown findings with a link to
+  **Patch Krkn Base Image**. It can also be run manually for a scan on demand.
 - **Patch Krkn Base Image** is a manual workflow. Select the Krkn source ref,
   the maximum Go/Python update level (`patch`, `minor`, or `major`), and a publish
   target. The default `beta` target publishes to `quay.io/krkn-chaos/krkn-beta`
@@ -46,9 +47,14 @@ release workflow. The standard release flow is unchanged; both publishing paths
 share a lock so they cannot race while updating public image tags.
 
 The workflows require the existing Quay and Cosign secrets used by
-`docker-image.yml`, plus `SLACK_WEBHOOK_URL` for the scheduled notification.
-Copa language dependency patching remains experimental; the workflow checks the
-selected update level, runs `pip check`, rescans after patching, and uses the
-functional suite as the release gate. Python package versions are captured in
-a `pip freeze` artifact because Copa patches the installed dependency set; it
-does not rewrite Krkn's `requirements.txt`.
+`docker-image.yml`, plus `KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL` for
+scheduled scan and final remediation notifications.
+Copa language dependency patching remains experimental; the workflow applies
+the selected update level where possible, records remaining findings in its
+reports without failing solely because they remain, runs `pip check`, and uses
+the functional suite as the release gate. At the end, Slack receives a summary
+of unique vulnerability IDs by severity from the final amd64 and arm64 candidate
+scans, and the full JSON is uploaded as a workflow artifact even when a gate
+fails. Python package versions are captured in a `pip freeze` artifact because
+Copa patches the installed dependency set; it does not rewrite Krkn's
+`requirements.txt`.

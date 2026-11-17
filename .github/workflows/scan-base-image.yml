@@ -18,6 +18,9 @@ jobs:
       IMAGE: quay.io/krkn-chaos/krkn:latest
       GRYPE_VERSION: 0.121.3
     steps:
+      - name: Check out pipeline scripts
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
       - name: Install pinned Grype
         shell: bash
         run: |
@@ -42,23 +45,35 @@ jobs:
         run: |
           set -Eeuo pipefail
           report="$RUNNER_TEMP/grype-base-image.json"
+          summary="$RUNNER_TEMP/grype-base-image-summary.json"
           docker pull "$IMAGE"
           grype "docker:$IMAGE" --output json --file "$report"
-          total=$(jq '[.matches[]?] | length' "$report")
-          fixable=$(jq '[.matches[]? | select(.vulnerability.fix.state == "fixed")] | length' "$report")
-          critical=$(jq '[.matches[]? | select(.vulnerability.severity == "Critical")] | length' "$report")
-          high=$(jq '[.matches[]? | select(.vulnerability.severity == "High")] | length' "$report")
+          python3 scripts/summarize_grype_report.py "$report" > "$summary"
+          total=$(jq -r '.unique_vulnerability_ids' "$summary")
+          fixable=$(jq -r '.unique_fixable_vulnerability_ids' "$summary")
+          critical=$(jq -r '.counts_by_severity.Critical' "$summary")
+          high=$(jq -r '.counts_by_severity.High' "$summary")
+          medium=$(jq -r '.counts_by_severity.Medium' "$summary")
+          low=$(jq -r '.counts_by_severity.Low' "$summary")
+          negligible=$(jq -r '.counts_by_severity.Negligible' "$summary")
+          unknown=$(jq -r '.counts_by_severity.Unknown' "$summary")
           echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
           echo "total=$total" >> "$GITHUB_OUTPUT"
           echo "fixable=$fixable" >> "$GITHUB_OUTPUT"
           echo "critical=$critical" >> "$GITHUB_OUTPUT"
           echo "high=$high" >> "$GITHUB_OUTPUT"
+          echo "medium=$medium" >> "$GITHUB_OUTPUT"
+          echo "low=$low" >> "$GITHUB_OUTPUT"
+          echo "negligible=$negligible" >> "$GITHUB_OUTPUT"
+          echo "unknown=$unknown" >> "$GITHUB_OUTPUT"
           {
             echo '## Krkn base image Grype scan'
             echo
             echo "- Image: `$IMAGE`"
-            echo "- Findings: $total total, $fixable with published fixes"
-            echo "- Critical: $critical; High: $high"
+            echo "- Unique vulnerability IDs: $total; $fixable with published fixes"
+            echo "- Critical: $critical; High: $high; Medium: $medium; Low: $low"
+            echo "- Negligible: $negligible; Unknown: $unknown"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload Grype report
@@ -66,34 +81,78 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: grype-base-image-${{ github.run_id }}
-          path: ${{ runner.temp }}/grype-base-image.json
+          path: |
+            ${{ runner.temp }}/grype-base-image.json
+            ${{ runner.temp }}/grype-base-image-summary.json
           if-no-files-found: ignore
           retention-days: 30
 
       - name: Notify Slack with manual fix workflow link
         if: always()
         env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
           SCAN_OUTCOME: ${{ steps.scan.outcome }}
           FINDINGS: ${{ steps.scan.outputs.total }}
           FIXABLE: ${{ steps.scan.outputs.fixable }}
           CRITICAL: ${{ steps.scan.outputs.critical }}
           HIGH: ${{ steps.scan.outputs.high }}
+          MEDIUM: ${{ steps.scan.outputs.medium }}
+          LOW: ${{ steps.scan.outputs.low }}
+          NEGLIGIBLE: ${{ steps.scan.outputs.negligible }}
+          UNKNOWN: ${{ steps.scan.outputs.unknown }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
-            echo "SLACK_WEBHOOK_URL secret is required for the scheduled scan notification" >&2
+          if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
+            echo "KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL secret is required for the scheduled scan notification" >&2
             exit 1
           fi
           workflow_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/workflows/patch-base-image.yml"
           run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           if [[ "$SCAN_OUTCOME" == success ]]; then
-            message="Krkn base image scan completed: ${FIXABLE:-0} findings have fixes (${FINDINGS:-0} total; critical ${CRITICAL:-0}, high ${HIGH:-0}). Run the manual remediation workflow: ${workflow_url}"
+            payload=$(jq -n \
+              --arg image "$IMAGE" \
+              --arg findings "${FINDINGS:-0}" \
+              --arg fixable "${FIXABLE:-0}" \
+              --arg critical "${CRITICAL:-0}" \
+              --arg high "${HIGH:-0}" \
+              --arg medium "${MEDIUM:-0}" \
+              --arg low "${LOW:-0}" \
+              --arg negligible "${NEGLIGIBLE:-0}" \
+              --arg unknown "${UNKNOWN:-0}" \
+              --arg run_url "$run_url" \
+              --arg workflow_url "$workflow_url" '
+              {
+                text: ("Krkn image scan complete: " + $findings + " unique CVEs, " + $fixable + " fixable."),
+                blocks: [
+                  {type:"header", text:{type:"plain_text", text:"🛡️ Krkn base image scan", emoji:true}},
+                  {type:"section", text:{type:"mrkdwn", text:("*Image:* `" + $image + "`\n*Result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*")}},
+                  {type:"section", fields:[
+                    {type:"mrkdwn", text:(":rotating_light: *Critical*\n" + $critical)},
+                    {type:"mrkdwn", text:(":red_circle: *High*\n" + $high)},
+                    {type:"mrkdwn", text:(":large_orange_circle: *Medium*\n" + $medium)},
+                    {type:"mrkdwn", text:(":large_yellow_circle: *Low*\n" + $low)},
+                    {type:"mrkdwn", text:(":white_circle: *Negligible*\n" + $negligible)},
+                    {type:"mrkdwn", text:(":grey_question: *Unknown*\n" + $unknown)}
+                  ]},
+                  {type:"divider"},
+                  {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|📊 Open scan report>\n<" + $workflow_url + "|🩹 Launch remediation>")}}
+                ]
+              }')
           else
-            message="Krkn base image scan failed. Inspect ${run_url} and launch remediation when ready: ${workflow_url}"
+            payload=$(jq -n \
+              --arg run_url "$run_url" \
+              --arg workflow_url "$workflow_url" '
+              {
+                text:"Krkn base image scan failed.",
+                blocks:[
+                  {type:"header", text:{type:"plain_text", text:"🚨 Krkn base image scan failed", emoji:true}},
+                  {type:"section", text:{type:"mrkdwn", text:"The vulnerability scan did not complete. Check the run details before launching remediation."}},
+                  {type:"divider"},
+                  {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|🔎 Open failed scan>\n<" + $workflow_url + "|🩹 Launch remediation>")}}
+                ]
+              }')
           fi
-          jq -n --arg text "$message" '{text: $text}' \
-            | curl --fail --silent --show-error -X POST \
+          curl --fail --silent --show-error -X POST \
                 -H 'Content-Type: application/json' \
-                --data-binary @- "$SLACK_WEBHOOK_URL"
+                --data-binary "$payload" "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"
