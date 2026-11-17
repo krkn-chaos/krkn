@@ -129,8 +129,17 @@ class Serializer:
 
         logger.debug("Creating version file at %s", version.version_file_full_path)
         logger.debug("Version file content:\n%s", file_content)
-        with open(version.version_file_full_path, "w") as f:
-            f.write(file_content)
+        # Write to a temp name first so a failed write never leaves a partial
+        # .py file that rollback execution would pick up
+        tmp_path = version.version_file_full_path + ".tmp"
+        try:
+            with open(tmp_path, "w") as f:
+                f.write(file_content)
+            os.replace(tmp_path, version.version_file_full_path)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+            raise
         logger.info(f"Serialized callable written to {version.version_file_full_path}")
 
         return version.version_file_full_path
