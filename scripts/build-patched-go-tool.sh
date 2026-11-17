@@ -84,7 +84,10 @@ docker build --pull --platform "linux/$arch" -t "$image" "$context_dir"
 before_report="$report_dir/grype-${tool}-${arch}-before.json"
 after_report="$report_dir/grype-${tool}-${arch}-after.json"
 copa_manifest="$report_dir/copa-${tool}-${arch}.json"
-grype "docker:$image" --output json --file "$before_report"
+# Grype's image catalogers discover Go modules from compiled binaries; the
+# Go module file cataloger is enabled for directory scans. Scan the checked
+# out source so Copa receives vulnerable module versions from go.mod.
+grype "dir:$source_dir" --output json --file "$before_report"
 go_module_matches=$(jq '[.matches[]? | select(.artifact.type == "go-module")] | length' "$before_report")
 KRKN_COPA_ARCH="$arch" copa-grype "$before_report" > "$copa_manifest"
 update_count=$(jq '.langupdates | length' "$copa_manifest")
@@ -105,11 +108,19 @@ else
 fi
 
 docker image inspect "$patched_image" >/dev/null
+patched_source_dir="$work_dir/patched-source"
+patched_manifests_archive="$work_dir/patched-manifests.tar"
+mkdir -p "$patched_source_dir"
+cp -R "$source_dir/." "$patched_source_dir/"
 docker run --rm --entrypoint /bin/bash "$patched_image" -lc \
   'cd /workspace && find . -type d \( -name .git -o -name vendor \) -prune -o -type f \( -name go.mod -o -name go.sum -o -name go.work -o -name go.work.sum \) -print0 | tar --null --files-from=- --create --file=-' \
-  | tar --extract --file=- --directory "$metadata_dir/patched"
+  > "$patched_manifests_archive"
+tar --extract --file="$patched_manifests_archive" --directory "$metadata_dir/patched"
+tar --extract --file="$patched_manifests_archive" --directory "$patched_source_dir"
 
-grype "docker:$patched_image" --output json --file "$after_report"
+# Re-scan the updated source manifests; an image scan only sees compiled Go
+# binaries and misses changes in go.mod/go.work.
+grype "dir:$patched_source_dir" --output json --file "$after_report"
 KRKN_COPA_ARCH="$arch" copa-grype "$after_report" > "$report_dir/copa-${tool}-${arch}-after.json"
 remaining=$(jq '.langupdates | length' "$report_dir/copa-${tool}-${arch}-after.json")
 if (( remaining > 0 )); then
