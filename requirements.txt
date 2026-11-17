@@ -2,7 +2,6 @@ setuptools<82.0.0  # Has pkg_resources (required by VMware SDK) + newer vendored
 wheel>=0.46.2  # Fixes GHSA-8rrh-rw8j-w5fx
 aliyun-python-sdk-core==2.16.1
 aliyun-python-sdk-ecs==4.24.25
-arcaflow-plugin-sdk==0.14.3
 boto3>=1.34.0  # Updated to support urllib3 2.x
 azure-identity==1.16.1
 azure-keyvault==4.2.0
@@ -19,7 +18,6 @@ ibm_vpc==0.26.3  # Requires ibm_cloud_sdk_core
 jinja2==3.1.6
 jaraco-context>=6.1.0  # Fixes GHSA-58pv-8j8x-9vj2
 reportlab>=4.0
-cbor2<5.7.0  # Pinned by arcaflow-plugin-sdk
 lxml==6.1.0
 kubernetes>=35.0.0,<36.0.0
 krkn-lib==7.0.4

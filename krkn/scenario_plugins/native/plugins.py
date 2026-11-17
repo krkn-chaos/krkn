@@ -27,7 +27,7 @@ from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin i
 from krkn.scenario_plugins.native.pod_network_outage.pod_network_outage_plugin import (
     pod_ingress_shaping,
 )
-from arcaflow_plugin_sdk import schema, serialization, jsonschema
+from krkn.scenario_plugins.native.steps import schema, serialization, jsonschema
 
 @dataclasses.dataclass
 class PluginStep:
@@ -128,8 +128,8 @@ class Plugins:
         result = {
             "$id": "https://github.com/redhat-chaos/krkn/",
             "$schema": "https://json-schema.org/draft/2020-12/schema",
-            "title": "Kraken Arcaflow scenarios",
-            "description": "Serial execution of Arcaflow Python plugins. See https://github.com/arcaflow for details.",
+            "title": "Krkn native scenarios",
+            "description": "Serial execution of native Python scenario steps.",
             "type": "array",
             "minContains": 1,
             "items": {"oneOf": []},
