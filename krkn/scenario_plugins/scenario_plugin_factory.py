@@ -42,7 +42,7 @@ class ScenarioPluginFactory:
         be implemented by all the plugins in order to be loaded correctly
 
         :param scenario_type: the scenario type defined in the config.yaml
-            e.g. `arcaflow_scenarios`, `network_scenarios`, `plugin_scenarios`
+            e.g. `pod_network_scenarios`, `network_chaos_scenarios`
             etc.
         :return: an instance of the class that implements this scenario and
             inherits from the AbstractScenarioPlugin abstract class

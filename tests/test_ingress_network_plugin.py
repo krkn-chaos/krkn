@@ -27,46 +27,41 @@ Usage:
 Assisted By: Claude Code
 """
 import unittest
+from dataclasses import asdict
 from unittest.mock import Mock, patch
-from arcaflow_plugin_sdk import plugin
 
 from krkn.scenario_plugins.native.network import ingress_shaping
+from krkn.scenario_plugins.native.plugins import PLUGINS
 
 
 class NetworkScenariosTest(unittest.TestCase):
 
     def test_serialization(self):
         """Test serialization of configuration and output objects"""
-        plugin.test_object_serialization(
-            ingress_shaping.NetworkScenarioConfig(
-                node_interface_name={"foo": ["bar"]},
-                network_params={
-                    "latency": "50ms",
-                    "loss": "0.02",
-                    "bandwidth": "100mbit",
-                },
-            ),
-            self.fail,
+        config = ingress_shaping.NetworkScenarioConfig(
+            node_interface_name={"foo": ["bar"]},
+            network_params={
+                "latency": "50ms",
+                "loss": "0.02",
+                "bandwidth": "100mbit",
+            },
         )
-        plugin.test_object_serialization(
-            ingress_shaping.NetworkScenarioSuccessOutput(
-                filter_direction="ingress",
-                test_interfaces={"foo": ["bar"]},
-                network_parameters={
-                    "latency": "50ms",
-                    "loss": "0.02",
-                    "bandwidth": "100mbit",
-                },
-                execution_type="parallel",
+        step = PLUGINS.steps_by_id["network_chaos"].schema
+        self.assertEqual(
+            step.input.unserialize(
+                {key: value for key, value in asdict(config).items() if value is not None}
             ),
-            self.fail,
+            config,
         )
-        plugin.test_object_serialization(
-            ingress_shaping.NetworkScenarioErrorOutput(
-                error="Hello World",
-            ),
-            self.fail,
+        success = ingress_shaping.NetworkScenarioSuccessOutput(
+            filter_direction="ingress",
+            test_interfaces={"foo": ["bar"]},
+            network_parameters={"latency": "50ms", "loss": "0.02", "bandwidth": "100mbit"},
+            execution_type="parallel",
         )
+        error = ingress_shaping.NetworkScenarioErrorOutput(error="Hello World")
+        self.assertEqual(step.outputs["success"].serialize(success), asdict(success))
+        self.assertEqual(step.outputs["error"].serialize(error), asdict(error))
 
     def test_get_default_interface(self):
         """Test getting default interface from a node"""

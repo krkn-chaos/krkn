@@ -23,7 +23,7 @@ from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
 from krkn_lib.k8s import KrknKubernetes
 import typing
-from arcaflow_plugin_sdk import validation, plugin
+from krkn.scenario_plugins.native.steps import validation, plugin
 
 
 @dataclass

@@ -453,9 +453,9 @@ class TestPlugins(unittest.TestCase):
             Path(temp_file).unlink()
 
     @patch('krkn.scenario_plugins.native.plugins.logging')
-    def test_run_with_kraken_config_injection(self, mock_logging):
-        """Test run method injects kraken_config when property exists"""
-        # Create mock schema with kraken_config in input properties
+    def test_run_does_not_inject_kraken_config(self, mock_logging):
+        """The native runner only injects kubeconfig_path and kubecli."""
+        # An input field alone does not request runtime config injection.
         mock_schema = Mock()
         mock_schema.id = "test_step"
 
@@ -487,10 +487,9 @@ class TestPlugins(unittest.TestCase):
 
         try:
             plugins = Plugins([plugin_step])
-            plugins.run(temp_file, "/path/to/kubeconfig", "/custom/kraken.yaml", "test-uuid")
+            plugins.run(temp_file, "/path/to/kubeconfig", "test-uuid")
 
-            # Verify kraken_config was set
-            self.assertEqual(mock_input_instance.kraken_config, "/custom/kraken.yaml")
+            self.assertIsInstance(mock_input_instance.kraken_config, Mock)
         finally:
             Path(temp_file).unlink()
 
