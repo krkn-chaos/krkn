@@ -11,6 +11,7 @@ update are reported but do not fail the command; scanner and module-loading
 errors do fail it.
 
 Options:
+  --dir DIRECTORY         Directory with a Go package to anchor the module scan (default: .)
   --exclude-module MOD    Do not update this module; can be repeated
   --max-passes N          Maximum update passes (default: 5)
   --report-dir DIR        Save govulncheck JSON streams and update evidence
@@ -22,11 +23,15 @@ EOF
 
 MAX_PASSES=5
 REPORT_DIR=''
+SCAN_SUBDIR='.'
 EXCLUDED_MODULES=()
 MODULE_DIR=''
 
 while (($#)); do
   case "$1" in
+    --dir)
+      (($# >= 2)) || { echo 'error: --dir requires a value' >&2; exit 2; }
+      SCAN_SUBDIR=$2; shift 2 ;;
     --exclude-module)
       (($# >= 2)) && [[ -n "$2" ]] || { echo 'error: --exclude-module requires a value' >&2; exit 2; }
       EXCLUDED_MODULES+=("$2"); shift 2 ;;
@@ -53,13 +58,14 @@ done
 
 MODULE_DIR=$(cd "$MODULE_DIR" && pwd)
 [[ -f "$MODULE_DIR/go.mod" ]] || { echo "error: no go.mod found at $MODULE_DIR" >&2; exit 2; }
+SCAN_DIR=$(cd "$MODULE_DIR/$SCAN_SUBDIR" && pwd) || { echo "error: scan directory does not exist: $SCAN_SUBDIR" >&2; exit 2; }
 if [[ -z "$REPORT_DIR" ]]; then
   REPORT_DIR="$MODULE_DIR/govulncheck-reports"
 fi
 mkdir -p "$REPORT_DIR"
 
 printf 'Go toolchain: '; go version
-printf 'Scanning module: %s\nScan level: module\n' "$MODULE_DIR"
+printf 'Scanning module: %s\nGo package directory: %s\nScan level: module\n' "$MODULE_DIR" "$SCAN_DIR"
 if ((${#EXCLUDED_MODULES[@]})); then
   printf 'Excluded modules from automatic updates: %s\n' "${EXCLUDED_MODULES[*]}"
 fi
@@ -210,7 +216,7 @@ while ((pass <= MAX_PASSES)); do
   unresolved_file="$REPORT_DIR/unresolved-pass-${pass}.txt"
   echo "Scan/update pass $pass of $MAX_PASSES"
   scan_args=(-scan=module -json)
-  if ! (cd "$MODULE_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
+  if ! (cd "$SCAN_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
     cat "$stderr" >&2
     echo "error: govulncheck failed while scanning $MODULE_DIR" >&2
     exit 1
@@ -287,7 +293,7 @@ if ((final_scan_done == 0)); then
   unresolved_file="$REPORT_DIR/unresolved-final.txt"
   echo "Final govulncheck scan after automatic update attempts"
   scan_args=(-scan=module -json)
-  if ! (cd "$MODULE_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
+  if ! (cd "$SCAN_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
     cat "$stderr" >&2
     echo "error: final govulncheck scan failed" >&2
     exit 1

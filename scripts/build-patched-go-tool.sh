@@ -40,6 +40,7 @@ case "$tool" in
     source_ref=$OC_SOURCE_REF
     source_version=$OC_SOURCE_LABEL
     clone_pinned_repo "$source_url" "$source_ref" "$source_dir"
+    scan_dir='cmd/oc'
     pattern='./cmd/oc'
     build_tags='include_gcs,include_oss,containers_image_openpgp,gssapi'
     build_command='cd /workspace && go mod tidy && go mod vendor && make GO_REQUIRED_MIN_VERSION:= oc && install -m 0755 /workspace/oc /out/oc'
@@ -50,6 +51,7 @@ case "$tool" in
     source_ref=$VIRTCTL_SOURCE_REF
     source_version=$VIRTCTL_SOURCE_LABEL
     clone_pinned_repo "$source_url" "$source_ref" "$source_dir"
+    scan_dir='cmd/virtctl'
     pattern='./cmd/virtctl/'
     build_tags=''
     build_command='cd /workspace && go mod tidy && go work vendor && go build -o /out/virtctl ./cmd/virtctl/'
@@ -60,6 +62,7 @@ case "$tool" in
     source_ref=$YQ_SOURCE_REF
     source_version=$YQ_SOURCE_LABEL
     clone_pinned_repo "$source_url" "$source_ref" "$source_dir"
+    scan_dir='.'
     pattern='.'
     build_tags=''
     build_command='cd /workspace && go mod tidy && go mod vendor && go build -ldflags="-s -w" -o /out/yq .'
@@ -105,7 +108,7 @@ docker build --pull --platform "linux/$arch" \
   --build-arg "GOVULNCHECK_VERSION=$GOVULNCHECK_VERSION" \
   -t "$image" "$context_dir"
 
-update_args=(--max-passes 5 --report-dir /reports/govulncheck)
+update_args=(--dir "$scan_dir" --max-passes 5 --report-dir /reports/govulncheck)
 for module in "${exclude_modules[@]-}"; do
   [[ -z "$module" ]] || update_args+=(--exclude-module "$module")
 done
@@ -148,7 +151,7 @@ if [[ -f "$applied_updates" ]]; then update_count=$(wc -l < "$applied_updates" |
   echo "### Go dependency remediation: $tool ($arch)"
   echo
   echo "- Source: $source_url@$source_version ($source_commit)"
-  echo "- Scanner: govulncheck $GOVULNCHECK_VERSION, module scan of the module dependency graph"
+  echo "- Scanner: govulncheck $GOVULNCHECK_VERSION, module scan from \`$scan_dir\`"
   echo "- Go build target: \`$pattern\`"
   [[ -z "$build_tags" ]] || echo "- Build tags: \`$build_tags\`"
   echo "- Go module updates applied: $update_count"
