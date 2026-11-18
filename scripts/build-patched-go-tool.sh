@@ -162,11 +162,12 @@ while IFS= read -r -d '' go_mod_path; do
     "$module_plan_raw" > "$module_plan"
   module_manifests+=("$module_plan")
 
+  # Grype fix versions are commonly reported without the Go-required `v` prefix.
   mapfile -t go_get_args < <(
     jq -r '
       [.langupdates[]?
        | select((.name | type) == "string" and (.fixedVersion | type) == "string")
-       | "\(.name)@\(.fixedVersion)"]
+       | .name + "@" + (if (.fixedVersion | startswith("v")) then .fixedVersion else "v" + .fixedVersion end)]
       | unique[]
     ' "$module_plan_raw"
   )
