@@ -27,7 +27,27 @@ echo "$grype_sha  $TMP_DIR/$asset" | sha256sum --check --status || {
 tar -xzf "$TMP_DIR/$asset" -C "$TMP_DIR" grype
 install -m 0755 "$TMP_DIR/grype" "$BIN_DIR/grype"
 
-GOBIN="$BIN_DIR" go install "github.com/project-copacetic/copacetic@v${COPA_VERSION}"
+install_copa() {
+  local attempt max_attempts=5 delay
+
+  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+    echo "Installing Copa v${COPA_VERSION} (attempt ${attempt}/${max_attempts})"
+    if GOBIN="$BIN_DIR" go install "github.com/project-copacetic/copacetic@v${COPA_VERSION}"; then
+      return 0
+    fi
+
+    if ((attempt == max_attempts)); then
+      echo "error: failed to install Copa v${COPA_VERSION} after ${max_attempts} attempts" >&2
+      return 1
+    fi
+
+    delay=$((2 ** (attempt - 1)))
+    echo "Copa installation failed; retrying in ${delay}s" >&2
+    sleep "$delay"
+  done
+}
+
+install_copa
 # The Go module's package is named "copacetic"; the release CLI command is "copa".
 if [[ -x "$BIN_DIR/copacetic" ]]; then
   mv "$BIN_DIR/copacetic" "$BIN_DIR/copa"
