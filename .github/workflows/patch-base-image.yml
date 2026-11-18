@@ -43,7 +43,7 @@ env:
 
 jobs:
   build-tools:
-    name: Patch and build ${{ matrix.tool }} (${{ matrix.arch }})
+    name: Remediate Go dependencies and build ${{ matrix.tool }} (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     strategy:
@@ -94,17 +94,11 @@ jobs:
             }
           set-host: true
 
-      - name: Test Grype-to-Copa version selection
-        run: python3 scripts/test_copa_grype.py
-
       - name: Test Grype report severity aggregation
         if: matrix.tool == 'oc' && matrix.arch == 'amd64'
         run: python3 scripts/test_summarize_grype_report.py
 
-      - name: Install Grype, Copa, and the Grype adapter
-        run: scripts/install-copa-grype-tools.sh
-
-      - name: Apply Copa-selected updates per Go module and compile the tool
+      - name: Apply govulncheck-selected Go updates and compile the tool
         env:
           GOMAXPROCS: '2'
           GOFLAGS: -p=2
@@ -123,7 +117,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload patched Go manifests and scan reports
+      - name: Upload Go manifests and vulnerability scan evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tool-evidence-${{ matrix.arch }}-${{ matrix.tool }}
