@@ -6,9 +6,11 @@ usage() {
 Usage: update-go-vulnerabilities.sh [OPTIONS] MODULE_DIR
 
 Use govulncheck module findings to propose fixed Go module versions, apply them
-with go get, tidy the module, and rescan. Vulnerabilities without an applicable
-update are reported but do not fail the command; scanner and module-loading
-errors do fail it.
+with go get, tidy the module, and rescan. Scans use -mod=readonly to bypass
+stale vendoring. Updates are applied serially without downgrading modules that
+already meet a reported fix; changes to excluded modules are reverted.
+Vulnerabilities without an applicable update are reported but do not fail the
+command; scanner and module-loading errors do fail it.
 
 Options:
   --dir DIRECTORY         Directory with a Go package to anchor the module scan (default: .)
@@ -69,6 +71,8 @@ printf 'Scanning module: %s\nGo package directory: %s\nScan level: module\n' "$M
 if ((${#EXCLUDED_MODULES[@]})); then
   printf 'Excluded modules from automatic updates: %s\n' "${EXCLUDED_MODULES[*]}"
 fi
+SCAN_GOFLAGS="${GOFLAGS:-}"
+SCAN_GOFLAGS="${SCAN_GOFLAGS:+$SCAN_GOFLAGS }-mod=readonly"
 
 parse_report() {
   local report=$1 updates_file=$2 unresolved_file=$3
@@ -193,16 +197,116 @@ PY
 }
 
 backup_manifests() {
-  local backup=$1
+  local backup=$1 manifest
   mkdir -p "$backup"
-  cp "$MODULE_DIR/go.mod" "$backup/go.mod"
-  [[ ! -f "$MODULE_DIR/go.sum" ]] || cp "$MODULE_DIR/go.sum" "$backup/go.sum"
+  for manifest in go.mod go.sum go.work go.work.sum; do
+    [[ ! -f "$MODULE_DIR/$manifest" ]] || cp "$MODULE_DIR/$manifest" "$backup/$manifest"
+  done
 }
 
 restore_manifests() {
-  local backup=$1
-  cp "$backup/go.mod" "$MODULE_DIR/go.mod"
-  if [[ -f "$backup/go.sum" ]]; then cp "$backup/go.sum" "$MODULE_DIR/go.sum"; else rm -f "$MODULE_DIR/go.sum"; fi
+  local backup=$1 manifest
+  for manifest in go.mod go.sum go.work go.work.sum; do
+    if [[ -f "$backup/$manifest" ]]; then
+      cp "$backup/$manifest" "$MODULE_DIR/$manifest"
+    else
+      rm -f "$MODULE_DIR/$manifest"
+    fi
+  done
+}
+
+module_version() {
+  local module=$1
+  (cd "$MODULE_DIR" && GOFLAGS="$SCAN_GOFLAGS" go list -m -f '{{if .Replace}}{{.Replace.Version}}{{else}}{{.Version}}{{end}}' "$module" 2>/dev/null) || true
+}
+
+version_is_at_least() {
+  python3 - "$1" "$2" <<'PY_VERSION'
+import re
+import sys
+
+current, required = sys.argv[1:]
+pattern = re.compile(r"^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$")
+
+def key(value):
+    match = pattern.fullmatch(value)
+    if not match:
+        raise ValueError(value)
+    major, minor, patch, pre = match.groups()
+    return (int(major), int(minor), int(patch), pre.split(".") if pre else [])
+
+def compare(left, right):
+    left, right = key(left), key(right)
+    if left[:3] != right[:3]:
+        return (left[:3] > right[:3]) - (left[:3] < right[:3])
+    if not left[3] or not right[3]:
+        return (bool(left[3]) < bool(right[3])) - (bool(left[3]) > bool(right[3]))
+    for a, b in zip(left[3], right[3]):
+        if a == b:
+            continue
+        an, bn = a.isdigit(), b.isdigit()
+        if an and bn:
+            return (int(a) > int(b)) - (int(a) < int(b))
+        if an != bn:
+            return -1 if an else 1
+        return (a > b) - (a < b)
+    return (len(left[3]) > len(right[3])) - (len(left[3]) < len(right[3]))
+
+try:
+    sys.exit(0 if compare(current, required) >= 0 else 1)
+except ValueError:
+    sys.exit(1)
+PY_VERSION
+}
+
+snapshot_excluded_modules() {
+  local destination=$1 module version
+  : > "$destination"
+  for module in "${EXCLUDED_MODULES[@]-}"; do
+    [[ -n "$module" ]] || continue
+    version=$(module_version "$module")
+    printf '%s\t%s\n' "$module" "$version" >> "$destination"
+  done
+}
+
+excluded_modules_changed() {
+  local snapshot=$1 module before after
+  [[ -s "$snapshot" ]] || return 1
+  while IFS=$'\t' read -r module before; do
+    [[ -n "$module" ]] || continue
+    after=$(module_version "$module")
+    if [[ -n "$after" && "$after" != "$before" ]]; then
+      printf '%s: %s -> %s\n' "$module" "${before:-absent}" "$after" >&2
+      return 0
+    fi
+  done < "$snapshot"
+  return 1
+}
+
+snapshot_fixed_targets() {
+  local destination=$1 expected module target version
+  : > "$destination"
+  for expected in "${updates[@]}"; do
+    module=${expected%@*}
+    target=${expected#*@}
+    version=$(module_version "$module")
+    printf '%s\t%s\t%s\n' "$module" "$target" "$version" >> "$destination"
+  done
+}
+
+fixed_targets_downgraded() {
+  local snapshot=$1 module target before selected
+  [[ -s "$snapshot" ]] || return 1
+  while IFS=$'\t' read -r module target before; do
+    [[ -n "$module" && -n "$before" ]] || continue
+    version_is_at_least "$before" "$target" || continue
+    selected=$(module_version "$module")
+    if [[ -n "$selected" ]] && ! version_is_at_least "$selected" "$target"; then
+      printf '%s: selected %s fell below the fixed target %s\n' "$module" "$selected" "$target" >&2
+      return 0
+    fi
+  done < "$snapshot"
+  return 1
 }
 
 applied_file="$REPORT_DIR/applied-updates.tsv"
@@ -216,7 +320,7 @@ while ((pass <= MAX_PASSES)); do
   unresolved_file="$REPORT_DIR/unresolved-pass-${pass}.txt"
   echo "Scan/update pass $pass of $MAX_PASSES"
   scan_args=(-scan=module -json)
-  if ! (cd "$SCAN_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
+  if ! (cd "$SCAN_DIR" && GOFLAGS="$SCAN_GOFLAGS" govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
     cat "$stderr" >&2
     echo "error: govulncheck failed while scanning $MODULE_DIR" >&2
     exit 1
@@ -240,11 +344,26 @@ while ((pass <= MAX_PASSES)); do
   pass_backup="$REPORT_DIR/.pass-backup"
   rm -rf "$pass_backup"
   backup_manifests "$pass_backup"
+  pass_excluded_before="$REPORT_DIR/.pass-excluded-before.tsv"
+  snapshot_excluded_modules "$pass_excluded_before"
+  pass_fixed_before="$REPORT_DIR/.pass-fixed-before.tsv"
+  snapshot_fixed_targets "$pass_fixed_before"
   for update in "${updates[@]}"; do
     module=${update%@*}
+    target_version=${update#*@}
+    current_version=$(module_version "$module")
+    if [[ -n "$current_version" ]] && version_is_at_least "$current_version" "$target_version"; then
+      echo "Skipping $update; selected version is already $current_version"
+      continue
+    fi
+
     backup="$REPORT_DIR/.manifest-backup"
     rm -rf "$backup"
     backup_manifests "$backup"
+    excluded_before="$REPORT_DIR/.excluded-before-update.tsv"
+    snapshot_excluded_modules "$excluded_before"
+    fixed_before="$REPORT_DIR/.fixed-before-update.tsv"
+    snapshot_fixed_targets "$fixed_before"
     echo "go get $update"
     if (
       cd "$MODULE_DIR"
@@ -263,25 +382,46 @@ PY
       fi
       go get "$update"
     ); then
-      pass_applied+=("$update")
+      if excluded_modules_changed "$excluded_before"; then
+        restore_manifests "$backup"
+        echo "warning: go get $update would change an excluded module; restored go manifests" >&2
+      elif fixed_targets_downgraded "$fixed_before"; then
+        restore_manifests "$backup"
+        echo "warning: go get $update would downgrade a module below its fixed target; restored go manifests" >&2
+      else
+        pass_applied+=("$update")
+      fi
     else
       restore_manifests "$backup"
-      echo "warning: go get rejected $update; restored go.mod and go.sum" >&2
+      echo "warning: go get rejected $update; restored go manifests" >&2
     fi
     rm -rf "$backup"
   done
   if ((${#pass_applied[@]})); then
     if (cd "$MODULE_DIR" && go mod tidy); then
-      printf '%s\n' "${pass_applied[@]}" >> "$applied_file"
-      rm -rf "$pass_backup"
+      if excluded_modules_changed "$pass_excluded_before"; then
+        restore_manifests "$pass_backup"
+        rm -rf "$pass_backup"
+        echo "warning: go mod tidy changed an excluded module; restored this update pass" >&2
+        break
+      elif fixed_targets_downgraded "$pass_fixed_before"; then
+        restore_manifests "$pass_backup"
+        rm -rf "$pass_backup"
+        echo "warning: go mod tidy downgraded a module below its fixed target; restored this update pass" >&2
+        break
+      else
+        printf '%s\n' "${pass_applied[@]}" >> "$applied_file"
+        rm -rf "$pass_backup"
+      fi
     else
       restore_manifests "$pass_backup"
       rm -rf "$pass_backup"
-      echo "warning: go mod tidy rejected this update pass; restored go.mod and go.sum" >&2
+      echo "warning: go mod tidy rejected this update pass; restored go manifests" >&2
       break
     fi
   else
     rm -rf "$pass_backup"
+    break
   fi
   pass=$((pass + 1))
 done
@@ -293,7 +433,7 @@ if ((final_scan_done == 0)); then
   unresolved_file="$REPORT_DIR/unresolved-final.txt"
   echo "Final govulncheck scan after automatic update attempts"
   scan_args=(-scan=module -json)
-  if ! (cd "$SCAN_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
+  if ! (cd "$SCAN_DIR" && GOFLAGS="$SCAN_GOFLAGS" govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
     cat "$stderr" >&2
     echo "error: final govulncheck scan failed" >&2
     exit 1
