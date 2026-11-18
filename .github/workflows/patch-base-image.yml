@@ -72,10 +72,16 @@ jobs:
       - name: Check out pipeline source
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
+      - name: Read pinned Go toolchain version
+        id: go_toolchain
+        run: |
+          source scripts/go-tools-versions.env
+          echo "version=$GO_TOOLCHAIN_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
         with:
-          go-version: '1.26.9'
+          go-version: ${{ steps.go_toolchain.outputs.version }}
 
       - name: Set up Docker with containerd image store
         uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
@@ -144,10 +150,16 @@ jobs:
       - name: Check out pipeline source
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
+      - name: Read pinned Go toolchain version
+        id: go_toolchain
+        run: |
+          source scripts/go-tools-versions.env
+          echo "version=$GO_TOOLCHAIN_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
         with:
-          go-version: '1.26.9'
+          go-version: ${{ steps.go_toolchain.outputs.version }}
 
       - name: Set up Docker with containerd image store
         uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5

@@ -21,6 +21,8 @@ trap 'rm -rf "$work_dir"' EXIT
 source_dir="$work_dir/source"
 context_dir="$work_dir/context"
 mkdir -p "$context_dir/source" "$binary_output" "$metadata_dir/baseline" "$metadata_dir/patched" "$report_dir"
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+source "$repo_root/scripts/go-tools-versions.env"
 
 case "$arch" in
   amd64|arm64) ;;
@@ -28,21 +30,42 @@ case "$arch" in
 esac
 
 download_command='go mod download'
+clone_pinned_repo() {
+  local source_url=$1
+  local source_ref=$2
+  local destination=$3
+  git init --quiet "$destination"
+  git -C "$destination" remote add origin "$source_url"
+  git -C "$destination" fetch --quiet --depth 1 origin "$source_ref"
+  git -C "$destination" checkout --quiet --detach FETCH_HEAD
+  local checked_out_ref
+  checked_out_ref=$(git -C "$destination" rev-parse HEAD)
+  if [[ "$checked_out_ref" != "$source_ref" ]]; then
+    echo "error: expected $source_url@$source_ref, checked out $checked_out_ref" >&2
+    exit 1
+  fi
+}
 case "$tool" in
   oc)
     source_url=https://github.com/openshift/oc.git
-    git clone --depth 1 --branch release-5.1 --single-branch "$source_url" "$source_dir"
+    source_ref=$OC_SOURCE_REF
+    source_version=$OC_SOURCE_LABEL
+    clone_pinned_repo "$source_url" "$source_ref" "$source_dir"
     build_command='cd /workspace && go mod vendor && make GO_REQUIRED_MIN_VERSION:= oc && install -m 0755 /workspace/oc /out/oc'
     ;;
   virtctl)
     source_url=https://github.com/kubevirt/kubevirt.git
-    git clone --depth 1 "$source_url" "$source_dir"
+    source_ref=$VIRTCTL_SOURCE_REF
+    source_version=$VIRTCTL_SOURCE_LABEL
+    clone_pinned_repo "$source_url" "$source_ref" "$source_dir"
     download_command='GOWORK=off go mod download'
     build_command='cd /workspace && go work vendor && go build -o /out/virtctl ./cmd/virtctl/'
     ;;
   yq)
     source_url=https://github.com/mikefarah/yq.git
-    git clone --depth 1 --branch v4.44.6 "$source_url" "$source_dir"
+    source_ref=$YQ_SOURCE_REF
+    source_version=$YQ_SOURCE_LABEL
+    clone_pinned_repo "$source_url" "$source_ref" "$source_dir"
     build_command='cd /workspace && go mod vendor && go build -ldflags="-s -w" -o /out/yq .'
     ;;
   *)
@@ -54,6 +77,7 @@ esac
 
 source_commit=$(git -C "$source_dir" rev-parse HEAD)
 printf '%s\n' "$source_url" > "$metadata_dir/source-url.txt"
+printf '%s\n' "$source_version" > "$metadata_dir/source-version.txt"
 printf '%s\n' "$source_commit" > "$metadata_dir/source-commit.txt"
 (
   cd "$source_dir"
@@ -65,7 +89,8 @@ printf '%s\n' "$source_commit" > "$metadata_dir/source-commit.txt"
 cp -R "$source_dir/." "$context_dir/source/"
 printf '**/.git\n**/.git/**\n' > "$context_dir/.dockerignore"
 cat > "$context_dir/Dockerfile" <<'DOCKERFILE'
-FROM golang:1.26
+ARG GO_TOOLCHAIN_VERSION
+FROM golang:${GO_TOOLCHAIN_VERSION}
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates git make gcc pkg-config libkrb5-dev libgpgme-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -76,7 +101,9 @@ DOCKERFILE
 run_id=${GITHUB_RUN_ID:-local}
 image="localhost/krkn-go-tool:${tool}-${run_id}-${arch}"
 
-docker build --pull --platform "linux/$arch" -t "$image" "$context_dir"
+docker build --pull --platform "linux/$arch" \
+  --build-arg "GO_TOOLCHAIN_VERSION=$GO_TOOLCHAIN_VERSION" \
+  -t "$image" "$context_dir"
 
 before_report="$report_dir/grype-${tool}-${arch}-before.json"
 after_report="$report_dir/grype-${tool}-${arch}-after.json"
@@ -284,7 +311,7 @@ fi
 {
   echo "### Go dependency patch: $tool ($arch)"
   echo
-  echo "- Source: $source_url@$source_commit"
+  echo "- Source: $source_url@$source_version ($source_commit)"
   echo "- Grype Go module vulnerability matches before patch: $go_module_matches"
   echo "- Grype fixed module findings before patch: $(jq '[.matches[]? | select(.artifact.type == "go-module" and .vulnerability.fix.state == "fixed")] | length' "$before_report")"
   echo "- Copa-selected Go updates: $module_updates across $module_count module(s)"
