@@ -112,10 +112,13 @@ if [[ "$tool" == oc ]]; then
   # These updates are incompatible with the source versions used by oc:
   # distribution/v3 removed imported packages, and BuildKit/go-archive changes
   # removed archive.Compression still used by Docker's archive package.
+  # x/crypto moved openpgp into a separate module, so this update breaks oc's
+  # import; the Go advisory has no fixed version for that package.
   exclude_modules=(
     github.com/distribution/distribution/v3
     github.com/moby/buildkit
     github.com/moby/go-archive
+    golang.org/x/crypto
   )
 fi
 if ((${#exclude_modules[@]})); then
