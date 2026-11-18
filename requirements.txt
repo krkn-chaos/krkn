@@ -1,4 +1,4 @@
-setuptools>=83.0.0,<85.0.0  # Security fixes; compatible with vmware-vcenter
+setuptools==84.1.0  # Fixes GHSA-xmj3-9gf7-h52w; compatible with vmware-vcenter
 wheel>=0.46.2  # Fixes GHSA-8rrh-rw8j-w5fx
 aliyun-python-sdk-core==2.16.1
 aliyun-python-sdk-ecs==4.24.25
