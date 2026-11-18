@@ -41,6 +41,16 @@ class BaseNetworkChaosConfig:
     ingress: bool
     egress: bool
 
+    # ids whose target resolution requires an explicit target or a
+    # label_selector; VMI scenarios accept an empty target (regex ".*")
+    ids_requiring_target = {
+        "node_network_filter",
+        "node_network_chaos",
+        "node_interface_down",
+        "pod_network_filter",
+        "pod_network_chaos",
+    }
+
     def validate(self) -> list[str]:
         errors = []
         if self.execution is None:
@@ -53,6 +63,21 @@ class BaseNetworkChaosConfig:
             )
         if self.id == "node_network_filter" and self.label_selector is None:
             errors.append("label_selector cannot be None")
+        if self.id in self.ids_requiring_target:
+            if not self.target and not self.label_selector:
+                target_kind = (
+                    "node name"
+                    if self.id.startswith("node_")
+                    else "pod name"
+                )
+                errors.append(
+                    f"{self.id}: no target specified: set 'target' to a {target_kind} "
+                    f"or set 'label_selector' to select target(s) by label, aborting"
+                )
+            if not self.id.startswith("node_") and not self.namespace:
+                errors.append(
+                    f"{self.id}: namespace not specified, aborting"
+                )
         if not isinstance(self.wait_duration, int):
             errors.append("wait_duration must be an int")
         if not isinstance(self.test_duration, int):

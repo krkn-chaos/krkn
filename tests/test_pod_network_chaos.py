@@ -135,7 +135,7 @@ class TestPodNetworkChaosModule(unittest.TestCase):
         with self.assertRaises(Exception) as context:
             self.module.get_targets()
 
-        self.assertIn("neither", str(context.exception))
+        self.assertIn("requires a pod name in 'target'", str(context.exception))
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.pod_network_chaos.time.sleep")
     @patch(
