@@ -7,12 +7,10 @@ Usage: update-go-vulnerabilities.sh [OPTIONS] MODULE_DIR
 
 Use govulncheck module findings to propose fixed Go module versions, apply them
 with go get, tidy the module, and rescan. Vulnerabilities without an applicable
-update are reported but do not fail the command; scanner, dependency-resolution,
-and package-loading errors do fail it.
+update are reported but do not fail the command; scanner and module-loading
+errors do fail it.
 
 Options:
-  --pattern PATTERN       Go package pattern to scan (default: ./...)
-  --tags TAGS             Comma-separated Go build tags
   --exclude-module MOD    Do not update this module; can be repeated
   --max-passes N          Maximum update passes (default: 5)
   --report-dir DIR        Save govulncheck JSON streams and update evidence
@@ -22,8 +20,6 @@ Requires go, govulncheck, python3. Runs in govulncheck module scan mode.
 EOF
 }
 
-PATTERN='./...'
-BUILD_TAGS=''
 MAX_PASSES=5
 REPORT_DIR=''
 EXCLUDED_MODULES=()
@@ -31,12 +27,6 @@ MODULE_DIR=''
 
 while (($#)); do
   case "$1" in
-    --pattern)
-      (($# >= 2)) || { echo 'error: --pattern requires a value' >&2; exit 2; }
-      PATTERN=$2; shift 2 ;;
-    --tags)
-      (($# >= 2)) || { echo 'error: --tags requires a value' >&2; exit 2; }
-      BUILD_TAGS=$2; shift 2 ;;
     --exclude-module)
       (($# >= 2)) && [[ -n "$2" ]] || { echo 'error: --exclude-module requires a value' >&2; exit 2; }
       EXCLUDED_MODULES+=("$2"); shift 2 ;;
@@ -69,8 +59,7 @@ fi
 mkdir -p "$REPORT_DIR"
 
 printf 'Go toolchain: '; go version
-printf 'Scanning module: %s\nPackage pattern: %s\nScan level: module\n' "$MODULE_DIR" "$PATTERN"
-[[ -z "$BUILD_TAGS" ]] || printf 'Build tags: %s\n' "$BUILD_TAGS"
+printf 'Scanning module: %s\nScan level: module\n' "$MODULE_DIR"
 if ((${#EXCLUDED_MODULES[@]})); then
   printf 'Excluded modules from automatic updates: %s\n' "${EXCLUDED_MODULES[*]}"
 fi
@@ -221,8 +210,6 @@ while ((pass <= MAX_PASSES)); do
   unresolved_file="$REPORT_DIR/unresolved-pass-${pass}.txt"
   echo "Scan/update pass $pass of $MAX_PASSES"
   scan_args=(-scan=module -json)
-  [[ -z "$BUILD_TAGS" ]] || scan_args+=(-tags "$BUILD_TAGS")
-  scan_args+=("$PATTERN")
   if ! (cd "$MODULE_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
     cat "$stderr" >&2
     echo "error: govulncheck failed while scanning $MODULE_DIR" >&2
@@ -300,8 +287,6 @@ if ((final_scan_done == 0)); then
   unresolved_file="$REPORT_DIR/unresolved-final.txt"
   echo "Final govulncheck scan after automatic update attempts"
   scan_args=(-scan=module -json)
-  [[ -z "$BUILD_TAGS" ]] || scan_args+=(-tags "$BUILD_TAGS")
-  scan_args+=("$PATTERN")
   if ! (cd "$MODULE_DIR" && govulncheck "${scan_args[@]}") >"$report" 2>"$stderr"; then
     cat "$stderr" >&2
     echo "error: final govulncheck scan failed" >&2

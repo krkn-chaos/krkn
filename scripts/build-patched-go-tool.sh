@@ -105,8 +105,7 @@ docker build --pull --platform "linux/$arch" \
   --build-arg "GOVULNCHECK_VERSION=$GOVULNCHECK_VERSION" \
   -t "$image" "$context_dir"
 
-update_args=(--pattern "$pattern" --max-passes 5 --report-dir /reports/govulncheck)
-[[ -z "$build_tags" ]] || update_args+=(--tags "$build_tags")
+update_args=(--max-passes 5 --report-dir /reports/govulncheck)
 for module in "${exclude_modules[@]-}"; do
   [[ -z "$module" ]] || update_args+=(--exclude-module "$module")
 done
@@ -149,7 +148,8 @@ if [[ -f "$applied_updates" ]]; then update_count=$(wc -l < "$applied_updates" |
   echo "### Go dependency remediation: $tool ($arch)"
   echo
   echo "- Source: $source_url@$source_version ($source_commit)"
-  echo "- Scanner: govulncheck $GOVULNCHECK_VERSION, module scan; pattern: \`$pattern\`"
+  echo "- Scanner: govulncheck $GOVULNCHECK_VERSION, module scan of the module dependency graph"
+  echo "- Go build target: \`$pattern\`"
   [[ -z "$build_tags" ]] || echo "- Build tags: \`$build_tags\`"
   echo "- Go module updates applied: $update_count"
   if ((update_count > 0)); then
