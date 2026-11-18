@@ -1,0 +1,15 @@
+fault-type: compute-pressure
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-gpu
+namespace: default
+node-selector: "nvidia.com/gpu.present=true"
+number-of-nodes: 1
+gpu-ids: "all"
+gpu-compute-duty-cycle: "20%"
+# For per-GPU duty cycles, pair gpu-ids: "0,1" with gpu-compute-duty-cycle: "20%,30%".
+duration: 60
+setup-timeout: 120
+recovery-timeout: 30
+tolerations: []
+# For application targeting, remove node-selector and set both fields below.
+# pod-label-selector: "app=my-inference-service"
+# target-namespace: ai-serving
