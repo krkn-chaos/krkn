@@ -98,7 +98,7 @@ jobs:
       - name: Install Grype, Copa, and the Grype adapter
         run: scripts/install-copa-grype-tools.sh
 
-      - name: Patch Go dependencies with Copa and compile the tool
+      - name: Apply Copa-selected updates per Go module and compile the tool
         env:
           GOMAXPROCS: '2'
           GOFLAGS: -p=2
