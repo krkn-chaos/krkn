@@ -675,6 +675,8 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                                 )
                                 break
 
+            if post_critical_alerts > 0:
+                break
             iteration += 1
             health_check_factory.increment_all_iterations()
         # telemetry
