@@ -106,22 +106,8 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
 
             log_info(f"targeting container {container_ids[0]}", parallel, pod_name)
 
-            pids = self.kubecli.get_lib_kubernetes().get_pod_pids(
-                base_pod_name=pod_name,
-                base_pod_namespace=self.config.namespace,
-                base_pod_container_name=container_name,
-                pod_name=target,
-                pod_namespace=self.config.namespace,
-                pod_container_id=container_ids[0],
-            )
-
-            if not pids:
-                raise Exception(f"impossible to resolve pid for pod {target}")
-
-            log_info(
-                f"resolved pids {pids} in node {pod_info.nodeName} for pod {target}",
-                parallel,
-                pod_name,
+            pids = self._resolve_target_pids(
+                target, container_ids[0], pod_name, container_name, parallel
             )
 
             input_rules, output_rules = generate_namespaced_rules(
@@ -148,13 +134,43 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
 
             log_info("removing iptables rules", parallel, pod_name)
 
-            clean_network_rules_namespaced(
-                self.kubecli.get_lib_kubernetes(),
-                input_rules,
-                output_rules,
-                pod_name,
-                self.config.namespace,
-                pids,
+            # re-resolve the target PIDs at cleanup time: the target
+            # container may have restarted during the chaos window,
+            # leaving the apply-time PIDs dead while the network
+            # namespace (and the applied rules) survives
+            cleanup_pids = self._resolve_target_pids(
+                target, container_ids[0], pod_name, container_name, parallel
+            )
+            if not cleanup_pids:
+                # target pod or container is gone: its network namespace
+                # was destroyed with it, so the rules are gone too
+                log_info(
+                    f"target pod {target} no longer has live containers, "
+                    f"its network namespace (and the applied rules) is gone",
+                    parallel,
+                    pod_name,
+                )
+            else:
+                if cleanup_pids != pids:
+                    log_info(
+                        f"target container restarted during the chaos window, "
+                        f"resolved fresh pids {cleanup_pids} for cleanup "
+                        f"(apply-time pids {pids} are stale)",
+                        parallel,
+                        pod_name,
+                    )
+                clean_network_rules_namespaced(
+                    self.kubecli.get_lib_kubernetes(),
+                    input_rules,
+                    output_rules,
+                    pod_name,
+                    self.config.namespace,
+                    cleanup_pids,
+                )
+
+            # verify the rules are actually gone before reporting success
+            self._verify_rules_removed(
+                target, cleanup_pids, pod_name, container_name, parallel
             )
 
             self.kubecli.get_lib_kubernetes().delete_pod(
@@ -166,6 +182,93 @@ class PodNetworkFilterModule(AbstractNetworkChaosModule):
                 raise e
             else:
                 error_queue.put(str(e))
+
+    def _resolve_target_pids(
+        self,
+        target: str,
+        container_id: str,
+        pod_name: str,
+        container_name: str,
+        parallel: bool,
+    ) -> list[str]:
+        """
+        Resolves the PIDs of the target pod's container running in a
+        network namespace other than the node host namespace, so that
+        nsenter-based rule application can never touch the host network
+        namespace (supervisor processes like conmon match the container-id
+        cgroup grep but live in the host netns).
+
+        :return: the filtered PID list, None when the pod or the
+            container does not exist anymore.
+        """
+        kubecli = self.kubecli.get_lib_kubernetes()
+        if not kubecli.check_if_pod_exists(target, self.config.namespace):
+            return None
+
+        pids = kubecli.get_pod_pids(
+            base_pod_name=pod_name,
+            base_pod_namespace=self.config.namespace,
+            base_pod_container_name=container_name,
+            pod_name=target,
+            pod_namespace=self.config.namespace,
+            pod_container_id=container_id,
+        )
+        if not pids:
+            return None
+
+        # defensive: filter out host-netns PIDs in case the installed
+        # krkn-lib version does not do it yet (krkn-lib fix pending)
+        filter_cmd = (
+            'for p in {}; do '
+            '[ "$(readlink /proc/$p/ns/net 2>/dev/null)" '
+            '!= "$(readlink /proc/1/ns/net 2>/dev/null)" ] && echo $p; done'
+        ).format(" ".join(pids))
+        filtered = kubecli.exec_cmd_in_pod(
+            [filter_cmd], pod_name, self.config.namespace, container_name
+        )
+        if filtered:
+            filtered = list(filter(None, filtered.split("\n")))
+            if filtered:
+                return filtered
+        return pids
+
+    def _verify_rules_removed(
+        self,
+        target: str,
+        cleanup_pids: list[str],
+        pod_name: str,
+        container_name: str,
+        parallel: bool,
+    ):
+        """
+        Verifies that no DROP rule is left behind in the target network
+        namespace after cleanup, and fails loudly with the surviving
+        rules dumped for manual removal.
+        """
+        if not cleanup_pids:
+            return
+        kubecli = self.kubecli.get_lib_kubernetes()
+        verify_cmd = (
+            f"nsenter --target {cleanup_pids[0]} --net -- "
+            f"iptables-save 2>/dev/null | grep -E '^-A (INPUT|OUTPUT).*DROP'"
+        )
+        surviving = kubecli.exec_cmd_in_pod(
+            [verify_cmd], pod_name, self.config.namespace, container_name
+        )
+        if surviving and surviving.strip():
+            raise Exception(
+                f"iptables DROP rules survived cleanup in the network "
+                f"namespace of pod {target} namespace {self.config.namespace}. "
+                f"Surviving rules:\n{surviving}\n"
+                f"Manual removal may be required (e.g. nsenter --target "
+                f"{cleanup_pids[0]} --net -- iptables -D ...)."
+            )
+        log_info(
+            f"verified no DROP rules left in the network namespace of pod {target}",
+            parallel,
+            pod_name,
+        )
+
 
     def __init__(self, config: NetworkFilterConfig, kubecli: KrknTelemetryOpenshift):
         super().__init__(config, kubecli)
