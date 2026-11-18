@@ -130,7 +130,7 @@ class TestNodeInterfaceDownModule(unittest.TestCase):
         self.config.target = ""
         with self.assertRaises(Exception) as ctx:
             self.module.get_targets()
-        self.assertIn("neither", str(ctx.exception))
+        self.assertIn("requires a node name in 'target'", str(ctx.exception))
 
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.time.sleep")
     @patch("krkn.scenario_plugins.network_chaos_ng.modules.node_interface_down.deploy_network_chaos_ng_pod")

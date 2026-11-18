@@ -63,7 +63,8 @@ class AbstractNetworkChaosModule(abc.ABC):
         else:
             if not config.target:
                 raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
+                    f"node scenario {config.id} requires a node name in 'target' "
+                    f"or a 'label_selector' to select nodes, aborting"
                 )
             ready_nodes = self.kubecli.get_lib_kubernetes().list_ready_nodes()
             if config.target not in ready_nodes:
@@ -73,7 +74,7 @@ class AbstractNetworkChaosModule(abc.ABC):
 
     def get_pod_targets(self, config: BaseNetworkChaosConfig):
         if not config.namespace:
-            raise Exception("namespace not specified, aborting")
+            raise Exception(f"pod scenario {config.id}: namespace not specified, aborting")
         if self.base_network_config.label_selector:
             return self.kubecli.get_lib_kubernetes().list_pods(
                 config.namespace, config.label_selector
@@ -81,7 +82,8 @@ class AbstractNetworkChaosModule(abc.ABC):
         else:
             if not config.target:
                 raise Exception(
-                    "neither node selector nor node_name (target) specified, aborting."
+                    f"pod scenario {config.id} requires a pod name in 'target' "
+                    f"or a 'label_selector' to select pods, aborting"
                 )
             if not self.kubecli.get_lib_kubernetes().check_if_pod_exists(
                 config.target, config.namespace
