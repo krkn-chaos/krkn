@@ -1,0 +1,17 @@
+fault-type: vram-pressure
+image: quay.io/your-org/krkn-gpu:dev
+namespace: default
+node-selector: "nvidia.com/gpu.present=true"
+number-of-nodes: 1
+gpu-ids: "all"
+gpu-vram: "20%"
+duration: 60
+setup-timeout: 120
+recovery-timeout: 30
+memory-reserve: "64Mi"
+tolerations: []
+# runtime-class-name: nvidia
+# driver-root: /run/nvidia/driver
+# For application targeting, remove node-selector and set both fields below.
+# pod-label-selector: "app=my-inference-service"
+# target-namespace: ai-serving
