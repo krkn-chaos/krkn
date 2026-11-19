@@ -83,6 +83,18 @@ def clean_network_rules(
         # always deleting the first rule since has been inserted from the top
         kubecli.exec_cmd_in_pod([f"iptables -D OUTPUT 1"], pod_name, namespace)
 
+def nsenter_net_spec(pid_or_netns: str) -> str:
+    """
+    Builds the nsenter network-namespace selector for a target that is
+    either a PID (`--target <pid> --net`) or a network namespace file
+    path (`--net=<path>`), used when the target container has no live
+    process (e.g. CrashLoopBackOff back-off) but its pod network
+    namespace still exists.
+    """
+    if pid_or_netns.startswith("netnspath:"):
+        return f"--net={pid_or_netns[len('netnspath:'):]}"
+    return f"--target {pid_or_netns} --net"
+
 
 def clean_network_rules_namespaced(
     kubecli: KrknKubernetes,
@@ -96,7 +108,7 @@ def clean_network_rules_namespaced(
         for pid in pids:
             # always deleting the first rule since has been inserted from the top
             kubecli.exec_cmd_in_pod(
-                [f"nsenter --target {pid} --net -- iptables -D INPUT 1"],
+                [f"nsenter {nsenter_net_spec(pid)} -- iptables -D INPUT 1"],
                 pod_name,
                 namespace,
             )
@@ -104,7 +116,7 @@ def clean_network_rules_namespaced(
         for pid in pids:
             # always deleting the first rule since has been inserted from the top
             kubecli.exec_cmd_in_pod(
-                [f"nsenter --target {pid} --net -- iptables -D OUTPUT 1"],
+                [f"nsenter {nsenter_net_spec(pid)} -- iptables -D OUTPUT 1"],
                 pod_name,
                 namespace,
             )
@@ -118,10 +130,10 @@ def generate_namespaced_rules(
     input_rules, output_rules = generate_rules(interfaces, config)
     for pid in pids:
         ns_input_rules = [
-            f"nsenter --target {pid} --net -- {rule}" for rule in input_rules
+            f"nsenter {nsenter_net_spec(pid)} -- {rule}" for rule in input_rules
         ]
         ns_output_rules = [
-            f"nsenter --target {pid} --net -- {rule}" for rule in output_rules
+            f"nsenter {nsenter_net_spec(pid)} -- {rule}" for rule in output_rules
         ]
         namespaced_input_rules.extend(ns_input_rules)
         namespaced_output_rules.extend(ns_output_rules)
