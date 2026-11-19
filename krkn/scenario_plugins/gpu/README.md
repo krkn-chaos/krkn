@@ -83,6 +83,24 @@ Workers report GPU UUIDs, requested and actual allocations, free and used memory
 
 Holding VRAM reduces the memory available for future allocations. A preallocated inference server may show little change. Application OOM can be an intended effect; injector allocation or cleanup failure is a scenario failure. Measure application throughput and latency separately.
 
+### GPU observations and telemetry
+
+Krkn uses `krkn-lib` for node and pod resource lookups. The worker still resolves
+workload GPU assignments on the target node through kubelet PodResources; it
+does not exec into application pods.
+
+Each `workload-krkn-gpu` worker uses the shared `krkn-lib` observer on its
+assigned node. No controller-local flag or workload pod exec is needed. GPU
+telemetry records a baseline, the latest holding sample, and a post-release
+sample for selected devices when available. It is not a complete time series.
+Compute batch counters measure injector work; GPU utilization is a separate
+device-wide observation. Unavailable optional measurements do not change the
+fault outcome. VRAM allocation and recovery checks still require devices to be
+observable.
+
+The worker environment must include a `krkn-lib` release with
+`snapshot_local_gpus`.
+
 ## Compute pressure (`compute-pressure`)
 
 Krkn runs short FP32 multiply-add batches on each selected GPU. `gpu-compute-duty-cycle` sets the pace by controlling how long the worker waits between batches.

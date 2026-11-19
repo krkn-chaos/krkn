@@ -9,6 +9,8 @@ from unittest.mock import MagicMock, patch
 
 from kubernetes.client import ApiClient, CoreV1Api
 from kubernetes.client.exceptions import ApiException
+from krkn_lib.gpu import Availability, GpuSnapshot, GpuWorkerTelemetry, Measurement
+from krkn_lib.models.telemetry import ScenarioTelemetry
 from urllib3.response import HTTPResponse
 
 from krkn.rollback.config import RollbackContent
@@ -79,7 +81,8 @@ class GpuScenarioPluginTests(unittest.TestCase):
             )
 
         lib = SimpleNamespace(cli=SimpleNamespace(list_namespaced_pod=MagicMock(return_value=SimpleNamespace(
-            items=[pod("a", "node-1"), pod("a", "node-1"), pod("b", "node-1"), pod("c", "node-2")]
+            items=[pod("a", "node-1"), pod("a", "node-1"), pod("b", "node-1"), pod("c", "node-2")],
+            metadata=SimpleNamespace(_continue=None),
         ))))
         selected = self.plugin._select_pods(lib, "target", "app=gpu", {})
         self.assertEqual([target["name"] for target in selected["node-1"]], ["a", "b"])
@@ -92,16 +95,20 @@ class GpuScenarioPluginTests(unittest.TestCase):
             self.plugin._select_pods(lib, "target", "app=gpu", {})
 
     def test_node_selection_uses_nvidia_capacity_and_hard_fails_shortage(self):
-        def node(allocatable, capacity):
-            return SimpleNamespace(status=SimpleNamespace(allocatable=allocatable, capacity=capacity))
-
-        nodes = {"gpu": node({}, {"nvidia.com/gpu": "0", "nvidia.com/mig-1g.5gb": "2"}),
-                 "cpu": node({"cpu": "4"}, {"cpu": "4"}),
-                 "nic": node({"nvidia.com/hostdev": "2"}, {"nvidia.com/hostdev": "2"})}
-        lib = SimpleNamespace(
-            cli=SimpleNamespace(read_node=MagicMock(side_effect=lambda name: nodes[name])),
-            list_nodes=MagicMock(return_value=["gpu", "cpu", "nic"]),
+        def node(name, allocatable, capacity):
+            return SimpleNamespace(
+                metadata=SimpleNamespace(name=name),
+                status=SimpleNamespace(allocatable=allocatable, capacity=capacity),
+            )
+        page = SimpleNamespace(
+            items=[
+                node("gpu", {}, {"nvidia.com/gpu": "0", "nvidia.com/mig-1g.5gb": "2"}),
+                node("cpu", {"cpu": "4"}, {"cpu": "4"}),
+                node("nic", {"nvidia.com/hostdev": "2"}, {"nvidia.com/hostdev": "2"}),
+            ],
+            metadata=SimpleNamespace(_continue=None),
         )
+        lib = SimpleNamespace(cli=SimpleNamespace(list_node=MagicMock(return_value=page)))
         with patch("krkn.scenario_plugins.gpu.gpu_scenario_plugin.random.sample", return_value=["gpu"]):
             self.assertEqual(self.plugin._select_nodes(lib, "role=gpu", {"number-of-nodes": 1}), ["gpu"])
         self.assertEqual(self.plugin._select_nodes(lib, "role=gpu", {}), ["gpu"])
@@ -211,8 +218,10 @@ class GpuScenarioPluginTests(unittest.TestCase):
                     patch.object(self.plugin, "_deploy_workers") as deploy, \
                     patch.object(self.plugin, "_coordinate") as coordinate, \
                     patch.object(self.plugin, "_delete_bounded", return_value=False):
-                result = self.plugin.run("run-id", scenario.name, telemetry, MagicMock())
+                scenario_telemetry = ScenarioTelemetry()
+                result = self.plugin.run("run-id", scenario.name, telemetry, scenario_telemetry)
         self.assertEqual(result, 1)
+        self.assertFalse(scenario_telemetry.gpu.workers[0].pod_deleted)
         select.assert_called_once_with(telemetry.get_lib_kubernetes.return_value, "target", "app=gpu", config)
         self.assertEqual(coordinate.call_args.args[2], ["n2"])
         env = {item["name"]: item["value"] for item in deploy.call_args.args[2][0]["spec"]["containers"][0]["env"]}
@@ -233,6 +242,8 @@ class GpuScenarioPluginTests(unittest.TestCase):
             ("n1", "complete"), ("n2", "complete"),
         ])
         ready_count = 0
+        workers = {node: GpuWorkerTelemetry(node_name=node) for node in ("n1", "n2")}
+        observations = {}
 
         def event(_cli, name, _namespace):
             nonlocal ready_count
@@ -240,7 +251,27 @@ class GpuScenarioPluginTests(unittest.TestCase):
             self.assertEqual(name, f"worker-{node}")
             if phase == "ready":
                 ready_count += 1
-            return {"phase": phase, "gpus": [{"uuid": f"gpu-{node}", "requested": 1024}]}
+            result = {
+                "phase": phase,
+                "fault_type": "vram-pressure",
+                "gpus": [{"uuid": f"gpu-{node}", "free_bytes": 0, "requested_bytes": 1024}],
+            }
+            if phase == "complete":
+                snapshot = GpuSnapshot(
+                    None, "2026-01-01T00:00:01Z",
+                    [Measurement(
+                        device_uuid=f"gpu-{node}", scope="physical_gpu",
+                        field="gpu_utilization_percent", value=0, unit="percent",
+                        value_type="float", source="local:nvidia-smi -q -x",
+                        observed_at="2026-01-01T00:00:01Z", status=Availability.AVAILABLE,
+                    )],
+                )
+                result["observations"] = {
+                    "baseline": GpuSnapshot(None, "2026-01-01T00:00:00Z", [], ["timed out"]).to_dict(),
+                    "holding": snapshot.to_dict(),
+                    "after_release": snapshot.to_dict(),
+                }
+            return result
 
         def release(_api_method, name, namespace, **kwargs):
             self.assertIn(name, ("worker-n1", "worker-n2"))
@@ -262,10 +293,18 @@ class GpuScenarioPluginTests(unittest.TestCase):
                 ["n1", "n2"], {
                     "n1": [{"namespace": "target", "name": "app-1", "uid": "original-1"}],
                     "n2": [{"namespace": "target", "name": "app-2", "uid": "original-2"}],
-                }, 5, 10, 5,
+                }, 5, 10, 5, workers, observations,
             )
         self.assertEqual(cli.read_namespaced_pod.call_count, 2)
         self.assertEqual(stream.call_count, 2)
+        self.assertEqual(workers["n1"].phase, "complete")
+        self.assertEqual(workers["n1"].devices[0].metrics, {"requested_bytes": 1024})
+        self.assertEqual(observations["n1", "baseline"].snapshot.errors, ["timed out"])
+        holding, = observations["n1", "holding"].snapshot.measurements
+        self.assertEqual(holding.field, "gpu_utilization_percent")
+        self.assertEqual(holding.value, 0)
+        self.assertIs(holding.status, Availability.AVAILABLE)
+        self.assertEqual(observations["n2", "after_release"].node_name, "n2")
 
     def test_setup_timeout_prevents_barrier_release(self):
         lib = SimpleNamespace(cli=MagicMock())
@@ -275,7 +314,10 @@ class GpuScenarioPluginTests(unittest.TestCase):
                 patch("krkn.scenario_plugins.gpu.gpu_scenario_plugin.time.sleep"), \
                 patch("krkn.scenario_plugins.gpu.gpu_scenario_plugin.k8s_stream") as stream:
             with self.assertRaisesRegex(TimeoutError, "ready barrier"):
-                self.plugin._coordinate(lib, [("worker", "default")], ["n1"], {"n1": []}, 5, 10, 5)
+                self.plugin._coordinate(
+                    lib, [("worker", "default")], ["n1"], {"n1": []}, 5, 10, 5,
+                    {"n1": GpuWorkerTelemetry("n1")}, {},
+                )
         stream.assert_not_called()
 
     def test_replacement_or_worker_error_fails_before_release(self):
@@ -285,12 +327,18 @@ class GpuScenarioPluginTests(unittest.TestCase):
         with patch.object(self.plugin, "_last_event", return_value={"phase": "ready"}), \
                 patch.object(self.plugin, "_check_pod"), patch("krkn.scenario_plugins.gpu.gpu_scenario_plugin.time.sleep"):
             with self.assertRaisesRegex(RuntimeError, "changed or is no longer Running"):
-                self.plugin._coordinate(lib, [("worker", "default")], ["n1"],
-                                        {"n1": [{"namespace": "target", "name": "app", "uid": "old"}]}, 5, 10, 5)
+                self.plugin._coordinate(
+                    lib, [("worker", "default")], ["n1"],
+                    {"n1": [{"namespace": "target", "name": "app", "uid": "old"}]}, 5, 10, 5,
+                    {"n1": GpuWorkerTelemetry("n1")}, {},
+                )
         with patch.object(self.plugin, "_last_event", return_value={"phase": "error", "message": "allocation failed"}), \
                 patch.object(self.plugin, "_check_pod"):
             with self.assertRaisesRegex(RuntimeError, "allocation failed"):
-                self.plugin._coordinate(lib, [("worker", "default")], ["n1"], {"n1": []}, 5, 10, 5)
+                self.plugin._coordinate(
+                    lib, [("worker", "default")], ["n1"], {"n1": []}, 5, 10, 5,
+                    {"n1": GpuWorkerTelemetry("n1")}, {},
+                )
 
     def test_log_polling_and_pod_exit_checks(self):
         cli = MagicMock()
@@ -505,7 +553,7 @@ class GpuScenarioPluginTests(unittest.TestCase):
             yaml.safe_dump({"image": "image", "fault-type": "vram-pressure",
                             "gpu-vram": "20%", "duration": 10, **config}, scenario)
             scenario.flush()
-            return self.plugin.run("run-id", scenario.name, telemetry, MagicMock())
+            return self.plugin.run("run-id", scenario.name, telemetry, ScenarioTelemetry())
 
 
 if __name__ == "__main__":

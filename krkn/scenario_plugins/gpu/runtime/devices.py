@@ -20,6 +20,8 @@ import os
 import subprocess
 import xml.etree.ElementTree as ET
 
+from krkn_lib.gpu.local import MEMORY_FIELDS, snapshot_local_gpus
+
 from .common import Device, MIB, POD_RESOURCES_SOCKET, WorkerError
 from .parameters import csv_values, is_gpu_resource
 
@@ -136,22 +138,15 @@ class NvidiaSmi:
             raise WorkerError("NVIDIA MPS server process detected; MPS is unsupported")
         return details
 
-    def observe(self):
-        output = self._command(
-            "--query-gpu=uuid,memory.total,memory.free,memory.used",
-            "--format=csv,noheader,nounits",
+
+    def snapshot(self, fields, timeout_seconds=10.0):
+        """Return a typed local GPU snapshot using this instance's driver setup."""
+        return snapshot_local_gpus(
+            fields=fields,
+            executable=self.executable,
+            run=self.run,
+            timeout_seconds=timeout_seconds,
         )
-        result = {}
-        for row in csv.reader(output.splitlines(), skipinitialspace=True):
-            if len(row) != 4:
-                raise WorkerError(f"unexpected nvidia-smi observation row: {row!r}")
-            uuid = normalize_uuid(row[0])
-            result[uuid] = {
-                "total_bytes": self._mib(row[1]),
-                "free_bytes": self._mib(row[2]),
-                "used_bytes": self._mib(row[3]),
-            }
-        return result
 
 
 def parse_targets(value):

@@ -21,7 +21,9 @@ import signal
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+
+from krkn_lib.gpu.models import Availability, GpuSnapshot, utc_now
 
 from . import common, devices
 from .compute import ComputeLoad
@@ -168,15 +170,82 @@ def _wait_for_start(allocations, start_file, deadline, sleep, clock):
     _check_errors(allocations, "at common start")
 
 
-def _memory_samples(smi, selected):
-    observations = smi.observe()
+_SNAPSHOT_FIELDS = (*devices.MEMORY_FIELDS, "gpu_utilization_percent")
+_SNAPSHOT_TIMEOUT_SECONDS = 5.0
+
+
+def _error_snapshot():
+    return GpuSnapshot(None, utc_now(), [], ["GPU observation failed"])
+
+
+def _snapshot_dict(snapshot, selected):
+    selected_uuids = {device.uuid for device in selected}
+    filtered = []
+    for measurement in snapshot.measurements:
+        if measurement.scope != "physical_gpu":
+            continue
+        if _measurement_uuid(measurement) in selected_uuids:
+            filtered.append(measurement)
+    return replace(snapshot, measurements=filtered).to_dict()
+
+
+def _measurement_uuid(measurement):
+    try:
+        return devices.normalize_uuid(measurement.device_uuid)
+    except (common.WorkerError, TypeError, ValueError):
+        return None
+
+
+def _capture_snapshot(smi, selected, observations, phase, timeout_seconds):
+    timeout_seconds = max(0.0, min(_SNAPSHOT_TIMEOUT_SECONDS, timeout_seconds))
+    if timeout_seconds <= 0:
+        snapshot = _error_snapshot()
+    else:
+        try:
+            snapshot = smi.snapshot(_SNAPSHOT_FIELDS, timeout_seconds=timeout_seconds)
+        except Exception:
+            snapshot = _error_snapshot()
+    observations[phase] = _snapshot_dict(snapshot, selected)
+    return snapshot
+
+
+def _memory_samples(snapshot, selected):
+    selected_uuids = {device.uuid for device in selected}
+    measurements = {}
+    for measurement in snapshot.measurements:
+        if measurement.scope != "physical_gpu" or measurement.field not in devices.MEMORY_FIELDS:
+            continue
+        uuid = _measurement_uuid(measurement)
+        value = measurement.value
+        if (
+            uuid not in selected_uuids
+            or measurement.status != Availability.AVAILABLE
+            or isinstance(value, bool)
+            or not isinstance(value, int)
+            or value < 0
+        ):
+            continue
+        measurements.setdefault(uuid, {})[measurement.field] = value
     records = []
     for device in selected:
-        observation = observations.get(device.uuid)
-        if observation is None:
-            raise common.WorkerError(f"nvidia-smi lost selected GPU {device.uuid}")
-        records.append({"uuid": device.uuid, **observation})
+        values = measurements.get(device.uuid, {})
+        if any(field not in values for field in devices.MEMORY_FIELDS):
+            raise common.WorkerError(f"nvidia-smi cannot observe selected GPU {device.uuid}")
+        records.append({
+            "uuid": device.uuid,
+            "total_bytes": values["memory_total_bytes"],
+            "free_bytes": values["memory_free_bytes"],
+            "used_bytes": values["memory_used_bytes"],
+        })
     return records
+
+
+def _memory_by_uuid(snapshot, selected):
+    return {
+        record["uuid"]: record
+        for record in _memory_samples(snapshot, selected)
+    }
+
 
 
 def _compute_samples(jobs, elapsed):
@@ -184,19 +253,21 @@ def _compute_samples(jobs, elapsed):
     return records if all(record["batches_completed"] for record in records) else None
 
 
-def _hold(jobs, fault, started, deadline, observe, emit, sleep, clock):
+def _hold(jobs, fault, started, deadline, observe, observations, emit, sleep, clock):
     next_observation = started
     while (now := clock()) < deadline:
         _check_errors(jobs, "during hold")
         if now >= next_observation:
             elapsed = now - started
-            records = observe(elapsed)
+            records = observe(elapsed, max(0.0, deadline - now))
             if records is not None:
                 _emit(emit, {"phase": "holding", "fault_type": fault,
-                             "elapsed_seconds": elapsed, "gpus": records})
-            next_observation = clock() + (5.0 if records is not None else 0.05)
+                             "elapsed_seconds": elapsed, "gpus": records,
+                             "observations": {"holding": observations["holding"]}})
+            next_observation = clock() + (
+                5.0 if records is not None or fault == "vram-pressure" else 0.05
+            )
         sleep(max(0.0, min(0.2, min(deadline, next_observation) - clock())))
-
 
 def _stop_and_join(allocations, deadline, clock):
     for allocation in allocations:
@@ -204,6 +275,7 @@ def _stop_and_join(allocations, deadline, clock):
     for allocation in allocations:
         if allocation.ident is not None:
             allocation.join(max(0.0, deadline - clock()))
+
 
 def _cleanup(allocations):
     return {
@@ -227,29 +299,18 @@ def _cleanup_errors(allocations):
     return errors
 
 
-def _complete(allocations, selected, requested_sizes, baseline, smi):
-    for allocation, requested in zip(allocations, requested_sizes):
+def _complete(allocations, selected, requested_sizes, baseline, final):
+    released = []
+    for allocation, device, requested in zip(allocations, selected, requested_sizes):
         cleanup = allocation.cleanup_stats
-        if allocation.is_alive():
-            raise common.WorkerError("GPU cleanup exceeded GPU_RECOVERY_TIMEOUT")
         if cleanup["freed_bytes"] != requested:
             raise common.WorkerError(
                 f"GPU {allocation.device.uuid} freed {cleanup['freed_bytes']} of {requested} requested bytes"
             )
-        if cleanup["cleanup_errors"]:
-            raise common.WorkerError(
-                f"GPU {allocation.device.uuid} cleanup failed: {'; '.join(cleanup['cleanup_errors'])}"
-            )
         if cleanup.get("small_allocation_bytes", 0) < min(common.SMALL_ALLOCATION_BYTES, allocation.reserve_bytes):
             raise common.WorkerError(f"GPU {allocation.device.uuid} post-release CUDA allocation probe was too small")
-    final = smi.observe()
-    released = []
-    for allocation, device, requested in zip(allocations, selected, requested_sizes):
-        cleanup = allocation.cleanup_stats
         before = baseline[device.uuid]["free_bytes"]
-        after = final.get(device.uuid, {}).get("free_bytes")
-        if after is None:
-            raise common.WorkerError(f"nvidia-smi lost selected GPU {device.uuid} after release")
+        after = final[device.uuid]["free_bytes"]
         delta = after - before
         tolerance = max(allocation.reserve_bytes, int(requested * 0.10))
         released.append({
@@ -274,6 +335,7 @@ def run_worker(environ=None, *, driver=None, smi=None, pods_loader=devices.pod_r
     emit = (lambda line: print(line, flush=True)) if emit is None else emit
     environ = os.environ if environ is None else environ
     jobs = []
+    observations = {}
     recovery_timeout = common.DEFAULT_RECOVERY_TIMEOUT
     recovery_deadline = None
     try:
@@ -283,17 +345,33 @@ def run_worker(environ=None, *, driver=None, smi=None, pods_loader=devices.pod_r
         driver = CudaDriver() if driver is None else driver
         smi = devices.NvidiaSmi() if smi is None else smi
         selected = _discover(environ, driver, smi, settings, pods_loader)
+        requested_sizes = (
+            _requested_sizes(settings.vram, selected)
+            if settings.fault == "vram-pressure"
+            else None
+        )
+        baseline_snapshot = _capture_snapshot(
+            smi, selected, observations, "baseline", setup_deadline - clock(),
+        )
+        baseline = (
+            _memory_by_uuid(baseline_snapshot, selected)
+            if settings.fault == "vram-pressure"
+            else None
+        )
         if settings.fault == "vram-pressure":
-            requested_sizes = _requested_sizes(settings.vram, selected)
-            baseline = smi.observe()
-            for device in selected:
-                if device.uuid not in baseline:
-                    raise common.WorkerError(f"nvidia-smi cannot observe selected GPU {device.uuid}")
             jobs = [
                 Allocation(driver, device, requested, settings.reserve_bytes)
                 for device, requested in zip(selected, requested_sizes)
             ]
-            observe = lambda _elapsed: _memory_samples(smi, selected)
+
+            def observe(_elapsed, timeout_seconds):
+                snapshot = _capture_snapshot(
+                    smi, selected, observations, "holding", timeout_seconds,
+                )
+                try:
+                    return _memory_samples(snapshot, selected)
+                except common.WorkerError:
+                    return None
         else:
             duty_cycles = _per_gpu(settings.duty_cycles, len(selected), "GPU_COMPUTE_DUTY_CYCLE")
             driver.bind_compute()
@@ -301,35 +379,48 @@ def run_worker(environ=None, *, driver=None, smi=None, pods_loader=devices.pod_r
                 ComputeLoad(driver, device, duty_cycle, clock)
                 for device, duty_cycle in zip(selected, duty_cycles)
             ]
-            observe = lambda elapsed: _compute_samples(jobs, elapsed)
+
+            def observe(elapsed, timeout_seconds):
+                records = _compute_samples(jobs, elapsed)
+                if records is not None:
+                    _capture_snapshot(
+                        smi, selected, observations, "holding", timeout_seconds,
+                    )
+                return records
         if os.path.exists(start_file):
             os.unlink(start_file)
         for job in jobs:
             job.start()
         ready_stats = _await_ready(jobs, setup_deadline, clock)
-        _emit(emit, {"phase": "ready", "fault_type": settings.fault, "gpus": ready_stats})
+        _emit(emit, {"phase": "ready", "fault_type": settings.fault, "gpus": ready_stats,
+                     "observations": dict(observations)})
         _wait_for_start(jobs, start_file, setup_deadline, sleep, clock)
         started = clock()
         deadline = started + settings.duration
         if settings.fault == "compute-pressure":
             for job in jobs:
                 job.start_load(deadline)
-        _hold(jobs, settings.fault, started, deadline, observe, emit, sleep, clock)
+        _hold(jobs, settings.fault, started, deadline, observe, observations, emit, sleep, clock)
         recovery_deadline = clock() + recovery_timeout
         _stop_and_join(jobs, recovery_deadline, clock)
         _check_errors(jobs, "during cleanup")
+        errors = _cleanup_errors(jobs)
+        if errors:
+            raise common.WorkerError("; ".join(errors))
+        after_release = _capture_snapshot(
+            smi, selected, observations, "after_release", recovery_deadline - clock(),
+        )
         if settings.fault == "vram-pressure":
-            complete = _complete(jobs, selected, requested_sizes, baseline, smi)
+            final = _memory_by_uuid(after_release, selected)
+            complete = _complete(jobs, selected, requested_sizes, baseline, final)
         else:
-            errors = _cleanup_errors(jobs)
-            if errors:
-                raise common.WorkerError("; ".join(errors))
             records = [job.sample(settings.duration) for job in jobs]
             for record in records:
                 if not record["batches_completed"]:
                     raise common.WorkerError(f"GPU {record['uuid']} completed no compute batches")
             complete = {"phase": "complete", "gpus": records}
         complete["fault_type"] = settings.fault
+        complete["observations"] = dict(observations)
         _emit(emit, complete)
         return complete
     except BaseException as exc:
@@ -344,6 +435,7 @@ def run_worker(environ=None, *, driver=None, smi=None, pods_loader=devices.pod_r
             "message": message,
             "cleanup": cleanup,
             "cleanup_errors": errors,
+            "observations": dict(observations),
         }
         _emit(emit, record)
         raise common.WorkerError(message) from exc

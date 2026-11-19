@@ -27,6 +27,14 @@ import yaml
 from kubernetes.client import NodeV1Api
 from kubernetes.client.exceptions import ApiException
 from kubernetes.stream import stream as k8s_stream
+from krkn_lib.gpu import (
+    GpuInjectorResult,
+    GpuObservation,
+    GpuScenarioTelemetry,
+    GpuWorkerTelemetry,
+    list_gpu_nodes,
+    list_gpu_pod_candidates,
+)
 from krkn_lib.models.telemetry import ScenarioTelemetry
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -34,7 +42,22 @@ from krkn.rollback.config import RollbackContent
 from krkn.rollback.handler import set_rollback_context_decorator
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 from krkn.scenario_plugins.gpu.runtime.parameters import (
-    compute_duty_cycle_values, csv_values, is_gpu_resource, memory_bytes, validate_fault,
+    compute_duty_cycle_values, csv_values, memory_bytes, validate_fault,
+)
+
+_INJECTOR_METRICS = (
+    "requested_bytes",
+    "actual_bytes",
+    "freed_bytes",
+    "small_allocation_bytes",
+    "free_delta_within_tolerance",
+    "post_release_cuda_free_bytes",
+    "post_release_cuda_total_bytes",
+    "compute_duty_cycle",
+    "batches_completed",
+    "loop_iterations_completed",
+    "batches_per_second",
+    "launch_wait_seconds",
 )
 
 
@@ -57,7 +80,9 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
         """Deploy, coordinate, and clean up GPU pressure workers."""
-        del scenario_telemetry
+        gpu_run = None
+        workers = {}
+        observations = {}
         pods: list[tuple[str, str]] = []
         lib_k8s = None
         result = 1
@@ -70,6 +95,7 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
             if not image:
                 raise ValueError("GPU worker image must be configured with image or GPU_IMAGE")
             fault = validate_fault(str(config.get("fault-type") or ""))
+            gpu_run = scenario_telemetry.gpu = GpuScenarioTelemetry(fault_type=fault)
             duration = self._positive_seconds(config.get("duration"), "duration")
             setup_timeout = self._positive_seconds(config.get("setup-timeout", 120), "setup-timeout")
             recovery_timeout = self._positive_seconds(config.get("recovery-timeout", 30), "recovery-timeout")
@@ -130,15 +156,28 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
                 if not self._register_rollback(pod_name, namespace):
                     raise RuntimeError(f"failed to register rollback for {pod_name}")
                 pods.append((pod_name, namespace))
+                workers[node] = GpuWorkerTelemetry(node_name=node)
             self._deploy_workers(lib_k8s, pods, manifests, setup_timeout)
-            self._coordinate(lib_k8s, pods, nodes, targets, setup_timeout, duration, recovery_timeout)
+            self._coordinate(
+                lib_k8s, pods, nodes, targets, setup_timeout, duration, recovery_timeout,
+                workers, observations,
+            )
             result = 0
         except Exception as exc:
             logging.error("GPU scenario failed: %s", exc)
         finally:
+            if gpu_run is not None:
+                gpu_run.workers = list(workers.values())
+                gpu_run.observations.extend(
+                    observations[node, phase]
+                    for node in workers
+                    for phase in ("baseline", "holding", "after_release")
+                    if (node, phase) in observations
+                )
             if lib_k8s is not None:
-                for name, pod_namespace in pods:
-                    if not self._delete_bounded(lib_k8s.cli, name, pod_namespace):
+                for worker, (name, pod_namespace) in zip(workers.values(), pods, strict=True):
+                    worker.pod_deleted = self._delete_bounded(lib_k8s.cli, name, pod_namespace)
+                    if not worker.pod_deleted:
                         result = 1
         return result
 
@@ -210,16 +249,7 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
 
     def _select_nodes(self, lib_k8s, selector: str, config: dict) -> list[str]:
         resource = str(config.get("gpu-resource-name") or "nvidia.com/gpu")
-        available = []
-        for name in lib_k8s.list_nodes(selector):
-            node = lib_k8s.cli.read_node(name)
-            allocatable = getattr(node.status, "allocatable", None) or {}
-            capacity = getattr(node.status, "capacity", None) or {}
-            gpu_keys = {key for key in (*allocatable, *capacity) if is_gpu_resource(key, resource)}
-            if resource in allocatable or resource in capacity:
-                gpu_keys.add(resource)
-            if any(self._resource_count(allocatable.get(key, capacity.get(key, 0))) > 0 for key in gpu_keys):
-                available.append(name)
+        available = list_gpu_nodes(lib_k8s.cli, selector, resource_name=resource)
         if not available:
             raise ValueError("no available GPU nodes match node-selector")
         count_value = config.get("number-of-nodes")
@@ -232,46 +262,24 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
             available = random.sample(available, count)
         return available
 
-    @staticmethod
-    def _resource_count(value) -> float:
-        try:
-            return float(value)
-        except (TypeError, ValueError):
-            return 0
-
     def _select_pods(self, lib_k8s, namespace: str, selector: str, config: dict) -> dict:
         resource = str(config.get("gpu-resource-name") or "nvidia.com/gpu")
-        pods = lib_k8s.cli.list_namespaced_pod(namespace, label_selector=selector).items
+        pods = list_gpu_pod_candidates(lib_k8s.cli, namespace, selector, resource_name=resource)
         grouped: dict[str, list[dict]] = {}
         seen = set()
         for pod in pods:
-            pod_namespace = pod.metadata.namespace or namespace
-            pod_name = pod.metadata.name
-            identity = (pod_namespace, pod_name)
+            identity = (pod.namespace, pod.name)
             if identity in seen:
                 continue
             seen.add(identity)
-            phase = getattr(pod.status, "phase", None)
-            node = getattr(pod.spec, "node_name", None)
-            if phase != "Running" or not node:
-                raise ValueError(f"matching pod {pod_namespace}/{pod_name} is not Running on a node")
-            if not self._pod_requests_gpu(pod, resource):
-                raise ValueError(f"matching pod {pod_namespace}/{pod_name} has no NVIDIA GPU resource")
-            grouped.setdefault(node, []).append({
-                "namespace": pod_namespace, "name": pod_name, "uid": pod.metadata.uid,
+            if pod.phase != "Running" or not pod.node_name:
+                raise ValueError(f"matching pod {pod.namespace}/{pod.name} is not Running on a node")
+            if not pod.requests_gpu:
+                raise ValueError(f"matching pod {pod.namespace}/{pod.name} has no NVIDIA GPU resource")
+            grouped.setdefault(pod.node_name, []).append({
+                "namespace": pod.namespace, "name": pod.name, "uid": pod.uid,
             })
         return grouped
-
-    @staticmethod
-    def _pod_requests_gpu(pod, resource_name: str) -> bool:
-        for container in pod.spec.containers or []:
-            requests = getattr(getattr(container, "resources", None), "limits", None) or {}
-            requests = dict(requests)
-            requests.update(getattr(getattr(container, "resources", None), "requests", None) or {})
-            for key, value in requests.items():
-                if is_gpu_resource(key, resource_name) and GpuScenarioPlugin._resource_count(value) > 0:
-                    return True
-        return False
 
     def _worker_pod(
         self, name, node, namespace, image, fault, gpu_ids, duration,
@@ -428,7 +436,10 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
                 f"Pod status: {status}\nWorker logs:\n{logs or '(empty)'}"
             ) from exc
 
-    def _coordinate(self, lib_k8s, pods, nodes, targets, setup_timeout, duration, recovery_timeout):
+    def _coordinate(
+        self, lib_k8s, pods, nodes, targets, setup_timeout, duration, recovery_timeout,
+        workers, observations,
+    ):
         cli = lib_k8s.cli
         pod_map = dict(zip(nodes, pods))
         ready = set()
@@ -438,6 +449,8 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
                 if node in ready:
                     continue
                 event = self._last_event(cli, name, namespace)
+                if event:
+                    self._record_event(workers[node], observations, event)
                 if event and event.get("phase") == "ready":
                     ready.add(node)
                     logging.info("GPU worker ready on %s: %s", node, json.dumps(event.get("gpus", [])))
@@ -492,6 +505,7 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
                 event = self._last_event(cli, name, namespace)
                 if event and event != observed.get(node):
                     observed[node] = event
+                    self._record_event(workers[node], observations, event)
                     phase = event.get("phase")
                     fault = "compute" if event.get("fault_type") == "compute-pressure" else "VRAM"
                     if phase == "holding":
@@ -509,6 +523,52 @@ class GpuScenarioPlugin(AbstractScenarioPlugin):
         success_deadline = time.monotonic() + recovery_timeout
         for name, namespace in pods:
             self._wait_success(cli, name, namespace, success_deadline=success_deadline)
+
+    @staticmethod
+    def _record_event(worker, observations, event):
+        phase = event["phase"]
+        if phase not in ("ready", "holding", "complete", "error"):
+            return
+        worker.phase = phase
+        snapshots = event.get("observations")
+        if isinstance(snapshots, dict):
+            for label in ("baseline", "holding", "after_release"):
+                snapshot = snapshots.get(label)
+                if isinstance(snapshot, dict):
+                    try:
+                        observations[worker.node_name, label] = GpuObservation.from_dict({
+                            "node_name": worker.node_name,
+                            "phase": label,
+                            "snapshot": snapshot,
+                        })
+                    except (AttributeError, KeyError, TypeError, ValueError):
+                        logging.warning("Ignoring invalid GPU %s snapshot on %s", label, worker.node_name)
+        devices = {device.device_uuid: device for device in worker.devices}
+        records = event.get("gpus", [])
+        if phase == "error":
+            cleanup = event.get("cleanup", {})
+            if not isinstance(cleanup, dict):
+                return
+            records = [
+                {**stats, "uuid": device_uuid}
+                for device_uuid, stats in cleanup.items()
+                if isinstance(stats, dict)
+            ]
+        if not isinstance(records, list):
+            return
+        for record in records:
+            device_uuid = record.get("uuid") if isinstance(record, dict) else None
+            if not isinstance(device_uuid, str) or not device_uuid:
+                continue
+            device = devices.get(device_uuid)
+            if device is None:
+                device = GpuInjectorResult(device_uuid=device_uuid)
+                devices[device_uuid] = device
+                worker.devices.append(device)
+            for key in _INJECTOR_METRICS:
+                value = record.get(key)
+                if type(value) in (int, bool) or (type(value) is float and math.isfinite(value)):
+                    device.metrics[key] = value
 
     @staticmethod
     def _read_worker_logs(cli, name, namespace, tail_lines):

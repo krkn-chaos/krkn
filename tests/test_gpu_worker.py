@@ -21,7 +21,10 @@ import tempfile
 import threading
 import types
 import unittest
+from dataclasses import replace
 from unittest import mock
+
+from krkn_lib.gpu.models import Availability, GpuSnapshot, Measurement
 
 from krkn.scenario_plugins.gpu.runtime import compute, cuda, devices, worker
 from krkn.scenario_plugins.gpu.runtime.common import (
@@ -88,20 +91,34 @@ class FakeSmi:
             for index, uuid in enumerate(device_uuids)
         }
         self.free = {uuid: FREE for uuid in device_uuids}
+        self.snapshot_calls = []
 
     def devices(self):
         return self.metadata
 
-    def observe(self):
-        return {
-            uuid: {
-                "total_bytes": values[1],
-                "free_bytes": self.free[uuid],
-                "used_bytes": values[1] - self.free[uuid],
+    def snapshot(self, fields, timeout_seconds=10.0):
+        self.snapshot_calls.append((tuple(fields), timeout_seconds))
+        measurements = []
+        for uuid, values in self.metadata.items():
+            field_values = {
+                "memory_total_bytes": values[1],
+                "memory_free_bytes": self.free[uuid],
+                "memory_used_bytes": values[1] - self.free[uuid],
+                "gpu_utilization_percent": 37.5,
             }
-            for uuid, values in self.metadata.items()
-        }
-
+            for field in fields:
+                measurements.append(Measurement(
+                    device_uuid=uuid,
+                    scope="physical_gpu",
+                    field=field,
+                    value=field_values[field],
+                    unit="percent" if field == "gpu_utilization_percent" else "bytes",
+                    value_type="float" if field == "gpu_utilization_percent" else "integer",
+                    source="local:nvidia-smi",
+                    observed_at="2026-01-01T00:00:00Z",
+                    status=Availability.AVAILABLE,
+                ))
+        return GpuSnapshot(None, "2026-01-01T00:00:00Z", measurements)
 
 def base_env(**changes):
     environ = {
@@ -274,7 +291,7 @@ class CudaBindingTests(unittest.TestCase):
 
 
 class NvidiaSmiTests(unittest.TestCase):
-    def test_discovery_observations_and_mig_rejection(self):
+    def test_discovery_and_snapshot_delegate_with_driver_setup(self):
         xml = (
             "<nvidia_smi_log><gpu><uuid>{}</uuid><mig_mode>"
             "<current_mig>Disabled</current_mig></mig_mode>"
@@ -290,8 +307,6 @@ class NvidiaSmiTests(unittest.TestCase):
                 result = xml
             elif args[1].startswith("--query-compute-apps"):
                 result = "123, python\n"
-            elif args[1].startswith("--query-gpu=uuid,memory"):
-                result = f"{UUID0}, 1024, 500, 524\n"
             else:
                 raise AssertionError(args)
             return types.SimpleNamespace(returncode=0, stdout=result, stderr="")
@@ -299,7 +314,16 @@ class NvidiaSmiTests(unittest.TestCase):
         smi = devices.NvidiaSmi(executable="nvidia-smi", run=run)
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(smi.devices()[UUID0][0], 0)
-            self.assertEqual(smi.observe()[UUID0]["free_bytes"], 500 * MIB)
+            snapshot = GpuSnapshot(None, "2026-01-01T00:00:00Z", [])
+            with mock.patch(
+                "krkn.scenario_plugins.gpu.runtime.devices.snapshot_local_gpus",
+                return_value=snapshot,
+            ) as local_snapshot:
+                fields = ("gpu_utilization_percent",)
+                self.assertIs(smi.snapshot(fields, timeout_seconds=4.0), snapshot)
+            local_snapshot.assert_called_once_with(
+                fields=fields, executable="nvidia-smi", run=run, timeout_seconds=4.0,
+            )
             with mock.patch.object(smi, "_command", side_effect=[f"{UUID0}, 0, 1024, Default\n", xml.replace("Disabled", "Enabled")]):
                 with self.assertRaisesRegex(WorkerError, "MIG is enabled"):
                     smi.devices()
@@ -349,8 +373,10 @@ class ComputeLifecycleTests(unittest.TestCase):
         def run_compute(self, kernel, _grid, _block, _output, _iterations):
             self.launched.append(kernel)
 
-    def test_targeted_compute_starts_after_barrier_and_releases_resources(self):
+    def test_targeted_compute_starts_after_barrier_and_observes_gpu_utilization(self):
         driver = self.Driver()
+        smi = FakeSmi()
+        lines = []
         env = base_env(
             GPU_FAULT_TYPE="compute-pressure", GPU_COMPUTE_DUTY_CYCLE="25%",
             GPU_VRAM="", GPU_DURATION="0.2",
@@ -360,13 +386,15 @@ class ComputeLifecycleTests(unittest.TestCase):
             start_file = os.path.join(directory, "start")
 
             def emit(line):
-                if json.loads(line)["phase"] == "ready":
+                record = json.loads(line)
+                lines.append(record)
+                if record["phase"] == "ready":
                     self.assertEqual(driver.launched, [])
                     with open(start_file, "w", encoding="utf-8"):
                         pass
 
             result = worker.run_worker(
-                env, driver=driver, smi=FakeSmi(), pods_loader=lambda *_args, **_kwargs: [UUID1],
+                env, driver=driver, smi=smi, pods_loader=lambda *_args, **_kwargs: [UUID1],
                 emit=emit, start_file=start_file,
             )
 
@@ -374,10 +402,52 @@ class ComputeLifecycleTests(unittest.TestCase):
         self.assertEqual(record["uuid"], UUID1)
         self.assertEqual(record["compute_duty_cycle"], 25)
         self.assertGreater(record["batches_completed"], 0)
+        holding, = [event for event in lines if event["phase"] == "holding"]
+        utilization, = [
+            measurement for measurement in holding["observations"]["holding"]["measurements"]
+            if measurement["field"] == "gpu_utilization_percent"
+        ]
+        self.assertEqual(utilization["value"], 37.5)
         self.assertEqual(set(driver.launched), {UUID1})
         self.assertEqual(driver.unloaded, [UUID1])
         self.assertEqual(driver.freed_bytes, driver.scratch)
         self.assertEqual(driver.destroyed, 1)
+        self.assertLessEqual(len(smi.snapshot_calls), 3)
+
+    def test_compute_monitor_failure_is_recorded_without_failing_fault(self):
+        class FailingHoldingSmi(FakeSmi):
+            calls = 0
+
+            def snapshot(self, fields, timeout_seconds=10.0):
+                self.calls += 1
+                if self.calls == 2:
+                    raise WorkerError("optional monitor failure")
+                return super().snapshot(fields, timeout_seconds)
+
+        driver = self.Driver()
+        smi = FailingHoldingSmi()
+        lines = []
+        env = base_env(
+            GPU_FAULT_TYPE="compute-pressure", GPU_COMPUTE_DUTY_CYCLE="25%",
+            GPU_VRAM="", GPU_DURATION="0.2",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            start_file = os.path.join(directory, "start")
+
+            def emit(line):
+                record = json.loads(line)
+                lines.append(record)
+                if record["phase"] == "ready":
+                    with open(start_file, "w", encoding="utf-8"):
+                        pass
+
+            result = worker.run_worker(env, driver=driver, smi=smi, emit=emit, start_file=start_file)
+        self.assertEqual(result["phase"], "complete")
+        holding, = [event for event in lines if event["phase"] == "holding"]
+        self.assertEqual(
+            holding["observations"]["holding"]["errors"],
+            ["GPU observation failed"],
+        )
 
     def test_compute_duty_cycles_follow_gpu_selection_order(self):
         for gpu_ids, duty_cycles, expected in (
@@ -444,7 +514,7 @@ class ComputeLifecycleTests(unittest.TestCase):
 class WorkerLifecycleTests(unittest.TestCase):
     def _run(self, *, env=None, target_ids=None, fail_at=None, start=True):
         driver = FakeDriver(device_uuids=(UUID0,), fail_at=fail_at)
-        smi = FakeSmi(device_uuids=(UUID0,))
+        smi = FakeSmi()
         lines = []
         with tempfile.TemporaryDirectory() as directory:
             start_file = os.path.join(directory, "start")
@@ -476,7 +546,14 @@ class WorkerLifecycleTests(unittest.TestCase):
             target_ids=[UUID0 + "::0", UUID0 + "::1"],
         )
         self.assertEqual(result["phase"], "complete")
-        self.assertEqual([record["phase"] for record in lines], ["ready", "holding", "complete"])
+        self.assertEqual(set(lines[0]["observations"]), {"baseline"})
+        self.assertEqual(set(lines[1]["observations"]), {"holding"})
+        self.assertEqual(set(lines[-1]["observations"]), {"baseline", "holding", "after_release"})
+        for event in (lines[0], lines[1], lines[-1]):
+            for snapshot in event["observations"].values():
+                self.assertNotIn(UUID1, {
+                    measurement["device_uuid"] for measurement in snapshot["measurements"]
+                })
         self.assertEqual(len(lines[0]["gpus"]), 1)
         self.assertEqual(lines[0]["gpus"][0]["actual_bytes"], MIB)
         self.assertEqual(lines[-1]["gpus"][0]["small_allocation_bytes"], MIB)
@@ -511,15 +588,53 @@ class WorkerLifecycleTests(unittest.TestCase):
                 )
         self.assertEqual(driver.free_by_uuid[UUID0], FREE)
         self.assertEqual(lines[-1]["cleanup"][UUID0]["freed_bytes"], MIB)
+
+    def test_vram_baseline_requires_all_memory_measurements(self):
+        class MissingFreeSmi(FakeSmi):
+            calls = 0
+
+            def snapshot(self, fields, timeout_seconds=10.0):
+                snapshot = super().snapshot(fields, timeout_seconds)
+                self.calls += 1
+                if self.calls == 1:
+                    return replace(snapshot, measurements=[
+                        measurement for measurement in snapshot.measurements
+                        if measurement.field != "memory_free_bytes"
+                    ])
+                return snapshot
+
+        lines = []
+        with tempfile.TemporaryDirectory() as directory:
+            start_file = os.path.join(directory, "start")
+
+            def emit(line):
+                lines.append(json.loads(line))
+
+            with self.assertRaisesRegex(WorkerError, "cannot observe selected GPU"):
+                worker.run_worker(
+                    base_env(), driver=FakeDriver(device_uuids=(UUID0,)),
+                    smi=MissingFreeSmi(), emit=emit, start_file=start_file,
+                )
+        self.assertEqual(lines[-1]["phase"], "error")
+        self.assertEqual(set(lines[-1]["observations"]), {"baseline"})
+
     def test_post_release_memory_delta_is_observed_with_tolerance(self):
         class DriftingSmi(FakeSmi):
             pressure_seen = False
 
-            def observe(self):
-                snapshot = super().observe()
+            def snapshot(self, fields, timeout_seconds=10.0):
+                result = super().snapshot(fields, timeout_seconds)
                 if self.pressure_seen:
-                    snapshot[UUID0]["free_bytes"] -= 100 * MIB
-                return snapshot
+                    result = replace(result, measurements=[
+                        replace(
+                            measurement,
+                            value=measurement.value - 100 * MIB
+                            if measurement.field == "memory_free_bytes"
+                            else measurement.value,
+                        )
+                        for measurement in result.measurements
+                    ])
+                return result
 
         driver = FakeDriver(device_uuids=(UUID0,))
         lines = []
