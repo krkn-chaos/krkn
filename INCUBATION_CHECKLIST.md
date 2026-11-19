@@ -45,10 +45,10 @@ N/A
 
 ### Required
 
-- [ ] **Engage with the domain specific TAG(s) to increase awareness through a presentation or completing a General Technical Review.**
-  - This was completed and occurred on DD-MMM-YYYY, and can be discovered at $LINK.
+- [x] **Engage with the domain specific TAG(s) to increase awareness through a presentation or completing a General Technical Review.**
+  - This was completed and occurred on 11-MAR-2025, and can be discovered [here](https://zoom-lfx.platform.linuxfoundation.org/meeting/95319413756?password=a945340e-f322-437f-9653-cbf3f05ada69).
 
-- [ ] **TAG provides insight/recommendation of the project in the context of the landscape**
+- [x] **TAG provides insight/recommendation of the project in the context of the landscape**
 
 Pending TAG engagement and review.
 
