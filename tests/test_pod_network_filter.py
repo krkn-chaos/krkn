@@ -117,6 +117,32 @@ class TestResolveTargetPids(PodFilterTestBase):
         )
         self.assertIsNone(pids)
 
+    def test_backoff_container_falls_back_to_netns_path(self):
+        """Container in CrashLoopBackOff back-off: no live PID, but the
+        pod exists — resolution must return the netns file path marker."""
+        self.mock_kubernetes.get_pod_pids.return_value = None
+        self.mock_kubernetes.exec_cmd_in_pod.return_value = (
+            "netnspath:/var/run/netns/abc-123"
+        )
+
+        pids = self.module._resolve_target_pids(
+            "target-pod", "abc123", "helper-pod", "helper-ctr", False,
+            pod_ip="10.1.2.3",
+        )
+        self.assertEqual(pids, ["netnspath:/var/run/netns/abc-123"])
+        cmd = self.mock_kubernetes.exec_cmd_in_pod.call_args[0][0][0]
+        self.assertIn("/proc/1/root/var/run/netns/*", cmd)
+        self.assertIn("10.1.2.3", cmd)
+
+    def test_backoff_without_pod_ip_returns_none(self):
+        self.mock_kubernetes.get_pod_pids.return_value = None
+        pids = self.module._resolve_target_pids(
+            "target-pod", "abc123", "helper-pod", "helper-ctr", False,
+            pod_ip=None,
+        )
+        self.assertIsNone(pids)
+
+
 
 class TestVerifyRulesRemoved(PodFilterTestBase):
     """Post-cleanup verification (fix 3)."""
