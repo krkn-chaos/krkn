@@ -8,7 +8,8 @@ Usage: update-go-vulnerabilities.sh [OPTIONS] MODULE_DIR
 Use govulncheck module findings to propose fixed Go module versions, apply them
 with go get, tidy the module, and rescan. Scans use -mod=readonly to bypass
 stale vendoring. Updates are applied serially without downgrading modules that
-already meet a reported fix; changes to excluded modules are reverted.
+already meet a reported fix. Excluded modules are not selected for direct updates,
+but may be upgraded transitively when required; their own findings remain reported.
 Vulnerabilities without an applicable update are reported but do not fail the
 command; scanner and module-loading errors do fail it.
 
@@ -259,30 +260,6 @@ except ValueError:
 PY_VERSION
 }
 
-snapshot_excluded_modules() {
-  local destination=$1 module version
-  : > "$destination"
-  for module in "${EXCLUDED_MODULES[@]-}"; do
-    [[ -n "$module" ]] || continue
-    version=$(module_version "$module")
-    printf '%s\t%s\n' "$module" "$version" >> "$destination"
-  done
-}
-
-excluded_modules_changed() {
-  local snapshot=$1 module before after
-  [[ -s "$snapshot" ]] || return 1
-  while IFS=$'\t' read -r module before; do
-    [[ -n "$module" ]] || continue
-    after=$(module_version "$module")
-    if [[ -n "$after" && "$after" != "$before" ]]; then
-      printf '%s: %s -> %s\n' "$module" "${before:-absent}" "$after" >&2
-      return 0
-    fi
-  done < "$snapshot"
-  return 1
-}
-
 snapshot_fixed_targets() {
   local destination=$1 expected module target version
   : > "$destination"
@@ -344,8 +321,6 @@ while ((pass <= MAX_PASSES)); do
   pass_backup="$REPORT_DIR/.pass-backup"
   rm -rf "$pass_backup"
   backup_manifests "$pass_backup"
-  pass_excluded_before="$REPORT_DIR/.pass-excluded-before.tsv"
-  snapshot_excluded_modules "$pass_excluded_before"
   pass_fixed_before="$REPORT_DIR/.pass-fixed-before.tsv"
   snapshot_fixed_targets "$pass_fixed_before"
   for update in "${updates[@]}"; do
@@ -360,8 +335,6 @@ while ((pass <= MAX_PASSES)); do
     backup="$REPORT_DIR/.manifest-backup"
     rm -rf "$backup"
     backup_manifests "$backup"
-    excluded_before="$REPORT_DIR/.excluded-before-update.tsv"
-    snapshot_excluded_modules "$excluded_before"
     fixed_before="$REPORT_DIR/.fixed-before-update.tsv"
     snapshot_fixed_targets "$fixed_before"
     echo "go get $update"
@@ -374,7 +347,7 @@ data = json.loads(subprocess.check_output(["go", "mod", "edit", "-json"], text=T
 sys.exit(0 if any(r.get("Old", {}).get("Path") == target
                   and r.get("New", {}).get("Path") == target
                   and r.get("New", {}).get("Version")
-                  for r in data.get("Replace", [])) else 1)
+                  for r in (data.get("Replace") or [])) else 1)
 PY
       then
         echo "Removing self-replacement for $module so go get can select the fixed version"
@@ -382,10 +355,7 @@ PY
       fi
       go get "$update"
     ); then
-      if excluded_modules_changed "$excluded_before"; then
-        restore_manifests "$backup"
-        echo "warning: go get $update would change an excluded module; restored go manifests" >&2
-      elif fixed_targets_downgraded "$fixed_before"; then
+      if fixed_targets_downgraded "$fixed_before"; then
         restore_manifests "$backup"
         echo "warning: go get $update would downgrade a module below its fixed target; restored go manifests" >&2
       else
@@ -399,12 +369,7 @@ PY
   done
   if ((${#pass_applied[@]})); then
     if (cd "$MODULE_DIR" && go mod tidy); then
-      if excluded_modules_changed "$pass_excluded_before"; then
-        restore_manifests "$pass_backup"
-        rm -rf "$pass_backup"
-        echo "warning: go mod tidy changed an excluded module; restored this update pass" >&2
-        break
-      elif fixed_targets_downgraded "$pass_fixed_before"; then
+      if fixed_targets_downgraded "$pass_fixed_before"; then
         restore_manifests "$pass_backup"
         rm -rf "$pass_backup"
         echo "warning: go mod tidy downgraded a module below its fixed target; restored this update pass" >&2

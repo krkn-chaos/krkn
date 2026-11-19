@@ -4,7 +4,6 @@ set -Eeuo pipefail
 : "${RUNNER_TEMP:?RUNNER_TEMP must point to the runner temporary directory}"
 : "${GITHUB_PATH:?GITHUB_PATH must point to the GitHub Actions path file}"
 
-COPA_VERSION=${COPA_VERSION:-0.15.0}
 GRYPE_VERSION=${GRYPE_VERSION:-0.121.3}
 BIN_DIR="$RUNNER_TEMP/security-tools/bin"
 TMP_DIR=$(mktemp -d "$RUNNER_TEMP/security-tools.XXXXXX")
@@ -26,40 +25,5 @@ echo "$grype_sha  $TMP_DIR/$asset" | sha256sum --check --status || {
 }
 tar -xzf "$TMP_DIR/$asset" -C "$TMP_DIR" grype
 install -m 0755 "$TMP_DIR/grype" "$BIN_DIR/grype"
-
-install_copa() {
-  local attempt max_attempts=5 delay
-
-  for ((attempt = 1; attempt <= max_attempts; attempt++)); do
-    echo "Installing Copa v${COPA_VERSION} (attempt ${attempt}/${max_attempts})"
-    if GOBIN="$BIN_DIR" go install "github.com/project-copacetic/copacetic@v${COPA_VERSION}"; then
-      return 0
-    fi
-
-    if ((attempt == max_attempts)); then
-      echo "error: failed to install Copa v${COPA_VERSION} after ${max_attempts} attempts" >&2
-      return 1
-    fi
-
-    delay=$((2 ** (attempt - 1)))
-    echo "Copa installation failed; retrying in ${delay}s" >&2
-    sleep "$delay"
-  done
-}
-
-install_copa
-# The Go module's package is named "copacetic"; the release CLI command is "copa".
-if [[ -x "$BIN_DIR/copacetic" ]]; then
-  mv "$BIN_DIR/copacetic" "$BIN_DIR/copa"
-fi
-if [[ ! -x "$BIN_DIR/copa" ]]; then
-  echo "error: Copa installation did not produce the copa executable in $BIN_DIR" >&2
-  exit 1
-fi
-cp scripts/copa-grype "$BIN_DIR/copa-grype"
-chmod 0755 "$BIN_DIR/copa-grype"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
-
 "$BIN_DIR/grype" version
-"$BIN_DIR/copa" --help >/dev/null
-echo "Installed Copa v${COPA_VERSION}"

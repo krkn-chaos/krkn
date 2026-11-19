@@ -8,15 +8,6 @@ on:
         required: true
         default: main
         type: string
-      library_patch_level:
-        description: Highest allowed dependency update level
-        required: true
-        default: minor
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
       publish_target:
         description: Publish to beta for validation or production after approval
         required: true
@@ -34,12 +25,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  COPA_VERSION: 0.15.0
+  PIP_AUDIT_VERSION: 2.10.1
   GRYPE_VERSION: 0.121.3
   QUAY_REPOSITORY: ${{ inputs.publish_target == 'production' && 'quay.io/krkn-chaos/krkn' || 'quay.io/krkn-chaos/krkn-beta' }}
   MIRROR_REPOSITORY: quay.io/redhat-chaos/krkn
-  COPA_EXPERIMENTAL: '1'
-  KRKN_COPA_LIBRARY_PATCH_LEVEL: ${{ inputs.library_patch_level }}
 
 jobs:
   build-tools:
@@ -166,8 +155,20 @@ jobs:
             }
           set-host: true
 
-      - name: Install Grype, Copa, and the Grype adapter
-        run: scripts/install-copa-grype-tools.sh
+      - name: Install Grype
+        run: scripts/install-grype.sh
+
+      - name: Set up Python for dependency remediation
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        env:
+          PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
+        run: |
+          python -m pip install --disable-pip-version-check "pip-audit==${PIP_AUDIT_VERSION}"
+          pip-audit --version
 
       - name: Scan the published latest image before remediation
         id: baseline_scan
@@ -227,6 +228,7 @@ jobs:
           git -C "$source_dir" checkout --detach "$source_commit"
           mkdir -p "$RUNNER_TEMP/python-deps-context"
           cp "$source_dir/requirements.txt" "$RUNNER_TEMP/python-deps-context/requirements.txt"
+          cp "$source_dir/requirements.txt" "$RUNNER_TEMP/requirements-before-${{ matrix.arch }}.txt"
           cp "$source_dir/containers/Dockerfile.python-dependencies" \
             "$RUNNER_TEMP/python-deps-context/Dockerfile"
           echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
@@ -240,51 +242,76 @@ jobs:
             --tag "$image" "$RUNNER_TEMP/python-deps-context"
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      - name: Scan Python dependencies with Grype
+      - name: Scan Python dependencies before remediation
         id: python_scan
         run: |
           set -Eeuo pipefail
           report="$RUNNER_TEMP/grype-python-before-${{ matrix.arch }}.json"
           freeze="$RUNNER_TEMP/python-freeze-before-${{ matrix.arch }}.txt"
-          manifest="$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
+          audit_report="$RUNNER_TEMP/pip-audit-python-before-${{ matrix.arch }}.json"
           grype "docker:${{ steps.deps.outputs.image }}" --output json --file "$report"
           docker run --rm --entrypoint python3.11 '${{ steps.deps.outputs.image }}' \
             -m pip freeze --all > "$freeze"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" "$freeze" > "$manifest"
-          count=$(jq '[.langupdates[]?.name] | unique | length' "$manifest")
-          echo "report=$manifest" >> "$GITHUB_OUTPUT"
+          scripts/run-pip-audit.sh scan "$freeze" "$audit_report"
+          findings=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$audit_report")
           echo "grype_report=$report" >> "$GITHUB_OUTPUT"
-          echo "updates=$count" >> "$GITHUB_OUTPUT"
-          echo "Grype/Copa Python package updates for linux/${{ matrix.arch }}: $count"
+          echo "freeze=$freeze" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_report=$audit_report" >> "$GITHUB_OUTPUT"
+          echo "findings=$findings" >> "$GITHUB_OUTPUT"
+          echo "Pre-remediation pip-audit findings for linux/${{ matrix.arch }}: $findings"
 
-      - name: Apply and validate Copa Python dependency updates
+      - name: Apply pip-audit fixes to Krkn requirements
         id: patch
         env:
-          SOURCE_IMAGE: ${{ steps.deps.outputs.image }}
-          COPA_REPORT: ${{ steps.python_scan.outputs.report }}
+          SOURCE_REQUIREMENTS: ${{ runner.temp }}/krkn-source/requirements.txt
+          ORIGINAL_REQUIREMENTS: ${{ runner.temp }}/requirements-before-${{ matrix.arch }}.txt
         run: |
           set -Eeuo pipefail
-          image="localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
-          scripts/apply-copa-python-updates.sh \
-            "$SOURCE_IMAGE" "$COPA_REPORT" "$image" '${{ matrix.arch }}'
+          report="$RUNNER_TEMP/pip-audit-fix-${{ matrix.arch }}.json"
+          scripts/run-pip-audit.sh fix "$SOURCE_REQUIREMENTS" "$report"
+          cp "$SOURCE_REQUIREMENTS" "$RUNNER_TEMP/python-deps-context/requirements.txt"
+          diff -u "$ORIGINAL_REQUIREMENTS" "$SOURCE_REQUIREMENTS" \
+            > "$RUNNER_TEMP/python-requirements-updates-${{ matrix.arch }}.diff" || true
+          if cmp -s "$ORIGINAL_REQUIREMENTS" "$SOURCE_REQUIREMENTS"; then
+            changed=no
+          else
+            changed=yes
+          fi
+          packages_updated=$(jq '[.fixes[]?.name] | unique | length' "$report")
+          echo "image=localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "requirements_changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "packages_updated=$packages_updated" >> "$GITHUB_OUTPUT"
+          echo "pip-audit updated $packages_updated packages in the source requirements"
 
-      - name: Rescan Python dependencies after Copa
+      - name: Build patched Python dependency image
+        env:
+          PATCHED_IMAGE: ${{ steps.patch.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          docker build --pull --platform "linux/${{ matrix.arch }}" \
+            --tag "$PATCHED_IMAGE" "$RUNNER_TEMP/python-deps-context"
+          docker run --rm --entrypoint python3.11 "$PATCHED_IMAGE" -m pip check
+
+      - name: Rescan Python dependencies after pip-audit
         id: python_rescan
         env:
           PATCHED_IMAGE: ${{ steps.patch.outputs.image }}
         run: |
           set -Eeuo pipefail
           report="$RUNNER_TEMP/grype-python-after-${{ matrix.arch }}.json"
+          freeze="$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt"
+          audit_report="$RUNNER_TEMP/pip-audit-python-after-${{ matrix.arch }}.json"
           grype "docker:$PATCHED_IMAGE" --output json --file "$report"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
-            "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt" \
-            > "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json"
-          remaining=$(jq '[.langupdates[]?.name] | unique | length' \
-            "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
+          docker run --rm --entrypoint python3.11 "$PATCHED_IMAGE" \
+            -m pip freeze --all > "$freeze"
+          scripts/run-pip-audit.sh scan "$freeze" "$audit_report"
+          remaining=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$audit_report")
           echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_report=$audit_report" >> "$GITHUB_OUTPUT"
           echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
           if (( remaining > 0 )); then
-            echo "warning: $remaining patch-level eligible Python updates remain after Copa" >&2
+            echo "warning: $remaining Python vulnerability IDs remain after pip-audit" >&2
           fi
 
       - name: Prepare remediation image context
@@ -302,6 +329,9 @@ jobs:
             "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}/"
           git -C "$KRKN_SOURCE_DIR" archive "$KRKN_SOURCE_COMMIT" \
             | tar -x -C "$RUNNER_TEMP/krkn-image-context/kraken"
+          # Carry the pip-audit-updated requirements into the candidate image source tree.
+          cp "$KRKN_SOURCE_DIR/requirements.txt" \
+            "$RUNNER_TEMP/krkn-image-context/kraken/requirements.txt"
 
       - name: Build and scan candidate image
         id: candidate
@@ -322,25 +352,28 @@ jobs:
             'python3.11 -m pip check && oc version --client && virtctl version --client && yq --version'
           final_report="$RUNNER_TEMP/grype-candidate-${{ matrix.arch }}.json"
           grype "docker:$local_image" --output json --file "$final_report"
-          jq '.matches |= map(select(.artifact.type == "python" or .artifact.type == "python-pkg"))' \
-            "$final_report" > "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype \
-            "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json" \
-            > "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json"
-          remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json")
+          candidate_freeze="$RUNNER_TEMP/python-freeze-candidate-${{ matrix.arch }}.txt"
+          candidate_audit="$RUNNER_TEMP/pip-audit-candidate-${{ matrix.arch }}.json"
+          docker run --rm --entrypoint python3.11 "$local_image" \
+            -m pip freeze --all > "$candidate_freeze"
+          scripts/run-pip-audit.sh scan "$candidate_freeze" "$candidate_audit"
+          remaining=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$candidate_audit")
           if (( remaining > 0 )); then
-            echo "warning: $remaining selected-level Python updates remain in final candidate" >&2
+            echo "warning: $remaining Python vulnerability IDs remain in final candidate" >&2
           fi
           echo "image=$candidate_image" >> "$GITHUB_OUTPUT"
           echo "tag=$candidate_tag" >> "$GITHUB_OUTPUT"
           echo "source_commit=${{ steps.source.outputs.source_commit }}" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_report=$candidate_audit" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_findings=$remaining" >> "$GITHUB_OUTPUT"
           {
             echo "## Candidate image linux/${{ matrix.arch }}"
             echo
             echo "- Krkn ref: `$KRKN_REF` (${{ steps.source.outputs.source_commit }})"
-            echo "- Python package updates accepted: ${{ steps.patch.outputs.applied }} of ${{ steps.patch.outputs.eligible }}"
-            echo "- Python package updates skipped: ${{ steps.patch.outputs.skipped }}"
-            echo "- Remaining patch-level eligible Python updates: $remaining"
+            echo "- Pre-remediation pip-audit findings: ${{ steps.python_scan.outputs.findings }}"
+            echo "- Requirements changed by pip-audit: ${{ steps.patch.outputs.requirements_changed }}"
+            echo "- Packages upgraded by pip-audit: ${{ steps.patch.outputs.packages_updated }}"
+            echo "- Remaining pip-audit findings: $remaining"
             echo "- Candidate: `$candidate_image`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -377,21 +410,23 @@ jobs:
           docker tag "$image" "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
           docker push "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
 
-      - name: Upload Python dependency and candidate scan evidence
+      - name: Upload Python remediation and candidate scan evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: python-copa-evidence-${{ matrix.arch }}
+          name: python-remediation-evidence-${{ matrix.arch }}
           path: |
-            ${{ runner.temp }}/copa-python-${{ matrix.arch }}.json
-            ${{ runner.temp }}/copa-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-python-before-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-fix-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-candidate-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-python-before-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-python-after-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-candidate-${{ matrix.arch }}.json
-            ${{ runner.temp }}/grype-candidate-python-${{ matrix.arch }}.json
-            ${{ runner.temp }}/copa-candidate-python-${{ matrix.arch }}.json
             ${{ runner.temp }}/python-freeze-before-${{ matrix.arch }}.txt
             ${{ runner.temp }}/patched-python-freeze-${{ matrix.arch }}.txt
+            ${{ runner.temp }}/python-freeze-candidate-${{ matrix.arch }}.txt
+            ${{ runner.temp }}/python-requirements-updates-${{ matrix.arch }}.diff
           if-no-files-found: ignore
           retention-days: 30
 
@@ -689,7 +724,7 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: python-copa-evidence-*
+          pattern: python-remediation-evidence-*
           path: ${{ runner.temp }}/post-patch-evidence
           merge-multiple: true
 

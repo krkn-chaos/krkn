@@ -170,6 +170,7 @@ We conducted a comprehensive security audit and dependency upgrade, fixing all C
 Krkn leverages multiple security scanning tools to ensure comprehensive vulnerability detection:
 
 - **[Grype](https://github.com/anchore/grype)**: Primary vulnerability scanner for container images and dependencies, integrated into CI/CD
+- **[pip-audit](https://github.com/pypa/pip-audit)**: Audits and automatically updates fixable Python dependencies in the manual base-image remediation workflow
 - **[Snyk](https://snyk.io/)**: Additional dependency scanning with curated vulnerability database
 - **GitHub Dependabot**: Automated dependency update alerts for Python and Go modules
 
