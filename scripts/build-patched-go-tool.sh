@@ -113,6 +113,15 @@ for module in "${exclude_modules[@]-}"; do
   [[ -z "$module" ]] || update_args+=(--exclude-module "$module")
 done
 
+# Workflow-level, comma-separated minimum module versions are shared by oc,
+# virtctl, and yq. The updater skips entries absent from an individual tool.
+if declare -p GO_FORCE_BUMP_MODULES >/dev/null 2>&1 && [[ -n "$GO_FORCE_BUMP_MODULES" ]]; then
+  while IFS= read -r forced_bump; do
+    forced_bump=$(printf '%s' "$forced_bump" | tr -d '[:space:]')
+    [[ -z "$forced_bump" ]] || update_args+=(--force-update "$forced_bump")
+  done < <(printf '%s' "$GO_FORCE_BUMP_MODULES" | tr ',' '\n')
+fi
+
 runner_uid=$(id -u)
 runner_gid=$(id -g)
 docker run --rm --platform "linux/$arch" \

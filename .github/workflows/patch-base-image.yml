@@ -27,6 +27,10 @@ concurrency:
 env:
   PIP_AUDIT_VERSION: 2.10.1
   GRYPE_VERSION: 0.121.3
+  # Explicit minimum versions for Go modules whose advisories are missing from
+  # govulncheck's database. Comma-separate module@version entries; these are
+  # applied to each Go tool build when that module is already in its dependency graph.
+  GO_FORCE_BUMP_MODULES: "github.com/go-jose/go-jose/v4@v4.1.6"
   QUAY_REPOSITORY: ${{ inputs.publish_target == 'production' && 'quay.io/krkn-chaos/krkn' || 'quay.io/krkn-chaos/krkn-beta' }}
   MIRROR_REPOSITORY: quay.io/redhat-chaos/krkn
 

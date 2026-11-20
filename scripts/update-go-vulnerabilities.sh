@@ -16,6 +16,7 @@ command; scanner and module-loading errors do fail it.
 Options:
   --dir DIRECTORY         Directory with a Go package to anchor the module scan (default: .)
   --exclude-module MOD    Do not update this module; can be repeated
+  --force-update MOD@VER  Apply an explicit minimum module version before scanning; can be repeated
   --max-passes N          Maximum update passes (default: 5)
   --report-dir DIR        Save govulncheck JSON streams and update evidence
   -h, --help              Show this help
@@ -28,6 +29,8 @@ MAX_PASSES=5
 REPORT_DIR=''
 SCAN_SUBDIR='.'
 EXCLUDED_MODULES=()
+FORCED_UPDATES=''
+FORCED_TARGETS=''
 MODULE_DIR=''
 
 while (($#)); do
@@ -38,6 +41,13 @@ while (($#)); do
     --exclude-module)
       (($# >= 2)) && [[ -n "$2" ]] || { echo 'error: --exclude-module requires a value' >&2; exit 2; }
       EXCLUDED_MODULES+=("$2"); shift 2 ;;
+    --force-update)
+      (($# >= 2)) && [[ "$2" == *@* && "$2" != @* && "$2" != *@ ]] || {
+        echo 'error: --force-update requires MODULE@VERSION' >&2; exit 2;
+      }
+      if [[ -n "$FORCED_UPDATES" ]]; then FORCED_UPDATES+=$'\n'; fi
+      FORCED_UPDATES+="$2"
+      shift 2 ;;
     --max-passes)
       (($# >= 2)) || { echo 'error: --max-passes requires a value' >&2; exit 2; }
       MAX_PASSES=$2; shift 2 ;;
@@ -283,11 +293,121 @@ fixed_targets_downgraded() {
       return 0
     fi
   done < "$snapshot"
+  if forced_targets_downgraded; then return 0; fi
+  return 1
+}
+
+apply_forced_updates() {
+  local update module target current selected backup changed=0
+  local forced_report="$REPORT_DIR/forced-updates.txt"
+  : > "$forced_report"
+  [[ -n "$FORCED_UPDATES" ]] || return 0
+
+  backup="$REPORT_DIR/.forced-bumps-backup"
+  rm -rf "$backup"
+  backup_manifests "$backup"
+  printf 'Explicit Go module bumps: %s\n' "$(printf '%s' "$FORCED_UPDATES" | tr '\n' ' ')"
+
+  while IFS= read -r update; do
+    [[ -n "$update" ]] || continue
+    module=${update%@*}
+    target=${update##*@}
+    if ! version_is_at_least "$target" "$target"; then
+      restore_manifests "$backup"
+      rm -rf "$backup"
+      echo "error: invalid version in --force-update: $update" >&2
+      return 1
+    fi
+
+    current=$(module_version "$module")
+    if [[ -z "$current" ]]; then
+      echo "Skipping $update; module is not in this tool's dependency graph"
+      printf '%s: skipped, module not present\n' "$update" >> "$forced_report"
+      continue
+    fi
+    if [[ -n "$FORCED_TARGETS" ]]; then FORCED_TARGETS+=$'\n'; fi
+    FORCED_TARGETS+="$update"
+    if version_is_at_least "$current" "$target"; then
+      echo "Skipping $update; selected version is already $current"
+      printf '%s: already satisfied by %s\n' "$update" "$current" >> "$forced_report"
+      continue
+    fi
+
+    echo "Forced go get $update (selected version: $current)"
+    if (
+      cd "$MODULE_DIR"
+      if python3 - "$module" <<'PY'
+import json, subprocess, sys
+target = sys.argv[1]
+data = json.loads(subprocess.check_output(["go", "mod", "edit", "-json"], text=True))
+sys.exit(0 if any(r.get("Old", {}).get("Path") == target
+                  and r.get("New", {}).get("Path") == target
+                  and r.get("New", {}).get("Version")
+                  for r in (data.get("Replace") or [])) else 1)
+PY
+      then
+        echo "Removing self-replacement for $module before the explicit go get"
+        go mod edit "-dropreplace=$module"
+      fi
+      go get "$update"
+    ); then
+      selected=$(module_version "$module")
+      if [[ -z "$selected" ]] || ! version_is_at_least "$selected" "$target"; then
+        restore_manifests "$backup"
+        rm -rf "$backup"
+        FORCED_TARGETS=''
+        echo "error: go get $update did not select the requested minimum version" >&2
+        return 1
+      fi
+      printf '%s: applied, %s -> %s\n' "$update" "$current" "$selected" >> "$forced_report"
+      printf '%s\n' "$update" >> "$applied_file"
+      changed=1
+    else
+      restore_manifests "$backup"
+      rm -rf "$backup"
+      FORCED_TARGETS=''
+      echo "error: forced go get failed for $update" >&2
+      return 1
+    fi
+  done <<< "$FORCED_UPDATES"
+
+  if ((changed)); then
+    if ! (cd "$MODULE_DIR" && go mod tidy); then
+      restore_manifests "$backup"
+      rm -rf "$backup"
+      FORCED_TARGETS=''
+      echo 'error: go mod tidy failed after explicit module bumps; restored manifests' >&2
+      return 1
+    fi
+    if forced_targets_downgraded; then
+      restore_manifests "$backup"
+      rm -rf "$backup"
+      FORCED_TARGETS=''
+      echo 'error: go mod tidy lowered an explicitly requested module version; restored manifests' >&2
+      return 1
+    fi
+  fi
+  rm -rf "$backup"
+}
+
+forced_targets_downgraded() {
+  local expected module target selected
+  while IFS= read -r expected; do
+    [[ -n "$expected" ]] || continue
+    module=${expected%@*}
+    target=${expected##*@}
+    selected=$(module_version "$module")
+    if [[ -z "$selected" ]] || ! version_is_at_least "$selected" "$target"; then
+      printf '%s: selected %s fell below the explicitly requested minimum %s\n' "$module" "${selected:-missing}" "$target" >&2
+      return 0
+    fi
+  done <<< "$FORCED_TARGETS"
   return 1
 }
 
 applied_file="$REPORT_DIR/applied-updates.tsv"
 : > "$applied_file"
+apply_forced_updates
 final_scan_done=0
 pass=1
 while ((pass <= MAX_PASSES)); do
