@@ -8,15 +8,6 @@ on:
         required: true
         default: main
         type: string
-      library_patch_level:
-        description: Highest allowed dependency update level
-        required: true
-        default: minor
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
       publish_target:
         description: Publish to beta for validation or production after approval
         required: true
@@ -34,16 +25,18 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  COPA_VERSION: 0.15.0
+  PIP_AUDIT_VERSION: 2.10.1
   GRYPE_VERSION: 0.121.3
+  # Explicit minimum versions for Go modules whose advisories are missing from
+  # govulncheck's database. Comma-separate module@version entries; these are
+  # applied to each Go tool build when that module is already in its dependency graph.
+  GO_FORCE_BUMP_MODULES: "github.com/go-jose/go-jose/v4@v4.1.6"
   QUAY_REPOSITORY: ${{ inputs.publish_target == 'production' && 'quay.io/krkn-chaos/krkn' || 'quay.io/krkn-chaos/krkn-beta' }}
   MIRROR_REPOSITORY: quay.io/redhat-chaos/krkn
-  COPA_EXPERIMENTAL: '1'
-  KRKN_COPA_LIBRARY_PATCH_LEVEL: ${{ inputs.library_patch_level }}
 
 jobs:
   build-tools:
-    name: Patch and build ${{ matrix.tool }} (${{ matrix.arch }})
+    name: Remediate Go dependencies and build ${{ matrix.tool }} (${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 180
     strategy:
@@ -72,10 +65,16 @@ jobs:
       - name: Check out pipeline source
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
+      - name: Read pinned Go toolchain version
+        id: go_toolchain
+        run: |
+          source scripts/go-tools-versions.env
+          echo "version=$GO_TOOLCHAIN_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
         with:
-          go-version: '1.26.9'
+          go-version: ${{ steps.go_toolchain.outputs.version }}
 
       - name: Set up Docker with containerd image store
         uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
@@ -88,17 +87,11 @@ jobs:
             }
           set-host: true
 
-      - name: Test Grype-to-Copa version selection
-        run: python3 scripts/test_copa_grype.py
-
       - name: Test Grype report severity aggregation
         if: matrix.tool == 'oc' && matrix.arch == 'amd64'
         run: python3 scripts/test_summarize_grype_report.py
 
-      - name: Install Grype, Copa, and the Grype adapter
-        run: scripts/install-copa-grype-tools.sh
-
-      - name: Patch Go dependencies with Copa and compile the tool
+      - name: Apply govulncheck-selected Go updates and compile the tool
         env:
           GOMAXPROCS: '2'
           GOFLAGS: -p=2
@@ -117,7 +110,7 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Upload patched Go manifests and scan reports
+      - name: Upload Go manifests and vulnerability scan evidence
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: tool-evidence-${{ matrix.arch }}-${{ matrix.tool }}
@@ -144,10 +137,16 @@ jobs:
       - name: Check out pipeline source
         uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
 
+      - name: Read pinned Go toolchain version
+        id: go_toolchain
+        run: |
+          source scripts/go-tools-versions.env
+          echo "version=$GO_TOOLCHAIN_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Set up Go
         uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
         with:
-          go-version: '1.26.9'
+          go-version: ${{ steps.go_toolchain.outputs.version }}
 
       - name: Set up Docker with containerd image store
         uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
@@ -160,8 +159,46 @@ jobs:
             }
           set-host: true
 
-      - name: Install Grype, Copa, and the Grype adapter
-        run: scripts/install-copa-grype-tools.sh
+      - name: Install Grype
+        run: scripts/install-grype.sh
+
+      - name: Set up Python for dependency remediation
+        uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
+        with:
+          python-version: '3.11'
+
+      - name: Install pip-audit
+        env:
+          PIP_AUDIT_VERSION: ${{ env.PIP_AUDIT_VERSION }}
+        run: |
+          python -m pip install --disable-pip-version-check "pip-audit==${PIP_AUDIT_VERSION}"
+          pip-audit --version
+
+      - name: Scan the published latest image before remediation
+        id: baseline_scan
+        continue-on-error: true
+        env:
+          BASELINE_IMAGE: quay.io/krkn-chaos/krkn:latest
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/grype-base-before-${{ matrix.arch }}.json"
+          summary="$RUNNER_TEMP/grype-base-before-summary-${{ matrix.arch }}.json"
+          docker pull --platform "linux/${{ matrix.arch }}" "$BASELINE_IMAGE"
+          grype "docker:$BASELINE_IMAGE" --output json --file "$report"
+          python3 scripts/summarize_grype_report.py "$report" > "$summary"
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "summary=$summary" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pre-patch Grype report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: pre-patch-grype-report-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/grype-base-before-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-base-before-summary-${{ matrix.arch }}.json
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Download Go binaries for this architecture
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -179,11 +216,26 @@ jobs:
           set -Eeuo pipefail
           source_dir="$RUNNER_TEMP/krkn-source"
           git clone https://github.com/krkn-chaos/krkn.git "$source_dir"
-          git -C "$source_dir" checkout --detach "$KRKN_REF"
+          case "$KRKN_REF" in
+            origin/*)
+              fetch_ref="refs/heads/${KRKN_REF#origin/}"
+              ;;
+            refs/remotes/origin/*)
+              fetch_ref="refs/heads/${KRKN_REF#refs/remotes/origin/}"
+              ;;
+            *)
+              fetch_ref="$KRKN_REF"
+              ;;
+          esac
+          git -C "$source_dir" fetch --no-tags origin "$fetch_ref"
+          source_commit=$(git -C "$source_dir" rev-parse --verify 'FETCH_HEAD^{commit}')
+          git -C "$source_dir" checkout --detach "$source_commit"
           mkdir -p "$RUNNER_TEMP/python-deps-context"
           cp "$source_dir/requirements.txt" "$RUNNER_TEMP/python-deps-context/requirements.txt"
-          cp containers/Dockerfile.python-dependencies "$RUNNER_TEMP/python-deps-context/Dockerfile"
-          echo "source_commit=$(git -C "$source_dir" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          cp "$source_dir/requirements.txt" "$RUNNER_TEMP/requirements-before-${{ matrix.arch }}.txt"
+          cp "$source_dir/containers/Dockerfile.python-dependencies" \
+            "$RUNNER_TEMP/python-deps-context/Dockerfile"
+          echo "source_commit=$source_commit" >> "$GITHUB_OUTPUT"
 
       - name: Build Python dependency image from Krkn requirements
         id: deps
@@ -194,62 +246,96 @@ jobs:
             --tag "$image" "$RUNNER_TEMP/python-deps-context"
           echo "image=$image" >> "$GITHUB_OUTPUT"
 
-      - name: Scan Python dependencies with Grype
+      - name: Scan Python dependencies before remediation
         id: python_scan
         run: |
           set -Eeuo pipefail
           report="$RUNNER_TEMP/grype-python-before-${{ matrix.arch }}.json"
           freeze="$RUNNER_TEMP/python-freeze-before-${{ matrix.arch }}.txt"
-          manifest="$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
+          audit_report="$RUNNER_TEMP/pip-audit-python-before-${{ matrix.arch }}.json"
           grype "docker:${{ steps.deps.outputs.image }}" --output json --file "$report"
           docker run --rm --entrypoint python3.11 '${{ steps.deps.outputs.image }}' \
             -m pip freeze --all > "$freeze"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" "$freeze" > "$manifest"
-          count=$(jq '[.langupdates[]?.name] | unique | length' "$manifest")
-          echo "report=$manifest" >> "$GITHUB_OUTPUT"
+          scripts/run-pip-audit.sh scan "$freeze" "$audit_report"
+          findings=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$audit_report")
           echo "grype_report=$report" >> "$GITHUB_OUTPUT"
-          echo "updates=$count" >> "$GITHUB_OUTPUT"
-          echo "Grype/Copa Python package updates for linux/${{ matrix.arch }}: $count"
+          echo "freeze=$freeze" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_report=$audit_report" >> "$GITHUB_OUTPUT"
+          echo "findings=$findings" >> "$GITHUB_OUTPUT"
+          echo "Pre-remediation pip-audit findings for linux/${{ matrix.arch }}: $findings"
 
-      - name: Apply and validate Copa Python dependency updates
+      - name: Apply pip-audit fixes to Krkn requirements
         id: patch
         env:
-          SOURCE_IMAGE: ${{ steps.deps.outputs.image }}
-          COPA_REPORT: ${{ steps.python_scan.outputs.report }}
+          SOURCE_REQUIREMENTS: ${{ runner.temp }}/krkn-source/requirements.txt
+          ORIGINAL_REQUIREMENTS: ${{ runner.temp }}/requirements-before-${{ matrix.arch }}.txt
         run: |
           set -Eeuo pipefail
-          image="localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
-          scripts/apply-copa-python-updates.sh \
-            "$SOURCE_IMAGE" "$COPA_REPORT" "$image" '${{ matrix.arch }}'
+          report="$RUNNER_TEMP/pip-audit-fix-${{ matrix.arch }}.json"
+          scripts/run-pip-audit.sh fix "$SOURCE_REQUIREMENTS" "$report"
+          cp "$SOURCE_REQUIREMENTS" "$RUNNER_TEMP/python-deps-context/requirements.txt"
+          diff -u "$ORIGINAL_REQUIREMENTS" "$SOURCE_REQUIREMENTS" \
+            > "$RUNNER_TEMP/python-requirements-updates-${{ matrix.arch }}.diff" || true
+          if cmp -s "$ORIGINAL_REQUIREMENTS" "$SOURCE_REQUIREMENTS"; then
+            changed=no
+          else
+            changed=yes
+          fi
+          packages_updated=$(jq '[.fixes[]?.name] | unique | length' "$report")
+          echo "image=localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}" >> "$GITHUB_OUTPUT"
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "requirements_changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "packages_updated=$packages_updated" >> "$GITHUB_OUTPUT"
+          echo "pip-audit updated $packages_updated packages in the source requirements"
 
-      - name: Rescan Python dependencies after Copa
+      - name: Build patched Python dependency image
+        env:
+          PATCHED_IMAGE: ${{ steps.patch.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          docker build --pull --platform "linux/${{ matrix.arch }}" \
+            --tag "$PATCHED_IMAGE" "$RUNNER_TEMP/python-deps-context"
+          docker run --rm --entrypoint python3.11 "$PATCHED_IMAGE" -m pip check
+
+      - name: Rescan Python dependencies after pip-audit
         id: python_rescan
         env:
           PATCHED_IMAGE: ${{ steps.patch.outputs.image }}
         run: |
           set -Eeuo pipefail
           report="$RUNNER_TEMP/grype-python-after-${{ matrix.arch }}.json"
+          freeze="$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt"
+          audit_report="$RUNNER_TEMP/pip-audit-python-after-${{ matrix.arch }}.json"
           grype "docker:$PATCHED_IMAGE" --output json --file "$report"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
-            "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt" \
-            > "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json"
-          remaining=$(jq '[.langupdates[]?.name] | unique | length' \
-            "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
+          docker run --rm --entrypoint python3.11 "$PATCHED_IMAGE" \
+            -m pip freeze --all > "$freeze"
+          scripts/run-pip-audit.sh scan "$freeze" "$audit_report"
+          remaining=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$audit_report")
           echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_report=$audit_report" >> "$GITHUB_OUTPUT"
           echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
           if (( remaining > 0 )); then
-            echo "warning: $remaining patch-level eligible Python updates remain after Copa" >&2
+            echo "warning: $remaining Python vulnerability IDs remain after pip-audit" >&2
           fi
 
       - name: Prepare remediation image context
+        env:
+          KRKN_SOURCE_DIR: ${{ runner.temp }}/krkn-source
+          KRKN_SOURCE_COMMIT: ${{ steps.source.outputs.source_commit }}
         run: |
           set -Eeuo pipefail
           scripts/prepare-remediation-dockerfile.sh
-          mkdir -p "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}"
+          mkdir -p "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}" \
+            "$RUNNER_TEMP/krkn-image-context/kraken"
           cp "containers/Dockerfile.remediation" "$RUNNER_TEMP/krkn-image-context/Dockerfile"
           cp containers/krknctl-input.json "$RUNNER_TEMP/krkn-image-context/containers/krknctl-input.json"
           cp "containers/tools/${{ matrix.arch }}/"* \
             "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}/"
+          git -C "$KRKN_SOURCE_DIR" archive "$KRKN_SOURCE_COMMIT" \
+            | tar -x -C "$RUNNER_TEMP/krkn-image-context/kraken"
+          # Carry the pip-audit-updated requirements into the candidate image source tree.
+          cp "$KRKN_SOURCE_DIR/requirements.txt" \
+            "$RUNNER_TEMP/krkn-image-context/kraken/requirements.txt"
 
       - name: Build and scan candidate image
         id: candidate
@@ -265,31 +351,33 @@ jobs:
           # Do not force a registry pull for this local FROM image.
           docker build --platform "linux/${{ matrix.arch }}" \
             --build-arg "KRKN_RUNTIME_IMAGE=$PYTHON_IMAGE" \
-            --build-arg "TAG=${{ steps.source.outputs.source_commit }}" \
             --tag "$local_image" "$RUNNER_TEMP/krkn-image-context"
           docker run --rm --entrypoint /bin/bash "$local_image" -lc \
             'python3.11 -m pip check && oc version --client && virtctl version --client && yq --version'
           final_report="$RUNNER_TEMP/grype-candidate-${{ matrix.arch }}.json"
           grype "docker:$local_image" --output json --file "$final_report"
-          jq '.matches |= map(select(.artifact.type == "python" or .artifact.type == "python-pkg"))' \
-            "$final_report" > "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json"
-          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype \
-            "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json" \
-            > "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json"
-          remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json")
+          candidate_freeze="$RUNNER_TEMP/python-freeze-candidate-${{ matrix.arch }}.txt"
+          candidate_audit="$RUNNER_TEMP/pip-audit-candidate-${{ matrix.arch }}.json"
+          docker run --rm --entrypoint python3.11 "$local_image" \
+            -m pip freeze --all > "$candidate_freeze"
+          scripts/run-pip-audit.sh scan "$candidate_freeze" "$candidate_audit"
+          remaining=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$candidate_audit")
           if (( remaining > 0 )); then
-            echo "warning: $remaining selected-level Python updates remain in final candidate" >&2
+            echo "warning: $remaining Python vulnerability IDs remain in final candidate" >&2
           fi
           echo "image=$candidate_image" >> "$GITHUB_OUTPUT"
           echo "tag=$candidate_tag" >> "$GITHUB_OUTPUT"
           echo "source_commit=${{ steps.source.outputs.source_commit }}" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_report=$candidate_audit" >> "$GITHUB_OUTPUT"
+          echo "pip_audit_findings=$remaining" >> "$GITHUB_OUTPUT"
           {
             echo "## Candidate image linux/${{ matrix.arch }}"
             echo
             echo "- Krkn ref: `$KRKN_REF` (${{ steps.source.outputs.source_commit }})"
-            echo "- Python package updates accepted: ${{ steps.patch.outputs.applied }} of ${{ steps.patch.outputs.eligible }}"
-            echo "- Python package updates skipped: ${{ steps.patch.outputs.skipped }}"
-            echo "- Remaining patch-level eligible Python updates: $remaining"
+            echo "- Pre-remediation pip-audit findings: ${{ steps.python_scan.outputs.findings }}"
+            echo "- Requirements changed by pip-audit: ${{ steps.patch.outputs.requirements_changed }}"
+            echo "- Packages upgraded by pip-audit: ${{ steps.patch.outputs.packages_updated }}"
+            echo "- Remaining pip-audit findings: $remaining"
             echo "- Candidate: `$candidate_image`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -326,21 +414,23 @@ jobs:
           docker tag "$image" "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
           docker push "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
 
-      - name: Upload Python dependency and candidate scan evidence
+      - name: Upload Python remediation and candidate scan evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: python-copa-evidence-${{ matrix.arch }}
+          name: python-remediation-evidence-${{ matrix.arch }}
           path: |
-            ${{ runner.temp }}/copa-python-${{ matrix.arch }}.json
-            ${{ runner.temp }}/copa-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-python-before-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-fix-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/pip-audit-candidate-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-python-before-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-python-after-${{ matrix.arch }}.json
             ${{ runner.temp }}/grype-candidate-${{ matrix.arch }}.json
-            ${{ runner.temp }}/grype-candidate-python-${{ matrix.arch }}.json
-            ${{ runner.temp }}/copa-candidate-python-${{ matrix.arch }}.json
             ${{ runner.temp }}/python-freeze-before-${{ matrix.arch }}.txt
             ${{ runner.temp }}/patched-python-freeze-${{ matrix.arch }}.txt
+            ${{ runner.temp }}/python-freeze-candidate-${{ matrix.arch }}.txt
+            ${{ runner.temp }}/python-requirements-updates-${{ matrix.arch }}.diff
           if-no-files-found: ignore
           retention-days: 30
 
@@ -638,16 +728,27 @@ jobs:
         continue-on-error: true
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          pattern: python-copa-evidence-*
+          pattern: python-remediation-evidence-*
           path: ${{ runner.temp }}/post-patch-evidence
           merge-multiple: true
 
-      - name: Summarize final candidate vulnerability reports
+      - name: Download pre-patch Grype reports
+        id: baseline_reports
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: pre-patch-grype-report-*
+          path: ${{ runner.temp }}/pre-patch-evidence
+          merge-multiple: true
+
+      - name: Summarize before and after vulnerability reports
         id: summary
         if: always()
         env:
           CHECKOUT_RESULT: ${{ steps.checkout_scripts.outcome }}
           DOWNLOAD_RESULT: ${{ steps.candidate_reports.outcome }}
+          BASELINE_DOWNLOAD_RESULT: ${{ steps.baseline_reports.outcome }}
           BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
           BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
           FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
@@ -656,13 +757,17 @@ jobs:
         run: |
           set -Eeuo pipefail
           evidence_dir="$RUNNER_TEMP/post-patch-evidence"
-          summary="$RUNNER_TEMP/post-patch-grype-report.json"
-          mkdir -p "$evidence_dir"
+          baseline_dir="$RUNNER_TEMP/pre-patch-evidence"
+          summary="$RUNNER_TEMP/before-after-grype-report.json"
+          mkdir -p "$evidence_dir" "$baseline_dir"
           mapfile -t reports < <(find "$evidence_dir" -maxdepth 1 -type f \
             -name 'grype-candidate-*.json' ! -name 'grype-candidate-python-*.json' -print | sort)
+          mapfile -t baseline_reports < <(find "$baseline_dir" -maxdepth 1 -type f \
+            -name 'grype-base-before-*.json' ! -name '*-summary-*' -print | sort)
 
           checkout_result=${CHECKOUT_RESULT:-unknown}
           download_result=${DOWNLOAD_RESULT:-unknown}
+          baseline_download_result=${BASELINE_DOWNLOAD_RESULT:-unknown}
           summary_error=""
           if [[ "$checkout_result" != success ]]; then
             report_status=checkout_failed
@@ -761,10 +866,67 @@ jobs:
               }' > "$summary"
           fi
 
+          baseline_status=available
+          baseline_error=""
+          baseline_summary="$RUNNER_TEMP/baseline-grype-summary.json"
+          if [[ "$baseline_download_result" != success ]]; then
+            baseline_status=artifact_download_failed
+            baseline_error="Pre-patch report artifact download failed."
+          elif (( ${#baseline_reports[@]} == 0 )); then
+            baseline_status=no_baseline_report
+            baseline_error="No pre-patch Grype report was uploaded."
+          elif [[ "$checkout_result" != success ]]; then
+            baseline_status=checkout_failed
+            baseline_error="Could not check out the report summarizer."
+          elif ! python3 scripts/summarize_grype_report.py "${baseline_reports[@]}" > "$baseline_summary"; then
+            baseline_status=summary_failed
+            baseline_error="The pre-patch Grype reports could not be summarized."
+          elif ! jq -e --slurpfile after "$summary" \
+            '.architectures == $after[0].architectures' "$baseline_summary" >/dev/null; then
+            baseline_status=partial
+            baseline_error="Pre-patch and candidate reports do not cover the same architectures."
+          fi
+
+          if [[ "$baseline_status" == available ]]; then
+            jq --slurpfile before "$baseline_summary" \
+              --arg baseline_image 'quay.io/krkn-chaos/krkn:latest' \
+              '. + {
+                baseline_report_available: true,
+                baseline_report_status: "available",
+                baseline_image: $baseline_image,
+                before: $before[0],
+                delta: {
+                  removed_vulnerability_ids: ((([$before[0].ids_by_severity[]?[]] | unique) - ([.ids_by_severity[]?[]] | unique)) | length),
+                  new_vulnerability_ids: ((([.ids_by_severity[]?[]] | unique) - ([$before[0].ids_by_severity[]?[]] | unique)) | length),
+                  removed_ids: (([$before[0].ids_by_severity[]?[]] | unique) - ([.ids_by_severity[]?[]] | unique)),
+                  new_ids: (([.ids_by_severity[]?[]] | unique) - ([$before[0].ids_by_severity[]?[]] | unique))
+                }
+              }' "$summary" > "$summary.tmp"
+            mv "$summary.tmp" "$summary"
+          else
+            jq --arg baseline_status "$baseline_status" \
+              --arg baseline_error "$baseline_error" \
+              '. + {
+                baseline_report_available: false,
+                baseline_report_status: $baseline_status,
+                baseline_image: "quay.io/krkn-chaos/krkn:latest",
+                before: null,
+                delta: null,
+                baseline_diagnostics: {message: $baseline_error}
+              }' "$summary" > "$summary.tmp"
+            mv "$summary.tmp" "$summary"
+          fi
+
           report_available=$(jq -r '.report_available' "$summary")
           report_status=$(jq -r '.report_status' "$summary")
           echo "report_available=$report_available" >> "$GITHUB_OUTPUT"
           echo "report_status=$report_status" >> "$GITHUB_OUTPUT"
+          echo "baseline_available=$(jq -r '.baseline_report_available' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "baseline_status=$(jq -r '.baseline_report_status' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "before_unique=$(jq -r '.before.unique_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "before_fixable=$(jq -r '.before.unique_fixable_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "removed=$(jq -r '.delta.removed_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "added=$(jq -r '.delta.new_vulnerability_ids // 0' "$summary")" >> "$GITHUB_OUTPUT"
           echo "unique=$(jq -r '.unique_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
           echo "fixable=$(jq -r '.unique_fixable_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
           for severity in Critical High Medium Low Negligible Unknown; do
@@ -772,17 +934,38 @@ jobs:
             count=$(jq -r --arg severity "$severity" '.counts_by_severity[$severity]' "$summary")
             echo "$key=$count" >> "$GITHUB_OUTPUT"
           done
+          for severity in Critical High Medium Low Negligible Unknown; do
+            key=$(printf '%s' "$severity" | tr '[:upper:]' '[:lower:]')
+            count=$(jq -r --arg severity "$severity" '.before.counts_by_severity[$severity] // 0' "$summary")
+            echo "before_$key=$count" >> "$GITHUB_OUTPUT"
+          done
           echo "architectures=$(jq -r '(.architectures // []) | join(", ")' "$summary")" >> "$GITHUB_OUTPUT"
           {
-            echo '## Post-patch Grype report'
+            echo '## Before and after Grype report'
             echo
-            echo "- Report status: $report_status"
+            echo "- Pre-patch baseline: $baseline_status"
+            if [[ "$baseline_status" == available ]]; then
+              echo "- Before: $(jq -r '.before.unique_vulnerability_ids' "$summary") unique vulnerability IDs; $(jq -r '.before.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              echo "- After: $(jq -r '.unique_vulnerability_ids' "$summary") unique vulnerability IDs; $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              echo "- Change: $(jq -r '.delta.removed_vulnerability_ids' "$summary") IDs no longer present; $(jq -r '.delta.new_vulnerability_ids' "$summary") new IDs"
+            else
+              echo "- Baseline diagnostic: $baseline_error"
+            fi
+            echo "- Candidate report status: $report_status"
             echo "- Pipeline jobs: build-tools=$BUILD_TOOLS_RESULT; build-candidates=$BUILD_CANDIDATES_RESULT; functional-tests=$FUNCTIONAL_TESTS_RESULT; publish=$PUBLISH_RESULT"
             if [[ "$report_available" == true ]]; then
               echo "- Candidate architectures scanned: $(jq -r '(.architectures // []) | join(", ")' "$summary")"
-              echo "- Unique vulnerability IDs: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
-              echo "- Critical: $(jq -r '.counts_by_severity.Critical' "$summary"); High: $(jq -r '.counts_by_severity.High' "$summary"); Medium: $(jq -r '.counts_by_severity.Medium' "$summary"); Low: $(jq -r '.counts_by_severity.Low' "$summary")"
-              echo "- Negligible: $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown: $(jq -r '.counts_by_severity.Unknown' "$summary")"
+              echo "- Unique vulnerability IDs after: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              if [[ "$baseline_status" == available ]]; then
+                echo "- Before severity: Critical $(jq -r '.before.counts_by_severity.Critical' "$summary"); High $(jq -r '.before.counts_by_severity.High' "$summary"); Medium $(jq -r '.before.counts_by_severity.Medium' "$summary"); Low $(jq -r '.before.counts_by_severity.Low' "$summary"); Negligible $(jq -r '.before.counts_by_severity.Negligible' "$summary"); Unknown $(jq -r '.before.counts_by_severity.Unknown' "$summary")"
+              fi
+              echo "- After severity: Critical $(jq -r '.counts_by_severity.Critical' "$summary"); High $(jq -r '.counts_by_severity.High' "$summary"); Medium $(jq -r '.counts_by_severity.Medium' "$summary"); Low $(jq -r '.counts_by_severity.Low' "$summary"); Negligible $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown $(jq -r '.counts_by_severity.Unknown' "$summary")"
+              echo
+              echo '### CVE IDs still present in the candidate'
+              for severity in Critical High Medium Low Negligible Unknown; do
+                ids=$(jq -r --arg severity "$severity" '.ids_by_severity[$severity] | if length == 0 then "none" else join(", ") end' "$summary")
+                echo "- **$severity**: $ids"
+              done
               if [[ "$report_status" == artifact_download_failed ]]; then
                 echo "- Warning: artifact download failed; the findings above may be partial."
               fi
@@ -792,12 +975,12 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload post-patch Grype report
+      - name: Upload before-and-after Grype report
         if: always() && steps.summary.outcome == 'success'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: post-patch-grype-report-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/post-patch-grype-report.json
+          name: before-after-grype-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/before-after-grype-report.json
           if-no-files-found: error
           retention-days: 30
 
@@ -808,6 +991,12 @@ jobs:
           KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
           REPORT_AVAILABLE: ${{ steps.summary.outputs.report_available }}
           REPORT_STATUS: ${{ steps.summary.outputs.report_status }}
+          BASELINE_AVAILABLE: ${{ steps.summary.outputs.baseline_available }}
+          BASELINE_STATUS: ${{ steps.summary.outputs.baseline_status }}
+          BEFORE_FINDINGS: ${{ steps.summary.outputs.before_unique }}
+          BEFORE_FIXABLE: ${{ steps.summary.outputs.before_fixable }}
+          REMOVED: ${{ steps.summary.outputs.removed }}
+          ADDED: ${{ steps.summary.outputs.added }}
           ARCHITECTURES: ${{ steps.summary.outputs.architectures }}
           FINDINGS: ${{ steps.summary.outputs.unique }}
           FIXABLE: ${{ steps.summary.outputs.fixable }}
@@ -817,6 +1006,12 @@ jobs:
           LOW: ${{ steps.summary.outputs.low }}
           NEGLIGIBLE: ${{ steps.summary.outputs.negligible }}
           UNKNOWN: ${{ steps.summary.outputs.unknown }}
+          BEFORE_CRITICAL: ${{ steps.summary.outputs.before_critical }}
+          BEFORE_HIGH: ${{ steps.summary.outputs.before_high }}
+          BEFORE_MEDIUM: ${{ steps.summary.outputs.before_medium }}
+          BEFORE_LOW: ${{ steps.summary.outputs.before_low }}
+          BEFORE_NEGLIGIBLE: ${{ steps.summary.outputs.before_negligible }}
+          BEFORE_UNKNOWN: ${{ steps.summary.outputs.before_unknown }}
           BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
           BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
           FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
@@ -825,7 +1020,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
-            echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
+            echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final before-and-after report was not sent"
             exit 0
           fi
           report_available=${REPORT_AVAILABLE:-false}
@@ -839,6 +1034,18 @@ jobs:
           payload=$(jq -n \
             --arg report "$report_available" \
             --arg report_status "$report_status" \
+            --arg baseline_available "${BASELINE_AVAILABLE:-false}" \
+            --arg baseline_status "${BASELINE_STATUS:-unknown}" \
+            --arg before_findings "${BEFORE_FINDINGS:-0}" \
+            --arg before_fixable "${BEFORE_FIXABLE:-0}" \
+            --arg removed "${REMOVED:-0}" \
+            --arg added "${ADDED:-0}" \
+            --arg before_critical "${BEFORE_CRITICAL:-0}" \
+            --arg before_high "${BEFORE_HIGH:-0}" \
+            --arg before_medium "${BEFORE_MEDIUM:-0}" \
+            --arg before_low "${BEFORE_LOW:-0}" \
+            --arg before_negligible "${BEFORE_NEGLIGIBLE:-0}" \
+            --arg before_unknown "${BEFORE_UNKNOWN:-0}" \
             --arg pipeline_state "$pipeline_state" \
             --arg architectures "${ARCHITECTURES:-unknown}" \
             --arg findings "${FINDINGS:-0}" \
@@ -868,39 +1075,39 @@ jobs:
               elif $status == "summary_failed" then "candidate report summarization failed"
               else "final candidate report status is unknown" end;
             {
-              text: ("Krkn post-patch report (" + $pipeline_state + "): " +
+              text: ("Krkn before/after report (" + $pipeline_state + "): " +
                 (if $report == "true" then
-                  (if $report_status == "artifact_download_failed" then
-                    "partial summary: " + $findings + " unique CVEs, " + $fixable + " fixable."
+                  (if $baseline_available == "true" then
+                    $before_findings + " → " + $findings + " unique CVEs; " + $removed + " removed, " + $added + " new."
                   else
-                    $findings + " unique CVEs, " + $fixable + " fixable."
+                    "baseline " + $baseline_status + "; after " + $findings + " unique CVEs, " + $fixable + " fixable."
                   end)
                 else report_description($report_status) end)),
               blocks:[
-                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" and $report_status == "available" then "✅ Krkn remediation complete" else "⚠️ Krkn remediation report" end), emoji:true}},
+                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" and $report_status == "available" and $baseline_available == "true" then "✅ Krkn remediation: before → after" else "⚠️ Krkn remediation report" end), emoji:true}},
                 {type:"section", fields:[
                   {type:"mrkdwn", text:("*Pipeline status:* " + $pipeline_state)},
                   {type:"mrkdwn", text:("*Report status:* " + $report_status)},
                   {type:"mrkdwn", text:("*Architectures:* " + $architectures)}
                 ]},
                 (if $report == "true" then
-                  {type:"section", text:{type:"mrkdwn", text:(if $report_status == "artifact_download_failed" then
-                    "⚠️ Candidate artifact retrieval failed; the findings below may be incomplete."
-                  else
-                    "*Post-patch result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*"
-                  end)}}
+                  {type:"section", text:{type:"mrkdwn", text:(
+                    (if $baseline_available == "true" then
+                      "*Before (`quay.io/krkn-chaos/krkn:latest`):* *" + $before_findings + " unique CVEs* · *" + $before_fixable + " fixable*\n"
+                    else
+                      "⚠️ *Before report unavailable:* " + $baseline_status + "\n"
+                    end) +
+                    "*After (candidate):* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*" +
+                    (if $baseline_available == "true" then "\n*Change:* " + $removed + " IDs removed · " + $added + " new IDs" else "" end)
+                  )}}
                 else
                   {type:"section", text:{type:"mrkdwn", text:report_description($report_status)}}
                 end),
                 (if $report == "true" then
-                  {type:"section", fields:[
-                    {type:"mrkdwn", text:(":rotating_light: *Critical* " + $critical)},
-                    {type:"mrkdwn", text:(":red_circle: *High* " + $high)},
-                    {type:"mrkdwn", text:(":large_orange_circle: *Medium* " + $medium)},
-                    {type:"mrkdwn", text:(":large_yellow_circle: *Low* " + $low)},
-                    {type:"mrkdwn", text:(":white_circle: *Negligible* " + $negligible)},
-                    {type:"mrkdwn", text:(":grey_question: *Unknown* " + $unknown)}
-                  ]}
+                  (if $baseline_available == "true" then
+                    {type:"section", text:{type:"mrkdwn", text:(":bar_chart: *Before severity:* Critical " + $before_critical + " · High " + $before_high + " · Medium " + $before_medium + " · Low " + $before_low + " · Negligible " + $before_negligible + " · Unknown " + $before_unknown)}}
+                  else empty end),
+                  {type:"section", text:{type:"mrkdwn", text:(":bar_chart: *After severity:* Critical " + $critical + " · High " + $high + " · Medium " + $medium + " · Low " + $low + " · Negligible " + $negligible + " · Unknown " + $unknown)}}
                 else empty end),
                 {type:"divider"},
                 {type:"section", text:{type:"mrkdwn", text:"*Pipeline stages*"}},
