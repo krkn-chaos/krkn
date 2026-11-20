@@ -214,6 +214,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         self, kill_action, podname, namespace, container_name, kubecli: KrknKubernetes
     ):
         i = 0
+        response = None
         while i < 5:
             logging.info(
                 "Killing container %s in pod %s (ns %s)"
@@ -225,7 +226,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             i += 1
             # Blank response means it is done
             if not response:
-                break
+                return
             elif (
                 "unauthorized" in response.lower()
                 or "authorization" in response.lower()
@@ -235,6 +236,10 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             else:
                 logging.warning(response)
                 continue
+        raise RuntimeError(
+            f"Failed to kill container {container_name} in pod {podname} "
+            f"(ns {namespace}) after 5 attempts: {response}"
+        )
 
     def check_failed_containers(
         self, killed_container_list, wait_time, kubecli: KrknKubernetes

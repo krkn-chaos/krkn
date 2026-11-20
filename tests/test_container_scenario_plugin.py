@@ -303,6 +303,45 @@ class TestContainerScenarioPlugin(unittest.TestCase):
             self.plugin.container_killing_in_pod(scenario, kubecli)
         kubecli.get_pod_info.assert_not_called()
 
+    def test_persistent_non_auth_exec_failure_raises(self):
+        """
+        A command that executes without raising but never actually kills
+        the container (e.g. no `kill` binary in the image) must not be
+        reported as a successful kill.
+        """
+        kubecli = self._make_kubecli({"pod1": ["app"]})
+        kubecli.exec_cmd_in_pod.return_value = "sh: kill: command not found"
+        scenario = self._scenario(container_name="app", count=1)
+
+        with self.assertRaises(RuntimeError):
+            self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 5)
+
+    def test_unauthorized_exec_response_retries_then_raises(self):
+        """An unauthorized response retries (with backoff) before raising."""
+        kubecli = self._make_kubecli({"pod1": ["app"]})
+        kubecli.exec_cmd_in_pod.return_value = "Unauthorized"
+        scenario = self._scenario(container_name="app", count=1)
+
+        with patch("krkn.scenario_plugins.container.container_scenario_plugin.time.sleep") as mock_sleep:
+            with self.assertRaises(RuntimeError):
+                self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 5)
+        self.assertEqual(mock_sleep.call_count, 5)
+
+    def test_blank_response_succeeds(self):
+        """A blank response (the real success case) does not raise."""
+        kubecli = self._make_kubecli({"pod1": ["app"]})
+        kubecli.exec_cmd_in_pod.return_value = ""
+        scenario = self._scenario(container_name="app", count=1)
+
+        killed = self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        self.assertEqual(killed, [["pod1", "test-ns", "app"]])
+        self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
