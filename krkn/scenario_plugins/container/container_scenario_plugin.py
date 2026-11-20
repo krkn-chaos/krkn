@@ -47,12 +47,18 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                         kill_scenario,
                         lib_telemetry
                     )
-                    self.container_killing_in_pod(
-                        kill_scenario, lib_telemetry.get_lib_kubernetes()
-                    )
-                    snapshot = future_snapshot.result()
-                    result = snapshot.get_pods_status()
-                    scenario_telemetry.affected_pods = result
+                    try:
+                        self.container_killing_in_pod(
+                            kill_scenario, lib_telemetry.get_lib_kubernetes()
+                        )
+                    finally:
+                        # Settle the monitoring future and record whatever
+                        # recovery status is available even if a later
+                        # target's kill failed, so an earlier target that
+                        # was actually disrupted isn't left unreported.
+                        snapshot = future_snapshot.result()
+                        result = snapshot.get_pods_status()
+                        scenario_telemetry.affected_pods = result
                     if len(result.unrecovered) > 0:
                         logging.info("ContainerScenarioPlugin failed with unrecovered containers")
                         return 1

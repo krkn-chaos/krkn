@@ -9,9 +9,13 @@ Usage:
 Assisted By: Claude Code
 """
 
+import tempfile
 import unittest
+from concurrent.futures import Future
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import yaml
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 
@@ -341,6 +345,48 @@ class TestContainerScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(killed, [["pod1", "test-ns", "app"]])
         self.assertEqual(kubecli.exec_cmd_in_pod.call_count, 1)
+
+    @patch("krkn.scenario_plugins.container.container_scenario_plugin.random.randint")
+    @patch("krkn.scenario_plugins.container.container_scenario_plugin.select_and_monitor_by_namespace_pattern_and_label")
+    def test_run_records_telemetry_before_propagating_exhausted_retry(
+        self, mock_monitor, mock_randint
+    ):
+        """
+        An earlier target's recovery telemetry must still be recorded even
+        when a later target in the same scenario exhausts kill retries -
+        the monitoring future must not be left uncollected.
+        """
+        mock_randint.return_value = 0
+        kubecli = self._make_kubecli({"pod1": ["app"], "pod2": ["app"]})
+        # pod1's kill succeeds (blank response); pod2's never does.
+        kubecli.exec_cmd_in_pod.side_effect = ["", "boom", "boom", "boom", "boom", "boom"]
+
+        mock_snapshot = MagicMock()
+        mock_snapshot.get_pods_status.return_value = "fake-status"
+        future = Future()
+        future.set_result(mock_snapshot)
+        mock_monitor.return_value = future
+
+        lib_telemetry = MagicMock()
+        lib_telemetry.get_lib_kubernetes.return_value = kubecli
+        scenario_telemetry = MagicMock()
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = Path(tmp_dir) / "scenario.yaml"
+            with open(scenario_file, "w") as f:
+                yaml.dump(
+                    {"scenarios": [self._scenario(container_name="app", count=2)]}, f
+                )
+
+            result = self.plugin.run(
+                run_uuid="uuid",
+                scenario=str(scenario_file),
+                lib_telemetry=lib_telemetry,
+                scenario_telemetry=scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
+        self.assertEqual(scenario_telemetry.affected_pods, "fake-status")
 
 
 if __name__ == "__main__":
