@@ -406,6 +406,245 @@ class TestObjectStateHealthCheckPlugin(unittest.TestCase):
         self.assertEqual(result["details"]["etcd-check"]["objects_checked"], 3)
         self.assertTrue(result["details"]["etcd-check"]["passed"])
 
+    def test_is_configured_cluster_scoped(self):
+        """is_configured returns True for cluster-scoped resources without namespace."""
+        # Node with no namespace
+        node_cfg = {"config": [{"kind": "Node", "name": "node-check"}]}
+        self.assertTrue(self.plugin.is_configured(node_cfg))
+
+        # PersistentVolume with empty namespace
+        pv_cfg = {"config": [{"kind": "PersistentVolume", "namespace": "", "name": "pv-check"}]}
+        self.assertTrue(self.plugin.is_configured(pv_cfg))
+
+        # Case-insensitive kind check
+        node_lower_cfg = {"config": [{"kind": "node", "name": "node-check"}]}
+        self.assertTrue(self.plugin.is_configured(node_lower_cfg))
+
+        # Namespaced resource without namespace returns False
+        pod_no_ns_cfg = {"config": [{"kind": "Pod", "namespace": "", "name": "pod-check"}]}
+        self.assertFalse(self.plugin.is_configured(pod_no_ns_cfg))
+
+    def test_check_object_condition_cluster_scoped(self):
+        """_check_object_condition formats cluster-scoped objects without namespace."""
+        obj = {
+            "kind": "Node",
+            "metadata": {"name": "worker-1"},
+            "status": {
+                "conditions": [
+                    {"type": "Ready", "status": "True", "reason": "KubeletReady"}
+                ]
+            }
+        }
+
+        passed, message = self.plugin._check_object_condition(obj, "Ready", "True")
+        self.assertTrue(passed)
+        self.assertEqual(message, "Node worker-1 condition Ready=True")
+        self.assertNotIn("None", message)
+        self.assertNotIn("unknown", message)
+
+    def test_check_single_config_cluster_scoped_no_objects(self):
+        """_check_single_config for cluster-scoped resource does not mention namespace default."""
+        self.mock_krkn_lib.list_nodes.return_value = []
+        config = {
+            "name": "test-node-check",
+            "kind": "Node",
+            "condition": {"type": "Ready", "status": "True"}
+        }
+        result = self.plugin._check_single_config(config)
+
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["message"], "No Node objects found matching criteria")
+        self.assertNotIn("namespace default", result["message"])
+
+    def test_run_once_cluster_scoped_node(self):
+        """run_once executes and passes for Node checks without namespace."""
+        self.mock_krkn_lib.list_nodes.return_value = [
+            {
+                "kind": "Node",
+                "metadata": {"name": "node-1"},
+                "status": {
+                    "conditions": [{"type": "Ready", "status": "True"}]
+                }
+            }
+        ]
+
+        # Case 1: omitted namespace
+        config_no_ns = {
+            "config": [
+                {
+                    "name": "node-ready",
+                    "kind": "Node",
+                    "condition": {"type": "Ready", "status": "True"}
+                }
+            ]
+        }
+        result = self.plugin.run_once(config_no_ns)
+        self.assertTrue(result["passed"])
+        self.assertEqual(len(result["failures"]), 0)
+        self.assertEqual(result["details"]["node-ready"]["objects_checked"], 1)
+
+        # Case 2: explicit empty string namespace
+        config_empty_ns = {
+            "config": [
+                {
+                    "name": "node-ready-empty",
+                    "kind": "Node",
+                    "namespace": "",
+                    "condition": {"type": "Ready", "status": "True"}
+                }
+            ]
+        }
+        result_empty = self.plugin.run_once(config_empty_ns)
+        self.assertTrue(result_empty["passed"])
+        self.assertEqual(result_empty["details"]["node-ready-empty"]["objects_checked"], 1)
+
+    def test_is_check_runnable_helper(self):
+        """_is_check_runnable validates dictionaries with namespace or cluster-scoped kinds."""
+        self.assertTrue(self.plugin._is_check_runnable({"kind": "Node"}))
+        self.assertTrue(self.plugin._is_check_runnable({"kind": "PersistentVolume", "namespace": ""}))
+        self.assertTrue(self.plugin._is_check_runnable({"kind": "Pod", "namespace": "default"}))
+        self.assertFalse(self.plugin._is_check_runnable({"kind": "Pod", "namespace": ""}))
+        self.assertFalse(self.plugin._is_check_runnable({"kind": "Pod"}))
+        self.assertFalse(self.plugin._is_check_runnable(None))
+        self.assertFalse(self.plugin._is_check_runnable("not-a-dict"))
+
+    def test_run_once_with_null_list_item(self):
+        """run_once safely ignores non-dict/null list items without raising AttributeError."""
+        self.mock_krkn_lib.list_nodes.return_value = [
+            {
+                "kind": "Node",
+                "metadata": {"name": "node-1"},
+                "status": {"conditions": [{"type": "Ready", "status": "True"}]}
+            }
+        ]
+        config = {
+            "config": [
+                None,
+                {
+                    "name": "node-ready",
+                    "kind": "Node",
+                    "condition": {"type": "Ready", "status": "True"}
+                },
+                "not-a-dict"
+            ]
+        }
+        result = self.plugin.run_once(config)
+        self.assertTrue(result["passed"])
+        self.assertIn("node-ready", result["details"])
+
+    @patch("time.sleep")
+    def test_run_health_check_unnamed_failing_check_no_key_error(self, mock_sleep):
+        """run_health_check assigns fallback names to unnamed checks and avoids KeyError on failure."""
+        mock_sleep.side_effect = lambda *_: self.plugin.stop()
+        self.mock_krkn_lib.list_nodes.return_value = [
+            {
+                "kind": "Node",
+                "metadata": {"name": "node-1"},
+                "status": {"conditions": [{"type": "Ready", "status": "False", "reason": "NotReady"}]}
+            }
+        ]
+        config = {
+            "interval": 0,
+            "config": [
+                {
+                    "kind": "Node",
+                    "condition": {"type": "Ready", "status": "True"}
+                }
+            ]
+        }
+        telemetry_queue = queue.Queue()
+        self.plugin.iterations = 1
+        self.plugin.current_iterations = 0
+        self.plugin.run_health_check(config, telemetry_queue)
+        self.assertFalse(telemetry_queue.empty())
+        records = telemetry_queue.get()
+        self.assertGreater(len(records), 0)
+        self.assertEqual(records[0].check_name, "check-0")
+
+    def test_cluster_scoped_lookup_string_names(self):
+        """_get_objects resolves node names via get_object_by_name."""
+        self.mock_krkn_lib.list_nodes.return_value = ["worker-1"]
+        node_obj = {
+            "kind": "Node",
+            "metadata": {"name": "worker-1"},
+            "status": {"conditions": [{"type": "Ready", "status": "True"}]}
+        }
+        self.mock_krkn_lib.get_object_by_name.return_value = node_obj
+
+        config = {
+            "name": "node-check",
+            "kind": "Node",
+            "condition": {"type": "Ready", "status": "True"}
+        }
+        result = self.plugin._check_single_config(config)
+        self.assertTrue(result["passed"])
+        self.mock_krkn_lib.get_object_by_name.assert_called_once_with("Node", "worker-1", "")
+
+    def test_cluster_scoped_node_dummy_namespace_ignored(self):
+        """_check_single_config ignores configured namespace for cluster-scoped kinds."""
+        self.mock_krkn_lib.list_nodes.return_value = []
+        config = {
+            "name": "node-check",
+            "kind": "Node",
+            "namespace": "default",
+            "condition": {"type": "Ready", "status": "True"}
+        }
+        result = self.plugin._check_single_config(config)
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["message"], "No Node objects found matching criteria")
+        self.assertNotIn("in namespace default", result["message"])
+
+    def test_persistent_volume_phase_matching(self):
+        """_check_object_condition evaluates status.phase for PersistentVolume without conditions."""
+        pv_obj = {
+            "kind": "PersistentVolume",
+            "metadata": {"name": "pv-01"},
+            "status": {
+                "phase": "Available"
+            }
+        }
+
+        # Match by phase name as condition type
+        passed, msg = self.plugin._check_object_condition(pv_obj, "Available", "True")
+        self.assertTrue(passed)
+        self.assertIn("phase=Available", msg)
+
+        # Match by type='Phase'
+        passed, msg = self.plugin._check_object_condition(pv_obj, "Phase", "Available")
+        self.assertTrue(passed)
+        self.assertIn("phase=Available", msg)
+
+        # Mismatch by type='Phase'
+        passed, msg = self.plugin._check_object_condition(pv_obj, "Phase", "Bound")
+        self.assertFalse(passed)
+        self.assertIn("expected Bound", msg)
+
+    def test_run_once_cluster_scoped_persistent_volume(self):
+        """run_once executes and passes for PersistentVolume checks without namespace."""
+        pv_obj = {
+            "kind": "PersistentVolume",
+            "metadata": {"name": "pv-01"},
+            "status": {
+                "phase": "Available"
+            }
+        }
+        mock_result = MagicMock()
+        mock_result.items = [pv_obj]
+        self.mock_krkn_lib.cli.list_persistent_volume.return_value = mock_result
+
+        config = {
+            "config": [
+                {
+                    "name": "pv-check",
+                    "kind": "PersistentVolume",
+                    "condition": {"type": "Available", "status": "True"}
+                }
+            ]
+        }
+        result = self.plugin.run_once(config)
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["details"]["pv-check"]["objects_checked"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

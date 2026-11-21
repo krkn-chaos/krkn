@@ -62,6 +62,8 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
     DaemonSet, etc.) and check specific conditions on those resources.
     """
 
+    CLUSTER_SCOPED_KINDS = {"node", "persistentvolume"}
+
     def __init__(
         self,
         health_check_type: str = "object_state_health_check",
@@ -98,13 +100,25 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
         """
         return "object_state_checks"
 
+    def _is_check_runnable(self, check: Any) -> bool:
+        """
+        Determines if a check configuration is runnable.
+
+        A check is runnable if it is a dictionary and either has a non-empty namespace
+        or targets a supported cluster-scoped resource kind.
+        """
+        if not isinstance(check, dict):
+            return False
+        kind = str(check.get("kind", "")).strip().lower()
+        if kind in self.CLUSTER_SCOPED_KINDS:
+            return True
+        namespace = check.get("namespace", "")
+        return bool(isinstance(namespace, str) and namespace.strip())
+
     def is_configured(self, config: dict[str, Any]) -> bool:
-        """Run only when at least one object-state check has a namespace."""
+        """Run when at least one object-state check is runnable."""
         checks = config.get("config", [])
-        return any(
-            isinstance(check, dict) and str(check.get("namespace", "")).strip()
-            for check in checks
-        )
+        return any(self._is_check_runnable(check) for check in checks)
 
     def increment_iterations(self) -> None:
         """
@@ -222,8 +236,9 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
             return objects if objects else []
 
         except Exception as e:
+            ns_msg = f" in namespace {namespace}" if namespace else ""
             logging.error(
-                f"Error getting {kind} objects in namespace {namespace}: {e}"
+                f"Error getting {kind} objects{ns_msg}: {e}"
             )
             return []
 
@@ -246,7 +261,8 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
         try:
             return self.krkn_lib.get_object_by_name(kind, name, namespace)
         except Exception as e:
-            logging.debug(f"Error getting {kind} {namespace}/{name}: {e}")
+            ns_msg = f" {namespace}/{name}" if namespace else f" {name}"
+            logging.debug(f"Error getting {kind}{ns_msg}: {e}")
             return None
 
     def _check_object_condition(
@@ -278,33 +294,50 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
 
         kind = obj.get("kind", "Unknown")
         obj_name = obj.get("metadata", {}).get("name", "unknown")
-        namespace = obj.get("metadata", {}).get("namespace", "unknown")
+        namespace = obj.get("metadata", {}).get("namespace")
+        obj_id = f"{kind} {namespace}/{obj_name}" if namespace else f"{kind} {obj_name}"
 
-        # Get conditions from object status
+        # 1. Check conditions list (Pod, Node, Deployment, Job, etc.)
         conditions = obj.get("status", {}).get("conditions", [])
+        if conditions:
+            for condition in conditions:
+                if condition.get("type") == condition_type:
+                    actual_status = condition.get("status", "Unknown")
+                    if actual_status == condition_status:
+                        return True, f"{obj_id} condition {condition_type}={condition_status}"
+                    else:
+                        reason = condition.get("reason", "")
+                        message = condition.get("message", "")
+                        return False, (
+                            f"{obj_id} condition {condition_type}={actual_status} "
+                            f"(expected {condition_status}). Reason: {reason}. Message: {message}"
+                        )
 
-        if not conditions:
-            return False, f"{kind} {namespace}/{obj_name} has no conditions"
+        # 2. Check status.phase (for resources like PersistentVolume that use phase instead of conditions)
+        status_obj = obj.get("status", {})
+        phase = status_obj.get("phase")
+        if phase:
+            if condition_type.lower() == "phase":
+                if str(phase).lower() == str(condition_status).lower():
+                    return True, f"{obj_id} phase={phase}"
+                return False, f"{obj_id} phase={phase} (expected {condition_status})"
+            elif condition_type.lower() == str(phase).lower():
+                if str(condition_status).lower() in ("true", "yes", "1"):
+                    return True, f"{obj_id} phase={phase}"
+                return False, f"{obj_id} phase={phase} (expected {condition_status})"
 
-        # Find the matching condition
-        for condition in conditions:
-            if condition.get("type") == condition_type:
-                actual_status = condition.get("status", "Unknown")
-                if actual_status == condition_status:
-                    return True, f"{kind} {namespace}/{obj_name} condition {condition_type}={condition_status}"
-                else:
-                    reason = condition.get("reason", "")
-                    message = condition.get("message", "")
-                    return False, (
-                        f"{kind} {namespace}/{obj_name} condition {condition_type}={actual_status} "
-                        f"(expected {condition_status}). Reason: {reason}. Message: {message}"
-                    )
+        if not conditions and not phase:
+            return False, f"{obj_id} has no conditions or phase"
 
         # Condition type not found
-        available_conditions = [c.get("type") for c in conditions]
+        available = []
+        if conditions:
+            available.extend([c.get("type") for c in conditions])
+        if phase:
+            available.append(f"Phase={phase}")
         return False, (
-            f"{kind} {namespace}/{obj_name} does not have condition type '{condition_type}'. "
-            f"Available conditions: {available_conditions}"
+            f"{obj_id} does not have condition type '{condition_type}'. "
+            f"Available: {available}"
         )
 
     def _check_single_config(self, check_config: dict) -> dict[str, Any]:
@@ -317,19 +350,17 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
         check_name = check_config.get("name", "unnamed-check")
         kind = check_config.get("kind", "")
         object_name = check_config.get("object_name", None)
-        namespace = check_config.get("namespace", "default")
         label_selector = check_config.get("label_selector", None)
         condition = check_config.get("condition", {})
         condition_type = condition.get("type", "Ready")
         condition_status = condition.get("status", "True")
 
-        if not isinstance(namespace, str) or not namespace.strip():
-            return {
-                "check_name": check_name,
-                "passed": True,
-                "skipped": True,
-                "message": "Namespace is not specified, skipping object state check"
-            }
+        is_cluster_scoped = str(kind).strip().lower() in self.CLUSTER_SCOPED_KINDS
+        if is_cluster_scoped:
+            namespace = ""
+        else:
+            raw_namespace = check_config.get("namespace")
+            namespace = raw_namespace if raw_namespace is not None else "default"
 
         if not kind:
             return {
@@ -338,14 +369,23 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
                 "message": "No 'kind' specified in configuration"
             }
 
+        if not self._is_check_runnable(check_config):
+            return {
+                "check_name": check_name,
+                "passed": True,
+                "skipped": True,
+                "message": "Namespace is not specified, skipping object state check"
+            }
+
         # Get matching objects
         objects = self._get_objects(kind, namespace, object_name, label_selector)
 
         if not objects:
+            ns_msg = f" in namespace {namespace}" if namespace else ""
             return {
                 "check_name": check_name,
                 "passed": False,
-                "message": f"No {kind} objects found matching criteria in namespace {namespace}"
+                "message": f"No {kind} objects found matching criteria{ns_msg}"
             }
 
         # Check condition on all matching objects
@@ -418,13 +458,16 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
         only_failures = config.get("only_failures", False)
 
         for check_config in config.get("config", []):
-            namespace = check_config.get("namespace", "default")
-            if not isinstance(namespace, str) or not namespace.strip():
-                logging.debug(
-                    "Object state check '%s' has no namespace, skipping",
-                    check_config.get("name", "unnamed-check")
-                )
+            if not self._is_check_runnable(check_config):
+                if isinstance(check_config, dict):
+                    logging.debug(
+                        "Object state check '%s' has no namespace and is not cluster-scoped, skipping",
+                        check_config.get("name", "unnamed-check")
+                    )
                 continue
+
+            kind = check_config.get("kind", "")
+            is_cluster_scoped = str(kind).strip().lower() in self.CLUSTER_SCOPED_KINDS
 
             result = self._check_single_config(check_config)
             check_name = result["check_name"]
@@ -440,7 +483,7 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
                 telemetry_record = {
                     "check_name": check_name,
                     "kind": cfg.get("kind", ""),
-                    "namespace": cfg.get("namespace", ""),
+                    "namespace": "" if is_cluster_scoped else cfg.get("namespace", ""),
                     "object_name": cfg.get("object_name", ""),
                     "condition_type": condition.get("type", ""),
                     "condition_status": condition.get("status", ""),
@@ -498,13 +541,17 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
 
         check_configs = [
             cfg for cfg in config.get("config", [])
-            if isinstance(cfg.get("namespace", "default"), str)
-            and cfg.get("namespace", "default").strip()
+            if self._is_check_runnable(cfg)
         ]
         if len(check_configs) != len(config.get("config", [])):
-            logging.debug("Skipping object state checks with no namespace")
+            logging.debug("Skipping object state checks that are not runnable")
         if not check_configs:
             return
+
+        # Ensure all check configs have a consistent name to prevent KeyError on lookup
+        for i, cfg in enumerate(check_configs):
+            if not cfg.get("name"):
+                cfg["name"] = f"check-{i}"
 
         health_check_telemetry = []
         health_check_tracker = {}
@@ -514,14 +561,14 @@ class ObjectStateHealthCheckPlugin(AbstractHealthCheckPlugin):
 
         # Track current status for each check
         status_tracker = {
-            cfg.get("name", f"check-{i}"): True
-            for i, cfg in enumerate(check_configs)
+            cfg["name"]: True
+            for cfg in check_configs
         }
 
         # Store check configs by name for telemetry
         check_configs_by_name = {
-            cfg.get("name", f"check-{i}"): cfg
-            for i, cfg in enumerate(check_configs)
+            cfg["name"]: cfg
+            for cfg in check_configs
         }
 
         while self.current_iterations < self.iterations and not self._stop_event.is_set():
