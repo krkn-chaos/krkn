@@ -28,6 +28,19 @@ SCENARIO_EXECUTION_MARKERS = {
     "node_network_chaos": r"creating workload to inject network chaos in node|removing tc rules",
     "container_scenarios": r"Killing container .+ in pod",
     "namespace_deletion": r"Delete objects in selected namespace|Deleted all objects in namespace",
+    "pod_network_filter": r"creating workload to filter pod|removing iptables rules",
+    "pod_network_chaos": r"creating workload to inject network chaos in pod|removing tc rules",
+    "node_scenarios": r"node_\w+_scenario has been successfully injected|There is no node action that matches",
+    "time_scenarios": r"Reset date/time on (pod|node)",
+    "cpu_hog": r"running cpu hog scenario",
+    "memory_hog": r"running memory hog scenario",
+    "io_hog": r"running io hog scenario",
+    # Shared filesystem_pvc helper emits this after creating and measuring
+    # the fill file. Keep the marker aligned with that implementation so a
+    # successful delegated fill passes the execution-evidence gate.
+    "pvc": r"Filesystem PVC fill: file=.+requested=",
+    "vmi_pvc_fill": r"Filesystem PVC fill: file=.+requested=",
+    "service_hijacking": r"hijack|hijacking|service",
 }
 
 # nodeid -> {"scenario", "pattern", "verified"}; consumed by conftest to build the

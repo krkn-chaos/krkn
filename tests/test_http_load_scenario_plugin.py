@@ -263,7 +263,7 @@ class TestHttpLoadRun(unittest.TestCase):
                 "duration": "10s",
                 "namespace": "default",
                 "number-of-pods": 1,
-                "image": "quay.io/krkn-chaos/krkn-http-load:latest"
+                "image": "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-http-load"
             }
         }]
         if config:

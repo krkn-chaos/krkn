@@ -47,7 +47,7 @@ _inject("krkn_lib.utils.functions",
         ),
         get_junit_test_case=MagicMock())
 _inject("krkn_lib.models.telemetry",
-        ScenarioTelemetry=MagicMock(), ChaosRunTelemetry=MagicMock(), FailedAlert=MagicMock())
+        ScenarioTelemetry=MagicMock(), ChaosRunTelemetry=MagicMock(), Alerts=MagicMock())
 
 
 class _VirtCheck:

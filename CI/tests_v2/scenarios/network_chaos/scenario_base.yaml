@@ -1,0 +1,9 @@
+network_chaos:
+  duration: 10
+  node_name: ""
+  label_selector: ""
+  instance_count: 1
+  interfaces: []
+  execution: serial
+  egress:
+    bandwidth: 100mbit

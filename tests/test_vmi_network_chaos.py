@@ -26,7 +26,7 @@ MODULE = "krkn.scenario_plugins.network_chaos_ng.modules.vmi_network_chaos"
 def _make_config(**overrides):
     defaults = dict(
         id="vmi_network_chaos",
-        image="quay.io/krkn-chaos/krkn-network-chaos:latest",
+        image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos",
         wait_duration=300,
         test_duration=60,
         label_selector="",

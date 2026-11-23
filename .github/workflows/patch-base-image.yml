@@ -1,0 +1,919 @@
+name: Patch Krkn Base Image
+
+on:
+  workflow_dispatch:
+    inputs:
+      krkn_ref:
+        description: Krkn source ref to package into the image
+        required: true
+        default: main
+        type: string
+      library_patch_level:
+        description: Highest allowed dependency update level
+        required: true
+        default: minor
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      publish_target:
+        description: Publish to beta for validation or production after approval
+        required: true
+        default: beta
+        type: choice
+        options:
+          - beta
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: krkn-image-publish
+  cancel-in-progress: false
+
+env:
+  COPA_VERSION: 0.15.0
+  GRYPE_VERSION: 0.121.3
+  QUAY_REPOSITORY: ${{ inputs.publish_target == 'production' && 'quay.io/krkn-chaos/krkn' || 'quay.io/krkn-chaos/krkn-beta' }}
+  MIRROR_REPOSITORY: quay.io/redhat-chaos/krkn
+  COPA_EXPERIMENTAL: '1'
+  KRKN_COPA_LIBRARY_PATCH_LEVEL: ${{ inputs.library_patch_level }}
+
+jobs:
+  build-tools:
+    name: Patch and build ${{ matrix.tool }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tool: oc
+            arch: amd64
+            runner: ubuntu-latest
+          - tool: virtctl
+            arch: amd64
+            runner: ubuntu-latest
+          - tool: yq
+            arch: amd64
+            runner: ubuntu-latest
+          - tool: oc
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - tool: virtctl
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - tool: yq
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
+        with:
+          go-version: '1.26.9'
+
+      - name: Set up Docker with containerd image store
+        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+          set-host: true
+
+      - name: Test Grype-to-Copa version selection
+        run: python3 scripts/test_copa_grype.py
+
+      - name: Test Grype report severity aggregation
+        if: matrix.tool == 'oc' && matrix.arch == 'amd64'
+        run: python3 scripts/test_summarize_grype_report.py
+
+      - name: Install Grype, Copa, and the Grype adapter
+        run: scripts/install-copa-grype-tools.sh
+
+      - name: Patch Go dependencies with Copa and compile the tool
+        env:
+          GOMAXPROCS: '2'
+          GOFLAGS: -p=2
+        run: |
+          set -Eeuo pipefail
+          work="$RUNNER_TEMP/krkn-go-tools/${{ matrix.tool }}"
+          scripts/build-patched-go-tool.sh \
+            '${{ matrix.tool }}' '${{ matrix.arch }}' \
+            "$work/bin" "$work/metadata" "$work/reports"
+
+      - name: Upload compiled binary artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tool-binary-${{ matrix.arch }}-${{ matrix.tool }}
+          path: ${{ runner.temp }}/krkn-go-tools/${{ matrix.tool }}/bin/${{ matrix.tool }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload patched Go manifests and scan reports
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tool-evidence-${{ matrix.arch }}-${{ matrix.tool }}
+          path: |
+            ${{ runner.temp }}/krkn-go-tools/${{ matrix.tool }}/metadata/
+            ${{ runner.temp }}/krkn-go-tools/${{ matrix.tool }}/reports/
+          if-no-files-found: error
+          retention-days: 30
+
+  build-candidates:
+    name: Patch Python dependencies and build (${{ matrix.arch }})
+    needs: build-tools
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Set up Go
+        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.4.0
+        with:
+          go-version: '1.26.9'
+
+      - name: Set up Docker with containerd image store
+        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+          set-host: true
+
+      - name: Install Grype, Copa, and the Grype adapter
+        run: scripts/install-copa-grype-tools.sh
+
+      - name: Download Go binaries for this architecture
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: tool-binary-${{ matrix.arch }}-*
+          path: containers/tools/${{ matrix.arch }}
+          merge-multiple: true
+
+      - name: Resolve Krkn source and prepare Python dependency build context
+        id: source
+        env:
+          KRKN_REF: ${{ inputs.krkn_ref }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          source_dir="$RUNNER_TEMP/krkn-source"
+          git clone https://github.com/krkn-chaos/krkn.git "$source_dir"
+          git -C "$source_dir" checkout --detach "$KRKN_REF"
+          mkdir -p "$RUNNER_TEMP/python-deps-context"
+          cp "$source_dir/requirements.txt" "$RUNNER_TEMP/python-deps-context/requirements.txt"
+          cp containers/Dockerfile.python-dependencies "$RUNNER_TEMP/python-deps-context/Dockerfile"
+          echo "source_commit=$(git -C "$source_dir" rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build Python dependency image from Krkn requirements
+        id: deps
+        run: |
+          set -Eeuo pipefail
+          image="localhost/krkn-python-deps:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          docker build --pull --platform "linux/${{ matrix.arch }}" \
+            --tag "$image" "$RUNNER_TEMP/python-deps-context"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Scan Python dependencies with Grype
+        id: python_scan
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/grype-python-before-${{ matrix.arch }}.json"
+          freeze="$RUNNER_TEMP/python-freeze-before-${{ matrix.arch }}.txt"
+          manifest="$RUNNER_TEMP/copa-python-${{ matrix.arch }}.json"
+          grype "docker:${{ steps.deps.outputs.image }}" --output json --file "$report"
+          docker run --rm --entrypoint python3.11 '${{ steps.deps.outputs.image }}' \
+            -m pip freeze --all > "$freeze"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" "$freeze" > "$manifest"
+          count=$(jq '[.langupdates[]?.name] | unique | length' "$manifest")
+          echo "report=$manifest" >> "$GITHUB_OUTPUT"
+          echo "grype_report=$report" >> "$GITHUB_OUTPUT"
+          echo "updates=$count" >> "$GITHUB_OUTPUT"
+          echo "Grype/Copa Python package updates for linux/${{ matrix.arch }}: $count"
+
+      - name: Apply and validate Copa Python dependency updates
+        id: patch
+        env:
+          SOURCE_IMAGE: ${{ steps.deps.outputs.image }}
+          COPA_REPORT: ${{ steps.python_scan.outputs.report }}
+        run: |
+          set -Eeuo pipefail
+          image="localhost/krkn-python-deps-patched:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          scripts/apply-copa-python-updates.sh \
+            "$SOURCE_IMAGE" "$COPA_REPORT" "$image" '${{ matrix.arch }}'
+
+      - name: Rescan Python dependencies after Copa
+        id: python_rescan
+        env:
+          PATCHED_IMAGE: ${{ steps.patch.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          report="$RUNNER_TEMP/grype-python-after-${{ matrix.arch }}.json"
+          grype "docker:$PATCHED_IMAGE" --output json --file "$report"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype "$report" \
+            "$RUNNER_TEMP/patched-python-freeze-${{ matrix.arch }}.txt" \
+            > "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json"
+          remaining=$(jq '[.langupdates[]?.name] | unique | length' \
+            "$RUNNER_TEMP/copa-python-after-${{ matrix.arch }}.json")
+          echo "report=$report" >> "$GITHUB_OUTPUT"
+          echo "remaining=$remaining" >> "$GITHUB_OUTPUT"
+          if (( remaining > 0 )); then
+            echo "warning: $remaining patch-level eligible Python updates remain after Copa" >&2
+          fi
+
+      - name: Prepare remediation image context
+        run: |
+          set -Eeuo pipefail
+          scripts/prepare-remediation-dockerfile.sh
+          mkdir -p "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}"
+          cp "containers/Dockerfile.remediation" "$RUNNER_TEMP/krkn-image-context/Dockerfile"
+          cp containers/krknctl-input.json "$RUNNER_TEMP/krkn-image-context/containers/krknctl-input.json"
+          cp "containers/tools/${{ matrix.arch }}/"* \
+            "$RUNNER_TEMP/krkn-image-context/containers/tools/${{ matrix.arch }}/"
+
+      - name: Build and scan candidate image
+        id: candidate
+        env:
+          KRKN_REF: ${{ inputs.krkn_ref }}
+          PYTHON_IMAGE: ${{ steps.patch.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          local_image="localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          candidate_tag="candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          candidate_image="${QUAY_REPOSITORY}:${candidate_tag}"
+          # The runtime image is the locally patched Python image produced above.
+          # Do not force a registry pull for this local FROM image.
+          docker build --platform "linux/${{ matrix.arch }}" \
+            --build-arg "KRKN_RUNTIME_IMAGE=$PYTHON_IMAGE" \
+            --build-arg "TAG=${{ steps.source.outputs.source_commit }}" \
+            --tag "$local_image" "$RUNNER_TEMP/krkn-image-context"
+          docker run --rm --entrypoint /bin/bash "$local_image" -lc \
+            'python3.11 -m pip check && oc version --client && virtctl version --client && yq --version'
+          final_report="$RUNNER_TEMP/grype-candidate-${{ matrix.arch }}.json"
+          grype "docker:$local_image" --output json --file "$final_report"
+          jq '.matches |= map(select(.artifact.type == "python" or .artifact.type == "python-pkg"))' \
+            "$final_report" > "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json"
+          KRKN_COPA_ARCH='${{ matrix.arch }}' copa-grype \
+            "$RUNNER_TEMP/grype-candidate-python-${{ matrix.arch }}.json" \
+            > "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json"
+          remaining=$(jq '.langupdates | length' "$RUNNER_TEMP/copa-candidate-python-${{ matrix.arch }}.json")
+          if (( remaining > 0 )); then
+            echo "warning: $remaining selected-level Python updates remain in final candidate" >&2
+          fi
+          echo "image=$candidate_image" >> "$GITHUB_OUTPUT"
+          echo "tag=$candidate_tag" >> "$GITHUB_OUTPUT"
+          echo "source_commit=${{ steps.source.outputs.source_commit }}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Candidate image linux/${{ matrix.arch }}"
+            echo
+            echo "- Krkn ref: `$KRKN_REF` (${{ steps.source.outputs.source_commit }})"
+            echo "- Python package updates accepted: ${{ steps.patch.outputs.applied }} of ${{ steps.patch.outputs.eligible }}"
+            echo "- Python package updates skipped: ${{ steps.patch.outputs.skipped }}"
+            echo "- Remaining patch-level eligible Python updates: $remaining"
+            echo "- Candidate: `$candidate_image`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log in to krkn-chaos Quay
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Push candidate image to krkn-chaos Quay
+        env:
+          CANDIDATE_IMAGE: ${{ steps.candidate.outputs.image }}
+        run: |
+          set -Eeuo pipefail
+          docker tag "localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}" "$CANDIDATE_IMAGE"
+          docker push "$CANDIDATE_IMAGE"
+
+      - name: Log in to redhat-chaos Quay
+        if: inputs.publish_target == 'production'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USER_1 }}
+          password: ${{ secrets.QUAY_TOKEN_1 }}
+
+      - name: Push candidate image to redhat-chaos Quay
+        if: inputs.publish_target == 'production'
+        env:
+          CANDIDATE_TAG: ${{ steps.candidate.outputs.tag }}
+        run: |
+          set -Eeuo pipefail
+          image="localhost/krkn-candidate:${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${{ matrix.arch }}"
+          docker tag "$image" "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
+          docker push "${MIRROR_REPOSITORY}:${CANDIDATE_TAG}"
+
+      - name: Upload Python dependency and candidate scan evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: python-copa-evidence-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/copa-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/copa-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-python-before-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-python-after-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-candidate-${{ matrix.arch }}.json
+            ${{ runner.temp }}/grype-candidate-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/copa-candidate-python-${{ matrix.arch }}.json
+            ${{ runner.temp }}/python-freeze-before-${{ matrix.arch }}.txt
+            ${{ runner.temp }}/patched-python-freeze-${{ matrix.arch }}.txt
+          if-no-files-found: ignore
+          retention-days: 30
+
+  functional-tests:
+    name: Functional tests v2 (amd64 candidate)
+    needs: build-candidates
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Set up Docker with containerd image store
+        uses: docker/setup-docker-action@2bf61fb9464cc67f0cbdeabed6aa0380accd1c70 # v5
+        with:
+          daemon-config: |
+            {
+              "features": {
+                "containerd-snapshotter": true
+              }
+            }
+          set-host: true
+
+      - name: Run the full functional tests v2 against the amd64 candidate
+        env:
+          KRKN_REF: ${{ inputs.krkn_ref }}
+          KRKN_TEST_RESULTS_DIR: ${{ github.workspace }}/CI/tests_v2
+        run: |
+          set -Eeuo pipefail
+          image="${QUAY_REPOSITORY}:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64"
+          docker pull "$image"
+          scripts/test-patched-image.sh "$image"
+
+      - name: Upload functional test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: tests-v2-results-${{ github.run_id }}
+          path: |
+            CI/tests_v2/report.html
+            CI/tests_v2/results.xml
+          if-no-files-found: ignore
+          retention-days: 30
+
+  publish:
+    name: Sign, tag, and promote the tested multi-arch image
+    needs:
+      - build-candidates
+      - functional-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out pipeline source
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Locate offline signing config
+        run: echo "SIGNING_CONFIG=${GITHUB_WORKSPACE}/.github/cosign/signing-config.json" >> "$GITHUB_ENV"
+
+      - name: Set up Buildx for manifest promotion
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Prepare isolated Quay credentials
+        env:
+          PUBLISH_TARGET: ${{ inputs.publish_target }}
+          KRKN_QUAY_USERNAME: ${{ secrets.QUAY_USERNAME }}
+          KRKN_QUAY_PASSWORD: ${{ secrets.QUAY_PASSWORD }}
+          MIRROR_QUAY_USERNAME: ${{ secrets.QUAY_USER_1 }}
+          MIRROR_QUAY_PASSWORD: ${{ secrets.QUAY_TOKEN_1 }}
+        run: |
+          set -Eeuo pipefail
+          krkn_config="$RUNNER_TEMP/docker-config-krkn"
+          mkdir -p "$krkn_config"
+          chmod 0700 "$krkn_config"
+          printf '%s' "$KRKN_QUAY_PASSWORD" \
+            | DOCKER_CONFIG="$krkn_config" docker login quay.io \
+                --username "$KRKN_QUAY_USERNAME" --password-stdin
+          echo "KRKN_DOCKER_CONFIG=$krkn_config" >> "$GITHUB_ENV"
+
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            mirror_config="$RUNNER_TEMP/docker-config-mirror"
+            mkdir -p "$mirror_config"
+            chmod 0700 "$mirror_config"
+            printf '%s' "$MIRROR_QUAY_PASSWORD" \
+              | DOCKER_CONFIG="$mirror_config" docker login quay.io \
+                  --username "$MIRROR_QUAY_USERNAME" --password-stdin
+            echo "MIRROR_DOCKER_CONFIG=$mirror_config" >> "$GITHUB_ENV"
+          fi
+
+      - name: Stage and sign krkn-chaos manifest
+        id: krkn_manifest
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          staging_tag="${patch_tag}-signing"
+          repo="$QUAY_REPOSITORY"
+          metadata_file="$RUNNER_TEMP/krkn-manifest-metadata.json"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+            --platform linux/amd64,linux/arm64 \
+            --metadata-file "$metadata_file" \
+            --tag "$repo:$staging_tag" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
+          digest=$(jq -er '."containerimage.descriptor".digest' "$metadata_file")
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+            echo "error: unexpected krkn-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
+          platforms=$(DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
+            docker buildx imagetools inspect --raw "$repo:$staging_tag" | \
+            jq -r '[.manifests[]?.platform? | select(.os == "linux") | "\(.os)/\(.architecture)"] | unique | sort | join(",")')
+          [[ "$platforms" == "linux/amd64,linux/arm64" ]] || {
+            echo "error: staged krkn-chaos manifest has unexpected platforms '$platforms'" >&2
+            exit 1
+          }
+          ref="$repo@$digest"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" cosign sign --yes \
+            --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" \
+            cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign-krkn.pub"
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" cosign verify \
+            --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign-krkn.pub" "$ref"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Stage and sign redhat-chaos manifest
+        if: inputs.publish_target == 'production'
+        id: mirror_manifest
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          set -Eeuo pipefail
+          patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          staging_tag="${patch_tag}-signing"
+          repo="$MIRROR_REPOSITORY"
+          metadata_file="$RUNNER_TEMP/mirror-manifest-metadata.json"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+            --platform linux/amd64,linux/arm64 \
+            --metadata-file "$metadata_file" \
+            --tag "$repo:$staging_tag" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-amd64" \
+            "$repo:candidate-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-arm64"
+          digest=$(jq -er '."containerimage.descriptor".digest' "$metadata_file")
+          [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+            echo "error: unexpected redhat-chaos manifest digest '$digest'" >&2
+            exit 1
+          }
+          platforms=$(DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
+            docker buildx imagetools inspect --raw "$repo:$staging_tag" | \
+            jq -r '[.manifests[]?.platform? | select(.os == "linux") | "\(.os)/\(.architecture)"] | unique | sort | join(",")')
+          [[ "$platforms" == "linux/amd64,linux/arm64" ]] || {
+            echo "error: staged redhat-chaos manifest has unexpected platforms '$platforms'" >&2
+            exit 1
+          }
+          ref="$repo@$digest"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" cosign sign --yes \
+            --signing-config "$SIGNING_CONFIG" --key env://COSIGN_PRIVATE_KEY "$ref"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" \
+            cosign public-key --key env://COSIGN_PRIVATE_KEY > "$RUNNER_TEMP/cosign-mirror.pub"
+          DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" cosign verify \
+            --insecure-ignore-tlog=true --key "$RUNNER_TEMP/cosign-mirror.pub" "$ref"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Record current latest digests
+        id: previous
+        env:
+          PUBLISH_TARGET: ${{ inputs.publish_target }}
+        run: |
+          set -Eeuo pipefail
+          latest_digest() {
+            local config=$1
+            local repo=$2
+            local output
+            if ! output=$(DOCKER_CONFIG="$config" docker buildx imagetools inspect "$repo:latest" 2>/dev/null); then
+              return 1
+            fi
+            printf '%s\n' "$output" | awk '$1 == "Digest:" { print $2; exit }'
+          }
+
+          krkn_previous=NONE
+          if digest=$(latest_digest "$KRKN_DOCKER_CONFIG" "$QUAY_REPOSITORY"); then
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo "error: could not parse previous krkn-chaos latest digest" >&2
+              exit 1
+            }
+            krkn_previous=$digest
+          elif [[ "$PUBLISH_TARGET" == production ]]; then
+            echo "error: cannot read the existing krkn-chaos latest digest; refusing production promotion" >&2
+            exit 1
+          fi
+          echo "krkn=$krkn_previous" >> "$GITHUB_OUTPUT"
+
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            mirror_previous=$(latest_digest "$MIRROR_DOCKER_CONFIG" "$MIRROR_REPOSITORY") || {
+              echo "error: cannot read the existing redhat-chaos latest digest; refusing production promotion" >&2
+              exit 1
+            }
+            [[ "$mirror_previous" =~ ^sha256:[a-f0-9]{64}$ ]] || {
+              echo "error: could not parse previous redhat-chaos latest digest" >&2
+              exit 1
+            }
+            echo "mirror=$mirror_previous" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Promote validated manifests with rollback for latest
+        env:
+          PUBLISH_TARGET: ${{ inputs.publish_target }}
+          KRKN_DIGEST: ${{ steps.krkn_manifest.outputs.digest }}
+          MIRROR_DIGEST: ${{ steps.mirror_manifest.outputs.digest }}
+          KRKN_PREVIOUS_DIGEST: ${{ steps.previous.outputs.krkn }}
+          MIRROR_PREVIOUS_DIGEST: ${{ steps.previous.outputs.mirror }}
+        run: |
+          set -Eeuo pipefail
+          patch_tag="patch-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          krkn_ref="$QUAY_REPOSITORY@$KRKN_DIGEST"
+          mirror_ref="$MIRROR_REPOSITORY@$MIRROR_DIGEST"
+
+          rollback_latest() {
+            local status=$?
+            trap - EXIT
+            if (( status != 0 )); then
+              echo "Promotion failed; restoring previously recorded latest tags" >&2
+              set +e
+              if [[ "$KRKN_PREVIOUS_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+                  --tag "$QUAY_REPOSITORY:latest" \
+                  "$QUAY_REPOSITORY@$KRKN_PREVIOUS_DIGEST" || \
+                  echo "ERROR: failed to restore $QUAY_REPOSITORY:latest" >&2
+              fi
+              if [[ "$PUBLISH_TARGET" == production && "$MIRROR_PREVIOUS_DIGEST" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+                  --tag "$MIRROR_REPOSITORY:latest" \
+                  "$MIRROR_REPOSITORY@$MIRROR_PREVIOUS_DIGEST" || \
+                  echo "ERROR: failed to restore $MIRROR_REPOSITORY:latest" >&2
+              fi
+            fi
+            exit "$status"
+          }
+          trap rollback_latest EXIT
+
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+            --tag "$QUAY_REPOSITORY:latest" "$krkn_ref"
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+              --tag "$MIRROR_REPOSITORY:latest" "$mirror_ref"
+          fi
+
+          DOCKER_CONFIG="$KRKN_DOCKER_CONFIG" docker buildx imagetools create \
+            --tag "$QUAY_REPOSITORY:$patch_tag" "$krkn_ref"
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            DOCKER_CONFIG="$MIRROR_DOCKER_CONFIG" docker buildx imagetools create \
+              --tag "$MIRROR_REPOSITORY:$patch_tag" "$mirror_ref"
+          fi
+
+          echo "Published $QUAY_REPOSITORY:$patch_tag and $QUAY_REPOSITORY:latest at $KRKN_DIGEST" \
+            >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$PUBLISH_TARGET" == production ]]; then
+            echo "Published $MIRROR_REPOSITORY:$patch_tag and $MIRROR_REPOSITORY:latest at $MIRROR_DIGEST" \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Rebuild krkn-hub
+        if: inputs.publish_target == 'production'
+        uses: redhat-chaos/actions/krkn-hub@b3118123a105aa4d208b282639d24f71d02fb25c # main
+        with:
+          QUAY_USER: ${{ secrets.QUAY_USERNAME }}
+          QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
+          AUTOPUSH: ${{ secrets.AUTOPUSH }}
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+  notify:
+    name: Publish final vulnerability report
+    if: always()
+    needs:
+      - build-tools
+      - build-candidates
+      - functional-tests
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out pipeline scripts
+        id: checkout_scripts
+        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 # v3
+
+      - name: Download candidate Grype reports
+        id: candidate_reports
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: python-copa-evidence-*
+          path: ${{ runner.temp }}/post-patch-evidence
+          merge-multiple: true
+
+      - name: Summarize final candidate vulnerability reports
+        id: summary
+        if: always()
+        env:
+          CHECKOUT_RESULT: ${{ steps.checkout_scripts.outcome }}
+          DOWNLOAD_RESULT: ${{ steps.candidate_reports.outcome }}
+          BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
+          BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
+          FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          evidence_dir="$RUNNER_TEMP/post-patch-evidence"
+          summary="$RUNNER_TEMP/post-patch-grype-report.json"
+          mkdir -p "$evidence_dir"
+          mapfile -t reports < <(find "$evidence_dir" -maxdepth 1 -type f \
+            -name 'grype-candidate-*.json' ! -name 'grype-candidate-python-*.json' -print | sort)
+
+          checkout_result=${CHECKOUT_RESULT:-unknown}
+          download_result=${DOWNLOAD_RESULT:-unknown}
+          summary_error=""
+          if [[ "$checkout_result" != success ]]; then
+            report_status=checkout_failed
+            summary_error="Could not check out the pipeline scripts; candidate reports were not aggregated."
+          elif [[ "$download_result" != success ]]; then
+            report_status=artifact_download_failed
+            summary_error="Candidate artifact retrieval failed; any aggregated findings may be partial."
+          elif (( ${#reports[@]} == 0 )); then
+            report_status=no_candidate_report
+            summary_error="Artifact download succeeded, but no candidate Grype report was present."
+          else
+            report_status=available
+          fi
+
+          if [[ "$checkout_result" == success && ${#reports[@]} -gt 0 ]]; then
+            if python3 scripts/summarize_grype_report.py "${reports[@]}" > "$summary"; then
+              if jq \
+                --arg report_status "$report_status" \
+                --arg checkout_result "$checkout_result" \
+                --arg download_result "$download_result" \
+                --arg summary_error "$summary_error" \
+                --argjson candidate_report_files "${#reports[@]}" \
+                --arg build_tools "$BUILD_TOOLS_RESULT" \
+                --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
+                --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
+                --arg publish "$PUBLISH_RESULT" \
+                '. + {
+                  report_available: true,
+                  report_status: $report_status,
+                  artifact_download_complete: ($download_result == "success"),
+                  candidate_report_files_found: $candidate_report_files,
+                  diagnostics: {
+                    checkout_result: $checkout_result,
+                    artifact_download_result: $download_result,
+                    message: (if $summary_error == "" then null else $summary_error end)
+                  },
+                  job_results: {
+                    build_tools: $build_tools,
+                    build_candidates: $build_candidates,
+                    functional_tests: $functional_tests,
+                    publish: $publish
+                  }
+                }' "$summary" > "$summary.tmp"; then
+                mv "$summary.tmp" "$summary"
+              else
+                report_status=summary_failed
+                summary_error="The Grype summary could not be enriched with workflow results."
+                rm -f "$summary" "$summary.tmp"
+              fi
+            else
+              report_status=summary_failed
+              summary_error="The Grype report summarizer failed; see the workflow logs."
+              rm -f "$summary" "$summary.tmp"
+            fi
+          fi
+
+          if [[ ! -s "$summary" ]]; then
+            jq -n \
+              --arg report_status "$report_status" \
+              --arg checkout_result "$checkout_result" \
+              --arg download_result "$download_result" \
+              --arg summary_error "$summary_error" \
+              --argjson candidate_report_files "${#reports[@]}" \
+              --arg build_tools "$BUILD_TOOLS_RESULT" \
+              --arg build_candidates "$BUILD_CANDIDATES_RESULT" \
+              --arg functional_tests "$FUNCTIONAL_TESTS_RESULT" \
+              --arg publish "$PUBLISH_RESULT" \
+              '{
+                report_available: false,
+                report_status: $report_status,
+                artifact_download_complete: ($download_result == "success"),
+                candidate_report_files_found: $candidate_report_files,
+                reports: [],
+                architectures: [],
+                total_matches: 0,
+                unique_vulnerability_ids: 0,
+                unique_fixable_vulnerability_ids: 0,
+                counts_by_severity: {
+                  Critical: 0, High: 0, Medium: 0, Low: 0, Negligible: 0, Unknown: 0
+                },
+                ids_by_severity: {
+                  Critical: [], High: [], Medium: [], Low: [], Negligible: [], Unknown: []
+                },
+                findings: [],
+                diagnostics: {
+                  checkout_result: $checkout_result,
+                  artifact_download_result: $download_result,
+                  message: $summary_error
+                },
+                job_results: {
+                  build_tools: $build_tools,
+                  build_candidates: $build_candidates,
+                  functional_tests: $functional_tests,
+                  publish: $publish
+                }
+              }' > "$summary"
+          fi
+
+          report_available=$(jq -r '.report_available' "$summary")
+          report_status=$(jq -r '.report_status' "$summary")
+          echo "report_available=$report_available" >> "$GITHUB_OUTPUT"
+          echo "report_status=$report_status" >> "$GITHUB_OUTPUT"
+          echo "unique=$(jq -r '.unique_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
+          echo "fixable=$(jq -r '.unique_fixable_vulnerability_ids' "$summary")" >> "$GITHUB_OUTPUT"
+          for severity in Critical High Medium Low Negligible Unknown; do
+            key=$(printf '%s' "$severity" | tr '[:upper:]' '[:lower:]')
+            count=$(jq -r --arg severity "$severity" '.counts_by_severity[$severity]' "$summary")
+            echo "$key=$count" >> "$GITHUB_OUTPUT"
+          done
+          echo "architectures=$(jq -r '(.architectures // []) | join(", ")' "$summary")" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Post-patch Grype report'
+            echo
+            echo "- Report status: $report_status"
+            echo "- Pipeline jobs: build-tools=$BUILD_TOOLS_RESULT; build-candidates=$BUILD_CANDIDATES_RESULT; functional-tests=$FUNCTIONAL_TESTS_RESULT; publish=$PUBLISH_RESULT"
+            if [[ "$report_available" == true ]]; then
+              echo "- Candidate architectures scanned: $(jq -r '(.architectures // []) | join(", ")' "$summary")"
+              echo "- Unique vulnerability IDs: $(jq -r '.unique_vulnerability_ids' "$summary"); $(jq -r '.unique_fixable_vulnerability_ids' "$summary") with published fixes"
+              echo "- Critical: $(jq -r '.counts_by_severity.Critical' "$summary"); High: $(jq -r '.counts_by_severity.High' "$summary"); Medium: $(jq -r '.counts_by_severity.Medium' "$summary"); Low: $(jq -r '.counts_by_severity.Low' "$summary")"
+              echo "- Negligible: $(jq -r '.counts_by_severity.Negligible' "$summary"); Unknown: $(jq -r '.counts_by_severity.Unknown' "$summary")"
+              if [[ "$report_status" == artifact_download_failed ]]; then
+                echo "- Warning: artifact download failed; the findings above may be partial."
+              fi
+            else
+              echo "- Diagnostic: $(jq -r '.diagnostics.message' "$summary")"
+              echo "- Candidate report files found: $(jq -r '.candidate_report_files_found' "$summary")"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload post-patch Grype report
+        if: always() && steps.summary.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: post-patch-grype-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/post-patch-grype-report.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Send final Grype report to Slack
+        if: always()
+        continue-on-error: true
+        env:
+          KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL: ${{ secrets.KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL }}
+          REPORT_AVAILABLE: ${{ steps.summary.outputs.report_available }}
+          REPORT_STATUS: ${{ steps.summary.outputs.report_status }}
+          ARCHITECTURES: ${{ steps.summary.outputs.architectures }}
+          FINDINGS: ${{ steps.summary.outputs.unique }}
+          FIXABLE: ${{ steps.summary.outputs.fixable }}
+          CRITICAL: ${{ steps.summary.outputs.critical }}
+          HIGH: ${{ steps.summary.outputs.high }}
+          MEDIUM: ${{ steps.summary.outputs.medium }}
+          LOW: ${{ steps.summary.outputs.low }}
+          NEGLIGIBLE: ${{ steps.summary.outputs.negligible }}
+          UNKNOWN: ${{ steps.summary.outputs.unknown }}
+          BUILD_TOOLS_RESULT: ${{ needs.build-tools.result }}
+          BUILD_CANDIDATES_RESULT: ${{ needs.build-candidates.result }}
+          FUNCTIONAL_TESTS_RESULT: ${{ needs.functional-tests.result }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ -z "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL" ]]; then
+            echo "::warning::KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL is unset; final post-patch report was not sent"
+            exit 0
+          fi
+          report_available=${REPORT_AVAILABLE:-false}
+          report_status=${REPORT_STATUS:-summary_failed}
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          if [[ "$BUILD_TOOLS_RESULT" == success && "$BUILD_CANDIDATES_RESULT" == success && "$FUNCTIONAL_TESTS_RESULT" == success && "$PUBLISH_RESULT" == success ]]; then
+            pipeline_state=passed
+          else
+            pipeline_state=failed
+          fi
+          payload=$(jq -n \
+            --arg report "$report_available" \
+            --arg report_status "$report_status" \
+            --arg pipeline_state "$pipeline_state" \
+            --arg architectures "${ARCHITECTURES:-unknown}" \
+            --arg findings "${FINDINGS:-0}" \
+            --arg fixable "${FIXABLE:-0}" \
+            --arg critical "${CRITICAL:-0}" \
+            --arg high "${HIGH:-0}" \
+            --arg medium "${MEDIUM:-0}" \
+            --arg low "${LOW:-0}" \
+            --arg negligible "${NEGLIGIBLE:-0}" \
+            --arg unknown "${UNKNOWN:-0}" \
+            --arg build_tools "$BUILD_TOOLS_RESULT" \
+            --arg candidates "$BUILD_CANDIDATES_RESULT" \
+            --arg tests "$FUNCTIONAL_TESTS_RESULT" \
+            --arg publish "$PUBLISH_RESULT" \
+            --arg run_url "$run_url" '
+            def status_icon($status):
+              if $status == "success" then ":white_check_mark:"
+              elif $status == "failure" then ":x:"
+              elif $status == "cancelled" then ":no_entry_sign:"
+              elif $status == "skipped" then ":fast_forward:"
+              else ":hourglass_flowing_sand:" end;
+            def report_description($status):
+              if $status == "available" then "candidate scan report available"
+              elif $status == "artifact_download_failed" then "candidate artifact download failed; any findings shown may be partial"
+              elif $status == "checkout_failed" then "pipeline script checkout failed; candidate reports were not aggregated"
+              elif $status == "no_candidate_report" then "artifact download completed but no candidate Grype report was present"
+              elif $status == "summary_failed" then "candidate report summarization failed"
+              else "final candidate report status is unknown" end;
+            {
+              text: ("Krkn post-patch report (" + $pipeline_state + "): " +
+                (if $report == "true" then
+                  (if $report_status == "artifact_download_failed" then
+                    "partial summary: " + $findings + " unique CVEs, " + $fixable + " fixable."
+                  else
+                    $findings + " unique CVEs, " + $fixable + " fixable."
+                  end)
+                else report_description($report_status) end)),
+              blocks:[
+                {type:"header", text:{type:"plain_text", text:(if $pipeline_state == "passed" and $report_status == "available" then "✅ Krkn remediation complete" else "⚠️ Krkn remediation report" end), emoji:true}},
+                {type:"section", fields:[
+                  {type:"mrkdwn", text:("*Pipeline status:* " + $pipeline_state)},
+                  {type:"mrkdwn", text:("*Report status:* " + $report_status)},
+                  {type:"mrkdwn", text:("*Architectures:* " + $architectures)}
+                ]},
+                (if $report == "true" then
+                  {type:"section", text:{type:"mrkdwn", text:(if $report_status == "artifact_download_failed" then
+                    "⚠️ Candidate artifact retrieval failed; the findings below may be incomplete."
+                  else
+                    "*Post-patch result:* *" + $findings + " unique CVEs* · *" + $fixable + " fixable*"
+                  end)}}
+                else
+                  {type:"section", text:{type:"mrkdwn", text:report_description($report_status)}}
+                end),
+                (if $report == "true" then
+                  {type:"section", fields:[
+                    {type:"mrkdwn", text:(":rotating_light: *Critical* " + $critical)},
+                    {type:"mrkdwn", text:(":red_circle: *High* " + $high)},
+                    {type:"mrkdwn", text:(":large_orange_circle: *Medium* " + $medium)},
+                    {type:"mrkdwn", text:(":large_yellow_circle: *Low* " + $low)},
+                    {type:"mrkdwn", text:(":white_circle: *Negligible* " + $negligible)},
+                    {type:"mrkdwn", text:(":grey_question: *Unknown* " + $unknown)}
+                  ]}
+                else empty end),
+                {type:"divider"},
+                {type:"section", text:{type:"mrkdwn", text:"*Pipeline stages*"}},
+                {type:"section", fields:[
+                  {type:"mrkdwn", text:(status_icon($build_tools) + " *Tool builds* " + $build_tools)},
+                  {type:"mrkdwn", text:(status_icon($candidates) + " *Candidate images* " + $candidates)},
+                  {type:"mrkdwn", text:(status_icon($tests) + " *Functional tests* " + $tests)},
+                  {type:"mrkdwn", text:(status_icon($publish) + " *Publish* " + $publish)}
+                ]},
+                {type:"divider"},
+                {type:"section", text:{type:"mrkdwn", text:("<" + $run_url + "|📋 Open workflow run · Download JSON report/diagnostics>")}}
+              ]
+            }')
+          curl --fail --silent --show-error -X POST \
+                -H 'Content-Type: application/json' \
+                --data-binary "$payload" "$KRKN_IMAGE_SECURITY_REPORT_SLACK_WEBHOOK_URL"

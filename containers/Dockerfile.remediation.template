@@ -1,0 +1,41 @@
+ARG KRKN_RUNTIME_IMAGE=fedora:45
+FROM ${KRKN_RUNTIME_IMAGE}
+
+ARG PR_NUMBER
+ARG TAG
+ARG PYTHON_VERSION=3.11
+ARG TARGETARCH
+ENV PYTHON_CMD=python${PYTHON_VERSION}
+ENV KUBECONFIG=/home/krkn/.kube/config
+
+RUN ${PYTHON_CMD} -m pip check
+
+RUN groupadd -g 1001 krkn && useradd -m -u 1001 -g krkn krkn
+
+COPY containers/tools/${TARGETARCH}/oc /usr/bin/oc
+COPY containers/tools/${TARGETARCH}/virtctl /usr/bin/virtctl
+COPY containers/tools/${TARGETARCH}/yq /usr/bin/yq
+RUN chmod 0755 /usr/bin/oc /usr/bin/virtctl /usr/bin/yq \
+    && ln -s /usr/bin/oc /usr/bin/kubectl
+
+RUN git clone https://github.com/krkn-chaos/krkn.git /home/krkn/kraken \
+    && mkdir -p /home/krkn/.kube /home/krkn/.ssh \
+    && chmod 700 /home/krkn/.ssh
+
+WORKDIR /home/krkn/kraken
+RUN if [ -n "$PR_NUMBER" ]; then git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER}; fi
+RUN if [ -n "$TAG" ]; then git checkout "$TAG"; fi
+
+LABEL krknctl.title.global="Krkn Base Image"
+LABEL krknctl.description.global="This is the krkn base image."
+LABEL krknctl.input_fields.global='$KRKNCTL_INPUT'
+
+RUN chmod +x /home/krkn/kraken/containers/setup-ssh.sh \
+    && chmod +x /home/krkn/kraken/containers/entrypoint.sh \
+    && chown -R krkn:krkn /home/krkn \
+    && chmod 755 /home/krkn
+
+USER krkn
+ENTRYPOINT ["/bin/bash", "/home/krkn/kraken/containers/entrypoint.sh"]
+CMD ["--config=config/config.yaml"]
+

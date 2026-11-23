@@ -90,6 +90,12 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
         try:
             # get list of nodes in zone/region
             nodes = kubecli.list_killable_nodes(label_selector)
+            if not nodes:
+                logging.error(
+                    "No killable nodes found in zone %s with label selector %s "
+                    "(exit code: 1)" % (zone, label_selector)
+                )
+                return 1
 
             # set rollback callable before stopping nodes
             rollback_data = {

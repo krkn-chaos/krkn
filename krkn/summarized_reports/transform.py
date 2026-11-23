@@ -15,6 +15,8 @@
 from datetime import datetime
 from xml.sax.saxutils import escape as _xml_escape
 
+from krkn.telemetry_helpers import group_checks_by_phase
+
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.pagesizes import A4
@@ -251,6 +253,36 @@ def _extract_scenario_params(raw_params):
     return selectors, namespaces, exclude_labels, cloud_types
 
 
+def _extract_vmi_pvc_targets(raw_params):
+    """Extract VMI PVC target identifiers from nested scenario parameters."""
+    targets = []
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            vmi_name = obj.get("vmi_name")
+            pvc_name = obj.get("pvc_name")
+            if vmi_name or pvc_name:
+                target = {
+                    "namespace": obj.get("namespace") or obj.get("namespace_pattern"),
+                    "vmi_name": vmi_name,
+                    "pvc_name": pvc_name,
+                    "fill_percentage": obj.get("fill_percentage"),
+                    "duration": obj.get("duration"),
+                }
+                if target not in targets:
+                    targets.append(target)
+            for value in obj.values():
+                if isinstance(value, (dict, list)):
+                    _walk(value)
+        elif isinstance(obj, list):
+            for item in obj:
+                if isinstance(item, (dict, list)):
+                    _walk(item)
+
+    _walk(raw_params)
+    return targets
+
+
 def _extract_pod_name(pod):
     if isinstance(pod, dict):
         ns = pod.get("namespace", "")
@@ -275,6 +307,24 @@ def _extract_critical_alerts(critical_alerts_raw):
     if isinstance(critical_alerts_raw, list):
         return critical_alerts_raw, []
     return [], []
+
+
+def _dedupe_alerts(alerts):
+    """Remove repeated critical-alert entries while preserving order."""
+    unique = []
+    seen = set()
+    for alert in alerts:
+        if isinstance(alert, dict):
+            name = alert.get("alertname", alert.get("name", str(alert)))
+            phase = alert.get("phase", "")
+        else:
+            name = getattr(alert, "name", str(alert))
+            phase = getattr(alert, "phase", "")
+        key = (name, phase)
+        if key not in seen:
+            seen.add(key)
+            unique.append(alert)
+    return unique
 
 
 def build_chaos_report(chaos_output: dict) -> str:
@@ -340,10 +390,26 @@ def build_chaos_report(chaos_output: dict) -> str:
     for i, s in enumerate(scenarios, 1):
         lines.append(f"  [{i}] Scenario  : " + str(s.get("scenario", "N/A")) + " (" + str(s.get("scenario_type", "N/A")) + ")")
         selectors, ns_list, exclude_labels, cloud_types = _extract_scenario_params(s.get("parameters", {}))
+        vmi_pvc_targets = _extract_vmi_pvc_targets(s.get("parameters", {}))
+        target_namespaces = {
+            target["namespace"] for target in vmi_pvc_targets if target.get("namespace")
+        }
+        ns_list = [namespace for namespace in ns_list if namespace not in target_namespaces]
         if selectors:
             lines.append("  Label Selector : " + ", ".join(selectors))
         if ns_list:
             lines.append("  Namespace      : " + ", ".join(ns_list))
+        for target in vmi_pvc_targets:
+            if target.get("namespace"):
+                lines.append("  Namespace      : " + str(target["namespace"]))
+            if target.get("vmi_name"):
+                lines.append("  VMI Name       : " + str(target["vmi_name"]))
+            if target.get("pvc_name"):
+                lines.append("  PVC Name       : " + str(target["pvc_name"]))
+            if target.get("fill_percentage") is not None:
+                lines.append("  Fill Percentage: " + str(target["fill_percentage"]) + "%")
+            if target.get("duration") is not None:
+                lines.append("  Duration       : " + str(target["duration"]) + "s")
         if exclude_labels:
             lines.append("  Exclude Label  : " + ", ".join(exclude_labels))
         if cloud_types:
@@ -424,9 +490,20 @@ def build_chaos_report(chaos_output: dict) -> str:
                 total = max(vmi_recovery_times)
                 reschedule_times = [v.get("vmi_rescheduling_time") or 0 for v in vmi_recovered if isinstance(v, dict)]
                 readiness_times = [v.get("vmi_readiness_time") or 0 for v in vmi_recovered if isinstance(v, dict)]
+                guest_times = [
+                    v.get("guest_reachable_time")
+                    for v in vmi_recovered
+                    if isinstance(v, dict) and v.get("guest_reachable_time") is not None
+                ]
                 lines.append(f"    VMI Recovery Time     : {total:.2f}s")
                 lines.append(f"      ├─ Rescheduling Time: {max(reschedule_times):.2f}s")
-                lines.append(f"      └─ Readiness Time   : {max(readiness_times):.2f}s")
+                if guest_times:
+                    lines.append(f"      ├─ Readiness Time   : {max(readiness_times):.2f}s")
+                    lines.append(
+                        f"      └─ Guest Reachable  : {max(guest_times):.2f}s"
+                    )
+                else:
+                    lines.append(f"      └─ Readiness Time   : {max(readiness_times):.2f}s")
 
         affected_nodes = s.get("affected_nodes", [])
         if affected_nodes:
@@ -484,79 +561,136 @@ def build_chaos_report(chaos_output: dict) -> str:
     # --- Health Checks ---
     health_checks = telemetry.get("health_checks")
     if health_checks:
-        lines.append("HEALTH CHECKS")
-        for check in health_checks:
+        # Separate string checks from dict checks
+        string_checks = [c for c in health_checks if isinstance(c, str)]
+        dict_checks = [c for c in health_checks if isinstance(c, dict)]
+        checks_by_phase = group_checks_by_phase(dict_checks) if dict_checks else {}
+
+        # Display string checks first (raw check strings)
+        if string_checks:
+            lines.append("HEALTH CHECKS")
+            for check_str in string_checks:
+                lines.append(f"  {check_str}")
+
+        # Display in order: pre, during, post (HTTP health checks)
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.upper()
+                lines.append(f"HEALTH CHECKS (HTTP) - {phase_label}")
+                for check in checks_by_phase[phase]:
+                    url = check.get("url", "")
+                    status_code = check.get("status_code", "")
+                    duration = check.get("duration")
+                    passed = check.get("status") or check.get("passed")
+                    status_str = "PASS" if passed else "FAIL"
+                    detail = url or check.get("name") or check.get("check_name", "N/A")
+                    extra = []
+                    if status_code:
+                        extra.append(f"HTTP {status_code}")
+                    if duration is not None and duration != "":
+                        extra.append(f"{float(duration):.2f}s")
+                    suffix = f" ({', '.join(extra)})" if extra else ""
+                    lines.append(f"  {status_str:<6} {detail}{suffix}")
+
+    # --- Object State Health Checks ---
+    object_state_checks = telemetry.get("object_state_checks")
+    if object_state_checks:
+        # Group by phase
+        checks_by_phase = {}
+        for check in object_state_checks:
             if isinstance(check, dict):
-                url = check.get("url", "")
-                status_code = check.get("status_code", "")
-                duration = check.get("duration")
-                passed = check.get("status") or check.get("passed")
-                status_str = "PASS" if passed else "FAIL"
-                detail = url or check.get("name") or check.get("check_name", "N/A")
-                extra = []
-                if status_code:
-                    extra.append(f"HTTP {status_code}")
-                if duration is not None and duration != "":
-                    extra.append(f"{float(duration):.2f}s")
-                suffix = f" ({', '.join(extra)})" if extra else ""
-                lines.append(f"  {status_str:<6} {detail}{suffix}")
-            else:
-                lines.append(f"  {check}")
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.upper()
+                lines.append(f"OBJECT STATE CHECKS ({phase_label})")
+                for check in checks_by_phase[phase]:
+                    check_name = check.get("check_name", "unnamed")
+                    kind = check.get("kind", "")
+                    namespace = check.get("namespace", "")
+                    condition_type = check.get("condition_type", "")
+                    condition_status = check.get("condition_status", "")
+                    passed = check.get("passed", False)
+                    objects_checked = check.get("objects_checked", 0)
+                    objects_failed = check.get("objects_failed", 0)
+                    duration = check.get("duration")
+                    message = check.get("message", "")
+
+                    status_str = "PASS" if passed else "FAIL"
+
+                    # Build detail line
+                    detail_parts = [check_name]
+                    if kind:
+                        detail_parts.append(f"kind={kind}")
+                    if namespace:
+                        detail_parts.append(f"ns={namespace}")
+                    if condition_type:
+                        detail_parts.append(f"{condition_type}={condition_status}")
+
+                    detail = f"{' '.join(detail_parts)}"
+
+                    # Build extra info
+                    extra = []
+                    if objects_checked > 0:
+                        extra.append(f"{objects_checked} checked")
+                    if objects_failed > 0:
+                        extra.append(f"{objects_failed} failed")
+                    if duration is not None and duration != "":
+                        extra.append(f"{float(duration):.2f}s")
+
+                    suffix = f" ({', '.join(extra)})" if extra else ""
+                    lines.append(f"  {status_str:<6} {detail}{suffix}")
+
+                    # If failed, show which objects failed
+                    if not passed and message and message != "All objects passed":
+                        lines.append(f"         Failed: {message}")
 
     # --- KubeVirt Health Checks ---
     virt_checks = telemetry.get("virt_checks")
     if virt_checks:
-        lines.append("KUBEVIRT HEALTH CHECKS (pre-chaos)")
-        for check in virt_checks:
-            if isinstance(check, dict):
-                vm = check.get("vm_name") or check.get("vmi_name") or check.get("name", "N/A")
-                ns = check.get("namespace", "")
-                node = check.get("node_name", "")
-                ip = check.get("ip_address", "")
-                passed = check.get("status", True)
-                duration = check.get("duration")
-                status_str = "PASS" if passed else "FAIL"
-                label = f"{ns}/{vm}" if ns else vm
-                extra = []
-                if ip:
-                    extra.append(ip)
-                if node:
-                    extra.append(f"on {node}")
-                if duration is not None and duration != "":
-                    extra.append(f"{float(duration):.2f}s")
-                suffix = f" ({', '.join(extra)})" if extra else ""
-                lines.append(f"  {status_str:<6} {label}{suffix}")
-            else:
-                lines.append(f"  {check}")
+        # Separate string checks from dict checks
+        string_virt_checks = [c for c in virt_checks if isinstance(c, str)]
+        dict_virt_checks = [c for c in virt_checks if isinstance(c, dict)]
+        checks_by_phase = group_checks_by_phase(dict_virt_checks) if dict_virt_checks else {}
 
-    post_virt_checks = telemetry.get("post_virt_checks")
-    if post_virt_checks:
-        lines.append("KUBEVIRT HEALTH CHECKS (post-chaos)")
-        for check in post_virt_checks:
-            if isinstance(check, dict):
-                vm = check.get("vm_name") or check.get("vmi_name") or check.get("name", "N/A")
-                ns = check.get("namespace", "")
-                node = check.get("node_name", "")
-                ip = check.get("ip_address", "")
-                new_ip = check.get("new_ip_address", "")
-                passed = check.get("status", True)
-                duration = check.get("duration")
-                status_str = "PASS" if passed else "FAIL"
-                label = f"{ns}/{vm}" if ns else vm
-                extra = []
-                if ip:
-                    ip_str = ip
-                    if new_ip and new_ip != ip:
-                        ip_str += f" → {new_ip}"
-                    extra.append(ip_str)
-                if node:
-                    extra.append(f"on {node}")
-                if duration is not None and duration != "":
-                    extra.append(f"{float(duration):.2f}s")
-                suffix = f" ({', '.join(extra)})" if extra else ""
-                lines.append(f"  {status_str:<6} {label}{suffix}")
-            else:
-                lines.append(f"  {check}")
+        # Display string checks first (raw virt check strings)
+        if string_virt_checks:
+            lines.append("KUBEVIRT HEALTH CHECKS")
+            for check_str in string_virt_checks:
+                lines.append(f"  {check_str}")
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = f"{phase.lower()}-chaos"
+                lines.append(f"KUBEVIRT HEALTH CHECKS ({phase_label})")
+                for check in checks_by_phase[phase]:
+                    vm = check.get("vm_name") or check.get("vmi_name") or check.get("name", "N/A")
+                    ns = check.get("namespace", "")
+                    node = check.get("node_name", "")
+                    ip = check.get("ip_address", "")
+                    new_ip = check.get("new_ip_address", "")
+                    passed = check.get("status", True)
+                    duration = check.get("duration")
+                    status_str = "PASS" if passed else "FAIL"
+                    label = f"{ns}/{vm}" if ns else vm
+                    extra = []
+                    if ip:
+                        ip_str = ip
+                        if new_ip and new_ip != ip:
+                            ip_str += f" → {new_ip}"
+                        extra.append(ip_str)
+                    if node:
+                        extra.append(f"on {node}")
+                    if duration is not None and duration != "":
+                        extra.append(f"{float(duration):.2f}s")
+                    suffix = f" ({', '.join(extra)})" if extra else ""
+                    lines.append(f"  {status_str:<6} {label}{suffix}")
 
     # --- Alerts & SLOs ---
 
@@ -565,41 +699,70 @@ def build_chaos_report(chaos_output: dict) -> str:
     total_slos = resiliency.get("total_slos", 0)
     passed_slos = resiliency.get("passed_slos", 0)
     failed_slos = total_slos - passed_slos
+    telemetry_alerts = telemetry.get("alerts") or []
     critical_alerts_raw = chaos_output.get("critical_alerts") or {}
     chaos_alerts, post_chaos_alerts = _extract_critical_alerts(critical_alerts_raw)
+    legacy_alerts = [
+        {**alert, "phase": "during"} if isinstance(alert, dict) else alert for alert in chaos_alerts
+    ] + [
+        {**alert, "phase": "post"} if isinstance(alert, dict) else alert for alert in post_chaos_alerts
+    ]
+    unique_legacy_alerts = _dedupe_alerts(legacy_alerts)
+    unique_chaos_alerts = _dedupe_alerts(chaos_alerts)
+    unique_post_chaos_alerts = _dedupe_alerts(post_chaos_alerts)
+    evaluated_alerts = telemetry_alerts + unique_legacy_alerts
+    using_legacy_alerts = not telemetry_alerts
     error_logs = telemetry.get("error_logs") or []
 
     lines.append("ALERTS & SLOs")
-    lines.append("  SLOs Evaluated  : " + str(total_slos))
-    lines.append(f"  SLOs Passed     : {passed_slos} / {total_slos}")
-    lines.append("  SLOs Failed     : " + str(failed_slos))
 
-    total_alert_count = len(chaos_alerts) + len(post_chaos_alerts)
-    lines.append("  Critical Alerts : " + (str(total_alert_count) if total_alert_count else "None"))
-    if chaos_alerts:
-        lines.append("    During Chaos:")
-        for alert in chaos_alerts:
+    total_alert_count = len(evaluated_alerts)
+    if using_legacy_alerts:
+        lines.append("  Critical Alerts : " + (str(total_alert_count) if total_alert_count else "None"))
+    if using_legacy_alerts:
+        for title, alerts in (("During Chaos:", unique_chaos_alerts), ("Post Chaos:", unique_post_chaos_alerts)):
+            if alerts:
+                lines.append(f"    {title}")
+                for alert in alerts:
+                    if isinstance(alert, dict):
+                        lines.append(f"      - {alert.get('alertname', 'N/A')} [{alert.get('severity', 'N/A')}] ns={alert.get('namespace', 'N/A')} state={alert.get('alertstate', 'N/A')}")
+                    else:
+                        lines.append(f"      - {alert}")
+    else:
+        validation_failures = []
+        for alert in telemetry_alerts:
             if isinstance(alert, dict):
-                lines.append(
-                    f"      - {alert.get('alertname', 'N/A')} "
-                    f"[{alert.get('severity', 'N/A')}] "
-                    f"ns={alert.get('namespace', 'N/A')} "
-                    f"state={alert.get('alertstate', 'N/A')}"
-                )
+                status = alert.get("status", alert.get("alertstate"))
+                name = alert.get("name", alert.get("alertname", "N/A"))
+                severity = alert.get("severity", "N/A")
+                phase = alert.get("phase", "N/A")
             else:
-                lines.append(f"      - {alert}")
-    if post_chaos_alerts:
-        lines.append("    Post Chaos:")
-        for alert in post_chaos_alerts:
-            if isinstance(alert, dict):
-                lines.append(
-                    f"      - {alert.get('alertname', 'N/A')} "
-                    f"[{alert.get('severity', 'N/A')}] "
-                    f"ns={alert.get('namespace', 'N/A')} "
-                    f"state={alert.get('alertstate', 'N/A')}"
-                )
-            else:
-                lines.append(f"      - {alert}")
+                status = getattr(alert, "status", None)
+                name = getattr(alert, "name", "N/A")
+                severity = getattr(alert, "severity", "N/A")
+                phase = getattr(alert, "phase", "N/A")
+            if status is False:
+                validation_failures.append((name, severity, phase))
+        lines.append("  SLO Validation Failures")
+        if validation_failures:
+            for name, severity, phase in validation_failures:
+                lines.append(f"    FAIL  [{severity}] {name} (phase={phase})")
+        else:
+            lines.append("    None")
+        if unique_legacy_alerts:
+            lines.append("  Critical Prometheus Alerts")
+            for alert in unique_legacy_alerts:
+                if isinstance(alert, dict):
+                    name = alert.get("alertname", alert.get("name", "N/A"))
+                    severity = alert.get("severity", "N/A")
+                    phase = alert.get("phase", "N/A")
+                    state = alert.get("alertstate", "N/A")
+                else:
+                    name = getattr(alert, "name", str(alert))
+                    severity = getattr(alert, "severity", "N/A")
+                    phase = getattr(alert, "phase", "N/A")
+                    state = getattr(alert, "alertstate", "N/A")
+                lines.append(f"    - {name} [{severity}] state={state} phase={phase}")
 
     if error_logs:
         lines.append(f"  Error Logs      : {len(error_logs)}")
@@ -613,34 +776,47 @@ def build_chaos_report(chaos_output: dict) -> str:
         if len(error_logs) > 20:
             lines.append(f"    ... and {len(error_logs) - 20} more")
 
-    # --- Failed SLOs ---
-    if scenario_slo_details:
-        has_failures = any(
-            not s["passed"]
-            for entry in scenario_slo_details
-            for s in entry.get("slo_details", [])
-        )
-        if has_failures:
-            lines.append("FAILED SLOs (per scenario)")
-            for entry in scenario_slo_details:
-                failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
-                if not failed:
-                    continue
-                lines.append(f"  Scenario: {entry['scenario']}")
-                for slo in failed:
-                    lines.append(f"    FAIL  [{slo.get('severity', 'unknown'):<8}]  {slo['name']}")
-
     # --- Resiliency Score ---
     lines.append("RESILIENCY SCORE")
+    lines.append("  Resiliency SLOs Evaluated  : " + str(total_slos))
+    lines.append(f"  Resiliency SLOs Passed     : {passed_slos} / {total_slos}")
+    lines.append("  Resiliency SLOs Failed     : " + str(failed_slos))
+
+    if scenario_slo_details:
+        failed_entries = [
+            (entry["scenario"], [s for s in entry.get("slo_details", []) if not s["passed"]])
+            for entry in scenario_slo_details
+        ]
+        failed_entries = [(name, failed) for name, failed in failed_entries if failed]
+        if failed_entries:
+            lines.append("  Resiliency Score SLO Failures")
+            lines.append("    Resiliency Alert File: " + str(chaos_output.get("resiliency_alert_file", "N/A")))
+            for scenario, failed in failed_entries:
+                lines.append(f"    Scenario: {scenario}")
+                for slo in failed:
+                    lines.append(f"      FAIL  [{slo.get('severity', 'unknown'):<8}]  {slo['name']}")
+
+    # Extract weights from detailed report
+    weight_map = {}
+    scenario_details = chaos_output.get("resiliency_report", {}).get("scenarios", [])
+    if scenario_details:
+        for scenario_report in scenario_details:
+            weight_map[scenario_report.get("name")] = scenario_report.get("weight", 1)
+
     per_scenario_scores = resiliency.get("scenarios", {})
     for scenario_name, score in per_scenario_scores.items():
-        lines.append(f"  {scenario_name:<28} : {score} / 100")
+        weight = weight_map.get(scenario_name, 1)
+        lines.append(f"  {scenario_name:<28} : {score} / 100 (weight: {weight}x)")
+
+    # Calculate and display weighted average explanation
+    if weight_map and per_scenario_scores:
+        total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        weighted_sum = sum(per_scenario_scores.get(name, 0) * weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        weighted_avg = int(weighted_sum / total_weight) if total_weight > 0 else 0
+        lines.append(f"  Calculation: ({' + '.join(f'{score}×{weight_map.get(name, 1)}' for name, score in per_scenario_scores.items())}) ÷ {total_weight} = {weighted_avg}")
 
     overall_score = resiliency.get("resiliency_score", "N/A")
-    emoji = ""
-    if isinstance(overall_score, (int, float)):
-        emoji = "  ✅" if overall_score >= 90 else ("  ⚠️" if overall_score >= 70 else "  ❌")
-    lines.append(f"  Overall Score                : {overall_score} / 100{emoji}")
+    lines.append(f"  Overall Score                : {overall_score} / 100")
     lines.append("=" * 80)
 
     return "\n".join(lines)
@@ -657,6 +833,11 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
     scenarios = []
     for s in scenarios_raw:
         selectors, ns_list, exclude_labels, cloud_types = _extract_scenario_params(s.get("parameters", {}))
+        vmi_pvc_targets = _extract_vmi_pvc_targets(s.get("parameters", {}))
+        target_namespaces = {
+            target["namespace"] for target in vmi_pvc_targets if target.get("namespace")
+        }
+        ns_list = [namespace for namespace in ns_list if namespace not in target_namespaces]
 
         recovered = s.get("affected_pods", {}).get("recovered", [])
         unrecovered = s.get("affected_pods", {}).get("unrecovered", [])
@@ -691,10 +872,17 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             vmi_total_recovery = max(vmi_recovery_times)
             vmi_reschedule = max(v.get("vmi_rescheduling_time") or 0 for v in vmi_recovered if isinstance(v, dict))
             vmi_readiness = max(v.get("vmi_readiness_time") or 0 for v in vmi_recovered if isinstance(v, dict))
+            guest_vals = [
+                v.get("guest_reachable_time")
+                for v in vmi_recovered
+                if isinstance(v, dict) and v.get("guest_reachable_time") is not None
+            ]
+            vmi_guest_reachable = max(guest_vals) if guest_vals else None
         else:
             vmi_total_recovery = None
             vmi_reschedule = None
             vmi_readiness = None
+            vmi_guest_reachable = None
 
         affected_nodes = s.get("affected_nodes", [])
         node_list = []
@@ -736,6 +924,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             "scenario_type": s.get("scenario_type", "N/A"),
             "selectors": selectors,
             "namespaces": ns_list,
+            "vmi_pvc_targets": vmi_pvc_targets,
             "exclude_labels": exclude_labels,
             "cloud_types": cloud_types,
             "all_pods": all_pods,
@@ -753,6 +942,7 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             "vmi_total_recovery_time": vmi_total_recovery,
             "vmi_rescheduling_time": vmi_reschedule,
             "vmi_readiness_time": vmi_readiness,
+            "guest_reachable_time": vmi_guest_reachable,
             "affected_nodes": node_list,
             "cluster_events": cluster_events,
             "additional_telemetry": additional_telemetry,
@@ -762,13 +952,24 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
     total_slos = resiliency.get("total_slos", 0)
     passed_slos = resiliency.get("passed_slos", 0)
 
+    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
+    telemetry_alerts = telemetry.get("alerts") or []
     critical_alerts_raw = chaos_output.get("critical_alerts") or {}
     chaos_alerts, post_chaos_alerts = _extract_critical_alerts(critical_alerts_raw)
-    total_alert_count = len(chaos_alerts) + len(post_chaos_alerts)
+    legacy_alerts = [
+        {**alert, "phase": "during"} if isinstance(alert, dict) else alert for alert in chaos_alerts
+    ] + [
+        {**alert, "phase": "post"} if isinstance(alert, dict) else alert for alert in post_chaos_alerts
+    ]
+    unique_legacy_alerts = _dedupe_alerts(legacy_alerts)
+    unique_chaos_alerts = _dedupe_alerts(chaos_alerts)
+    unique_post_chaos_alerts = _dedupe_alerts(post_chaos_alerts)
+    evaluated_alerts = telemetry_alerts + unique_legacy_alerts
+    using_legacy_alerts = not telemetry_alerts
+    total_alert_count = len(evaluated_alerts)
 
     error_logs = telemetry.get("error_logs") or []
 
-    scenario_slo_details = chaos_output.get("scenario_slo_details", [])
 
     security_flags = []
     if telemetry.get("fips_enabled"):
@@ -780,8 +981,6 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
 
     node_infos = telemetry.get("node_summary_infos") or []
     health_checks = telemetry.get("health_checks")
-    virt_checks = telemetry.get("virt_checks")
-    post_virt_checks = telemetry.get("post_virt_checks")
     failed_slos = total_slos - passed_slos
     per_scenario_scores = resiliency.get("scenarios", {})
     overall_score = resiliency.get("resiliency_score", "N/A")
@@ -855,6 +1054,17 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             target_rows.append(("Label Selector", ", ".join(s["selectors"])))
         if s["namespaces"]:
             target_rows.append(("Namespace", ", ".join(s["namespaces"])))
+        for target in s.get("vmi_pvc_targets", []):
+            if target.get("namespace"):
+                target_rows.append(("Namespace", target["namespace"]))
+            if target.get("vmi_name"):
+                target_rows.append(("VMI Name", target["vmi_name"]))
+            if target.get("pvc_name"):
+                target_rows.append(("PVC Name", target["pvc_name"]))
+            if target.get("fill_percentage") is not None:
+                target_rows.append(("Fill Percentage", f'{target["fill_percentage"]}%'))
+            if target.get("duration") is not None:
+                target_rows.append(("Duration", f'{target["duration"]}s'))
         if s["exclude_labels"]:
             target_rows.append(("Exclude Label", ", ".join(s["exclude_labels"])))
         if s["cloud_types"]:
@@ -924,7 +1134,15 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             recovery_cell = ""
             if s["vmi_total_recovery_time"] is not None:
                 rt = f'{s["vmi_total_recovery_time"]:.2f}s'
-                rt += f'<br/><font size="7" color="#555555">Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br/>Readiness: {(s["vmi_readiness_time"] or 0):.2f}s</font>'
+                detail = (
+                    f'Rescheduling: {(s["vmi_rescheduling_time"] or 0):.2f}s<br/>'
+                    f'Readiness: {(s["vmi_readiness_time"] or 0):.2f}s'
+                )
+                if s.get("guest_reachable_time") is not None:
+                    detail += (
+                        f'<br/>Guest Reachable: {s["guest_reachable_time"]:.2f}s'
+                    )
+                rt += f'<br/><font size="7" color="#555555">{detail}</font>'
                 recovery_cell = Paragraph(rt, _STYLE_CELL)
             rows.append([
                 s["scenario"],
@@ -1004,103 +1222,189 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
             if len(s["cluster_events"]) > 10:
                 f.append(_p(f"... and {len(s['cluster_events']) - 10} more"))
 
-    # 10. Health Checks
+    # 10. Health Checks (HTTP)
     if health_checks:
-        f.extend(_section_header("Health Checks"))
-        rows = []
+        # Group by phase
+        checks_by_phase = {}
         for check in health_checks:
             if isinstance(check, dict):
-                url = check.get("url") or check.get("name") or check.get("check_name", "")
-                status_code = str(check.get("status_code", ""))
-                duration = ""
-                if check.get("duration") is not None and check.get("duration") != "":
-                    duration = f"{float(check['duration']):.2f}s"
-                passed = check.get("status") or check.get("passed")
-                rows.append([url, status_code, duration, _badge("PASS" if passed else "FAIL", bool(passed))])
-            else:
-                rows.append([str(check), "", "", ""])
-        f.extend(_make_data_table(
-            ["URL / Endpoint", "Status Code", "Duration", "Result"], rows,
-        ))
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
 
-    # 11. KubeVirt Health Checks (Pre-Chaos)
-    if virt_checks:
-        f.extend(_section_header("KubeVirt Health Checks (Pre-Chaos)"))
-        rows = []
-        for check in virt_checks:
-            if isinstance(check, dict):
-                passed = not (check.get("status") is not None and not check.get("status"))
-                rows.append([
-                    check.get("vm_name") or check.get("vmi_name") or check.get("name", ""),
-                    check.get("namespace", ""),
-                    check.get("node_name", ""),
-                    check.get("ip_address", ""),
-                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
-                    _badge("PASS" if passed else "FAIL", passed),
-                ])
-            else:
-                rows.append([str(check), "", "", "", "", ""])
-        f.extend(_make_data_table(
-            ["VM Name", "Namespace", "Node", "IP Address", "Duration", "Result"], rows,
-        ))
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.capitalize()
+                f.extend(_section_header(f"Health Checks (HTTP) - {phase_label}-Chaos"))
+                rows = []
+                for check in checks_by_phase[phase]:
+                    url = check.get("url") or check.get("name") or check.get("check_name", "")
+                    status_code = str(check.get("status_code", ""))
+                    duration = ""
+                    if check.get("duration") is not None and check.get("duration") != "":
+                        duration = f"{float(check['duration']):.2f}s"
+                    passed = check.get("status") or check.get("passed")
+                    rows.append([url, status_code, duration, _badge("PASS" if passed else "FAIL", bool(passed))])
+                f.extend(_make_data_table(
+                    ["URL / Endpoint", "Status Code", "Duration", "Result"], rows,
+                ))
 
-    # 12. KubeVirt Health Checks (Post-Chaos)
-    if post_virt_checks:
-        f.extend(_section_header("KubeVirt Health Checks (Post-Chaos)"))
-        rows = []
-        for check in post_virt_checks:
+    # 10a. Object State Health Checks
+    object_state_checks = telemetry.get("object_state_checks")
+    if object_state_checks:
+        # Group by phase
+        checks_by_phase = {}
+        for check in object_state_checks:
             if isinstance(check, dict):
-                passed = not (check.get("status") is not None and not check.get("status"))
-                new_ip = ""
-                if check.get("new_ip_address") and check.get("new_ip_address") != check.get("ip_address"):
-                    new_ip = check["new_ip_address"]
-                rows.append([
-                    check.get("vm_name") or check.get("vmi_name") or check.get("name", ""),
-                    check.get("namespace", ""),
-                    check.get("node_name", ""),
-                    check.get("ip_address", ""),
-                    new_ip,
-                    f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
-                    _badge("PASS" if passed else "FAIL", passed),
-                ])
-            else:
-                rows.append([str(check), "", "", "", "", "", ""])
-        f.extend(_make_data_table(
-            ["VM Name", "Namespace", "Node", "IP Address", "New IP", "Duration", "Result"], rows,
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.capitalize()
+                f.extend(_section_header(f"Object State Checks ({phase_label}-Chaos)"))
+                rows = []
+                for check in checks_by_phase[phase]:
+                    check_name = check.get("check_name", "unnamed")
+                    kind = check.get("kind", "")
+                    namespace = check.get("namespace", "")
+                    condition = f"{check.get('condition_type', '')}={check.get('condition_status', '')}"
+                    objects_checked = check.get("objects_checked", 0)
+                    objects_failed = check.get("objects_failed", 0)
+                    duration = ""
+                    if check.get("duration") is not None and check.get("duration") != "":
+                        duration = f"{float(check['duration']):.2f}s"
+                    passed = check.get("passed", False)
+                    message = check.get("message", "")
+
+                    # Build objects info
+                    objects_info = f"{objects_checked} checked"
+                    if objects_failed > 0:
+                        objects_info += f", {objects_failed} failed"
+
+                    # Show failed objects if any
+                    failed_info = ""
+                    if not passed and message and message != "All objects passed":
+                        failed_info = message
+
+                    rows.append([
+                        check_name,
+                        kind,
+                        namespace,
+                        condition,
+                        objects_info,
+                        duration,
+                        _badge("PASS" if passed else "FAIL", bool(passed)),
+                        failed_info,
+                    ])
+
+                f.extend(_make_data_table(
+                    ["Check Name", "Kind", "Namespace", "Condition", "Objects", "Duration", "Result", "Failed Objects"],
+                    rows,
+                ))
+
+    # 11. KubeVirt Health Checks
+    all_virt_checks = telemetry.get("virt_checks") or []
+    if all_virt_checks:
+        # Group by phase
+        checks_by_phase = {}
+        for check in all_virt_checks:
+            if isinstance(check, dict):
+                phase = check.get("phase", "during")
+                if phase not in checks_by_phase:
+                    checks_by_phase[phase] = []
+                checks_by_phase[phase].append(check)
+
+        # Display in order: pre, during, post
+        for phase in ["pre", "during", "post"]:
+            if phase in checks_by_phase:
+                phase_label = phase.capitalize()
+                f.extend(_section_header(f"KubeVirt Health Checks - {phase_label}-Chaos"))
+                rows = []
+
+                # Check if any check has new_ip_address (post-chaos feature)
+                has_new_ip = any(c.get("new_ip_address") for c in checks_by_phase[phase])
+
+                for check in checks_by_phase[phase]:
+                    passed = not (check.get("status") is not None and not check.get("status"))
+                    row = [
+                        check.get("vm_name") or check.get("vmi_name") or check.get("name", ""),
+                        check.get("namespace", ""),
+                        check.get("node_name", ""),
+                        check.get("ip_address", ""),
+                    ]
+
+                    if has_new_ip:
+                        new_ip = ""
+                        if check.get("new_ip_address") and check.get("new_ip_address") != check.get("ip_address"):
+                            new_ip = check["new_ip_address"]
+                        row.append(new_ip)
+
+                    row.extend([
+                        f"{float(check['duration']):.2f}s" if check.get("duration") not in (None, "") else "",
+                        _badge("PASS" if passed else "FAIL", passed),
+                    ])
+                    rows.append(row)
+
+                headers = ["VM Name", "Namespace", "Node", "IP Address"]
+                if has_new_ip:
+                    headers.append("New IP")
+                headers.extend(["Duration", "Result"])
+
+                f.extend(_make_data_table(headers, rows,
         ))
 
     # 13. Alerts & SLOs
     f.extend(_section_header("Alerts & SLOs"))
     failed_slo_val = _p(str(failed_slos)) if failed_slos == 0 else Paragraph(
         f'<font color="{_FAIL_RED}"><b>{failed_slos}</b></font>', _STYLE_CELL)
-    alert_val = _p("None") if total_alert_count == 0 else Paragraph(
-        f'<font color="{_FAIL_RED}"><b>{total_alert_count}</b></font>', _STYLE_CELL)
-    f.extend(_make_kv_table([
-        ("SLOs Evaluated", str(total_slos)),
-        ("SLOs Passed", f"{passed_slos} / {total_slos}"),
-        ("SLOs Failed", failed_slo_val),
-        ("Critical Alerts", alert_val),
-    ]))
+    alert_summary = [("Critical Alerts", _p("None") if total_alert_count == 0 else Paragraph(
+        f'<font color="{_FAIL_RED}"><b>{total_alert_count}</b></font>', _STYLE_CELL))] if using_legacy_alerts else []
+    if alert_summary:
+        f.extend(_make_kv_table(alert_summary))
 
-    def _build_alert_table(title, alerts):
+    def _build_alert_table(title, alerts, legacy=False):
         if not alerts:
             return
-        f.extend(_subsection_header(title))
+        if title:
+            f.extend(_subsection_header(title))
         rows = []
         for alert in alerts:
             if isinstance(alert, dict):
                 rows.append([
-                    alert.get("alertname", "N/A"),
+                    alert.get("alertname", "N/A") if legacy else alert.get("name", alert.get("alertname", "N/A")),
                     alert.get("severity", "N/A"),
-                    alert.get("namespace", "N/A"),
-                    alert.get("alertstate", "N/A"),
+                    alert.get("namespace", "N/A") if legacy else ("PASS" if alert.get("status") is True else "FAIL" if alert.get("status") is False else alert.get("alertstate", "N/A")),
+                    alert.get("alertstate", "N/A") if legacy else alert.get("phase", "N/A"),
                 ])
             else:
-                rows.append([str(alert), "", "", ""])
-        f.extend(_make_data_table(["Alert Name", "Severity", "Namespace", "State"], rows))
+                rows.append([str(alert), "", "", ""] if legacy else [getattr(alert, "name", "N/A"), getattr(alert, "severity", "N/A"), "PASS" if getattr(alert, "status", None) is True else "FAIL", getattr(alert, "phase", "N/A")])
+        headers = ["Alert Name", "Severity", "Namespace", "State"] if legacy else ["Alert Name", "Severity", "Status", "Phase"]
+        f.extend(_make_data_table(headers, rows))
 
-    _build_alert_table("Critical Alerts (During Chaos)", chaos_alerts)
-    _build_alert_table("Critical Alerts (Post Chaos)", post_chaos_alerts)
+    if using_legacy_alerts:
+        _build_alert_table("Critical Alerts (During Chaos)", unique_chaos_alerts, True)
+        _build_alert_table("Critical Alerts (Post Chaos)", unique_post_chaos_alerts, True)
+    else:
+        validation_failures = []
+        for alert in telemetry_alerts:
+            if isinstance(alert, dict):
+                status = alert.get("status", alert.get("alertstate"))
+            else:
+                status = getattr(alert, "status", None)
+            if status is False:
+                validation_failures.append(alert)
+        f.extend(_subsection_header("SLO Validation Failures"))
+        if validation_failures:
+            _build_alert_table("", validation_failures)
+        else:
+            f.append(_p("None"))
+        _build_alert_table("Critical Prometheus Alerts", unique_legacy_alerts)
 
     # 14. Error Logs
     if error_logs:
@@ -1121,39 +1425,64 @@ def build_chaos_report_pdf(chaos_output: dict, output_path: str) -> str:
         if len(error_logs) > 20:
             f.append(_p(f"... and {len(error_logs) - 20} more"))
 
-    # 15. Failed SLOs
-    if scenario_slo_details:
-        failed_entries = []
-        for entry in scenario_slo_details:
-            failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
-            if failed:
-                failed_entries.append({"scenario": entry["scenario"], "slo_details": failed})
-        if failed_entries:
-            f.extend(_section_header("Failed SLOs"))
-            for entry in failed_entries:
-                f.extend(_subsection_header(entry["scenario"]))
-                rows = []
-                for slo in entry["slo_details"]:
-                    rows.append([slo["name"], slo.get("severity", "unknown"), _badge("FAIL", False)])
-                f.extend(_make_data_table(["SLO", "Severity", "Status"], rows))
-
     # 16. Resiliency Score
     f.extend(_section_header("Resiliency Score"))
+    f.extend(_make_kv_table([
+        ("Resiliency SLOs Evaluated", str(total_slos)),
+        ("Resiliency SLOs Passed", f"{passed_slos} / {total_slos}"),
+        ("Resiliency SLOs Failed", failed_slo_val),
+    ]))
+
+    failed_entries = []
+    for entry in scenario_slo_details:
+        failed = [s for s in entry.get("slo_details", []) if not s["passed"]]
+        if failed:
+            failed_entries.append((entry["scenario"], failed))
+    if failed_entries:
+        f.extend(_subsection_header("Resiliency Score SLO Failures"))
+        f.append(_p(f"Resiliency Alert File: {chaos_output.get('resiliency_alert_file', 'N/A')}"))
+        for scenario, failed in failed_entries:
+            f.extend(_subsection_header(scenario))
+            f.extend(_make_data_table(
+                ["SLO", "Severity", "Status"],
+                [[s["name"], s.get("severity", "unknown"), _badge("FAIL", False)] for s in failed],
+            ))
+
+    # Extract scenario weights from detailed report
+    weight_map = {}
+    scenario_details = chaos_output.get("resiliency_report", {}).get("scenarios", [])
+    if scenario_details:
+        for scenario_report in scenario_details:
+            weight_map[scenario_report.get("name")] = scenario_report.get("weight", 1)
+
+    # Build scenario scores table with weights
     if per_scenario_scores:
         rows = []
         for name, score in per_scenario_scores.items():
             c = _score_color(score)
+            weight = weight_map.get(name, 1)
             rows.append([
                 name,
+                f"Weight: {weight}x",
                 Paragraph(f'<font color="{c}"><b>{score} / 100</b></font>', _STYLE_CELL),
             ])
-        f.extend(_make_data_table(["Scenario", "Score"], rows))
+        f.extend(_make_data_table(["Scenario", "Weight", "Score"], rows))
 
     c = _score_color(overall_score)
     overall_style = ParagraphStyle(
         "OverallScoreBox", parent=_STYLE_OVERALL,
         textColor=c,
     )
+    if weight_map and per_scenario_scores:
+        f.append(Spacer(1, 8))
+        total_weight = sum(weight_map.get(name, 1) for name in per_scenario_scores.keys())
+        calc_detail = (
+            f'<b>Resiliency Score Calculation:</b> Weighted average of scenario scores. '
+            f'Total weight: {total_weight}x. Formula: (Σ score × weight) ÷ total weight'
+        )
+        f.append(Paragraph(calc_detail, _STYLE_CELL))
+        f.append(Spacer(1, 8))
+
     f.append(Paragraph(f"Overall: {_xml_escape(str(overall_score))} / 100", overall_style))
 
     doc.build(f)

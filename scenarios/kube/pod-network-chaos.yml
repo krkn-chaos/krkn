@@ -1,5 +1,5 @@
 - id: pod_network_chaos
-  image: "quay.io/krkn-chaos/krkn-network-chaos:latest"
+  image: "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-network-chaos"
   wait_duration: 1
   test_duration: 60
   label_selector: ""

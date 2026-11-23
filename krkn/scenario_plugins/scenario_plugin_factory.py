@@ -14,6 +14,8 @@
 import importlib
 import inspect
 import pkgutil
+import logging
+import sys
 from typing import Type, Tuple, Optional, Any
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
 
@@ -55,13 +57,26 @@ class ScenarioPluginFactory:
 
     def __load_plugins(self, base_class: Type):
         base_package = importlib.import_module(self.package_name)
+
+        def on_package_import_error(package_name: str):
+            _, exc, _ = sys.exc_info()
+            logging.exception(f"failed to import scenario plugin package {package_name}")
+            self.failed_plugins.append((package_name, None, f"Failed to import package: {exc}"))
+        
         for _, module_name, is_pkg in pkgutil.walk_packages(
-            base_package.__path__, base_package.__name__ + "."
+            base_package.__path__, base_package.__name__ + ".", onerror=on_package_import_error
         ):
 
             if not is_pkg:
-                module = importlib.import_module(module_name)
+                try:
+                    module = importlib.import_module(module_name)
+                except Exception as e:
 
+                    logging.exception(f"Failed to import module {module_name}: {e}")
+                    self.failed_plugins.append(
+                        (module_name, None, f"Failed to import module: {e}")
+                    )
+                    continue
                 for name, obj in inspect.getmembers(module, inspect.isclass):
                     if issubclass(obj, base_class) and obj is not base_class:
                         is_correct, exception_message = (

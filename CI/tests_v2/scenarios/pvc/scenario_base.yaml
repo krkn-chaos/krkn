@@ -1,0 +1,7 @@
+pvc_scenario:
+  pvc_name: krkn-test-pvc
+  pod_name: ""
+  namespace: default
+  fill_percentage: 80
+  duration: 10
+  block_size: 102400

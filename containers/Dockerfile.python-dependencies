@@ -1,0 +1,21 @@
+FROM fedora:45
+
+ARG PYTHON_VERSION=3.11
+ENV PYTHON_CMD=python${PYTHON_VERSION}
+
+RUN dnf upgrade -y \
+    && dnf install -y --setopt=install_weak_deps=False \
+       git python${PYTHON_VERSION} jq gettext wget which ipmitool openssh-server \
+    && dnf clean all
+
+COPY requirements.txt /requirements.txt
+
+RUN ${PYTHON_CMD} -m ensurepip --upgrade --default-pip \
+    && ${PYTHON_CMD} -m pip install --upgrade pip setuptools==81.0.0 "poetry-core>=1.1.0" \
+    && ${PYTHON_CMD} -m pip install --no-build-isolation -r /requirements.txt \
+    && ${PYTHON_CMD} -m pip install jsonschema \
+    && ${PYTHON_CMD} -m pip install --force-reinstall --no-deps setuptools==81.0.0 \
+    && ${PYTHON_CMD} -m pip check \
+    && rm -rf "$(${PYTHON_CMD} -m pip cache dir)" /tmp/* /requirements.txt \
+    && rm -rf /usr/local/lib/${PYTHON_CMD}/ensurepip/_bundled
+

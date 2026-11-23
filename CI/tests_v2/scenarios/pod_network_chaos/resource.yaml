@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: krkn-network-target
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: krkn-pod-network-chaos-target}
+  template:
+    metadata:
+      labels: {app: krkn-pod-network-chaos-target}
+    spec:
+      containers:
+      - name: app
+        image: busybox:1.36.1
+        command: ["/bin/sh", "-c"]
+        args: ["mkdir -p /tmp/www && echo target > /tmp/www/index.html && exec httpd -f -p 8080 -h /tmp/www"]
+        ports: [{containerPort: 8080}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: krkn-network-target
+spec:
+  selector: {app: krkn-pod-network-chaos-target}
+  ports: [{port: 80, targetPort: 8080}]

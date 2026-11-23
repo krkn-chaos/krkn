@@ -362,6 +362,7 @@ class TestServerModuleFunctions(unittest.TestCase):
         mock_http_connection.assert_called_once_with("localhost", 8080)
         mock_connection.request.assert_called_once_with("GET", "/")
         self.assertEqual(result, "TEST_STATUS")
+        mock_connection.close.assert_called_once()
 
     @patch('server.HTTPConnection')
     def test_get_status_returns_decoded_response(self, mock_http_connection):
@@ -379,6 +380,23 @@ class TestServerModuleFunctions(unittest.TestCase):
 
         self.assertEqual(result, "RUNNING")
         self.assertIsInstance(result, str)
+        mock_connection.close.assert_called_once()
+
+    @patch('server.HTTPConnection')
+    def test_get_status_closes_connection_even_on_request_error(self, mock_http_connection):
+        """
+        Test get_status always closes the connection even when request() raises,
+        proving the socket leak fix is solid.
+        """
+        address = ("localhost", 8080)
+        mock_connection = MagicMock()
+        mock_connection.request.side_effect = OSError("Connection refused")
+        mock_http_connection.return_value = mock_connection
+
+        with self.assertRaises(OSError):
+            server.get_status(address)
+
+        mock_connection.close.assert_called_once()
 
 
 if __name__ == "__main__":

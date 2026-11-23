@@ -1,6 +1,6 @@
 # Pytest Functional Tests (tests_v2)
 
-This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, and **node** scenarios with proper assertions, retries, and reporting.
+This directory contains a pytest-based functional test framework that runs **alongside** the existing bash tests in `CI/tests/`. It covers the **pod disruption**, **application outage**, **storage throttle**, **CPU hog**, **memory hog**, **I/O hog**, and **node** scenarios with proper assertions, retries, and reporting.
 
 Each test runs in its **own ephemeral Kubernetes namespace** (`krkn-test-<uuid>`). Before the test, the framework creates the namespace, deploys the target workload, and waits for pods to be ready. After the test, the namespace is deleted (cascading all resources). **You do not need to deploy any workloads manually.**
 
@@ -127,11 +127,7 @@ pytest CI/tests_v2/ -v -m application_outage
 pytest CI/tests_v2/ -v -m cpu_hog
 ```
 
-### Run only memory hog tests
-
-```bash
-pytest CI/tests_v2/ -v -m memory_hog
-```
+The hog family is consolidated into `scenarios/hogs/test_hogs.py` with a parameterized happy path: `-m cpu_hog`, `-m memory_hog`, and `-m io_hog` each select only the corresponding happy-path param (the negatives and the signature test are hog-type-independent), while `-m functional CI/tests_v2/scenarios/hogs/` covers the whole family.
 
 ### Run only node scenarios tests
 
@@ -161,6 +157,7 @@ On failure, the namespace name is printed (e.g. `[keep-ns-on-fail] Keeping names
 
 - **Structured logging**: Use `--log-cli-level=DEBUG` to see namespace creation, workload deploy, and readiness in the console. Use `--log-file=test.log` to capture logs to a file.
 - **Require dev cluster**: To avoid running against the wrong cluster, use `--require-kind`. Tests will skip unless the current kube context cluster name contains "kind" or "minikube".
+- **Platform-scoped contracts**: Tests marked `kind_only` skip on remote clusters when their assertion requires a local KinD/Minikube node container runtime. Kubernetes API and privileged helper-pod network tests remain enabled on OpenShift.
 - **Stale namespace cleanup**: At session start, namespaces matching `krkn-test-*` that are older than 30 minutes are deleted (e.g. from a previous crashed run).
 - **Timeout overrides**: Set env vars to tune timeouts (e.g. in CI): `KRKN_TEST_READINESS_TIMEOUT`, `KRKN_TEST_DEPLOY_TIMEOUT`, `KRKN_TEST_NS_CLEANUP_TIMEOUT`, `KRKN_TEST_POLICY_WAIT_TIMEOUT`, `KRKN_TEST_KRAKEN_PROC_WAIT_TIMEOUT`, `KRKN_TEST_TIMEOUT_BUDGET`.
 
@@ -186,36 +183,29 @@ Each test runs in an isolated ephemeral namespace; workloads are deployed automa
   4. Waits for pods to be Running and all containers Ready.
   5. Asserts pod count is unchanged and all pods are healthy.
 
+  The node-selector targeting test kills a pod on a selected worker, then checks that the replacement recovers even if Kubernetes schedules it on another worker. Node selection constrains victims, not recovery placement.
+
 - **scenarios/application_outage/**  
-  Application outage scenario (block Ingress/Egress to target pods, then restore). `resource.yaml` is the main workload (outage pod); `scenario_base.yaml` is loaded and patched with namespace (and duration/block as needed). Optional `nginx_http.yaml` is used by the traffic test. Tests include:
+  Application outage scenario (block Ingress/Egress to target pods, then restore). `resource.yaml` is the main workload (outage pod); `scenario_base.yaml` is loaded and patched with namespace (and duration/block as needed). Tests include:
   - **test_app_outage_block_restore_and_variants**: Happy path with default, exclude_label, and block variants (Ingress, Egress, both); Krkn exit 0, pods still Running/Ready.
   - **test_network_policy_created_then_deleted**: Policy with prefix `krkn-deny-` appears during run and is gone after.
-  - **test_traffic_blocked_during_outage** (disabled, planned): Deploys nginx with label `scenario=outage`, port-forwards; during outage curl fails, after run curl succeeds.
-  - **test_invalid_scenario_fails**: Invalid scenario file (missing `application_outage` key) causes Kraken to exit non-zero.
-  - **test_bad_namespace_fails**: Scenario targeting a non-existent namespace causes Kraken to exit non-zero.
 
-- **scenarios/cpu_hog/**
-  CPU hog scenario (`hog_scenarios`), migrated from the legacy `CI/tests/test_cpu_hog.sh`. CPU hog targets nodes (not workloads): Kraken deploys a short-lived hog pod (name prefix `cpu-hog-`) onto each selected node, runs `stress-ng` for the configured duration, then deletes the pod. Tests use `@pytest.mark.no_workload` (no app deployment needed); `scenario_base.yaml` is a flat hog config patched per test. Tests include:
-  - **test_cpu_hog_success_lifecycle_and_targeting**: Happy path — a hog pod is created on the `node-selector` target, the run exits 0, and the pod is cleaned up afterward.
-  - **test_cpu_hog_invalid_selector_fails**: A `node-selector` matching zero nodes causes Kraken to exit non-zero (no available nodes to schedule).
-  - **test_cpu_hog_invalid_config_fails**: Omitting the mandatory `hog-type` field causes Kraken to exit non-zero at config parsing.
+  Negative config paths (invalid scenario, bad namespace) are covered at unit level; the former traffic-probe test was removed (dead code since Feb 2026 — Kind's default CNI does not enforce NetworkPolicy, making the contract unrunnable there without new infra).
 
-- **scenarios/memory_hog/**
-  Memory hog scenario (`hog_scenarios`), migrated from the legacy `CI/tests/test_memory_hog.sh`. Memory hog targets nodes (not workloads): Kraken deploys a short-lived hog pod (name prefix `memory-hog-`) onto each selected node, runs `stress-ng` for the configured duration with the configured `memory-vm-bytes`, then deletes the pod. Tests use `@pytest.mark.no_workload` (no app deployment needed); `scenario_base.yaml` is a flat hog config patched per test (with a small fixed `memory-vm-bytes` instead of the production `90%`). Tests include:
-  - **test_memory_hog_success_lifecycle_and_targeting**: Happy path — a hog pod is created on the `node-selector` target with the configured memory size, the run exits 0, and the pod is cleaned up afterward.
-  - **test_memory_hog_invalid_selector_fails**: A `node-selector` matching zero nodes causes Kraken to exit non-zero (no available nodes to schedule).
-  - **test_memory_hog_invalid_config_fails**: Omitting the mandatory `hog-type` field causes Kraken to exit non-zero at config parsing.
+- **scenarios/hogs/**
+  Consolidated hog family test (`hog_scenarios`: cpu, memory, io), migrated from the legacy per-family `CI/tests/test_{cpu,memory,io}_hog.sh` and the former per-family test files. The scenario yamls stay in the per-family registry dirs (`scenarios/cpu_hog/`, `scenarios/memory_hog/`, `scenarios/io_hog/`); this module is the family-level test. Hogs target nodes (not workloads): Krkn deploys a short-lived hog pod (name prefix `<type>-hog-`) onto each selected node, runs `stress-ng` for the configured duration, then deletes the pod. Tests use `@pytest.mark.no_workload` (no app deployment needed). Tests include:
+  - **test_hog_success_lifecycle_and_targeting**: Parameterized happy path (cpu/memory/io via `pytest.param` with per-family marks — `-m cpu_hog` etc. select the single corresponding param). A hog pod is created on the `node-selector` target and, while Kraken runs, the test polls it and fails if it is ever observed with phase `Failed` (terminal under `restartPolicy: Never`, so zero false positives; a broken hog image/env contract fails seconds into the run). Residual gap (accepted): a pod failing at t≈duration and deleted by the plugin within ~1s can escape the watch. The run exits 0 with execution evidence (`running <type> hog scenario` in the output) and the pod is cleaned up afterward. Runs on Kind and OpenShift (the former `kind_only` on cpu/memory happy paths was removed — the loads are test-tuned trivial and the io happy path was already proven green on OpenShift).
+  - **test_hog_invalid_selector_fails**: A `node-selector` matching zero nodes causes Krkn to exit non-zero (no available nodes to schedule). Hog-type-independent — fails at node selection before any per-type branch; the demoted per-family duplicates are pinned by the local unit layer (`.local-unit-tests/test_hogs_local.py`).
+  - **test_hog_invalid_config_fails**: Omitting the mandatory `hog-type` field causes Krkn to exit non-zero at config parsing. Hog-type-independent — the raise happens before any per-type field parsing.
+  - **test_unsigned_legacy_hog_image_is_rejected**: Image signature verification rejects the legacy production image (pinned digest): Krkn exits non-zero with `Image signature verification failed` naming the digest, and no pod is created. Hog-agnostic — fails in `create_pod`'s image verification before any hog-type-specific branch; relocated from the former cpu_hog file.
 
 - **scenarios/node_scenarios/**
-  Node chaos scenario (`node_scenarios`), migrated from the legacy `CI/tests/test_node.sh`. Node scenarios are destructive at the *node* level: Kraken stops, starts, or reboots the container that backs a Kubernetes node. On KinD each node is a Docker/Podman container, so the tests use `cloud_type: docker` and target a **worker** node only (never the control plane). Tests use `@pytest.mark.no_workload` (no app deployment needed); `scenario_base.yaml` holds a single `node_scenarios` entry that each test patches per case. A finalizer ensures the targeted node container is running (starting it only if it was left stopped) and waits for the node to return `Ready`. Tests include:
-  - **test_node_reboot_targets_node_name_and_recovers**: Happy path — `node_reboot_scenario` targeted by `node_name` reboots the worker. Kraken runs with `kube_check: False` (its in-process Unknown→Ready wait is brittle behind the multi-control-plane KinD API load balancer); disruption is proven by the node container's `StartedAt` advancing and recovery by the node returning Ready.
+  Node chaos scenario (`node_scenarios`), migrated from the legacy `CI/tests/test_node.sh`. Node scenarios are destructive at the *node* level: Krkn stops, starts, or reboots the container that backs a Kubernetes node. On KinD each node is a Docker/Podman container, so the tests use `cloud_type: docker` and target a **worker** node only (never the control plane). Tests use `@pytest.mark.no_workload` (no app deployment needed); `scenario_base.yaml` holds a single `node_scenarios` entry that each test patches per case. A finalizer ensures the targeted node container is running (starting it only if it was left stopped) and waits for the node to return `Ready`. Tests include:
+  - **test_node_reboot_targets_node_name_and_recovers**: Happy path — `node_reboot_scenario` targeted by `node_name` reboots the worker. Krkn runs with `kube_check: False` (its in-process Unknown→Ready wait is brittle behind the multi-control-plane KinD API load balancer); disruption is proven by the node container's `StartedAt` advancing and recovery by the node returning Ready.
   - **test_node_stop_start_targets_label_selector_and_recovers**: Happy path — `node_stop_start_scenario` targeted by `label_selector` stops then starts the worker. Same approach: `kube_check: False`, disruption proven by `StartedAt` advancing and recovery by the node returning Ready.
-  - **test_invalid_label_selector_fails**: A `label_selector` matching zero nodes causes Kraken to exit non-zero.
-  - **test_invalid_node_name_fails**: A non-existent `node_name` (not a killable node) causes Kraken to exit non-zero.
-  - **test_missing_actions_fails**: An entry without `actions` causes Kraken to fail fast.
-  - **test_unsupported_cloud_type_fails**: An unsupported `cloud_type` causes Kraken to exit non-zero when building the node scenario object.
-  - **test_unknown_action_is_skipped**: An unrecognized action is skipped (logged, no node touched) and Kraken still exits 0.
-  - **test_control_plane_excluded_from_targeting**: Safety guard — control-plane/master nodes are never returned by the worker-targeting helper the destructive tests use.
+  - **test_unknown_action_is_skipped** (`kind_only` — the docker node-scenario object needs a local Docker/Podman socket): An unrecognized action is skipped (logged, no node touched) and Krkn still exits 0.
+
+  Config-error negatives (invalid selector/node name, missing actions, unsupported cloud type) and the worker-targeting helper's control-plane exclusion are pinned by unit tests instead of cluster runs (missing-actions and unsupported-cloud are in the pushed `tests/` suite; the rest live in the local unit layer pending a separate push).
 
 ## Configuration
 

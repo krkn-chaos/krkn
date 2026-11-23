@@ -265,8 +265,78 @@ class TestRollbackCommand:
                 "scenario",
                 ignore_auto_rollback_config=True
             )
+            
+    def test_list_rollback_requires_exact_run_uuid_match(self, tmp_path, capsys):
+        """Verify that rollback context filtering requires an exact run UUID
+        match and does not return directories for partial UUID values.""" 
+        from krkn.rollback.command import list_rollback
+        from krkn.rollback.config import RollbackConfig
+        from unittest.mock import patch
+
+        rollback_dir = tmp_path / "rollback"
+        rollback_dir.mkdir()
+        (
+            rollback_dir /"123456789-abcd1234-1111-2222-333344445555"
+        ).mkdir()
+
+        (
+            rollback_dir /"113456780-efgh5678-aaaa-bbbb-ccccddddeeee"
+        ).mkdir()
+
+        with patch.object(RollbackConfig,"versions_directory",str(rollback_dir)):
+            list_rollback(run_uuid="abcd1234")
+
+        captured = capsys.readouterr()
+
+        # Partial UUID values should not match rollback context directories.
+        assert "abcd1234-1111-2222-333344445555" not in captured.out
+        assert "efgh5678-aaaa-bbbb-ccccddddeeee" not in captured.out 
 
 class TestRollbackAbstractScenarioPlugin:
+    
+    def test_rollback_callable_returns_true_on_success(self):
+        from unittest.mock import Mock
+        from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+
+        class TestScenarioPlugin(AbstractScenarioPlugin):
+            def run(self, run_uuid: str, scenario: str, lib_telemetry, scenario_telemetry):
+                return 0
+
+            def get_scenario_types(self) -> list[str]:
+                return ["test_scenario"]
+
+        plugin = TestScenarioPlugin("test_scenario")
+        plugin.rollback_handler.serializer = Mock()
+        plugin.rollback_handler.serializer.serialize_callable.return_value = "/tmp/version.py"
+        result = plugin.rollback_handler.set_rollback_callable(
+            callable=lambda *a: None,
+            rollback_content="test content"
+        )
+        assert result is True
+        plugin.rollback_handler.serializer.serialize_callable.assert_called_once()
+
+    def test_rollback_callable_returns_false_on_serialization_failure(self):
+        from unittest.mock import Mock
+        from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+
+        class TestScenarioPlugin(AbstractScenarioPlugin):
+            def run(self, run_uuid: str, scenario: str, lib_telemetry, scenario_telemetry):
+                return 0
+
+            def get_scenario_types(self) -> list[str]:
+                return ["test_scenario"]
+
+        plugin = TestScenarioPlugin("test_scenario")
+        plugin.rollback_handler.serializer = Mock()
+        plugin.rollback_handler.serializer.serialize_callable.side_effect = Exception(
+            "serialization failed"
+        )
+        result = plugin.rollback_handler.set_rollback_callable(
+            callable=lambda *a: None,
+            rollback_content="test content"
+        )
+        assert result is False
+        plugin.rollback_handler.serializer.serialize_callable.assert_called_once()
 
     @pytest.mark.parametrize("auto_rollback", [True, False], ids=["enabled_rollback", "disabled_rollback"])
     @pytest.mark.parametrize("scenario_should_fail", [True, False], ids=["failing_scenario", "successful_scenario"])

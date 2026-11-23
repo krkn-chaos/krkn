@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ pod_name }}
+  labels:
+    app: krkn-guest-ping
+    krkn-chaos.io/scenario: vmi_outage
+spec:
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: {{ image }}
+      # Keep helper alive for long scenarios / high kill_count;
+      # owned pods are deleted when the scenario finishes.
+      command: ["sleep", "infinity"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+{%- if method == "icmp" %}
+          add: ["NET_RAW"]
+{%- endif %}

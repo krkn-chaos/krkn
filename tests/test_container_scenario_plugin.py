@@ -165,6 +165,144 @@ class TestContainerScenarioPlugin(unittest.TestCase):
 
         self.assertEqual(mock_kill.call_count, 1)
 
+    @patch("krkn.scenario_plugins.container.container_scenario_plugin.select_and_monitor_by_namespace_pattern_and_label")
+    def test_start_monitoring_defaults_recovery_time_to_60(self, mock_monitor):
+        """Missing expected_recovery_time waits 60 seconds, as documented."""
+        scenario = {"namespace": "kube-system", "label_selector": "k8s-app=kube-dns"}
+
+        self.plugin.start_monitoring(scenario, MagicMock())
+
+        self.assertEqual(mock_monitor.call_args.kwargs["max_timeout"], 60)
+
+    @patch("krkn.scenario_plugins.container.container_scenario_plugin.select_and_monitor_by_namespace_pattern_and_label")
+    def test_start_monitoring_uses_expected_recovery_time(self, mock_monitor):
+        """expected_recovery_time from the scenario is passed to the monitor."""
+        scenario = {
+            "namespace": "kube-system",
+            "label_selector": "k8s-app=kube-dns",
+            "expected_recovery_time": 120,
+        }
+
+        self.plugin.start_monitoring(scenario, MagicMock())
+
+        self.assertEqual(mock_monitor.call_args.kwargs["max_timeout"], 120)
+
+
+    @patch(
+        "krkn.scenario_plugins.container.container_scenario_plugin."
+        "select_and_monitor_by_namespace_pattern_and_label"
+    )
+    def test_start_monitoring_wildcard_namespace_matches_all(self, mock_monitor):
+        """
+        namespace "*" (documented as all namespaces) gives a valid pattern
+        that matches any namespace
+        """
+        import re
+
+        scenario = {
+            "namespace": "*",
+            "label_selector": "k8s-app=kube-dns",
+            "expected_recovery_time": 60,
+        }
+        self.plugin.start_monitoring(scenario, MagicMock())
+
+        pattern = mock_monitor.call_args.kwargs["namespace_pattern"]
+        self.assertTrue(re.match(pattern, "kube-system"))
+        self.assertTrue(re.match(pattern, "openshift-etcd"))
+
+    @patch(
+        "krkn.scenario_plugins.container.container_scenario_plugin."
+        "select_and_monitor_by_namespace_pattern_and_label"
+    )
+    def test_start_monitoring_named_namespace_matches_exactly(self, mock_monitor):
+        """
+        A named namespace still matches only itself
+        """
+        import re
+
+        scenario = {
+            "namespace": "kube-system",
+            "label_selector": "k8s-app=kube-dns",
+            "expected_recovery_time": 60,
+        }
+        self.plugin.start_monitoring(scenario, MagicMock())
+
+        pattern = mock_monitor.call_args.kwargs["namespace_pattern"]
+        self.assertTrue(re.match(pattern, "kube-system"))
+        self.assertFalse(re.match(pattern, "kube-system-2"))
+        self.assertFalse(re.match(pattern, "kubexsystem"))
+
+    @patch(
+        "krkn.scenario_plugins.container.container_scenario_plugin."
+        "select_and_monitor_by_namespace_pattern_and_label"
+    )
+    def test_start_monitoring_defaults_namespace_and_label_selector(self, mock_monitor):
+        """
+        Missing namespace and label_selector use the same defaults as
+        container_killing_in_pod: all namespaces, no label filter
+        """
+        import re
+
+        self.plugin.start_monitoring({"expected_recovery_time": 60}, MagicMock())
+
+        kwargs = mock_monitor.call_args.kwargs
+        self.assertTrue(re.match(kwargs["namespace_pattern"], "kube-system"))
+        self.assertTrue(re.match(kwargs["namespace_pattern"], "default"))
+        self.assertIsNone(kwargs["label_selector"])
+
+    @patch(
+        "krkn.scenario_plugins.container.container_scenario_plugin."
+        "select_and_monitor_by_namespace_pattern_and_label"
+    )
+    def test_start_monitoring_dot_star_namespace_matches_all(self, mock_monitor):
+        """
+        namespace ".*" also means all namespaces
+        """
+        import re
+
+        scenario = {"namespace": ".*", "expected_recovery_time": 60}
+        self.plugin.start_monitoring(scenario, MagicMock())
+
+        pattern = mock_monitor.call_args.kwargs["namespace_pattern"]
+        self.assertTrue(re.match(pattern, "kube-system"))
+        self.assertTrue(re.match(pattern, "default"))
+
+    def _kill_all_namespaces(self, scenario):
+        kubecli = MagicMock(spec=KrknKubernetes)
+        kubecli.get_all_pods.return_value = [["pod1", "ns1"]]
+        info = MagicMock()
+        info.containers = [self._container_obj("c1")]
+        kubecli.get_pod_info.return_value = info
+        with patch.object(self.plugin, "retry_container_killing") as mock_kill:
+            killed = self.plugin.container_killing_in_pod(scenario, kubecli)
+        kubecli.get_all_pods.assert_called_once_with("app=test")
+        kubecli.list_pods.assert_not_called()
+        self.assertEqual(killed, [["pod1", "ns1", "c1"]])
+        self.assertEqual(mock_kill.call_count, 1)
+
+    def test_kill_dot_star_namespace_uses_all_pods(self):
+        """namespace ".*" kills from all namespaces, like "*"."""
+        self._kill_all_namespaces(self._scenario(namespace=".*"))
+
+    def test_kill_star_namespace_uses_all_pods(self):
+        """namespace "*" still kills from all namespaces."""
+        self._kill_all_namespaces(self._scenario(namespace="*"))
+
+    def test_kill_missing_namespace_uses_all_pods(self):
+        """A scenario without namespace kills from all namespaces."""
+        scenario = self._scenario()
+        del scenario["namespace"]
+        self._kill_all_namespaces(scenario)
+
+    def test_kill_pod_names_with_dot_star_namespace_raises(self):
+        """pod_names need a real namespace; ".*" is rejected like "*"."""
+        scenario = self._scenario(namespace=".*")
+        scenario["pod_names"] = ["pod1"]
+        kubecli = MagicMock(spec=KrknKubernetes)
+        with self.assertRaises(RuntimeError):
+            self.plugin.container_killing_in_pod(scenario, kubecli)
+        kubecli.get_pod_info.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+"""Translate Grype language-package findings to Copa's v1alpha2 manifest."""
+
+import json
+import os
+import platform
+import re
+import sys
+from collections import defaultdict
+
+VERSION_PREFIX = re.compile(r"^\s*v?(?:(\d+)!)?(\d+(?:\.\d+)*)(.*)$", re.IGNORECASE)
+PATCH_LEVELS = {"patch", "minor", "major"}
+
+
+def version_parts(value):
+    """Return an orderable version tuple, or None when the version is unsupported."""
+    match = VERSION_PREFIX.match(str(value))
+    if not match:
+        return None
+
+    epoch = int(match.group(1) or 0)
+    release = [int(part) for part in match.group(2).split(".")]
+    release += [0] * max(0, 3 - len(release))
+    suffix = match.group(3).lower()
+    if suffix.startswith("+"):
+        suffix = ""  # Go build metadata and Python local labels do not affect fixes.
+
+    if not suffix:
+        rank = 1
+        suffix_key = ()
+    elif re.fullmatch(r"-(?:0\.)?\d{14}-[0-9a-f]{7,}", suffix):
+        rank = 0  # Go pseudo-version; timestamp/hash order prereleases.
+        suffix_key = tuple(
+            (0, int(token)) if token.isdigit() else (1, token)
+            for token in re.findall(r"\d+|[a-z]+", suffix)
+        )
+    elif re.match(r"\.(?:post|rev|r)(?:\d|$)", suffix):
+        rank = 2
+        suffix_key = tuple(
+            (0, int(token)) if token.isdigit() else (1, token)
+            for token in re.findall(r"\d+|[a-z]+", suffix)
+        )
+    elif suffix.startswith(("-", ".dev", "dev", "a", "b", "rc", ".a", ".b", ".rc")):
+        rank = 0
+        suffix_key = tuple(
+            (0, int(token)) if token.isdigit() else (1, token)
+            for token in re.findall(r"\d+|[a-z]+", suffix)
+        )
+    else:
+        return None
+
+    return (epoch, release[0], release[1], release[2], tuple(release[3:]), rank, suffix_key)
+
+
+def compatible(candidate, current, patch_level):
+    """Return whether a fix is newer and within the selected update boundary."""
+    if candidate <= current:
+        return False
+    if patch_level == "patch":
+        return candidate[:3] == current[:3]
+    if patch_level == "minor":
+        return candidate[:2] == current[:2]
+    return True
+
+
+def best_fix(installed, versions, patch_level):
+    """Choose the smallest compatible fix, or None when no fix fits the policy."""
+    current = version_parts(installed)
+    if current is None:
+        return None
+
+    candidates = []
+    for value in versions:
+        for candidate in str(value).split(","):
+            candidate = candidate.strip()
+            parts = version_parts(candidate)
+            if parts is not None and compatible(parts, current, patch_level):
+                candidates.append((parts, candidate))
+    return min(candidates, default=(None, None), key=lambda item: (item[0], item[1]))[1]
+
+
+def detect_arch():
+    """Return the current machine architecture in Copa's expected naming scheme."""
+    machine = platform.machine().lower()
+    return {"x86_64": "amd64", "aarch64": "arm64"}.get(machine, machine)
+
+
+def canonical_python_name(name):
+    """Normalize a Python distribution name according to PEP 503."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def read_python_names(freeze_path):
+    """Map canonical Python distribution names to pip freeze's displayed names."""
+    names = {}
+    with open(freeze_path, encoding="utf-8") as freeze_file:
+        for line in freeze_file:
+            line = line.strip()
+            if "==" in line:
+                name = line.split("==", 1)[0].strip()
+            elif " @ " in line:
+                name = line.split(" @ ", 1)[0].strip()
+            else:
+                continue
+            if name:
+                names.setdefault(canonical_python_name(name), name)
+    return names
+
+
+def main():
+    """Translate one Grype JSON report; return 0 on success and 1 or 2 on errors."""
+    if len(sys.argv) not in (2, 3):
+        print(f"usage: {sys.argv[0]} GRYPE_REPORT.json [PIP_FREEZE.txt]", file=sys.stderr)
+        return 2
+
+    patch_level = os.environ.get("KRKN_COPA_LIBRARY_PATCH_LEVEL", "minor")
+    if patch_level not in PATCH_LEVELS:
+        print(f"unsupported library patch level: {patch_level}", file=sys.stderr)
+        return 2
+
+    try:
+        with open(sys.argv[1], encoding="utf-8") as report_file:
+            report = json.load(report_file)
+    except (OSError, json.JSONDecodeError) as error:
+        print(f"cannot read Grype report: {error}", file=sys.stderr)
+        return 1
+    try:
+        python_names = read_python_names(sys.argv[2]) if len(sys.argv) == 3 else None
+    except OSError as error:
+        print(f"cannot read pip freeze output: {error}", file=sys.stderr)
+        return 1
+
+    pending = defaultdict(list)
+    unsupported = []
+    for match in report.get("matches", []):
+        artifact = match.get("artifact", {})
+        vulnerability = match.get("vulnerability", {})
+        fix = vulnerability.get("fix", {})
+        artifact_type = artifact.get("type", "")
+        if artifact_type == "go-module":
+            copa_type = "gomod"
+        elif artifact_type in {"python", "python-pkg"}:
+            copa_type = "python-pkg"
+        else:
+            continue
+        if fix.get("state") != "fixed":
+            continue
+
+        name = artifact.get("name", "")
+        installed = artifact.get("version", "")
+        vuln_id = vulnerability.get("id", "")
+        if not name or not installed or not vuln_id:
+            continue
+        if copa_type == "python-pkg" and python_names is not None:
+            installed_name = python_names.get(canonical_python_name(name))
+            if installed_name is None:
+                print(f"skipping Python package absent from pip freeze: {name}", file=sys.stderr)
+                continue
+            name = installed_name
+        versions = fix.get("versions", [])
+        if isinstance(versions, str):
+            versions = [versions]
+        elif not isinstance(versions, list):
+            versions = []
+        comparable_versions = [
+            candidate.strip()
+            for value in versions
+            for candidate in str(value).split(",")
+            if version_parts(candidate.strip()) is not None
+        ]
+        if version_parts(installed) is None or not versions or not comparable_versions:
+            unsupported.append(f"{name}@{installed} ({vuln_id})")
+            continue
+        chosen = best_fix(installed, versions, patch_level)
+        if chosen is not None:
+            pending[(copa_type, name, installed)].append((vuln_id, chosen))
+
+    if unsupported:
+        print(
+            "cannot compare fixed language-package versions for: " + ", ".join(unsupported),
+            file=sys.stderr,
+        )
+        return 1
+
+    distro = report.get("distro") or {}
+    updates = []
+    for (package_type, name, installed), findings in sorted(pending.items()):
+        target = max(
+            findings,
+            key=lambda item: (version_parts(item[1]) or (), item[1]),
+        )[1]
+        for vuln_id in sorted({finding[0] for finding in findings}):
+            updates.append({
+                "name": name,
+                "installedVersion": installed,
+                "fixedVersion": target,
+                "vulnerabilityID": vuln_id,
+                "type": package_type,
+                "class": "lang-pkgs",
+            })
+
+    manifest = {
+        "apiVersion": "v1alpha2",
+        "metadata": {
+            "os": {
+                "type": distro.get("name") or distro.get("id") or "unknown",
+                "version": str(distro.get("version") or ""),
+            },
+            "config": {"arch": os.environ.get("KRKN_COPA_ARCH", detect_arch())},
+        },
+        "osupdates": [],
+        "langupdates": updates,
+    }
+    json.dump(manifest, sys.stdout, separators=(",", ":"))
+    sys.stdout.write("\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

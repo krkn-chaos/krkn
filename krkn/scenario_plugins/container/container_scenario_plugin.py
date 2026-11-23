@@ -13,6 +13,7 @@
 # limitations under the License.
 import logging
 import random
+import re
 import time
 import traceback
 from asyncio import Future
@@ -24,6 +25,9 @@ from krkn_lib.telemetry.ocp import KrknTelemetryOpenshift
 from krkn_lib.utils import get_yaml_item_value
 
 from krkn.scenario_plugins.abstract_scenario_plugin import AbstractScenarioPlugin
+
+# Both spellings select pods in every namespace
+ALL_NAMESPACES = ("*", ".*")
 
 
 class ContainerScenarioPlugin(AbstractScenarioPlugin):
@@ -63,9 +67,12 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         return ["container_scenarios"]
 
     def start_monitoring(self, kill_scenario: dict, lib_telemetry: KrknTelemetryOpenshift) -> Future:
-        namespace_pattern = f"^{kill_scenario['namespace']}$"
-        label_selector = kill_scenario["label_selector"]
-        recovery_time = kill_scenario["expected_recovery_time"]
+        namespace = get_yaml_item_value(kill_scenario, "namespace", ".*")
+        namespace_pattern = (
+            ".*" if namespace in ALL_NAMESPACES else f"^{re.escape(namespace)}$"
+        )
+        label_selector = get_yaml_item_value(kill_scenario, "label_selector", None)
+        recovery_time = get_yaml_item_value(kill_scenario, "expected_recovery_time", 60)
         future_snapshot = select_and_monitor_by_namespace_pattern_and_label(
             namespace_pattern=namespace_pattern,
             label_selector=label_selector,
@@ -76,7 +83,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
 
     def container_killing_in_pod(self, cont_scenario, kubecli: KrknKubernetes):
         scenario_name = get_yaml_item_value(cont_scenario, "name", "")
-        namespace = get_yaml_item_value(cont_scenario, "namespace", "*")
+        namespace = get_yaml_item_value(cont_scenario, "namespace", ".*")
         label_selector = get_yaml_item_value(cont_scenario, "label_selector", None)
         pod_names = get_yaml_item_value(cont_scenario, "pod_names", [])
         container_name = get_yaml_item_value(cont_scenario, "container_name", "")
@@ -99,7 +106,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
             # sys.exit(1)
             raise RuntimeError()
         if len(pod_names) == 0:
-            if namespace == "*":
+            if namespace in ALL_NAMESPACES:
                 # returns double array of pod name and namespace
                 pods = kubecli.get_all_pods(label_selector)
             else:
@@ -118,7 +125,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
                     exclude_label=exclude_label if exclude_label else None
                 )
         else:
-            if namespace == "*":
+            if namespace in ALL_NAMESPACES:
                 logging.error(
                     "You must specify the namespace to kill a container in a specific pod"
                 )

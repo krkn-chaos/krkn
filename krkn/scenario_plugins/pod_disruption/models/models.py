@@ -18,6 +18,8 @@ class InputParams:
     def __init__(self, config: dict[str,any] = None):
         if config:
             self.kill = config["kill"] if "kill" in config else 1
+            if not isinstance(self.kill, int) or isinstance(self.kill, bool) or self.kill < 0:
+                raise ValueError(f"Invalid value '{self.kill}' for 'kill' in config. Must be a non-negative integer.")
             self.timeout = config["timeout"] if "timeout" in config else 120
             self.duration = config["duration"] if "duration" in config else 10
             self.execution = config["execution"] if "execution" in config else "serial"

@@ -4,11 +4,12 @@
 # `stress-ng` for the configured duration, then deletes the pod. Values here are tuned for
 # functional testing (light load, short duration), not performance benchmarking; in particular
 # memory-vm-bytes is a small fixed size rather than the production "90%" to avoid pressuring
-# kind nodes.
-duration: 20
+# kind nodes. duration 10s matches the production cpu default — binding precedes stress start
+# and the pod object persists until plugin delete.
+duration: 10
 workers: 1
 hog-type: memory
-image: quay.io/krkn-chaos/krkn-hog
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog
 namespace: default
 memory-vm-bytes: 256m
 node-selector: "node-role.kubernetes.io/worker="

@@ -1,7 +1,7 @@
 duration: 30
 workers: '' # leave it empty '' node cpu auto-detection
 hog-type: io
-image: quay.io/krkn-chaos/krkn-hog
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-hog
 namespace: default
 io-block-size: 1m
 io-write-bytes: 1g
@@ -13,4 +13,4 @@ io-target-pod-volume:
     path: /root # a path writable by kubelet in the root filesystem of the node
 node-selector: "node-role.kubernetes.io/worker="
 number-of-nodes: ''
-taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]    
+taints: [] #example ["node-role.kubernetes.io/master:NoSchedule"]

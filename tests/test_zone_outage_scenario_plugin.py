@@ -435,6 +435,41 @@ class TestZoneOutageRun(unittest.TestCase):
 
         self.assertEqual(result, 1)
 
+    @patch("time.sleep")
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.ThreadPool"
+    )
+    @patch(
+        "krkn.scenario_plugins.zone_outage."
+        "zone_outage_scenario_plugin.gcp_node_scenarios"
+    )
+    def test_run_gcp_fails_clearly_when_zone_has_no_nodes(
+        self, mock_gcp_class, mock_thread_pool, mock_sleep
+    ):
+        """Test an empty zone fails with a clear error before any rollback or pool is set up"""
+        scenario_file = self._create_scenario_file()
+        mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+            self._create_mocks()
+        )
+        mock_lib_kubernetes.list_killable_nodes.return_value = []
+
+        plugin = ZoneOutageScenarioPlugin()
+        with patch.object(
+            plugin.rollback_handler, "set_rollback_callable"
+        ) as mock_set_rollback, self.assertLogs(level="ERROR") as logs:
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+        self.assertEqual(result, 1)
+        self.assertIn("No killable nodes found in zone us-central1-a", logs.output[0])
+        mock_set_rollback.assert_not_called()
+        mock_thread_pool.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()

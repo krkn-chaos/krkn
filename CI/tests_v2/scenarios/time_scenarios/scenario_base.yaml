@@ -1,0 +1,6 @@
+time_scenarios:
+- action: skew_time
+  object_type: pod
+  namespace: default
+  container_name: ""
+  label_selector: app=krkn-time-target
