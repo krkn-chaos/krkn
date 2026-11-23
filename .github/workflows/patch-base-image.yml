@@ -95,8 +95,13 @@ jobs:
         env:
           GOMAXPROCS: '2'
           GOFLAGS: -p=2
+          GO_FORCE_BUMP_MODULES: ${{ env.GO_FORCE_BUMP_MODULES }}
         run: |
           set -Eeuo pipefail
+          if [[ -z "$GO_FORCE_BUMP_MODULES" ]]; then
+            echo 'error: GO_FORCE_BUMP_MODULES is empty; refusing to skip configured Go module bumps' >&2
+            exit 1
+          fi
           work="$RUNNER_TEMP/krkn-go-tools/${{ matrix.tool }}"
           scripts/build-patched-go-tool.sh \
             '${{ matrix.tool }}' '${{ matrix.arch }}' \
@@ -373,12 +378,12 @@ jobs:
           {
             echo "## Candidate image linux/${{ matrix.arch }}"
             echo
-            echo "- Krkn ref: `$KRKN_REF` (${{ steps.source.outputs.source_commit }})"
+            echo "- Krkn ref: ${KRKN_REF} (${{ steps.source.outputs.source_commit }})"
             echo "- Pre-remediation pip-audit findings: ${{ steps.python_scan.outputs.findings }}"
             echo "- Requirements changed by pip-audit: ${{ steps.patch.outputs.requirements_changed }}"
             echo "- Packages upgraded by pip-audit: ${{ steps.patch.outputs.packages_updated }}"
             echo "- Remaining pip-audit findings: $remaining"
-            echo "- Candidate: `$candidate_image`"
+            echo "- Candidate: ${candidate_image}"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Log in to krkn-chaos Quay

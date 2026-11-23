@@ -115,12 +115,21 @@ done
 
 # Workflow-level, comma-separated minimum module versions are shared by oc,
 # virtctl, and yq. The updater skips entries absent from an individual tool.
-if declare -p GO_FORCE_BUMP_MODULES >/dev/null 2>&1 && [[ -n "$GO_FORCE_BUMP_MODULES" ]]; then
+forced_bumps=()
+if [[ -n "${GO_FORCE_BUMP_MODULES:-}" ]]; then
   while IFS= read -r forced_bump; do
     forced_bump=$(printf '%s' "$forced_bump" | tr -d '[:space:]')
-    [[ -z "$forced_bump" ]] || update_args+=(--force-update "$forced_bump")
+    [[ -z "$forced_bump" ]] && continue
+    if [[ "$forced_bump" != *@* || "$forced_bump" == @* || "$forced_bump" == *@ ]]; then
+      echo "error: invalid GO_FORCE_BUMP_MODULES entry '$forced_bump' (expected MODULE@VERSION)" >&2
+      exit 2
+    fi
+    forced_bumps+=("$forced_bump")
+    update_args+=(--force-update "$forced_bump")
   done < <(printf '%s' "$GO_FORCE_BUMP_MODULES" | tr ',' '\n')
 fi
+printf 'Configured forced Go module bumps for %s/%s: %s\n' \
+  "$tool" "$arch" "${forced_bumps[*]:-(none)}"
 
 runner_uid=$(id -u)
 runner_gid=$(id -g)
@@ -132,6 +141,22 @@ docker run --rm --platform "linux/$arch" \
   --entrypoint /bin/bash "$image" -c \
   'set -Eeuo pipefail; mkdir -p "$HOME" "$GOPATH" "$GOCACHE" "$GOMODCACHE"; /pipeline/update-go-vulnerabilities.sh "$@" /workspace' \
   bash "${update_args[@]}"
+
+if ((${#forced_bumps[@]})); then
+  forced_report="$report_dir/govulncheck/forced-updates.txt"
+  if [[ ! -s "$forced_report" ]]; then
+    echo "error: updater produced no forced-bump status report for ${tool}/${arch}" >&2
+    exit 1
+  fi
+  for forced_bump in "${forced_bumps[@]}"; do
+    if ! grep -Fq -- "$forced_bump:" "$forced_report"; then
+      echo "error: updater did not report a result for forced bump $forced_bump (${tool}/${arch})" >&2
+      exit 1
+    fi
+  done
+  echo "Forced Go module bump results for ${tool}/${arch}:"
+  cat "$forced_report"
+fi
 
 (
   cd "$source_dir"
@@ -164,6 +189,10 @@ if [[ -f "$applied_updates" ]]; then update_count=$(wc -l < "$applied_updates" |
   echo "- Go build target: \`$pattern\`"
   [[ -z "$build_tags" ]] || echo "- Build tags: \`$build_tags\`"
   echo "- Go module updates applied: $update_count"
+  if ((${#forced_bumps[@]})); then
+    echo "- Explicit minimum Go module bumps:"
+    sed 's/^/- `/' "$report_dir/govulncheck/forced-updates.txt" | sed 's/$/`/'
+  fi
   if ((update_count > 0)); then
     sed 's/^/- `/' "$applied_updates" | sed 's/$/`/'
   else
