@@ -35,6 +35,8 @@ Requirements:
     - requests library (pip install requests)
     - krkn_lib library (pip install krkn-lib)
     - All dependencies in requirements.txt
+    - pytest (pip install pytest) if running via pytest — it is not in
+      root requirements.txt; CI installs it in .github/workflows/tests.yml
 
 Note:
     - Tests will be skipped if http_health_check plugin fails to load
