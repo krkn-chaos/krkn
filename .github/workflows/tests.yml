@@ -83,7 +83,7 @@ jobs:
           kubectl get nodes --show-labels=true
       # Pull request only steps
       - name: Run unit tests
-        run: python -m coverage run -a --omit='/tmp/*/version.py' -m unittest discover -s tests -v
+        run: python -m coverage run -a --omit='/tmp/*' -m unittest discover -s tests -v
 
       - name: Setup Functional Tests
         run: |
