@@ -29,7 +29,6 @@ openshift-client==1.0.21
 paramiko>=3.5.1  # Fixes GHSA-r374-rxx8-8654
 pyVmomi==8.0.2.0.1
 pyfiglet==1.0.2
-pytest==9.0.3
 python-ipmi==0.5.4
 python-openstackclient==6.5.0
 requests>=2.32.4  # Fixes GHSA-9hjg-9r4m-mvj7, GHSA-9wx4-h78v-vm56, GHSA-gc5v-m9x4-r6x2

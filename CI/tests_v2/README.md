@@ -59,14 +59,14 @@ From the repository root:
 pip install -r CI/tests_v2/requirements.txt
 ```
 
-This adds `pytest-rerunfailures`, `pytest-html`, `pytest-timeout`, and `pytest-order` (pytest and coverage come from the main `requirements.txt`).
+This adds `pytest` and its plugins (`pytest-rerunfailures`, `pytest-html`, `pytest-timeout`, `pytest-order`, `pytest-xdist`); coverage comes from the main `requirements.txt`.
 
 ## Dependency Management
 
 Dependencies are split into two files:
 
-- **Root `requirements.txt`** — Kraken runtime (cloud SDKs, Kubernetes client, krkn-lib, pytest, coverage, etc.). Required to run Kraken.
-- **`CI/tests_v2/requirements.txt`** — Test-only pytest plugins (rerunfailures, html, timeout, order, xdist). Not needed by Kraken itself.
+- **Root `requirements.txt`** — Kraken runtime (cloud SDKs, Kubernetes client, krkn-lib, coverage, etc.). Required to run Kraken.
+- **`CI/tests_v2/requirements.txt`** — Test-only pytest and plugins (rerunfailures, html, timeout, order, xdist). Not needed by Kraken itself.
 
 **Rule of thumb:** If Kraken needs it at runtime, add to root. If only the functional tests need it, add to `CI/tests_v2/requirements.txt`.
 
