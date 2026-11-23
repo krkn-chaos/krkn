@@ -105,7 +105,8 @@ jobs:
           work="$RUNNER_TEMP/krkn-go-tools/${{ matrix.tool }}"
           scripts/build-patched-go-tool.sh \
             '${{ matrix.tool }}' '${{ matrix.arch }}' \
-            "$work/bin" "$work/metadata" "$work/reports"
+            "$work/bin" "$work/metadata" "$work/reports" \
+            "$GO_FORCE_BUMP_MODULES"
 
       - name: Upload compiled binary artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

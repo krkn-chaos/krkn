@@ -2,17 +2,18 @@
 set -Eeuo pipefail
 
 usage() {
-  echo "Usage: $0 TOOL ARCH BINARY_OUTPUT METADATA_DIR REPORT_DIR" >&2
+  echo "Usage: $0 TOOL ARCH BINARY_OUTPUT METADATA_DIR REPORT_DIR FORCE_BUMP_MODULES" >&2
   echo "Tools: oc, virtctl, yq; architectures: amd64, arm64" >&2
 }
 
-if [[ $# -ne 5 ]]; then usage; exit 2; fi
+if [[ $# -ne 6 ]]; then usage; exit 2; fi
 
 tool=$1
 arch=$2
 binary_output=$3
 metadata_dir=$4
 report_dir=$5
+force_bump_config=$6
 work_dir=$(mktemp -d)
 trap 'rm -rf "$work_dir"' EXIT
 source_dir="$work_dir/source"
@@ -116,7 +117,7 @@ done
 # Workflow-level, comma-separated minimum module versions are shared by oc,
 # virtctl, and yq. The updater skips entries absent from an individual tool.
 forced_bumps=()
-if [[ -n "${GO_FORCE_BUMP_MODULES:-}" ]]; then
+if [[ -n "$force_bump_config" ]]; then
   while IFS= read -r forced_bump; do
     forced_bump=$(printf '%s' "$forced_bump" | tr -d '[:space:]')
     [[ -z "$forced_bump" ]] && continue
@@ -126,7 +127,7 @@ if [[ -n "${GO_FORCE_BUMP_MODULES:-}" ]]; then
     fi
     forced_bumps+=("$forced_bump")
     update_args+=(--force-update "$forced_bump")
-  done < <(printf '%s' "$GO_FORCE_BUMP_MODULES" | tr ',' '\n')
+  done < <(printf '%s' "$force_bump_config" | tr ',' '\n')
 fi
 printf 'Configured forced Go module bumps for %s/%s: %s\n' \
   "$tool" "$arch" "${forced_bumps[*]:-(none)}"
