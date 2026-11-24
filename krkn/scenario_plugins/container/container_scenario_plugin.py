@@ -90,7 +90,7 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         kill_action = get_yaml_item_value(cont_scenario, "action", 1)
         kill_count = get_yaml_item_value(cont_scenario, "count", 1)
         exclude_label = get_yaml_item_value(cont_scenario, "exclude_label", "")
-        if not isinstance(kill_action, int):
+        if type(kill_action) is not int:
             logging.error(
                 "Please make sure the action parameter defined in the "
                 "config is an integer"
@@ -99,7 +99,8 @@ class ContainerScenarioPlugin(AbstractScenarioPlugin):
         if (kill_action < 1) or (kill_action > 15):
             logging.error("Only 1-15 kill signals are supported.")
             raise RuntimeError()
-        kill_action = "kill " + str(kill_action)
+        # Target the container's main process (PID 1) with the requested signal.
+        kill_action = "kill -s " + str(kill_action) + " 1"
         if type(pod_names) != list:
             logging.error("Please make sure your pod_names are in a list format")
             # removed_exit
