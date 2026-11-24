@@ -303,6 +303,67 @@ class TestContainerScenarioPlugin(unittest.TestCase):
             self.plugin.container_killing_in_pod(scenario, kubecli)
         kubecli.get_pod_info.assert_not_called()
 
+    def test_action_nine_sends_signal_nine_to_pid_one(self):
+        """action: 9 must send signal 9 to PID 1, not send SIGTERM to PID 9."""
+        kubecli = self._make_kubecli({"pod1": ["c1"]})
+        scenario = self._scenario()
+        scenario["action"] = 9
+
+        self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        command = kubecli.exec_cmd_in_pod.call_args.args[0]
+        self.assertEqual(command, "kill -s 9 1")
+
+    def test_default_action_one_sends_signal_one_to_pid_one(self):
+        """The default action targets PID 1 with signal 1 (SIGHUP)."""
+        kubecli = self._make_kubecli({"pod1": ["c1"]})
+        scenario = self._scenario()
+        del scenario["action"]
+
+        self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        command = kubecli.exec_cmd_in_pod.call_args.args[0]
+        self.assertEqual(command, "kill -s 1 1")
+
+    def test_out_of_range_action_raises_with_clear_error(self):
+        """Signals outside 1-15 are rejected before any command is executed."""
+        kubecli = self._make_kubecli({"pod1": ["c1"]})
+        scenario = self._scenario()
+        scenario["action"] = 16
+
+        with self.assertLogs(level="ERROR") as logs:
+            with self.assertRaises(RuntimeError):
+                self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        self.assertIn("1-15", "\n".join(logs.output))
+        kubecli.exec_cmd_in_pod.assert_not_called()
+
+    def test_non_integer_action_raises_with_clear_error(self):
+        """A string action is rejected before any command is executed."""
+        kubecli = self._make_kubecli({"pod1": ["c1"]})
+        scenario = self._scenario()
+        scenario["action"] = "9"
+
+        with self.assertLogs(level="ERROR") as logs:
+            with self.assertRaises(RuntimeError):
+                self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        self.assertIn("integer", "\n".join(logs.output))
+        kubecli.exec_cmd_in_pod.assert_not_called()
+
+    def test_boolean_action_raises_with_clear_error(self):
+        """YAML booleans are not integers and must not become signal names."""
+        kubecli = self._make_kubecli({"pod1": ["c1"]})
+        scenario = self._scenario()
+        scenario["action"] = True
+
+        with self.assertLogs(level="ERROR") as logs:
+            with self.assertRaises(RuntimeError):
+                self.plugin.container_killing_in_pod(scenario, kubecli)
+
+        self.assertIn("integer", "\n".join(logs.output))
+        kubecli.exec_cmd_in_pod.assert_not_called()
+
 
 if __name__ == "__main__":
     unittest.main()
