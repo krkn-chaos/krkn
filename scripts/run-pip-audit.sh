@@ -19,7 +19,9 @@ mkdir -p "$(dirname "$report")"
 args=(--vulnerability-service "$service" --strict --format=json --output "$report")
 case "$mode" in
   scan)
-    # Freeze files are complete, exact-version snapshots from the built image.
+    # Scan complete exact-version snapshots from the built image. The workflow
+    # generates these with `pip list --format=freeze` so VCS installs are checked
+    # by their installed package version instead of an unpinnable source URL.
     args+=(--no-deps --disable-pip)
     ;;
   fix)

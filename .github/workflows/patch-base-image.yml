@@ -260,8 +260,11 @@ jobs:
           freeze="$RUNNER_TEMP/python-freeze-before-${{ matrix.arch }}.txt"
           audit_report="$RUNNER_TEMP/pip-audit-python-before-${{ matrix.arch }}.json"
           grype "docker:${{ steps.deps.outputs.image }}" --output json --file "$report"
+          # pip freeze preserves VCS origins (for example, `name @ git+...`),
+          # which pip-audit --strict cannot audit. List installed exact versions
+          # instead so VCS-installed packages are still checked by package/version.
           docker run --rm --entrypoint python3.11 '${{ steps.deps.outputs.image }}' \
-            -m pip freeze --all > "$freeze"
+            -m pip list --format=freeze > "$freeze"
           scripts/run-pip-audit.sh scan "$freeze" "$audit_report"
           findings=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$audit_report")
           echo "grype_report=$report" >> "$GITHUB_OUTPUT"
@@ -314,7 +317,7 @@ jobs:
           audit_report="$RUNNER_TEMP/pip-audit-python-after-${{ matrix.arch }}.json"
           grype "docker:$PATCHED_IMAGE" --output json --file "$report"
           docker run --rm --entrypoint python3.11 "$PATCHED_IMAGE" \
-            -m pip freeze --all > "$freeze"
+            -m pip list --format=freeze > "$freeze"
           scripts/run-pip-audit.sh scan "$freeze" "$audit_report"
           remaining=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$audit_report")
           echo "report=$report" >> "$GITHUB_OUTPUT"
@@ -365,7 +368,7 @@ jobs:
           candidate_freeze="$RUNNER_TEMP/python-freeze-candidate-${{ matrix.arch }}.txt"
           candidate_audit="$RUNNER_TEMP/pip-audit-candidate-${{ matrix.arch }}.json"
           docker run --rm --entrypoint python3.11 "$local_image" \
-            -m pip freeze --all > "$candidate_freeze"
+            -m pip list --format=freeze > "$candidate_freeze"
           scripts/run-pip-audit.sh scan "$candidate_freeze" "$candidate_audit"
           remaining=$(jq '[.dependencies[]?.vulns[]?.id] | unique | length' "$candidate_audit")
           if (( remaining > 0 )); then
