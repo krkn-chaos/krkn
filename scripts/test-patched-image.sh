@@ -9,8 +9,8 @@ Build a test runner from a local patched Krkn image, run tests v2 against an
 ephemeral KinD cluster, and remove the cluster when the run completes.
 
 Example:
-  scripts/test-patched-image.sh localhost/krkn:local-copa
-  scripts/test-patched-image.sh localhost/krkn:local-copa -m pod_disruption -v
+  scripts/test-patched-image.sh localhost/krkn:local-patched
+  scripts/test-patched-image.sh localhost/krkn:local-patched -m pod_disruption -v
 USAGE
 }
 
