@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass, field
+import json
 import yaml
 import logging
 import time
@@ -261,10 +262,39 @@ def verify_interface(
                 logging.error("Exception occurred while executing command in pod")
                 sys.exit(1)
 
-            interface_ip = output.split("\n")
-            node_interface_list = [
-                interface.split()[0] for interface in interface_ip[:-1]
-            ]
+            # Keep accepting the textual form previously used by this check,
+            # which can include peer-index annotations such as eth0@if15.
+            displayed_interfaces = {
+                line.split()[0] for line in output.splitlines() if line.split()
+            }
+
+            missing_interfaces = set(input_interface_list) - displayed_interfaces
+            actual_interfaces = set()
+            if missing_interfaces:
+                # The brief output may render a peer link as eth0@if15 even
+                # though its actual interface name is eth0. JSON exposes the
+                # actual ifname without rewriting user-provided values.
+                cmd = ["ip -j addr show"]
+                json_output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
+                if not json_output:
+                    logging.error("Exception occurred while retrieving node interfaces as JSON")
+                    sys.exit(1)
+
+                try:
+                    address_data = json.loads(json_output)
+                    if not isinstance(address_data, list):
+                        raise ValueError("expected a JSON array")
+                    actual_interfaces = {
+                        address["ifname"]
+                        for address in address_data
+                        if isinstance(address, dict) and isinstance(address.get("ifname"), str)
+                    }
+                except (json.JSONDecodeError, TypeError, ValueError) as error:
+                    raise Exception(
+                        f"Unable to parse node interfaces returned by ip -j addr show: {error}"
+                    ) from error
+
+            node_interface_list = sorted(displayed_interfaces | actual_interfaces)
 
             for interface in input_interface_list:
                 if interface not in node_interface_list:

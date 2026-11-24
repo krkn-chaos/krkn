@@ -139,6 +139,65 @@ class NetworkScenariosTest(unittest.TestCase):
 
         self.assertEqual(result, ["eth0", "eth1"])
 
+    def test_verify_interface_accepts_actual_name_with_peer_suffix_in_br_output(self):
+        """Accept the kernel ifname when ip -br decorates it with its peer index."""
+        mock_kubecli = Mock()
+        mock_pod_template = Mock()
+        mock_pod_template.render.return_value = "pod_yaml_content"
+        mock_kubecli.exec_cmd_in_pod.side_effect = [
+            "lo UNKNOWN 127.0.0.1/8\neth0@if15 UP 192.168.1.10/24\n",
+            '[{"ifname":"lo"},{"ifname":"eth0"}]',
+        ]
+
+        result = ingress_shaping.verify_interface(
+            input_interface_list=["eth0"],
+            node="test-node",
+            pod_template=mock_pod_template,
+            kubecli=mock_kubecli,
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
+        )
+
+        self.assertEqual(result, ["eth0"])
+        self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)
+
+    def test_verify_interface_preserves_configured_display_name(self):
+        """Keep accepting and returning the exact interface token users configured."""
+        mock_kubecli = Mock()
+        mock_pod_template = Mock()
+        mock_pod_template.render.return_value = "pod_yaml_content"
+        mock_kubecli.exec_cmd_in_pod.return_value = "eth0@if15 UP 192.168.1.10/24\n"
+
+        result = ingress_shaping.verify_interface(
+            input_interface_list=["eth0@if15"],
+            node="test-node",
+            pod_template=mock_pod_template,
+            kubecli=mock_kubecli,
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
+        )
+
+        self.assertEqual(result, ["eth0@if15"])
+        mock_kubecli.exec_cmd_in_pod.assert_called_once()
+
+    def test_verify_interface_accepts_literal_at_in_actual_ifname(self):
+        """Match an actual ifname containing @ exactly as reported by ip -j."""
+        mock_kubecli = Mock()
+        mock_pod_template = Mock()
+        mock_pod_template.render.return_value = "pod_yaml_content"
+        mock_kubecli.exec_cmd_in_pod.side_effect = [
+            "eth0@if15@if17 UP 192.168.1.10/24\n",
+            '[{"ifname":"eth0@if15"}]',
+        ]
+
+        result = ingress_shaping.verify_interface(
+            input_interface_list=["eth0@if15"],
+            node="test-node",
+            pod_template=mock_pod_template,
+            kubecli=mock_kubecli,
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
+        )
+
+        self.assertEqual(result, ["eth0@if15"])
+
     def test_verify_interface_with_invalid_interface(self):
         """Test verifying interface with an interface that doesn't exist"""
         mock_kubecli = Mock()
@@ -146,10 +205,10 @@ class NetworkScenariosTest(unittest.TestCase):
         mock_pod_template.render.return_value = "pod_yaml_content"
 
         mock_kubecli.create_pod.return_value = None
-        mock_kubecli.exec_cmd_in_pod.return_value = (
-            "eth0             UP             192.168.1.10/24\n"
-            "lo               UNKNOWN        127.0.0.1/8\n"
-        )
+        mock_kubecli.exec_cmd_in_pod.side_effect = [
+            "eth0             UP             192.168.1.10/24\nlo UNKNOWN 127.0.0.1/8\n",
+            '[{"ifname":"eth0"},{"ifname":"lo"}]',
+        ]
         mock_kubecli.delete_pod.return_value = None
 
         with self.assertRaises(Exception) as context:
