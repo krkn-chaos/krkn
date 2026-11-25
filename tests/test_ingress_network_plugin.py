@@ -396,11 +396,21 @@ class NetworkScenariosTest(unittest.TestCase):
         mock_kubecli = Mock()
         mock_kubecli.exec_cmd_in_pod.return_value = "IFB_DELETED\n"
 
-        ingress_shaping.delete_ifb(kubecli=mock_kubecli, number=1, pod_name="test-pod")
+        ingress_shaping.delete_ifb(kubecli=mock_kubecli, pod_name="test-pod", number=1)
 
         mock_kubecli.exec_cmd_in_pod.assert_called_once()
         call_args = mock_kubecli.exec_cmd_in_pod.call_args[0][0]
         self.assertIn("ip link del dev ifb0", call_args[0])
+
+    def test_delete_ifb_legacy_call_remains_supported(self):
+        mock_kubecli = Mock()
+
+        ingress_shaping.delete_ifb(mock_kubecli, "test-pod")
+
+        mock_kubecli.exec_cmd_in_pod.assert_called_once_with(
+            ["/host", "modprobe", "-r", "ifb"], "test-pod", "default",
+            base_command="chroot",
+        )
 
     def test_get_job_pods(self):
         """Test getting pods associated with a job"""
@@ -706,15 +716,32 @@ class NetworkScenariosTest(unittest.TestCase):
 
         ingress_shaping.delete_virtual_interfaces(
             kubecli=mock_kubecli,
-            node_interface_dict={"node1": ["eth0"], "node2": ["eth1"]},
+            node_list=["node1", "node2"],
             pod_template=mock_pod_template,
-            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools"
+            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
+            interface_counts={"node1": 1, "node2": 1},
         )
 
         self.assertEqual(mock_kubecli.create_pod.call_count, 2)
         self.assertEqual(mock_delete_ifb.call_count, 2)
-        mock_delete_ifb.assert_any_call(mock_kubecli, 1, unittest.mock.ANY)
+        self.assertTrue(all(
+            call.kwargs == {"number": 1} for call in mock_delete_ifb.call_args_list
+        ))
         self.assertEqual(mock_kubecli.delete_pod.call_count, 2)
+
+    @patch('krkn.scenario_plugins.native.network.ingress_shaping.delete_ifb')
+    def test_delete_virtual_interfaces_legacy_call_remains_supported(self, mock_delete_ifb):
+        mock_kubecli = Mock()
+        mock_pod_template = Mock()
+        mock_pod_template.render.return_value = "pod_yaml"
+
+        ingress_shaping.delete_virtual_interfaces(
+            mock_kubecli, ["node1"], mock_pod_template, "test-image"
+        )
+
+        mock_delete_ifb.assert_called_once_with(
+            mock_kubecli, unittest.mock.ANY, number=None
+        )
 
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.Environment')
     @patch('krkn.scenario_plugins.native.network.ingress_shaping.FileSystemLoader')

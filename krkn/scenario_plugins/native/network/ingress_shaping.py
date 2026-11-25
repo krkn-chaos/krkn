@@ -530,9 +530,10 @@ def create_virtual_interfaces(
 
 def delete_virtual_interfaces(
     kubecli: KrknKubernetes,
-    node_interface_dict: typing.Dict[str, typing.List[str]],
+    node_list: typing.Iterable[str],
     pod_template,
     image: str,
+    interface_counts: typing.Optional[typing.Dict[str, int]] = None,
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -542,22 +543,27 @@ def delete_virtual_interfaces(
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
-        node_interface_dict (Dictionary)
-            - Nodes and their test interfaces; one IFB is deleted per interface
+        node_list (Iterable of strings)
+            - Nodes whose virtual interfaces are to be deleted
+
+        interface_counts (Dictionary, optional)
+            - Number of IFBs created on each node. When supplied, delete only
+              those devices; omitted for compatibility with earlier callers
 
         pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to delete
               virtual interfaces on the node
     """
 
-    for node, interfaces in node_interface_dict.items():
+    for node in node_list:
         pod_name_regex = str(random.randint(0, 10000))
         pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
         kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
         pod_name = f"modtools-{pod_name_regex}"
         try:
-            delete_ifb(kubecli, len(interfaces), pod_name)
+            count = interface_counts[node] if interface_counts is not None else None
+            delete_ifb(kubecli, pod_name, number=count)
         finally:
             kubecli.delete_pod(pod_name, "default")
 
@@ -585,8 +591,14 @@ def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
         raise
 
 
-def delete_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
-    """Remove the IFB devices created for this node's shaping job."""
+def delete_ifb(kubecli: KrknKubernetes, pod_name: str, number: typing.Optional[int] = None):
+    """Remove owned IFBs, retaining the legacy two-argument call for callers."""
+    if number is None:
+        kubecli.exec_cmd_in_pod(
+            ["/host", "modprobe", "-r", "ifb"], pod_name, "default",
+            base_command="chroot",
+        )
+        return
     for i in range(number):
         name = f"ifb{i}"
         output = kubecli.exec_cmd_in_pod(
@@ -887,9 +899,12 @@ def network_chaos(
         logging.error("Ingress Network Chaos exiting due to Exception - %s" % e)
         return "error", NetworkScenarioErrorOutput(format_exc())
     finally:
-        owned_interfaces = {
-            node: node_interface_dict[node] for node in created_nodes
+        interface_counts = {
+            node: len(node_interface_dict[node]) for node in created_nodes
         }
-        delete_virtual_interfaces(kubecli, owned_interfaces, pod_module_template, test_image)
+        delete_virtual_interfaces(
+            kubecli, created_nodes, pod_module_template, test_image,
+            interface_counts=interface_counts,
+        )
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
