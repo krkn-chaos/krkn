@@ -51,39 +51,14 @@ All accepted risks are documented below and will be remediated as soon as compat
 
 ## Current Security Baseline
 
-**Total Vulnerabilities**: 12 CVEs (reduced from 130+ in previous baseline - 91% reduction)
-
-**Breakdown by Severity**:
-- Critical: 0
-- High: 7
-- Medium: 3  
-- Low: 0
-- Negligible: 0
-
-**Breakdown by Type**:
-- Python direct dependencies: 0
-- Python transitive dependencies: 2 (cbor2 - constraint by arcaflow-plugin-sdk)
-- Go stdlib: 0 (all binaries compiled with Go 1.25.10)
-- Go vendored dependencies (oc): 10 (embedded in OpenShift CLI binary)
+The last documented image scan, from May 2026, reported 12 CVEs. The resulting
+image vulnerability count after dependency cleanup must be confirmed by a fresh
+image build and Grype scan before updating the scanned baseline.
 
 
 ## Known Accepted Risks
 
 The following vulnerabilities are **accepted risks** due to dependency constraints in essential third-party binaries. These are **not vulnerabilities in Krkn code**, but rather in transitive dependencies of tools we depend on. We are actively monitoring upstream projects and will upgrade as soon as compatible versions are available.
-
-### Python Transitive Dependencies (2 CVEs)
-
-**cbor2 5.6.5** - Pinned by arcaflow-plugin-sdk==0.14.3
-- GHSA-3c37-wwvx-h642 (High): Buffer overflow in CBOR decoder
-- GHSA-wcj4-jw5j-44wh (Medium): Uncontrolled resource consumption
-
-**Why Accepted**: The arcaflow-plugin-sdk dependency requires cbor2 <5.7.0. Upgrading arcaflow-plugin-sdk to a version compatible with cbor2 >=5.9.0 would require Python 3.12+, but Krkn maintains Python 3.11 compatibility for broader platform support.
-
-**Mitigation**: CBOR decoding is not used in Krkn's core chaos scenarios. The vulnerability is isolated to optional arcaflow plugin integration.
-
-**Remediation Plan**: Upgrade to Python 3.12 and arcaflow-plugin-sdk 0.14.4+ in the next major version release.
-
----
 
 ### OpenShift CLI (oc) Vendored Dependencies (10 CVEs)
 

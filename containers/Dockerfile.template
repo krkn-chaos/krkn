@@ -103,7 +103,6 @@ RUN rm -rf "$(pip cache dir)"
 RUN rm -rf /tmp/*
 RUN rm -rf /usr/local/lib/${PYTHON_CMD}/ensurepip/_bundled
 RUN ${PYTHON_CMD} -m pip install --no-build-isolation -r requirements.txt
-RUN ${PYTHON_CMD} -m pip install jsonschema
 
 LABEL krknctl.title.global="Krkn Base Image"
 LABEL krknctl.description.global="This is the krkn base image."

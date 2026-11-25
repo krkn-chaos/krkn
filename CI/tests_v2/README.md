@@ -76,6 +76,22 @@ Running `make -f CI/tests_v2/Makefile setup` (or `make setup` from `CI/tests_v2`
 
 All commands below are from the **repository root**.
 
+### Native network scenarios
+
+The native node ingress test runs on a local KinD/Minikube node container and
+observes the injected `netem` rule and its cleanup. The native pod outage and
+shaping tests require OpenShift with an OpenShiftSDN or OVNKubernetes bridge;
+they skip on other clusters. Both use the existing ephemeral namespace and
+network target fixtures:
+
+```bash
+pytest CI/tests_v2/scenarios/native_ingress_node/ -v
+pytest CI/tests_v2/scenarios/native_pod_network/ -v
+```
+
+These tests inject real network faults. The pod tests observe traffic loss or
+latency from a peer pod and verify connectivity after cleanup.
+
 ### Basic run (with retries and HTML report)
 
 ```bash

@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from traceback import format_exc
 from jinja2 import Environment, FileSystemLoader
 from krkn_lib.k8s import KrknKubernetes
-from arcaflow_plugin_sdk import plugin, validation
+from krkn.scenario_plugins.native.steps import plugin, validation
 from kubernetes import client
 from kubernetes.client.api.apiextensions_v1_api import ApiextensionsV1Api
 from kubernetes.client.api.custom_objects_api import CustomObjectsApi

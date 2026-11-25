@@ -14,19 +14,20 @@ from kubernetes import config as kube_config
 
 
 def pytest_collection_modifyitems(config, items):
-    """Skip tests whose contract requires local KinD node containers."""
+    """Skip tests whose cluster-specific contract cannot be met."""
     try:
         _, active = kube_config.list_kube_config_contexts()
         cluster = ((active or {}).get("context") or {}).get("cluster", "").lower()
     except Exception:
         cluster = ""
-    if "kind" in cluster or "minikube" in cluster:
-        return
-    reason = "requires a local KinD/Minikube node container runtime"
-    skip = pytest.mark.skip(reason=reason)
+    local_cluster = "kind" in cluster or "minikube" in cluster
     for item in items:
-        if "kind_only" in item.keywords:
-            item.add_marker(skip)
+        if local_cluster and "openshift_only" in item.keywords:
+            item.add_marker(pytest.mark.skip(reason="requires an OpenShift cluster"))
+        elif not local_cluster and "kind_only" in item.keywords:
+            item.add_marker(
+                pytest.mark.skip(reason="requires a local KinD/Minikube node container runtime")
+            )
 
 # Matches Krkn's log format "%(asctime)s [%(levelname)s] %(message)s" so each line can be
 # rendered as a Timestamp/Level/Message row in the HTML report; non-matching lines (banner,
