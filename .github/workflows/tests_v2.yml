@@ -24,6 +24,9 @@ jobs:
           sudo docker image prune -af
           df -h
 
+      - name: Load IFB kernel module
+        run: sudo modprobe ifb numifbs=0
+
       - name: Create KinD cluster
         uses: redhat-chaos/actions/kind@aa421229ca6d4ad13785039d0736611c6439fc3e # main
 
