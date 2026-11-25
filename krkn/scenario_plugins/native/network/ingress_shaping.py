@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from dataclasses import dataclass, field
-import json
 import yaml
 import logging
 import time
@@ -272,32 +271,21 @@ def verify_interface(
             actual_interfaces = set()
             if missing_interfaces:
                 # Brief output may annotate a peer link as eth0@if15 although
-                # its actual ifname is eth0. Do not strip at '@': real ifnames
-                # can contain it, so use JSON's actual ifname for exact matching.
-                cmd = ["ip -j addr show"]
-                json_output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
-                if not json_output:
-                    logging.error("Exception occurred while retrieving node interfaces as JSON")
-                    sys.exit(1)
-
-                try:
-                    address_data = json.loads(json_output)
-                    if not isinstance(address_data, list):
-                        raise ValueError("expected a JSON array")
-                    actual_interfaces = {
-                        address["ifname"]
-                        for address in address_data
-                        if isinstance(address, dict) and isinstance(address.get("ifname"), str)
-                    }
-                except (json.JSONDecodeError, TypeError, ValueError) as error:
-                    raise Exception(
-                        f"Unable to parse node interfaces returned by ip -j addr show: {error}"
-                    ) from error
+                # its actual ifname is eth0. Read exact names from sysfs:
+                # this also preserves real ifnames containing '@' and avoids
+                # depending on the workload image's ip -j implementation.
+                cmd = ["ls -1 /sys/class/net"]
+                actual_output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
+                if not actual_output:
+                    raise Exception("Unable to list node interfaces from /sys/class/net")
+                actual_interfaces = {
+                    line.strip() for line in actual_output.splitlines() if line.strip()
+                }
 
                 resolved_interfaces = missing_interfaces & actual_interfaces
                 if resolved_interfaces:
                     logging.info(
-                        "Interface(s) %s on node %s validated using actual ip -j ifname values",
+                        "Interface(s) %s on node %s validated using /sys/class/net names",
                         sorted(resolved_interfaces),
                         node,
                     )

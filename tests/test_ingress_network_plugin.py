@@ -146,7 +146,7 @@ class NetworkScenariosTest(unittest.TestCase):
         mock_pod_template.render.return_value = "pod_yaml_content"
         mock_kubecli.exec_cmd_in_pod.side_effect = [
             "lo UNKNOWN 127.0.0.1/8\neth0@if15 UP 192.168.1.10/24\n",
-            '[{"ifname":"lo"},{"ifname":"eth0"}]',
+            "lo\neth0\n",
         ]
 
         with self.assertLogs(level="INFO") as captured_logs:
@@ -160,9 +160,13 @@ class NetworkScenariosTest(unittest.TestCase):
 
         self.assertEqual(result, ["eth0"])
         self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)
+        self.assertEqual(
+            mock_kubecli.exec_cmd_in_pod.call_args_list[1].args[0],
+            ["ls -1 /sys/class/net"],
+        )
         self.assertTrue(
             any(
-                "eth0" in message and "test-node" in message and "actual ip -j ifname" in message
+                "eth0" in message and "test-node" in message and "/sys/class/net" in message
                 for message in captured_logs.output
             )
         )
@@ -192,7 +196,7 @@ class NetworkScenariosTest(unittest.TestCase):
         mock_pod_template.render.return_value = "pod_yaml_content"
         mock_kubecli.exec_cmd_in_pod.side_effect = [
             "eth0@if15@if17 UP 192.168.1.10/24\n",
-            '[{"ifname":"eth0@if15"}]',
+            "eth0@if15\n",
         ]
 
         result = ingress_shaping.verify_interface(
@@ -214,7 +218,7 @@ class NetworkScenariosTest(unittest.TestCase):
         mock_kubecli.create_pod.return_value = None
         mock_kubecli.exec_cmd_in_pod.side_effect = [
             "eth0             UP             192.168.1.10/24\nlo UNKNOWN 127.0.0.1/8\n",
-            '[{"ifname":"eth0"},{"ifname":"lo"}]',
+            "eth0\nlo\n",
         ]
         mock_kubecli.delete_pod.return_value = None
 
