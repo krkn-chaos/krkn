@@ -372,7 +372,50 @@ def get_node_interfaces(
                 node_interface_dict[node], node, pod_template, kubecli, image
             )
 
+    check_node_ingress_qdiscs(node_interface_dict, pod_template, kubecli, image)
     return node_interface_dict
+
+
+def check_node_ingress_qdiscs(node_interface_dict, pod_template, kubecli, image):
+    """Refuse to replace an existing node ingress qdisc before creating any jobs.
+
+    The probe pod uses the node's network namespace. An inconclusive probe is
+    treated as an error so ingress shaping cannot proceed on an unknown state.
+    """
+    for node, interfaces in node_interface_dict.items():
+        pod_name_regex = str(random.randint(0, 10000))
+        pod_name = f"fedtools-{pod_name_regex}"
+        pod_body = yaml.safe_load(
+            pod_template.render(regex_name=pod_name_regex, nodename=node, image=image)
+        )
+        kubecli.create_pod(pod_body, "default", 300)
+        try:
+            for interface in interfaces:
+                if not re.fullmatch(r"[a-z0-9@_-]+", interface):
+                    raise ValueError(f"Invalid interface name {interface!r} on node {node}")
+
+                marker = "KRKN_QDISC_PROBE_OK"
+                output = kubecli.exec_cmd_in_pod(
+                    [f"tc qdisc show dev {interface} && echo {marker}"],
+                    pod_name,
+                    "default",
+                )
+                lines = [line.strip() for line in (output or "").splitlines()]
+                if marker not in lines:
+                    raise RuntimeError(
+                        f"Could not inspect qdiscs on node {node}, interface {interface}: {output}"
+                    )
+
+                for line in lines:
+                    fields = line.split()
+                    if len(fields) >= 2 and fields[0] == "qdisc" and fields[1] in {"ingress", "clsact"}:
+                        raise RuntimeError(
+                            f"Node {node}, interface {interface} already has an ingress qdisc "
+                            f"({fields[1]}); "
+                            "ingress shaping cannot replace it safely"
+                        )
+        finally:
+            kubecli.delete_pod(pod_name, "default")
 
 
 def apply_ingress_filter(
@@ -385,6 +428,7 @@ def apply_ingress_filter(
     create_interfaces: bool = True,
     param_selector: str = "all",
     image: str = "quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
+    created_nodes: typing.Optional[typing.Set[str]] = None,
 ) -> str:
     """
     Function that applies the filters to shape incoming traffic to
@@ -428,6 +472,8 @@ def apply_ingress_filter(
 
     if create_interfaces:
         create_virtual_interfaces(kubecli, interface_list, node, pod_template, image)
+        if created_nodes is not None:
+            created_nodes.add(node)
 
     exec_cmd = get_ingress_cmd(
         interface_list, network_params, duration=cfg.test_duration
@@ -475,13 +521,18 @@ def create_virtual_interfaces(
         )
     )
     pod_name = f"modtools-{pod_name_regex}"
-    create_ifb(kubecli, len(interface_list), pod_name)
-    logging.info("Deleting pod used to create virtual interfaces")
-    kubecli.delete_pod(pod_name, "default")
+    try:
+        create_ifb(kubecli, len(interface_list), pod_name)
+    finally:
+        logging.info("Deleting pod used to create virtual interfaces")
+        kubecli.delete_pod(pod_name, "default")
 
 
 def delete_virtual_interfaces(
-    kubecli: KrknKubernetes, node_list: typing.List[str], pod_template, image: str
+    kubecli: KrknKubernetes,
+    node_interface_dict: typing.Dict[str, typing.List[str]],
+    pod_template,
+    image: str,
 ):
     """
     Function that creates a privileged pod and uses it to delete all
@@ -491,47 +542,58 @@ def delete_virtual_interfaces(
         kubecli (KrknKubernetes)
             - Object to interact with Kubernetes Python client
 
-        node_list (List of strings)
-            - The list of nodes on which the list of virtual interfaces are
-              to be deleted
+        node_interface_dict (Dictionary)
+            - Nodes and their test interfaces; one IFB is deleted per interface
 
         pod_template (jinja2.environment.Template))
             - The YAML template used to instantiate a pod to delete
               virtual interfaces on the node
     """
 
-    for node in node_list:
+    for node, interfaces in node_interface_dict.items():
         pod_name_regex = str(random.randint(0, 10000))
         pod_body = yaml.safe_load(pod_template.render(regex_name=pod_name_regex, nodename=node, image=image))
         kubecli.create_pod(pod_body, "default", 300)
         logging.info("Deleting all virtual interfaces on node {0}".format(node))
         pod_name = f"modtools-{pod_name_regex}"
-        delete_ifb(kubecli, pod_name)
-        kubecli.delete_pod(pod_name, "default")
+        try:
+            delete_ifb(kubecli, len(interfaces), pod_name)
+        finally:
+            kubecli.delete_pod(pod_name, "default")
 
 
 def create_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
-    """
-    Function that creates virtual interfaces in a pod.
-    Makes use of modprobe commands
-    """
+    """Create IFB devices in the node network namespace of the host-networked pod."""
+    created = []
+    try:
+        for i in range(number):
+            name = f"ifb{i}"
+            output = kubecli.exec_cmd_in_pod(
+                [f"ip link add dev {name} type ifb && echo IFB_CREATED && "
+                 f"ip link set dev {name} up && echo IFB_READY"],
+                pod_name,
+                "default",
+            )
+            lines = (output or "").splitlines()
+            if "IFB_CREATED" in lines:
+                created.append(name)
+            if "IFB_READY" not in lines:
+                raise RuntimeError(f"Could not create {name} on node: {output}")
+    except Exception:
+        for name in reversed(created):
+            kubecli.exec_cmd_in_pod([f"ip link del dev {name}"], pod_name, "default")
+        raise
 
-    exec_command = ["/host", "modprobe", "ifb", "numifbs=" + str(number)]
-    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
 
-    for i in range(0, number):
-        exec_command = ["/host", "ip", "link", "set", "dev", "ifb" + str(i), "up"]
-        kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
-
-
-def delete_ifb(kubecli: KrknKubernetes, pod_name: str):
-    """
-    Function that deletes all virtual interfaces in a pod.
-    Makes use of modprobe command
-    """
-
-    exec_command = ["/host", "modprobe", "-r", "ifb"]
-    kubecli.exec_cmd_in_pod(exec_command, pod_name, "default", base_command="chroot")
+def delete_ifb(kubecli: KrknKubernetes, number: int, pod_name: str):
+    """Remove the IFB devices created for this node's shaping job."""
+    for i in range(number):
+        name = f"ifb{i}"
+        output = kubecli.exec_cmd_in_pod(
+            [f"ip link del dev {name} && echo IFB_DELETED"], pod_name, "default"
+        )
+        if not output or "IFB_DELETED" not in output.splitlines():
+            logging.warning("Could not delete %s on node: %s", name, output)
 
 
 def get_job_pods(kubecli: KrknKubernetes, api_response):
@@ -582,14 +644,14 @@ def wait_for_job(
         for job_name in job_list:
             try:
                 api_response = kubecli.get_job_status(job_name, namespace="default")
-                if (
-                    api_response.status.succeeded is not None
-                    or api_response.status.failed is not None
-                ):
-                    count += 1
-                    job_list.remove(job_name)
             except Exception:
                 logging.warning("Exception in getting job status")
+            else:
+                if api_response.status.failed:
+                    raise RuntimeError(f"Ingress job {job_name} failed")
+                if api_response.status.succeeded:
+                    count += 1
+                    job_list.remove(job_name)
             if time.time() > wait_time:
                 raise Exception(
                     "Jobs did not complete within "
@@ -661,6 +723,8 @@ def get_ingress_cmd(
     """
 
     tc_set = tc_unset = tc_ls = ""
+    ownership_flags = []
+    emergency_cleanup = ""
     param_map = {"latency": "delay", "loss": "loss", "bandwidth": "rate"}
 
     interface_pattern = re.compile(r"^[a-z0-9\-\@\_]+$")
@@ -675,6 +739,9 @@ def get_ingress_cmd(
             )
 
         ifb_name = "ifb{0}".format(i)
+        ingress_flag = f"krkn_ingress_{i}"
+        ifb_flag = f"krkn_ifb_{i}"
+        ownership_flags.extend((f"{ingress_flag}=0", f"{ifb_flag}=0"))
         if not ifb_pattern.match(ifb_name):
             logging.error("Invalid IFB name")
             raise Exception(
@@ -682,23 +749,31 @@ def get_ingress_cmd(
                 "follow the regex pattern ^ifb[0-9]+$".format(ifb_name)
             )
 
-        tc_set += "tc qdisc add dev {0} handle ffff: ingress;".format(interface)
+        tc_set += "tc qdisc add dev {0} handle ffff: ingress;{1}=1;".format(
+            interface, ingress_flag
+        )
         tc_set += "tc filter add dev {0} parent ffff: protocol ip u32 match u32 0 0 action mirred egress redirect dev {1};".format(  # noqa
             interface, ifb_name
         )
         tc_set = "{0} tc qdisc add dev {1} root netem".format(tc_set, ifb_name)
-        tc_unset = "{0} tc qdisc del dev {1} root ;".format(tc_unset, ifb_name)
-        tc_unset += "tc qdisc del dev {0} handle ffff: ingress;".format(interface)
+        tc_unset += f"tc qdisc del dev {ifb_name} root;{ifb_flag}=0;"
+        tc_unset += f"tc qdisc del dev {interface} handle ffff: ingress;{ingress_flag}=0;"
+        emergency_cleanup = (
+            f'[ "${ifb_flag}" = 1 ] && tc qdisc del dev {ifb_name} root >/dev/null 2>&1 || true;'
+            f'[ "${ingress_flag}" = 1 ] && tc qdisc del dev {interface} handle ffff: ingress '
+            f'>/dev/null 2>&1 || true;{emergency_cleanup}'
+        )
         tc_ls = "{0} tc qdisc ls dev {1} ;".format(tc_ls, ifb_name)
 
         for parameter in network_parameters.keys():
             tc_set += " {0} {1} ".format(
                 param_map[parameter], network_parameters[parameter]
             )
-        tc_set += ";"
+        tc_set += f";{ifb_flag}=1;"
 
-    exec_cmd = "sleep 30;{0} {1} sleep {2};{3} sleep 20;{4}".format(
-        tc_set, tc_ls, duration, tc_unset, tc_ls
+    exec_cmd = "set -e;{0};trap '{1}' EXIT; sleep 30;{2} {3} sleep {4};{5} sleep 20;{6}".format(
+        ";".join(ownership_flags), emergency_cleanup, tc_set, tc_ls,
+        duration, tc_unset, tc_ls
     )
 
     return exec_cmd
@@ -752,6 +827,7 @@ def network_chaos(
     except Exception:
         return "error", NetworkScenarioErrorOutput(format_exc())
     job_list = []
+    created_nodes = set()
 
     try:
         if cfg.execution_type == "parallel":
@@ -764,7 +840,8 @@ def network_chaos(
                         pod_module_template,
                         job_template,
                         kubecli,
-                        image=test_image
+                        image=test_image,
+                        created_nodes=created_nodes,
                     )
                 )
             logging.info("Waiting for parallel job to finish")
@@ -784,7 +861,8 @@ def network_chaos(
                             kubecli,
                             create_interfaces=create_interfaces,
                             param_selector=param,
-                            image=test_image
+                            image=test_image,
+                            created_nodes=created_nodes,
                         )
                     )
                 logging.info("Waiting for serial job to finish")
@@ -809,6 +887,9 @@ def network_chaos(
         logging.error("Ingress Network Chaos exiting due to Exception - %s" % e)
         return "error", NetworkScenarioErrorOutput(format_exc())
     finally:
-        delete_virtual_interfaces(kubecli, node_interface_dict.keys(), pod_module_template, test_image)
+        owned_interfaces = {
+            node: node_interface_dict[node] for node in created_nodes
+        }
+        delete_virtual_interfaces(kubecli, owned_interfaces, pod_module_template, test_image)
         logging.info("Deleting jobs(if any)")
         delete_jobs(kubecli, job_list[:])
