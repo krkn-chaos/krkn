@@ -27,14 +27,15 @@ jobs:
           ELASTIC_PORT: ${{ env.ELASTIC_PORT }}
           RUN_ID: ${{ github.run_id }}
         uses: redhat-chaos/actions/elastic@aa421229ca6d4ad13785039d0736611c6439fc3e # main
-      - name: Download elastic password
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: elastic_password_${{ github.run_id }}
       - name: Set elastic password on env
         run: |
-          ELASTIC_PASSWORD=$(cat elastic_password.txt)
-          echo "ELASTIC_PASSWORD=$ELASTIC_PASSWORD" >> "$GITHUB_ENV"
+          ELASTIC_PASSWORD="$(kubectl get secret elasticsearch-master-credentials -o jsonpath='{.data.password}' | base64 --decode)"
+          if [[ -z "$ELASTIC_PASSWORD" ]]; then
+            echo "::error::Failed to retrieve Elasticsearch password from Kubernetes secret"
+            exit 1
+          fi
+          echo "::add-mask::$ELASTIC_PASSWORD"
+          printf 'ELASTIC_PASSWORD=%s\n' "$ELASTIC_PASSWORD" >> "$GITHUB_ENV"
       - name: Install Python
         uses: actions/setup-python@7f4fc3e22c37d6ff65e88745f38bd3157c663f7c # v4
         with:
