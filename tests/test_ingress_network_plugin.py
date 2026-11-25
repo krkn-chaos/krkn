@@ -574,6 +574,26 @@ class NetworkScenariosTest(unittest.TestCase):
                     "qdisc del dev eth0 handle ffff: ingress" in calls, delete_ingress
                 )
 
+    def test_ingress_command_renders_as_valid_job_yaml(self):
+        command = ingress_shaping.get_ingress_cmd(
+            ["eth0"], {"latency": "2s"}, duration=12
+        )
+        template = ingress_shaping.Environment(
+            loader=ingress_shaping.FileSystemLoader(
+                str(Path(ingress_shaping.__file__).parent)
+            )
+        ).get_template("job.j2")
+        job = ingress_shaping.yaml.safe_load(
+            template.render(
+                jobname="test", nodename="kind-worker", image="test-image", cmd=command
+            )
+        )
+
+        self.assertEqual(
+            job["spec"]["template"]["spec"]["containers"][0]["command"],
+            ["/bin/sh", "-c", command],
+        )
+
     def test_get_ingress_cmd_multiple_interfaces(self):
         """Test generating commands for multiple interfaces"""
         result = ingress_shaping.get_ingress_cmd(

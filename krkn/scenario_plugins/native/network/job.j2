@@ -10,7 +10,7 @@ spec:
       containers:
       - name: networkchaos
         image: {{image}}
-        command: ["/bin/sh",  "-c", "{{cmd}}"]
+        command: ["/bin/sh", "-c", {{cmd | tojson}}]
         securityContext:
           privileged: true
         volumeMounts:
