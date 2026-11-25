@@ -319,6 +319,8 @@ Refer to the Adoption portion of this document.
 CNCF project integrations:
 - **[Kubernetes](https://kubernetes.io/)** (CNCF graduated) — Krkn is built natively on the Kubernetes API; all chaos scenarios interact directly with the Kubernetes control plane
 - **[Prometheus](https://prometheus.io/)** (CNCF graduated) — integrated for metrics collection and monitoring during chaos scenario execution
+- **[Kubevirt](https://kubevirt.io)** (CNCF graduated) - Kubevirt dedicated scenarios
+- **[OCM](https://open-cluster-management.io)** (CNCF incubating) - krkn-operator’s OCM integration enables krkn to authenticate to clusters through OCM.”
 
 Non-CNCF integrations:
 - **Red Hat OpenShift** — primary enterprise Kubernetes distribution for production use cases
