@@ -26,8 +26,5 @@ echo "$grype_sha  $TMP_DIR/$asset" | sha256sum --check --status || {
 tar -xzf "$TMP_DIR/$asset" -C "$TMP_DIR" grype
 install -m 0755 "$TMP_DIR/grype" "$BIN_DIR/grype"
 
-GOBIN="$BIN_DIR" go install "github.com/project-copacetic/copacetic@v${COPA_VERSION}"
-cp scripts/copa-grype "$BIN_DIR/copa-grype"
-chmod 0755 "$BIN_DIR/copa-grype"
 echo "$BIN_DIR" >> "$GITHUB_PATH"
 "$BIN_DIR/grype" version
