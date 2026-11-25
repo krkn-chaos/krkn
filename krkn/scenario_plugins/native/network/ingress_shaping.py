@@ -271,9 +271,9 @@ def verify_interface(
             missing_interfaces = set(input_interface_list) - displayed_interfaces
             actual_interfaces = set()
             if missing_interfaces:
-                # The brief output may render a peer link as eth0@if15 even
-                # though its actual interface name is eth0. JSON exposes the
-                # actual ifname without rewriting user-provided values.
+                # Brief output may annotate a peer link as eth0@if15 although
+                # its actual ifname is eth0. Do not strip at '@': real ifnames
+                # can contain it, so use JSON's actual ifname for exact matching.
                 cmd = ["ip -j addr show"]
                 json_output = kubecli.exec_cmd_in_pod(cmd, pod_name, "default")
                 if not json_output:
@@ -293,6 +293,14 @@ def verify_interface(
                     raise Exception(
                         f"Unable to parse node interfaces returned by ip -j addr show: {error}"
                     ) from error
+
+                resolved_interfaces = missing_interfaces & actual_interfaces
+                if resolved_interfaces:
+                    logging.info(
+                        "Interface(s) %s on node %s validated using actual ip -j ifname values",
+                        sorted(resolved_interfaces),
+                        node,
+                    )
 
             node_interface_list = sorted(displayed_interfaces | actual_interfaces)
 

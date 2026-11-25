@@ -149,16 +149,23 @@ class NetworkScenariosTest(unittest.TestCase):
             '[{"ifname":"lo"},{"ifname":"eth0"}]',
         ]
 
-        result = ingress_shaping.verify_interface(
-            input_interface_list=["eth0"],
-            node="test-node",
-            pod_template=mock_pod_template,
-            kubecli=mock_kubecli,
-            image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
-        )
+        with self.assertLogs(level="INFO") as captured_logs:
+            result = ingress_shaping.verify_interface(
+                input_interface_list=["eth0"],
+                node="test-node",
+                pod_template=mock_pod_template,
+                kubecli=mock_kubecli,
+                image="quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-tools",
+            )
 
         self.assertEqual(result, ["eth0"])
         self.assertEqual(mock_kubecli.exec_cmd_in_pod.call_count, 2)
+        self.assertTrue(
+            any(
+                "eth0" in message and "test-node" in message and "actual ip -j ifname" in message
+                for message in captured_logs.output
+            )
+        )
 
     def test_verify_interface_preserves_configured_display_name(self):
         """Keep accepting and returning the exact interface token users configured."""
