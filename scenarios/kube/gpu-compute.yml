@@ -1,0 +1,6 @@
+fault-type: compute-pressure
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-gpu
+node-selector: "nvidia.com/gpu.present=true"
+number-of-nodes: 1
+gpu-compute-duty-cycle: "20%"
+duration: 60

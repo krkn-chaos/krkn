@@ -1,0 +1,6 @@
+fault-type: power-limit
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-gpu
+node-selector: "kubernetes.io/hostname=gpu-node"
+gpu-ids: "0"
+gpu-power-limit-w: 65
+duration: 30

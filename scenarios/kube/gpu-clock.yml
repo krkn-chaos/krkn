@@ -1,0 +1,6 @@
+fault-type: clock-limit
+image: quay.io/krkn-chaos/krkn-hub-multiarch:workload-krkn-gpu
+node-selector: "kubernetes.io/hostname=gpu-node"
+gpu-ids: "0"
+gpu-clock-mhz: 1800
+duration: 30

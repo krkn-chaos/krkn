@@ -1,0 +1,47 @@
+// Copyright 2026 The Krkn Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package v1;
+
+service PodResourcesLister {
+  rpc List(ListPodResourcesRequest) returns (ListPodResourcesResponse);
+}
+
+message ListPodResourcesRequest {}
+
+message ListPodResourcesResponse {
+  repeated PodResources pod_resources = 1;
+}
+
+message PodResources {
+  string name = 1;
+  string namespace = 2;
+  repeated ContainerResources containers = 3;
+}
+
+message ContainerResources {
+  string name = 1;
+  repeated ContainerDevices devices = 2;
+  repeated DynamicResource dynamic_resources = 5;
+}
+
+message ContainerDevices {
+  string resource_name = 1;
+  repeated string device_ids = 2;
+}
+
+// DRA allocations are intentionally opaque and rejected by the worker.
+message DynamicResource {}
