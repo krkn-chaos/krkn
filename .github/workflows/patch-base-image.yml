@@ -706,10 +706,9 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      # Rebuild Hub only after the validated production image is promoted.
       - name: Rebuild krkn-hub
         if: inputs.publish_target == 'production'
-        uses: ./.github/actions/rebuild-krkn-hub
+        uses: redhat-chaos/actions/krkn-hub@b3118123a105aa4d208b282639d24f71d02fb25c # main
         with:
           QUAY_USER: ${{ secrets.QUAY_USERNAME }}
           QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
