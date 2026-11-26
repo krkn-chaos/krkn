@@ -618,6 +618,25 @@ class TestAWSNodeScenarios(unittest.TestCase):
             # Should not call wait_for_ready_status
             mock_wait_ready.assert_not_called()
 
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_ready_status')
+    def test_node_start_scenario_fails_when_instance_never_runs(self, mock_wait_ready):
+        """A start whose instance never reaches running fails the scenario (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.return_value = 'i-1234567890abcdef0'
+        self.mock_aws.wait_until_running.return_value = False
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenario.node_start_scenario(
+                instance_kill_count=1,
+                node=node,
+                timeout=600,
+                poll_interval=15
+            )
+        self.assertIn("Timed out or failed waiting for instance", str(ctx.exception.__cause__))
+        self.mock_aws.wait_until_running.assert_called_once()
+        mock_wait_ready.assert_not_called()
+        self.assertEqual(len(self.affected_nodes_status.affected_nodes), 0)
+
     def test_node_start_scenario_failure(self):
         """Test node start scenario with failure"""
         node = 'ip-10-0-1-100.ec2.internal'
@@ -684,6 +703,128 @@ class TestAWSNodeScenarios(unittest.TestCase):
 
             # Should not call wait_for_unknown_status
             mock_wait_unknown.assert_not_called()
+
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_unknown_status')
+    def test_node_stop_scenario_fails_when_instance_never_stops(self, mock_wait_unknown):
+        """A stop whose instance never reaches stopped fails the scenario (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.return_value = 'i-1234567890abcdef0'
+        self.mock_aws.wait_until_stopped.return_value = False
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenario.node_stop_scenario(
+                instance_kill_count=1,
+                node=node,
+                timeout=600,
+                poll_interval=15
+            )
+        self.assertIn("Timed out or failed waiting for instance", str(ctx.exception.__cause__))
+        self.mock_aws.wait_until_stopped.assert_called_once()
+        mock_wait_unknown.assert_not_called()
+        self.assertEqual(len(self.affected_nodes_status.affected_nodes), 0)
+
+    @patch('time.sleep')
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_ready_status')
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_unknown_status')
+    def test_node_stop_start_scenario_starts_after_stop_wait_times_out(self, _unknown, _ready, _sleep):
+        """A stop whose wait timed out still starts the instance, then fails (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.return_value = 'i-1234567890abcdef0'
+        self.mock_aws.wait_until_stopped.return_value = False
+        self.mock_aws.wait_until_running.return_value = True
+
+        with self.assertRaises(RuntimeError):
+            self.scenario.node_stop_start_scenario(
+                instance_kill_count=1, node=node, timeout=600, duration=0, poll_interval=15
+            )
+        self.mock_aws.stop_instances.assert_called_once_with('i-1234567890abcdef0')
+        self.mock_aws.start_instances.assert_called_once_with('i-1234567890abcdef0')
+
+    @patch('time.sleep')
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_ready_status')
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_unknown_status')
+    def test_node_stop_start_scenario_starts_after_kube_check_fails(self, mock_unknown, _ready, _sleep):
+        """A kube check error after the instance stopped still starts the instance, then fails (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.return_value = 'i-1234567890abcdef0'
+        self.mock_aws.wait_until_stopped.return_value = True
+        self.mock_aws.wait_until_running.return_value = True
+        mock_unknown.side_effect = Exception("node watch failed")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenario.node_stop_start_scenario(
+                instance_kill_count=1, node=node, timeout=600, duration=0, poll_interval=15
+            )
+        self.assertEqual(str(ctx.exception.__cause__), "node watch failed")
+        self.mock_aws.stop_instances.assert_called_once_with('i-1234567890abcdef0')
+        self.mock_aws.start_instances.assert_called_once_with('i-1234567890abcdef0')
+
+    @patch('time.sleep')
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_ready_status')
+    @patch('krkn.scenario_plugins.node_actions.common_node_functions.wait_for_unknown_status')
+    def test_node_stop_start_scenario_starts_when_a_later_stop_fails_before_its_request(self, _unknown, _ready, _sleep):
+        """With instance_kill_count 2, a lookup failure after the first stop still starts the instance (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.side_effect = [
+            'i-1234567890abcdef0', Exception("AWS error"), 'i-1234567890abcdef0', 'i-1234567890abcdef0'
+        ]
+        self.mock_aws.wait_until_stopped.return_value = True
+        self.mock_aws.wait_until_running.return_value = True
+
+        with self.assertRaises(RuntimeError):
+            self.scenario.node_stop_start_scenario(
+                instance_kill_count=2, node=node, timeout=600, duration=0, poll_interval=15
+            )
+        self.mock_aws.stop_instances.assert_called_once_with('i-1234567890abcdef0')
+        # node_start_scenario runs instance_kill_count times
+        self.assertEqual(self.mock_aws.start_instances.call_count, 2)
+
+    @patch('time.sleep')
+    def test_node_stop_start_scenario_does_not_start_when_stop_was_never_issued(self, _sleep):
+        """An instance lookup failure fails the scenario without starting anything (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.side_effect = Exception("AWS error")
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenario.node_stop_start_scenario(
+                instance_kill_count=1, node=node, timeout=600, duration=0, poll_interval=15
+            )
+        self.assertEqual(str(ctx.exception.__cause__), "AWS error")
+        self.mock_aws.stop_instances.assert_not_called()
+        self.mock_aws.start_instances.assert_not_called()
+
+    @patch('time.sleep')
+    def test_node_stop_start_scenario_does_not_start_when_stop_call_fails(self, _sleep):
+        """A failed stop request fails the scenario without starting the instance (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.return_value = 'i-1234567890abcdef0'
+        self.mock_aws.stop_instances.side_effect = RuntimeError("stop call failed")
+
+        with self.assertRaises(RuntimeError):
+            self.scenario.node_stop_start_scenario(
+                instance_kill_count=1, node=node, timeout=600, duration=0, poll_interval=15
+            )
+        self.mock_aws.wait_until_stopped.assert_not_called()
+        self.mock_aws.start_instances.assert_not_called()
+
+    @patch('time.sleep')
+    def test_node_termination_scenario_fails_when_instance_never_terminates(self, _mock_sleep):
+        """A termination whose instance never reaches terminated fails the scenario (#1653)"""
+        node = 'ip-10-0-1-100.ec2.internal'
+        self.mock_aws.get_instance_id.return_value = 'i-1234567890abcdef0'
+        self.mock_aws.wait_until_terminated.return_value = False
+        self.kubecli.list_nodes.return_value = []
+
+        with self.assertRaises(RuntimeError) as ctx:
+            self.scenario.node_termination_scenario(
+                instance_kill_count=1,
+                node=node,
+                timeout=600,
+                poll_interval=15
+            )
+        self.assertIn("Timed out or failed waiting for instance", str(ctx.exception.__cause__))
+        self.mock_aws.wait_until_terminated.assert_called_once()
+        self.assertEqual(len(self.affected_nodes_status.affected_nodes), 0)
 
     def test_node_stop_scenario_failure(self):
         """Test node stop scenario with failure"""

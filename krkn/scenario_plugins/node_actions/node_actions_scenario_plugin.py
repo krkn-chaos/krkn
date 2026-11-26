@@ -221,13 +221,16 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                 nodes = [node for node in nodes if node not in exclude_nodes]
 
         # GCP api doesn't support multiprocessing calls, will only actually run 1
-        if parallel_nodes:
-            self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
-        else:
-            for single_node in nodes:
-                self.run_node(single_node, node_scenario_object, action, node_scenario)
-        affected_nodes_status = node_scenario_object.affected_nodes_status
-        scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
+        try:
+            if parallel_nodes:
+                self.multiprocess_nodes(nodes, node_scenario_object, action, node_scenario)
+            else:
+                for single_node in nodes:
+                    self.run_node(single_node, node_scenario_object, action, node_scenario)
+        finally:
+            # Keep telemetry for the nodes that finished, even if a later one failed.
+            affected_nodes_status = node_scenario_object.affected_nodes_status
+            scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
 
     def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
         try:

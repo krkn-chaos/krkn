@@ -17,10 +17,12 @@ import boto3
 import logging
 import krkn.scenario_plugins.node_actions.common_node_functions as nodeaction
 from krkn.scenario_plugins.node_actions.abstract_node_scenarios import (
+    NodeStopIssuedError,
     abstract_node_scenarios,
 )
 from krkn_lib.k8s import KrknKubernetes
 from krkn_lib.models.k8s import AffectedNode, AffectedNodeStatus
+from krkn.utils.wait import wait_or_fail
 
 class AWS:
     def __init__(self):
@@ -324,7 +326,10 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Starting the node %s with instance ID: %s " % (node, instance_id)
                 )
                 self.aws.start_instances(instance_id)
-                self.aws.wait_until_running(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
+                wait_or_fail(
+                    self.aws.wait_until_running(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval),
+                    "instance %s to be running" % instance_id,
+                )
                 if self.node_action_kube_check: 
                     nodeaction.wait_for_ready_status(node, timeout, self.kubecli, affected_node)
                 logging.info(
@@ -338,11 +343,12 @@ class aws_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_start_scenario injection failed!")
 
-                raise RuntimeError()
+                raise RuntimeError("node_start_scenario injection failed") from e
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to stop the node
     def node_stop_scenario(self, instance_kill_count, node, timeout, poll_interval):
+        stop_issued = False
         for _ in range(instance_kill_count):
             affected_node = AffectedNode(node)
             try:
@@ -353,7 +359,11 @@ class aws_node_scenarios(abstract_node_scenarios):
                     "Stopping the node %s with instance ID: %s " % (node, instance_id)
                 )
                 self.aws.stop_instances(instance_id)
-                self.aws.wait_until_stopped(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
+                stop_issued = True
+                wait_or_fail(
+                    self.aws.wait_until_stopped(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval),
+                    "instance %s to be stopped" % instance_id,
+                )
                 logging.info(
                     "Node with instance ID: %s is in stopped state" % (instance_id)
                 )
@@ -366,7 +376,8 @@ class aws_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_stop_scenario injection failed!")
 
-                raise RuntimeError()
+                error = NodeStopIssuedError if stop_issued else RuntimeError
+                raise error("node_stop_scenario injection failed") from e
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to terminate the node
@@ -382,7 +393,10 @@ class aws_node_scenarios(abstract_node_scenarios):
                     % (node, instance_id)
                 )
                 self.aws.terminate_instances(instance_id)
-                self.aws.wait_until_terminated(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval)
+                wait_or_fail(
+                    self.aws.wait_until_terminated(instance_id, timeout=timeout, affected_node=affected_node, poll_interval=poll_interval),
+                    "instance %s to be terminated" % instance_id,
+                )
                 for _ in range(timeout):
                     if node not in self.kubecli.list_nodes():
                         break
@@ -400,7 +414,7 @@ class aws_node_scenarios(abstract_node_scenarios):
                 )
                 logging.error("node_termination_scenario injection failed!")
 
-                raise RuntimeError()
+                raise RuntimeError("node_termination_scenario injection failed") from e
             self.affected_nodes_status.affected_nodes.append(affected_node)
 
     # Node scenario to reboot the node
