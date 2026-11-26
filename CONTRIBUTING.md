@@ -11,6 +11,17 @@ If you would like to contribute to Krkn, but are not sure exactly what to work o
 
 Please start by discussing potential solutions and your proposed approach for the issue you plan to work on. We encourage you to gather feedback from maintainers and contributors and to have the issue assigned to you before opening a pull request with a solution.
 
+## Pull Request Requirements
+
+To ensure that your PR is accepted and reviewed, it must meet the following criteria:
+1. Your PR must be linked to an approved and existing GitHub issue. You can do this by adding `Fixes #<issue-number>` in the description (the issue must be linked in the description).
+2. The person who opens the PR must be the person assigned to the linked issue. PRs without a linked issue, or PRs opened by a contributor who is not assigned to the linked issue, will receive an automated warning comment and will not be routed to maintainers for review.
+
+### Steps to contribute
+1. Open an issue or comment on an existing issue expressing your interest in working on it, and wait for a maintainer to approve (shown by the `triage/accepted` label) and assign you to the issue
+2. If you have been assigned to the issue, work on your changes, open a PR, and link the issue by adding "Fixes #<issue-number>" in the description
+3. Wait for maintainers to review it, and please be patient as there are many issues/PRs that need to be approved/reviewed!!
+
 ## Proposing Roadmap Items
 
 If you have an idea that is larger in scope than a single bug fix or configuration option — a new capability, a new integration, or a significant architectural change — consider proposing it as a roadmap item. See the [Roadmap contribution process](ROADMAP.md#proposing-a-roadmap-item) for the full steps, including how to open a proposal issue, the community discussion period, and how the Maintainer Council votes on inclusion.
@@ -45,12 +56,20 @@ If you have any questions that you think could be better discussed on a meeting 
 ## AI-Assisted Contributions
 We welcome contributions that use AI tools (LLMs, code generators, AI coding agents, etc.) as development assistants. If you use AI tools in your contribution, please review our [AI Contribution Policy](AI_CONTRIBUTION_POLICY.md) for disclosure requirements, safety guidelines, and quality expectations. In short: disclose AI usage in your commit trailers and make sure you understand and can explain every line of code you submit.
 
+
 ## Good PR Checklist
 Here's a quick checklist for a good PR, more details below:
+- Link the PR to an approved issue with `Fixes #<issue-number>` in the PR description
+- Confirm that the linked issue is assigned to you before opening the PR
+- For feature and enhancement work, confirm that the issue has the `triage/accepted` label
+- For bug fixes, confirm that the issue has the `bug` label
+- For feature and enhancement issues that you are assigned to(`triage/accepted`), submit a PR within 14 days or respond to the inactivity reminder within the 3-day grace period to keep the assignment
+- Address automated PR compliance feedback within 7 days; unresolved non-compliance may close the PR after 14 days
+- Respond to requested changes within 14 days; after a reminder, the PR may be closed after 7 additional days without activity
 - One feature/change per PR
 - One commit per PR ([squash your commits](https://krkn-chaos.dev/docs/contribution-guidelines/git-pointers/#squash-commits))
 - PR rebased on main ([git rebase](https://krkn-chaos.dev/docs/contribution-guidelines/git-pointers/#rebase-with-upstream), not git pull)
-- Good descriptive commit message, with link to issue
+- Good descriptive commit message, with link to issue in the description
 - No changes to code not directly related to your PR
 - Includes functional/integration test (more applicable to krkn-lib)
 - Includes link to documentation PR (documentation hosted in https://github.com/krkn-chaos/website)
@@ -70,7 +89,7 @@ The following explains how to formally join the Krkn community at each level of 
 **Anyone who participates in the project is a contributor.** There is no application required — opening an issue, submitting a PR, reviewing someone else's work, improving documentation, or helping others in Slack all count.
 
 To get started:
-1. Find something to work on in the [open issues](https://github.com/krkn-chaos/krkn/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22), or open one of your own.
+1. Find something to work on in the [open issues](https://github.com/krkn-chaos/krkn/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22), or open one of your own and start working on a PR once the issue has been assigned to you!
 2. Join the [#krkn channel on Kubernetes Slack](https://kubernetes.slack.com/archives/C05SFMHRWK1) to introduce yourself and ask questions.
 
 ### Dedicated Contributor
