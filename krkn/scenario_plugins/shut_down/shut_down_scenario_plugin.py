@@ -132,10 +132,13 @@ class ShutDownScenarioPlugin(AbstractScenarioPlugin):
                 instance_ids=tuple(node_id),
                 skip_kubernetes=True,
             )
-            self.rollback_handler.set_rollback_callable(
+            if not self.rollback_handler.set_rollback_callable(
                 self.rollback_shutdown_nodes,
                 rollback_content
-            )
+            ):
+                raise RuntimeError(
+                    "failed to register rollback, aborting before shutting down nodes"
+                )
             logging.info(f"Registered rollback callable for {len(node_id)} nodes on {cloud_type}")
             
             self.multiprocess_nodes(cloud_object.stop_instances, node_id, processes)
