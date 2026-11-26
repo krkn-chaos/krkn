@@ -41,6 +41,63 @@ def _as_prometheus_datetime(value) -> datetime.datetime:
     return datetime.datetime.fromtimestamp(value, tz=datetime.timezone.utc)
 
 
+def alerts(
+    prom_cli: KrknPrometheus,
+    elastic: KrknElastic,
+    run_uuid,
+    start_time,
+    end_time,
+    alert_profile,
+    elastic_alerts_index
+) -> int:
+
+    if alert_profile is None or os.path.exists(alert_profile) is False:
+        logging.error(f"{alert_profile} alert profile does not exist")
+        sys.exit(1)
+
+    with open(alert_profile) as profile:
+        profile_yaml = yaml.safe_load(profile)
+        if not isinstance(profile_yaml, list):
+            logging.error(
+                f"{alert_profile} wrong file format, alert profile must be "
+                f"a valid yaml file containing a list of items with at least 3 properties: "
+                f"expr, description, severity"
+            )
+            sys.exit(1)
+
+        # Will fail run if error or critical alerts are firing
+        failure_alert_count = 0
+        for alert in profile_yaml:
+            if sorted(alert.keys()) != sorted(["expr", "description", "severity"]):
+                logging.error(f"wrong alert {alert}, skipping")
+                continue
+
+            processed_alert = prom_cli.process_alert(
+                alert,
+                datetime.datetime.fromtimestamp(start_time),
+                datetime.datetime.fromtimestamp(end_time),
+            )
+            if (
+                processed_alert[0] is not None
+                and processed_alert[1] is not None
+            ):
+                normalized_severity = str(alert.get("severity", "")).lower().strip()
+                if normalized_severity in ["critical", "error"]:
+                    failure_alert_count += 1
+                if elastic:
+                    elastic_alert = ElasticAlert(
+                        run_uuid=run_uuid,
+                        severity=normalized_severity,
+                        alert=processed_alert[1],
+                        created_at=datetime.datetime.fromtimestamp(processed_alert[0]),
+                    )
+                    result = elastic.push_alert(elastic_alert, elastic_alerts_index)
+                    if result == -1:
+                        logging.error("failed to save alert on ElasticSearch")
+
+        return failure_alert_count
+
+
 def critical_alerts(
     prom_cli: KrknPrometheus,
     summary: ChaosRunAlertSummary,
