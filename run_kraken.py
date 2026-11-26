@@ -116,6 +116,179 @@ def _get_image_signature_configuration(kraken_config: dict) -> tuple[bool, str]:
     return bool(enabled), public_key_path
 
 
+def _dry_run_pod_disruption(scenario_config, plugin, kubecli):
+    """Discover pod disruption targets using the plugin's get_pods() method.
+
+    Replicates the target discovery and filtering logic from
+    PodDisruptionScenarioPlugin.killing_pods() without performing
+    any destructive actions.
+    """
+    targets = 0
+    if not isinstance(scenario_config, list):
+        scenario_config = [scenario_config]
+
+    for entry in scenario_config:
+        config_dict = entry.get("config", entry)
+        namespace_pattern = config_dict.get("namespace_pattern", "")
+        name_pattern = config_dict.get("name_pattern", "")
+        label_selector = config_dict.get("label_selector", "")
+        kill_count = config_dict.get("kill", 1)
+        exclude_label = config_dict.get("exclude_label", "")
+        node_label_selector = config_dict.get("node_label_selector", "")
+        node_names = config_dict.get("node_names", [])
+
+        logging.info("    Namespace pattern: %s", namespace_pattern)
+        if name_pattern:
+            logging.info("    Name pattern: %s", name_pattern)
+        if label_selector:
+            logging.info("    Label selector: %s", label_selector)
+        if exclude_label:
+            logging.info("    Exclude label: %s", exclude_label)
+        if node_label_selector:
+            logging.info("    Node label selector: %s", node_label_selector)
+        if node_names:
+            logging.info("    Node names: %s", node_names)
+        logging.info("    Kill count: %d", kill_count)
+
+        try:
+            # Same call as killing_pods() target discovery
+            pods = plugin.get_pods(
+                name_pattern=name_pattern,
+                label_selector=label_selector,
+                namespace=namespace_pattern,
+                kubecli=kubecli,
+                field_selector="status.phase=Running",
+                node_label_selector=node_label_selector,
+                node_names=node_names,
+            )
+
+            # Same exclude filter as killing_pods()
+            if exclude_label:
+                exclude_pods_set = set()
+                _exclude = plugin.get_pods(
+                    name_pattern="",
+                    label_selector=exclude_label,
+                    namespace=namespace_pattern,
+                    kubecli=kubecli,
+                    field_selector="status.phase=Running",
+                    node_label_selector=node_label_selector,
+                    node_names=node_names,
+                )
+                for pod in _exclude:
+                    exclude_pods_set.add((pod[0], pod[1]))
+                eligible_pods = [
+                    p for p in pods if (p[0], p[1]) not in exclude_pods_set
+                ]
+            else:
+                eligible_pods = list(pods) if pods else []
+
+            logging.info("    Targets:")
+            if eligible_pods:
+                for pod in eligible_pods:
+                    logging.info(
+                        "      - namespace: %s  pod: %s", pod[1], pod[0]
+                    )
+            else:
+                logging.info("      (none)")
+
+            actual_kill = min(kill_count, len(eligible_pods))
+            logging.info("    Eligible pods: %d", len(eligible_pods))
+            logging.info("    Would kill: %d pod(s)", actual_kill)
+            targets += actual_kill
+
+        except Exception as e:
+            logging.error("    Failed to discover targets: %s", e)
+
+    return targets
+
+
+def _dry_run_scenarios(chaos_scenarios, scenario_plugin_factory, kubecli):
+    """Display planned chaos targets without executing any destructive actions.
+
+    Iterates through configured chaos scenarios, resolves plugins,
+    parses scenario files, and performs read-only target discovery
+    where supported.
+    """
+    logging.info("")
+    logging.info("=" * 60)
+    logging.info("DRY RUN: No chaos actions will be executed.")
+    logging.info("=" * 60)
+
+    total_targets = 0
+
+    for scenario in chaos_scenarios:
+        scenario_type, scenarios_list, scenario_weight = parse_scenario_config(
+            scenario
+        )
+
+        logging.info("")
+        logging.info("Scenario type: %s", scenario_type)
+        if scenario_weight != 1:
+            logging.info("  Weight: %s", scenario_weight)
+
+        try:
+            scenario_plugin = scenario_plugin_factory.create_plugin(scenario_type)
+        except ScenarioPluginNotFound:
+            logging.error(
+                "  Plugin not found for scenario type: %s", scenario_type
+            )
+            continue
+
+        logging.info("  Plugin: %s", scenario_plugin.__class__.__name__)
+
+        if not scenarios_list:
+            logging.info("  No scenario files configured.")
+            continue
+
+        for scenario_file in scenarios_list:
+            logging.info("  Scenario file: %s", scenario_file)
+
+            if not os.path.exists(scenario_file):
+                logging.error("    File not found: %s", scenario_file)
+                continue
+
+            try:
+                with open(scenario_file, "r") as f:
+                    scenario_config = yaml.safe_load(f)
+            except Exception as e:
+                logging.error("    Failed to parse scenario file: %s", e)
+                continue
+
+            if (
+                scenario_type == "pod_disruption_scenarios"
+                and hasattr(scenario_plugin, "get_pods")
+            ):
+                total_targets += _dry_run_pod_disruption(
+                    scenario_config, scenario_plugin, kubecli
+                )
+            else:
+                logging.info("    Scenario config:")
+                if isinstance(scenario_config, dict):
+                    for key, value in scenario_config.items():
+                        logging.info("      %s: %s", key, value)
+                elif isinstance(scenario_config, list):
+                    for item in scenario_config:
+                        if isinstance(item, dict):
+                            for key, value in item.items():
+                                logging.info("      %s: %s", key, value)
+                        else:
+                            logging.info("      %s", item)
+                logging.info(
+                    "    (Detailed target listing not available for %s)",
+                    scenario_type,
+                )
+
+    logging.info("")
+    logging.info("=" * 60)
+    logging.info("Total targets found: %d", total_targets)
+    if total_targets == 0:
+        logging.info("No matching resources found.")
+    logging.info("DRY RUN COMPLETE: No changes were made to the cluster.")
+    logging.info("=" * 60)
+
+    return 0
+
+
 # Main function
 def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
     # Start kraken
@@ -512,6 +685,13 @@ def main(options, command: Optional[str], out: Optional[dict] = None) -> int:
                 module_name, class_name, error = failed
                 logging.error(f"⛔ Class: {class_name} Module: {module_name}")
                 logging.error(f"⚠️ {error}")
+
+        # Dry-run mode: display planned targets without executing scenarios
+        dry_run = getattr(options, 'dry_run', False)
+        if dry_run:
+            return _dry_run_scenarios(
+                chaos_scenarios, scenario_plugin_factory, kubecli
+            )
 
         # Evaluate top-level triggers before starting health checks or chaos
         trigger_config = config.get("triggers")
@@ -1090,6 +1270,14 @@ if __name__ == "__main__":
         "--debug",
         dest="debug",
         help="enable debug logging",
+        default=False,
+    )
+
+    parser.add_option(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="display planned chaos targets without executing any destructive actions",
         default=False,
     )
 
