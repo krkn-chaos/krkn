@@ -106,10 +106,15 @@ class ZoneOutageScenarioPlugin(AbstractScenarioPlugin):
             encoded = base64.b64encode(
                 json.dumps(rollback_data).encode("utf-8")
             ).decode("utf-8")
-            self.rollback_handler.set_rollback_callable(
+            if not self.rollback_handler.set_rollback_callable(
                 self.rollback_gcp_zone_outage,
                 RollbackContent(resource_identifier=encoded),
-            )
+            ):
+                logging.error(
+                    "ZoneOutageScenarioPlugin failed to register rollback, "
+                    "aborting before stopping nodes in zone %s" % zone
+                )
+                return 1
 
             # stop nodes in parallel
             pool = ThreadPool(processes=len(nodes))
