@@ -1,0 +1,48 @@
+# GPU telemetry blackout (NVIDIA DCGM exporter) - detection and recovery
+# checks for the outage scenario.
+# Validates that the GPUTelemetryMissing alert fired during the blackout, then
+# that telemetry recovered after it: GPU metrics flow again, every GPU reports
+# again, and the alert has cleared by the end of the run.
+# Used by scenarios/gpu/dcgm_exporter_outage.yaml. The recovery checks are the
+# same as in alerts_gpu_dcgm_telemetry.yaml; keep the two in step.
+#
+# Use with: see the "Use with" block in scenarios/gpu/dcgm_exporter_outage.yaml
+# (run_during MUST be "during"; the reason is in alerts_gpu_dcgm_telemetry.yaml).
+#
+# GPUTelemetryMissing is defined by this example in
+# scenarios/gpu/dcgm_exporter_alert_rules.yaml (for: 2m); it is not a default
+# alert of the GPU Operator or dcgm-exporter. The detection check is severity
+# error because the outage `duration` is sized to that `for:`. If you point
+# it at another alert, recompute `duration` from that alert's `for:`.
+#
+# Needs the PromQL "@" modifier (on by default since Prometheus 2.33).
+# UNVERIFIED for Thanos Querier / OpenShift user-workload monitoring.
+
+# Detection: the alert fired at some point DURING THIS RUN. Returns 1 if it
+# never fired in the 6h before run end, or the time of its last firing sample
+# if that was before run start (an earlier alert does not count). Lookback is
+# capped at 6h; subquery resolution 15s, so a firing shorter than about one
+# rule evaluation interval can be missed.
+- expr: >-
+    absent_over_time(ALERTS{alertname="GPUTelemetryMissing", alertstate="firing"}[6h] @ end())
+    or
+    max(max_over_time(timestamp(ALERTS{alertname="GPUTelemetryMissing", alertstate="firing"})[6h:15s] @ end()))
+    < scalar(max_over_time(timestamp(vector(1))[15s:15s] @ start()))
+  description: GPUTelemetryMissing did not fire during the DCGM exporter outage; GPU telemetry loss was not detected
+  severity: error
+
+# Recovery: same three checks as alerts_gpu_dcgm_telemetry.yaml.
+- expr: absent({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ end())
+  description: GPU utilization metric is absent at the end of the run; GPU telemetry did not recover
+  severity: error
+
+- expr: >-
+    count by (UUID) ({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ start())
+    unless
+    count by (UUID) ({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ end())
+  description: Some GPUs that reported utilization at run start no longer report it at run end; their DCGM exporter did not recover
+  severity: error
+
+- expr: count(ALERTS{alertname="GPUTelemetryMissing", alertstate="firing"} @ end())
+  description: GPUTelemetryMissing is still firing at the end of the run; the alert did not clear after recovery
+  severity: error

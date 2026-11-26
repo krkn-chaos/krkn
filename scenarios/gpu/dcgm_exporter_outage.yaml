@@ -1,0 +1,112 @@
+# GPU telemetry blackout - DCGM exporter scrape outage (detection and
+# recovery). Blocks Prometheus scrapes to the NVIDIA DCGM exporter for
+# `duration`, checks that the GPUTelemetryMissing alert fires, then that
+# telemetry comes back and the alert clears once the block is lifted.
+# Runs with the existing application_outages_scenarios plugin; no new krkn code.
+# Described with the pod disruption variant in scenarios/gpu/README.md.
+# Untested on real GPU. Run on kind against the real GPU Operator v26.7.3 and
+# dcgm-exporter 4.9.0 over NVIDIA k8s-test-infra's mock NVML (no GPU), with
+# kindnet as the CNI; that says nothing about other CNIs or real GPUs.
+#
+# How it works: a NetworkPolicy with no ingress rules is applied to the
+# exporter pods for `duration` seconds, so scrapes fail (up == 0) and the GPU
+# series go stale. Then the policy is deleted and scrapes resume. No pod is
+# killed, so DaemonSet recreation is tested by dcgm_exporter_pod_disruption.yaml
+# instead. Run each in its own krkn run so the run window is that scenario's
+# window.
+#
+# Prerequisite: apply the alert this example defines,
+#   kubectl apply -f scenarios/gpu/dcgm_exporter_alert_rules.yaml
+# GPUTelemetryMissing is not a default alert of the GPU Operator or
+# dcgm-exporter; without the rule the detection check fails.
+#
+# Use with:
+#   kraken:
+#     auto_rollback: True      # REQUIRED: krkn's code default is False, see Rollback limits
+#     chaos_scenarios:
+#       - application_outages_scenarios:
+#           - scenarios/gpu/dcgm_exporter_outage.yaml
+#   performance_monitoring:
+#     enable_alerts: True
+#     alert_profile: config/alerts_gpu_dcgm_telemetry_outage.yaml
+#     run_during: during
+#   resiliency:
+#     resiliency_file: config/resiliency_gpu_dcgm_telemetry.yaml
+#   object_state_checks:            # post-scenario: exporter pods still Ready
+#     run_during: post
+#     exit_on_failure: True
+#     config:
+#       - name: dcgm-exporter-pods-ready
+#         kind: Pod
+#         namespace: gpu-operator   # UNVERIFIED; nvidia-gpu-operator on OpenShift
+#         label_selector: app=nvidia-dcgm-exporter
+#         condition: {type: Ready, status: "True"}
+#   tunings:
+#     wait_duration: 90   # REQUIRED, >= 2x scrape interval + 1 rule evaluation
+#                         # interval (90 for 30s / 30s): krkn's checks at
+#                         # "@ end()" land wait_duration seconds after the
+#                         # policy is deleted. Too short and the series are
+#                         # still stale / the alert still firing, so the
+#                         # recovery checks FAIL although nothing is wrong.
+#
+# duration: hold the blackout long enough for the alert to fire:
+#   duration >= alert `for:` + 2 x scrape interval + 1 rule evaluation interval
+# (plus a margin for the CNI to apply the policy). The value below, 240, is
+# for the shipped rule's for: 2m with scrape 30s and evaluation 30s
+# (120 + 60 + 30 = 210, plus margin). Recompute it for your intervals, or if
+# you point the profile at a different alert.
+#
+# Values to confirm against your install:
+#   namespace      LITERAL, not a regex (this plugin passes it straight to the
+#                  API). gpu-operator is the upstream Helm namespace; use
+#                  nvidia-gpu-operator on OpenShift (OLM). A namespace that
+#                  does not exist fails the run (API 404, exit 1).
+#   pod_selector   app=nvidia-dcgm-exporter (seen on GPU Operator v26.7.3);
+#                  check with kubectl get pods -n <ns> --show-labels.
+#                  ALWAYS set it: the plugin default {} blocks EVERY pod in the
+#                  namespace (operator, validators, ...).
+#   block          [Ingress] only: scrapes are ingress to the exporter. The
+#                  plugin default [Ingress, Egress] would also cut the
+#                  exporter's DNS / API traffic, which this test does not need.
+#
+# Prerequisite: the cluster's CNI must ENFORCE NetworkPolicy (for example
+# Calico, Cilium, OVN-Kubernetes; plain flannel does not). Without it the
+# policy is accepted, nothing is blocked, and the run still exits 0.
+#
+# Silent no-op risks (krkn exits 0, the exporter is untouched, nothing tells
+# you; the plugin never counts matched pods or checks that traffic stopped):
+#   - wrong pod_selector label: the policy matches no pod;
+#   - an existing NetworkPolicy that already allows Prometheus to reach the
+#     exporter: allows from all policies add up, so this no-rule policy cannot
+#     take them away;
+#   - exporter pods on hostNetwork (not set on GPU Operator v26.7.3; check
+#     .spec.template.spec.hostNetwork on yours): NetworkPolicy generally does
+#     not apply to them;
+#   - CNIs that keep already-open (keep-alive) scrape connections: UNVERIFIED
+#     per CNI.
+# The detection check (alert did not fire) is then the only signal, and it
+# cannot tell "alerting is broken" from "nothing was blocked". Before trusting
+# a run, confirm the blackout: up{...} == 0 for the exporter targets during
+# the run.
+#
+# Blast radius: NetworkPolicy selects pods by label, not by node. EVERY
+# matching exporter on EVERY GPU node is blacked out for `duration`, so all
+# GPU telemetry in the cluster is missing for that time (dashboards, GPU
+# autoscaling, capacity reports). pod_disruption with kill: 1 touches one pod.
+# Run it only where losing all GPU metrics for `duration` is acceptable.
+#
+# Rollback limits (krkn main @ ffa9eb2, read from the source):
+#   - normal end: the plugin deletes the policy after `duration`;
+#   - error inside the run, or SIGINT/SIGTERM to krkn: rolled back ONLY if
+#     kraken.auto_rollback is True (code default False);
+#   - SIGKILL, OOM, or loss of the krkn pod/container: NO rollback. The policy
+#     (named krkn-deny-<random>, no label) stays and the blackout continues
+#     until someone deletes it: krkn execute-rollback, if the rollback record
+#     in rollback_versions_directory (default ~/.krkn/rollback) survived, or
+#     kubectl delete networkpolicy -n <ns> <krkn-deny-...>.
+application_outage:
+  namespace: gpu-operator                    # UNVERIFIED for OpenShift: nvidia-gpu-operator
+  pod_selector: {app: nvidia-dcgm-exporter}
+  block: [Ingress]                           # scrapes only; do not add Egress
+  duration: 240                              # >= alert for: + 2x scrape interval + 1 evaluation interval
+  exclude_label: ""

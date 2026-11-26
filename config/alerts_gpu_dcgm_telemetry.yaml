@@ -1,0 +1,62 @@
+# GPU telemetry blackout (NVIDIA DCGM exporter) - recovery checks.
+# Validates that GPU telemetry recovers after the exporter is disrupted: GPU
+# metrics flow again, every GPU reports again, and the GPUTelemetryMissing
+# alert is not firing at the end of the run.
+# Used by scenarios/gpu/dcgm_exporter_pod_disruption.yaml. The outage
+# scenario uses alerts_gpu_dcgm_telemetry_outage.yaml, which adds a detection
+# check. See scenarios/gpu/README.md.
+#
+# Use with (run_during MUST be "during", see "Why during" below):
+#   performance_monitoring:
+#     enable_alerts: True
+#     alert_profile: config/alerts_gpu_dcgm_telemetry.yaml
+#     run_during: during
+#   resiliency:
+#     resiliency_file: config/resiliency_gpu_dcgm_telemetry.yaml
+#   tunings:
+#     wait_duration: 90   # >= 2x scrape interval + 1 rule evaluation interval
+#                         # (90 for 30s / 30s), so the end-of-run checks see
+#                         # fresh series and a resolved alert
+#
+# Why during: krkn evaluates "during" checks once, after the scenarios, as a
+# range query over the krkn run window [run start, run end]
+# (run_kraken.py -> PrometheusHealthCheckPlugin.run_once). "@ start()" and
+# "@ end()" pin a selector to the window edges. In a "post" check (an instant
+# query) start() == end() == now, so the start/end comparison in the second
+# check would never fail. Run this scenario on its own in a krkn run, so the
+# run window is the disruption window.
+#
+# GPUTelemetryMissing is defined by this example in
+# scenarios/gpu/dcgm_exporter_alert_rules.yaml; it is not a default alert of
+# the GPU Operator or dcgm-exporter. Apply that rule first, or change the
+# alertname below to the alert you already run.
+#
+# Metric name: dcgm-exporter 4.9.0 renamed DCGM_FI_DEV_GPU_UTIL (percent) to
+# DCGM_FI_DEV_GPU_UTIL_RATIO (0-1). The selectors match both names. UUID is
+# the per-GPU label (seen on 4.9.0 under GPU Operator v26.7.3).
+#
+# Needs the PromQL "@" modifier (on by default since Prometheus 2.33).
+# UNVERIFIED for Thanos Querier / OpenShift user-workload monitoring.
+#
+# krkn semantics (krkn/prometheus/collector.py::slo_passed): an empty result
+# passes; any sample > 0 fails. Every expression returns a value only in the
+# bad case.
+#
+# Known limit: checks are per GPU, not per deleted pod (krkn alert profiles
+# have no templating for the killed pod). The second check reports a false
+# failure if a GPU node is legitimately removed during the run.
+
+- expr: absent({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ end())
+  description: GPU utilization metric is absent at the end of the run; GPU telemetry did not recover
+  severity: error
+
+- expr: >-
+    count by (UUID) ({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ start())
+    unless
+    count by (UUID) ({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ end())
+  description: Some GPUs that reported utilization at run start no longer report it at run end; their DCGM exporter did not recover
+  severity: error
+
+- expr: count(ALERTS{alertname="GPUTelemetryMissing", alertstate="firing"} @ end())
+  description: GPUTelemetryMissing is still firing at the end of the run; the alert did not clear after recovery
+  severity: error

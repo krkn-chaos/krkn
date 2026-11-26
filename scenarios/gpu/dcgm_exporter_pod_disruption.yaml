@@ -1,0 +1,62 @@
+# GPU telemetry blackout - DCGM exporter pod disruption (recovery).
+# Deletes an NVIDIA DCGM exporter pod and checks that the DaemonSet recreates
+# it and GPU telemetry recovers. Runs with the existing
+# pod_disruption_scenarios plugin; no new krkn code.
+# For DETECTION (the alert fires), see dcgm_exporter_outage.yaml. Both are
+# described in scenarios/gpu/README.md.
+# Untested on real GPU. Run on kind against the real GPU Operator v26.7.3 and
+# dcgm-exporter 4.9.0 over NVIDIA k8s-test-infra's mock NVML (no GPU).
+#
+# Use with:
+#   kraken:
+#     chaos_scenarios:
+#       - pod_disruption_scenarios:
+#           - scenarios/gpu/dcgm_exporter_pod_disruption.yaml
+#   performance_monitoring:
+#     enable_alerts: True
+#     alert_profile: config/alerts_gpu_dcgm_telemetry.yaml
+#     run_during: during
+#   resiliency:
+#     resiliency_file: config/resiliency_gpu_dcgm_telemetry.yaml
+#   object_state_checks:            # post-scenario: exporter pods Ready again
+#     run_during: post
+#     exit_on_failure: True
+#     config:
+#       - name: dcgm-exporter-pods-ready
+#         kind: Pod
+#         namespace: gpu-operator   # UNVERIFIED; nvidia-gpu-operator on OpenShift
+#         label_selector: app=nvidia-dcgm-exporter
+#         condition: {type: Ready, status: "True"}
+#   tunings:
+#     wait_duration: 90   # >= 2x scrape interval + 1 rule evaluation interval
+#
+# Values to confirm against your install:
+#   namespace_pattern    ^(nvidia-)?gpu-operator$ matches both the upstream
+#                        Helm namespace (gpu-operator, vanilla Kubernetes) and
+#                        the OpenShift OLM namespace (nvidia-gpu-operator,
+#                        UNVERIFIED). Other installs (for example a standalone
+#                        dcgm-exporter Helm chart) need their own value. If
+#                        nothing matches, krkn fails loudly ("found only 0
+#                        pods", exit 1).
+#   label_selector       app=nvidia-dcgm-exporter (seen on GPU Operator
+#                        v26.7.3); check with
+#                        kubectl get pods -n <ns> --show-labels
+#
+# Kill scope = recovery-monitoring scope. pod_disruption picks the pods to
+# delete from namespace_pattern + label_selector (+ node_label_selector if
+# set), but start_monitoring() watches every pod matching namespace_pattern +
+# label_selector on ALL nodes and ignores node_label_selector. So this example
+# sets no node_label_selector: the pods krkn may delete and the pods whose
+# recovery it judges are the same set. The GPU Operator's dcgm-exporter
+# DaemonSet only runs on GPU nodes anyway (nodeSelector
+# nvidia.com/gpu.deploy.dcgm-exporter=true on v26.7.3).
+# If you add node_label_selector (for example nvidia.com/gpu.present=true),
+# deletion becomes node-scoped but monitoring does not: an exporter pod on a
+# node outside the selector that is deleted or fails to come back during the
+# run still fails this scenario.
+- id: gpu-dcgm-exporter-disruption
+  config:
+    namespace_pattern: ^(nvidia-)?gpu-operator$
+    label_selector: app=nvidia-dcgm-exporter
+    kill: 1                                          # exporter pods to delete
+    krkn_pod_recovery_time: 120                      # seconds to wait for the DaemonSet to recreate them

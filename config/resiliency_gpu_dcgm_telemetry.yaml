@@ -1,0 +1,42 @@
+# GPU telemetry blackout (NVIDIA DCGM exporter) - resiliency SLOs.
+# Scores whether GPU telemetry recovered after the exporter was disrupted:
+# metrics flow again, every GPU reports again, and GPUTelemetryMissing has
+# cleared. Used by both scenarios in scenarios/gpu/.
+#
+# Use with:
+#   resiliency:
+#     resiliency_file: config/resiliency_gpu_dcgm_telemetry.yaml
+#
+# Why a separate file: when resiliency.resiliency_file is not set, krkn
+# re-uses performance_monitoring.alert_profile as its resiliency SLO list
+# (run_kraken.py). The outage profile's detection check tests the cluster's
+# ALERTING, not the system's resilience, so it does not belong in the score.
+# This file keeps only the recovery SLOs.
+# To skip resiliency scoring entirely instead, set
+#   resiliency:
+#     resiliency_run_mode: disabled
+#
+# krkn evaluates each SLO as a range query over each scenario's own window
+# (krkn/resiliency/resiliency.py -> collector.evaluate_slos), so "@ start()"
+# and "@ end()" are that scenario's start and end (end is after
+# tunings.wait_duration). Any sample > 0 fails the SLO; empty passes.
+# Resiliency knows severities critical (weight 3) and warning (weight 1).
+#
+# Needs the PromQL "@" modifier (on by default since Prometheus 2.33).
+# UNVERIFIED for Thanos Querier / OpenShift user-workload monitoring.
+# Metric names and limits: see alerts_gpu_dcgm_telemetry.yaml.
+
+- expr: absent({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ end())
+  description: GPU telemetry (DCGM GPU utilization) present at the end of the GPU telemetry blackout window
+  severity: critical
+
+- expr: >-
+    count by (UUID) ({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ start())
+    unless
+    count by (UUID) ({__name__=~"DCGM_FI_DEV_GPU_UTIL(_RATIO)?"} @ end())
+  description: Every GPU reporting utilization at the start of the GPU telemetry blackout window reports it again at the end
+  severity: critical
+
+- expr: count(ALERTS{alertname="GPUTelemetryMissing", alertstate="firing"} @ end())
+  description: GPUTelemetryMissing has cleared by the end of the GPU telemetry blackout window
+  severity: critical
