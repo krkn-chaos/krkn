@@ -168,8 +168,10 @@
     "short_description": "Cluster alerts path file (in container)",
     "description": "Allows to specify a different alert file path",
     "variable": "ALERTS_PATH",
-    "type": "string",
+    "type": "file",
     "default": "config/alerts.yaml",
+    "mount_path": "/home/krkn/alerts.yaml",
+    "file_source": "managed",
     "required": "false",
     "group": "prometheus"
   },
@@ -208,8 +210,10 @@
     "short_description": "Cluster metrics path file (in container)",
     "description": "Allows to specify a different metrics file path",
     "variable": "METRICS_PATH",
-    "type": "string",
+    "type": "file",
     "default": "config/metrics-aggregated.yaml",
+    "mount_path": "/home/krkn/metrics-aggregated.yaml",
+    "file_source": "managed",
     "required": "false",
     "group": "prometheus"
   },
