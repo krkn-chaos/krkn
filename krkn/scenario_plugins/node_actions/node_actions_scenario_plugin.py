@@ -230,12 +230,29 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
         scenario_telemetry.affected_nodes.extend(affected_nodes_status.affected_nodes)
 
     def multiprocess_nodes(self, nodes, node_scenario_object, action, node_scenario):
+        if nodes is not None and len(nodes) == 0:
+            # ThreadPool(processes=0) raises; serial mode does nothing here too.
+            # None (a named node that isn't killable) still fails below.
+            logging.info("No nodes selected, nothing to run in parallel")
+            return
+
+        def run_node_in_pool(single_node, *args):
+            try:
+                self.run_node(single_node, *args)
+            except SystemExit as e:
+                # Pool workers only catch Exception: an exit would kill the
+                # thread and starmap would wait for its result forever.
+                raise RuntimeError(
+                    "node action on %s exited with code %s" % (single_node, e.code)
+                ) from e
+
+        pool = None
+        interrupted = False
         try:
             # pool object with number of element
             pool = ThreadPool(processes=len(nodes))
-
             pool.starmap(
-                self.run_node,
+                run_node_in_pool,
                 zip(
                     nodes,
                     repeat(node_scenario_object),
@@ -243,10 +260,18 @@ class NodeActionsScenarioPlugin(AbstractScenarioPlugin):
                     repeat(node_scenario),
                 ),
             )
-
-            pool.close()
+        except (KeyboardInterrupt, SystemExit):
+            # krkn is being stopped, don't wait for node actions still running
+            interrupted = True
+            raise
         except Exception as e:
             logging.info("Error on pool multiprocessing: " + str(e))
+            raise
+        finally:
+            if pool:
+                pool.close()
+                if not interrupted:
+                    pool.join()
 
     def run_node(self, single_node, node_scenario_object, action, node_scenario):
         # Get the scenario specifics for running action nodes
