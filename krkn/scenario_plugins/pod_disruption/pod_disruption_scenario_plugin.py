@@ -13,6 +13,7 @@
 # limitations under the License.
 import logging
 import random
+import re
 import time
 import queue
 import threading
@@ -217,6 +218,95 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
             name_pattern, label_selector, namespace, kubecli, field_selector
         )
     
+    def select_target_pods(self, config: InputParams, kubecli: KrknKubernetes):
+        """Read-only target selection shared by the real run and dry-run.
+
+        :return: (all running pods matching the criteria, the subset left
+            after `exclude_label`), both as lists of (pod, namespace) tuples
+        """
+        pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
+        exclude_pods = set()
+        if config.exclude_label:
+            _exclude_pods = self.get_pods(
+                "",
+                config.exclude_label,
+                config.namespace_pattern,
+                kubecli,
+                field_selector="status.phase=Running",
+                node_label_selector=config.node_label_selector,
+                node_names=config.node_names,
+            )
+            for pod in _exclude_pods:
+                exclude_pods.add((pod[0], pod[1]))
+
+        eligible_pods = []
+        for pod in pods:
+            if (pod[0], pod[1]) in exclude_pods:
+                logging.info(f"Excluding pod {pod[0]} in namespace {pod[1]} from chaos")
+            else:
+                eligible_pods.append(pod)
+        return pods, eligible_pods
+
+    def preview_targets(self, scenario: str, kubecli: KrknKubernetes) -> list[dict]:
+        """Read-only preview of the pods each entry would kill, see
+        `AbstractScenarioPlugin.preview_targets` for the returned dicts.
+
+        :raises ValueError: if the file is not a list of entries with a
+            `config` mapping, `namespace_pattern` is missing, not exactly one
+            of `name_pattern`/`label_selector` is set, or a pattern is not a
+            valid regex
+        """
+        with open(scenario, "r") as f:
+            scenario_config = yaml.safe_load(f)
+        if not isinstance(scenario_config, list):
+            raise ValueError("expected a list of pod disruption entries")
+
+        previews = []
+        for kill_scenario in scenario_config:
+            if not isinstance(kill_scenario, dict) or not isinstance(kill_scenario.get("config"), dict):
+                raise ValueError("each pod disruption entry needs a 'config' mapping")
+            config = InputParams(kill_scenario["config"])
+            # Same preconditions start_monitoring() enforces before any pod is touched.
+            if not config.namespace_pattern:
+                raise ValueError("namespace_pattern must be specified")
+            if bool(config.name_pattern) == bool(config.label_selector):
+                raise ValueError(
+                    "exactly one of name_pattern or label_selector must be specified"
+                )
+            for key in ("namespace_pattern", "name_pattern"):
+                pattern = getattr(config, key)
+                if not pattern:
+                    continue
+                try:
+                    re.compile(pattern)
+                except (re.error, TypeError) as e:
+                    raise ValueError(f"invalid regex in {key} '{pattern}': {e}") from e
+
+            pods, eligible_pods = self.select_target_pods(config, kubecli)
+            issues = []
+            if len(eligible_pods) < config.kill:
+                issues.append(
+                    f"not enough pods match: kill={config.kill} but only "
+                    f"{len(eligible_pods)} eligible, the real run would fail"
+                )
+            criteria = {
+                "namespace_pattern": config.namespace_pattern,
+                "name_pattern": config.name_pattern,
+                "label_selector": config.label_selector,
+                "exclude_label": config.exclude_label,
+                "node_label_selector": config.node_label_selector,
+                "node_names": config.node_names,
+                "kill": config.kill,
+            }
+            previews.append({
+                "id": kill_scenario.get("id", ""),
+                "criteria": {k: v for k, v in criteria.items() if v not in ("", [], None)},
+                "targets": eligible_pods,
+                "count": min(config.kill, len(eligible_pods)),
+                "issues": issues,
+            })
+        return previews
+
     def killing_pods(self, config: InputParams, kubecli: KrknKubernetes):
         # region Select target pods
         try:
@@ -230,27 +320,7 @@ class PodDisruptionScenarioPlugin(AbstractScenarioPlugin):
                 )
                 return 1
 
-            pods = self.get_pods(config.name_pattern,config.label_selector,config.namespace_pattern, kubecli, field_selector="status.phase=Running", node_label_selector=config.node_label_selector, node_names=config.node_names)
-            exclude_pods = set()
-            if config.exclude_label:
-                _exclude_pods = self.get_pods(
-                    "",
-                    config.exclude_label,
-                    config.namespace_pattern,
-                    kubecli,
-                    field_selector="status.phase=Running",
-                    node_label_selector=config.node_label_selector,
-                    node_names=config.node_names,
-                )
-                for pod in _exclude_pods:
-                    exclude_pods.add((pod[0], pod[1]))
-
-            eligible_pods = []
-            for pod in pods:
-                if (pod[0], pod[1]) in exclude_pods:
-                    logging.info(f"Excluding pod {pod[0]} in namespace {pod[1]} from chaos")
-                else:
-                    eligible_pods.append(pod)
+            pods, eligible_pods = self.select_target_pods(config, kubecli)
 
             pods_count = len(pods)
             if len(eligible_pods) < config.kill:
