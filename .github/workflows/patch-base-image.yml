@@ -706,16 +706,6 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Rebuild krkn-hub
-        if: inputs.publish_target == 'production'
-        uses: redhat-chaos/actions/krkn-hub@b3118123a105aa4d208b282639d24f71d02fb25c # main
-        with:
-          QUAY_USER: ${{ secrets.QUAY_USERNAME }}
-          QUAY_TOKEN: ${{ secrets.QUAY_PASSWORD }}
-          AUTOPUSH: ${{ secrets.AUTOPUSH }}
-          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
-          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
-
   notify:
     name: Publish final vulnerability report
     if: always()
