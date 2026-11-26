@@ -1,0 +1,45 @@
+# GPU telemetry blackout - the alert this example defines.
+#
+# GPUTelemetryMissing is defined HERE, by this krkn example. It is not a
+# default alert of the NVIDIA GPU Operator or of dcgm-exporter; neither ships
+# an alert for a missing exporter. Apply this rule (or point the alert
+# profiles at an equivalent alert you already run) before the scenarios in
+# this directory, so that detection and recovery are tested against an alert
+# that actually exists.
+#
+#   kubectl apply -f scenarios/gpu/dcgm_exporter_alert_rules.yaml
+#
+# Needs the Prometheus Operator (PrometheusRule CRD). For a plain Prometheus,
+# copy the group under spec.groups into a rule file.
+#
+# UNVERIFIED, check against your monitoring stack:
+#   job="nvidia-dcgm-exporter"  the job label for the exporter targets. It is
+#                               the GPU Operator's Service name, which a
+#                               ServiceMonitor uses as the job by default.
+#   namespace / labels          your Prometheus must select this rule (for
+#                               example kube-prometheus-stack's ruleSelector).
+#
+# for: 2m is an example. The outage scenario's `duration` is computed from it
+# (dcgm_exporter_outage.yaml); change both together.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: krkn-gpu-telemetry
+  namespace: gpu-operator                    # UNVERIFIED; nvidia-gpu-operator on OpenShift
+spec:
+  groups:
+    - name: krkn-gpu-telemetry
+      rules:
+        - alert: GPUTelemetryMissing
+          expr: >-
+            up{job="nvidia-dcgm-exporter"} == 0
+            or
+            absent(up{job="nvidia-dcgm-exporter"})
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: GPU telemetry is missing
+            description: >-
+              Prometheus cannot scrape a DCGM exporter target (or has none),
+              so GPU metrics for that node are not being collected.
