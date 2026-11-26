@@ -109,6 +109,7 @@ class IbmCloudPower:
             url = f"{self.service_url}/pcloud/v1/cloud-instances/{self.cloud_instance_id}/pvm-instances/{instance_id}/action"
             self._make_request("POST", url, headers=self.headers, data=json.dumps({"action": "immediate-shutdown"}))
             logging.info("Deleted Instance -- '{}'".format(instance_id))
+            return True
         except Exception as e:
             logging.info("Instance '{}' could not be deleted. ".format(instance_id))
             return False
@@ -393,24 +394,44 @@ class ibmcloud_power_node_scenarios(abstract_node_scenarios):
             logging.error("node_reboot_scenario injection failed!")
 
 
-    def node_terminate_scenario(self, instance_kill_count, node, timeout, poll_interval):
+    def node_termination_scenario(self, instance_kill_count, node, timeout, poll_interval):
+        """Terminates node instance."""
+        termination_error = None
         try:
-            instance_id = self.ibmcloud_power.get_instance_id(node)
             for _ in range(instance_kill_count):
+                instance_id = self.ibmcloud_power.get_instance_id(node)
                 affected_node = AffectedNode(node, node_id=instance_id)
                 logging.info(
                     "Starting node_termination_scenario injection by first stopping the node"
                 )
-                logging.info("Deleting the node with instance ID: %s " % (node))
-                self.ibmcloud_power.delete_instance(instance_id)
-                self.ibmcloud_power.wait_until_deleted(node, timeout, affected_node)
+                logging.info("Deleting the node with instance ID: %s " % (instance_id))
+                if not self.ibmcloud_power.delete_instance(instance_id):
+                    termination_error = (
+                        "Failed to delete node instance %s. Delete command failed."
+                        % instance_id
+                    )
+                    logging.error(termination_error)
+                    break
+                if not self.ibmcloud_power.wait_until_deleted(instance_id, timeout, affected_node):
+                    termination_error = (
+                        "Node with instance ID: %s was not deleted within allotted time"
+                        % instance_id
+                    )
+                    logging.error(termination_error)
+                    break
                 logging.info(
-                    "Node with instance ID: %s has been released" % node
+                    "Node with instance ID: %s has been released" % instance_id
                 )
                 logging.info(
-                    "node_terminate_scenario has been successfully injected!"
+                    "node_termination_scenario has been successfully injected!"
                 )
+                self.affected_nodes_status.affected_nodes.append(affected_node)
         except Exception as e:
             logging.error("Failed to terminate node instance. Test Failed")
-            logging.error("node_terminate_scenario injection failed!")
+            logging.error("node_termination_scenario injection failed!")
+        if termination_error:
+            raise RuntimeError(termination_error)
+
+    # Alias for backward compatibility
+    node_terminate_scenario = node_termination_scenario
 
