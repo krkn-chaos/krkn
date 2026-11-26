@@ -134,7 +134,7 @@ def _validate_weight(weight: Any, scenario_type: str) -> float:
 
 def extract_scenario_types(chaos_scenarios: List[dict]) -> set:
     """
-    Extract unique scenario types from a list of scenario configurations.
+    Extract unique scenario types that have non-empty scenario file lists.
 
     Used for plugin validation logging.
 
@@ -142,24 +142,35 @@ def extract_scenario_types(chaos_scenarios: List[dict]) -> set:
         chaos_scenarios: List of scenario configuration dictionaries
 
     Returns:
-        Set of scenario type strings
+        Set of unique scenario type strings with non-empty file lists.
 
     Examples:
         >>> scenarios = [
         ...     {"pod_disruption_scenarios": {"weight": 3, "files": ["etcd.yml"]}},
         ...     {"hog_scenarios": ["cpu-hog.yml"]}
+        ...     {"unknown_scenarios": []}
         ... ]
         >>> extract_scenario_types(scenarios)
         {'pod_disruption_scenarios', 'hog_scenarios'}
     """
     configured_types = set()
     for scenario in chaos_scenarios:
-        if isinstance(scenario, dict):
-            # Parse scenario type using same logic as execution loop
-            if "scenario_type" in scenario and "files" in scenario:
-                # Explicit format: {scenario_type: str, weight: N, files: []}
-                configured_types.add(scenario["scenario_type"])
+        if not isinstance(scenario, dict) or not scenario:
+            continue
+        # Parse scenario type using same logic as execution loop
+        if "scenario_type" in scenario and "files" in scenario:
+            # Explicit format: {scenario_type: str, weight: N, files: []}
+            scenario_type = scenario["scenario_type"]
+            scenarios_list = scenario["files"]
+        else:
+            # Old/weighted format: {scenario_type: ...}
+            scenario_type = next(iter(scenario))
+            scenario_value = scenario[scenario_type]
+
+            if isinstance(scenario_value, dict):
+                scenarios_list = scenario_value.get("files", [])
             else:
-                # Old/weighted format: {scenario_type: ...}
-                configured_types.add(list(scenario.keys())[0])
+                scenarios_list = scenario_value
+        if scenarios_list:
+            configured_types.add(scenario_type)
     return configured_types
