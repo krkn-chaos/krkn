@@ -1,0 +1,7 @@
+# Pod disruption scenario used to exercise telemetry upload (same shape as legacy test_telemetry.sh).
+- id: kill-pods
+  config:
+    namespace_pattern: "^default$"
+    label_selector: app=krkn-telemetry-target
+    krkn_pod_recovery_time: 5
+    kill: 1
