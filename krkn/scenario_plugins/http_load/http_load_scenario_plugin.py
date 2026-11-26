@@ -199,11 +199,27 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
             # Deploy multiple Vegeta pods
             logging.info(f"Deploying {number_of_pods} HTTP load testing pod(s)")
             
-            for i in range(number_of_pods):
-                pod_name = f"http-load-{get_random_string(10)}"
-                
+            pod_names.extend(
+                f"http-load-{get_random_string(10)}" for _ in range(number_of_pods)
+            )
+
+            # Register rollback once before deploying so an interrupted run can still clean up
+            rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
+            if not self.rollback_handler.set_rollback_callable(
+                self.rollback_http_load_pods,
+                RollbackContent(
+                    namespace=namespace,
+                    resource_identifier=rollback_data,
+                ),
+            ):
+                logging.error(
+                    "HttpLoadScenarioPlugin failed to register rollback, not deploying load pods"
+                )
+                return 1
+
+            for i, pod_name in enumerate(pod_names):
                 logging.info(f"Deploying pod {i+1}/{number_of_pods}: {pod_name}")
-                
+
                 # Deploy pod using krkn-lib
                 lib_telemetry.get_lib_kubernetes().deploy_http_load(
                     name=pod_name,
@@ -222,19 +238,7 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
                     node_selectors=node_selectors,
                     timeout_sec=500
                 )
-                
-                pod_names.append(pod_name)
-                
-                # Set rollback callable for pod cleanup
-                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
-                self.rollback_handler.set_rollback_callable(
-                    self.rollback_http_load_pods,
-                    RollbackContent(
-                        namespace=namespace,
-                        resource_identifier=rollback_data,
-                    ),
-                )
-            
+
             logging.info(f"Successfully deployed {len(pod_names)} HTTP load pod(s)")
             
             # Wait for all pods to complete
@@ -503,6 +507,8 @@ class HttpLoadScenarioPlugin(AbstractScenarioPlugin):
         """
         try:
             namespace = rollback_content.namespace
+            import base64  # noqa
+            import json  # noqa
             pod_names = json.loads(
                 base64.b64decode(rollback_content.resource_identifier.encode('utf-8')).decode('utf-8')
             )
