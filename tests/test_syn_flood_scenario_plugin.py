@@ -368,6 +368,8 @@ class TestSynFloodRun(unittest.TestCase):
             mock_lib_kubernetes.is_pod_running.return_value = False
 
             plugin = SynFloodScenarioPlugin()
+            plugin.rollback_handler = MagicMock()
+            plugin.rollback_handler.set_rollback_callable.return_value = True
 
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
@@ -382,6 +384,12 @@ class TestSynFloodRun(unittest.TestCase):
             )
             # Should deploy pods for each service found
             self.assertEqual(mock_lib_kubernetes.deploy_syn_flood.call_count, 2)
+            # Rollback is registered once, covering the pods of every target
+            plugin.rollback_handler.set_rollback_callable.assert_called_once()
+            content = plugin.rollback_handler.set_rollback_callable.call_args[0][1]
+            registered = json.loads(base64.b64decode(content.resource_identifier))
+            deployed = [c[0][0] for c in mock_lib_kubernetes.deploy_syn_flood.call_args_list]
+            self.assertEqual(registered, deployed)
 
     def test_run_service_not_found(self):
         """Test run method when service does not exist"""

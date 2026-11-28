@@ -36,7 +36,6 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
         scenario_telemetry: ScenarioTelemetry,
     ) -> int:
         try:
-            pod_names = []
             config = self.parse_config(scenario)
             if config["target-service-label"]:
                 target_services = (
@@ -47,44 +46,45 @@ class SynFloodScenarioPlugin(AbstractScenarioPlugin):
             else:
                 target_services = [config["target-service"]]
 
+            attackers = []
             for target in target_services:
                 if not lib_telemetry.get_lib_kubernetes().service_exists(
                     target, config["namespace"]
                 ):
                     logging.error(f"SynFloodScenarioPlugin {target} service not found")
                     return 1
-                target_pods = [
-                    "syn-flood-" + krkn_lib_utils.get_random_string(10)
+                attackers.extend(
+                    ("syn-flood-" + krkn_lib_utils.get_random_string(10), target)
                     for _ in range(config["number-of-pods"])
-                ]
-                pod_names.extend(target_pods)
+                )
+            pod_names = [pod_name for pod_name, _ in attackers]
 
-                # Register rollback before deploying so an interrupted run can still clean up
-                rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
-                if not self.rollback_handler.set_rollback_callable(
-                    self.rollback_syn_flood_pods,
-                    RollbackContent(
-                        namespace=config["namespace"],
-                        resource_identifier=rollback_data,
-                    ),
-                ):
-                    logging.error(
-                        f"SynFloodScenarioPlugin failed to register rollback, not deploying attackers for {target}"
-                    )
-                    return 1
+            # Register rollback once before deploying so an interrupted run can still clean up
+            rollback_data = base64.b64encode(json.dumps(pod_names).encode('utf-8')).decode('utf-8')
+            if not self.rollback_handler.set_rollback_callable(
+                self.rollback_syn_flood_pods,
+                RollbackContent(
+                    namespace=config["namespace"],
+                    resource_identifier=rollback_data,
+                ),
+            ):
+                logging.error(
+                    "SynFloodScenarioPlugin failed to register rollback, not deploying attackers"
+                )
+                return 1
 
-                for pod_name in target_pods:
-                    lib_telemetry.get_lib_kubernetes().deploy_syn_flood(
-                        pod_name,
-                        config["namespace"],
-                        config["image"],
-                        target,
-                        config["target-port"],
-                        config["packet-size"],
-                        config["window-size"],
-                        config["duration"],
-                        config["attacker-nodes"],
-                    )
+            for pod_name, target in attackers:
+                lib_telemetry.get_lib_kubernetes().deploy_syn_flood(
+                    pod_name,
+                    config["namespace"],
+                    config["image"],
+                    target,
+                    config["target-port"],
+                    config["packet-size"],
+                    config["window-size"],
+                    config["duration"],
+                    config["attacker-nodes"],
+                )
 
             logging.info("waiting all the attackers to finish:")
             did_finish = False
