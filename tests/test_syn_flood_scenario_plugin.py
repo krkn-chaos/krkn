@@ -13,9 +13,10 @@ import base64
 import json
 import unittest
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from krkn.rollback.config import RollbackContent
+from krkn.rollback.handler import RollbackHandler
 from krkn.scenario_plugins.syn_flood.syn_flood_scenario_plugin import SynFloodScenarioPlugin
 
 
@@ -254,6 +255,12 @@ class TestParseConfig(unittest.TestCase):
 class TestSynFloodRun(unittest.TestCase):
     """Tests for the run method of SynFloodScenarioPlugin"""
 
+    def setUp(self):
+        # Keep rollback registration off the filesystem in unit tests
+        patcher = patch.object(RollbackHandler, "set_rollback_callable", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def _create_scenario_file(self, tmp_path, config=None):
         """Helper to create a temporary scenario YAML file"""
         import yaml
@@ -316,6 +323,30 @@ class TestSynFloodRun(unittest.TestCase):
             )
             mock_lib_kubernetes.deploy_syn_flood.assert_called_once()
 
+    def test_run_aborts_when_rollback_registration_fails(self):
+        """No attacker pod is deployed if the rollback can't be persisted"""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            scenario_file = self._create_scenario_file(tmp_dir)
+            mock_lib_telemetry, mock_lib_kubernetes, mock_scenario_telemetry = (
+                self._create_mocks()
+            )
+            mock_lib_kubernetes.service_exists.return_value = True
+
+            plugin = SynFloodScenarioPlugin()
+            plugin.rollback_handler = MagicMock()
+            plugin.rollback_handler.set_rollback_callable.return_value = False
+            result = plugin.run(
+                run_uuid=str(uuid.uuid4()),
+                scenario=scenario_file,
+                lib_telemetry=mock_lib_telemetry,
+                scenario_telemetry=mock_scenario_telemetry,
+            )
+
+            self.assertEqual(result, 1)
+            mock_lib_kubernetes.deploy_syn_flood.assert_not_called()
+
     def test_run_successful_with_label_selector(self):
         """Test successful execution with target-service-label"""
         import tempfile
@@ -337,6 +368,8 @@ class TestSynFloodRun(unittest.TestCase):
             mock_lib_kubernetes.is_pod_running.return_value = False
 
             plugin = SynFloodScenarioPlugin()
+            plugin.rollback_handler = MagicMock()
+            plugin.rollback_handler.set_rollback_callable.return_value = True
 
             result = plugin.run(
                 run_uuid=str(uuid.uuid4()),
@@ -351,6 +384,12 @@ class TestSynFloodRun(unittest.TestCase):
             )
             # Should deploy pods for each service found
             self.assertEqual(mock_lib_kubernetes.deploy_syn_flood.call_count, 2)
+            # Rollback is registered once, covering the pods of every target
+            plugin.rollback_handler.set_rollback_callable.assert_called_once()
+            content = plugin.rollback_handler.set_rollback_callable.call_args[0][1]
+            registered = json.loads(base64.b64decode(content.resource_identifier))
+            deployed = [c[0][0] for c in mock_lib_kubernetes.deploy_syn_flood.call_args_list]
+            self.assertEqual(registered, deployed)
 
     def test_run_service_not_found(self):
         """Test run method when service does not exist"""
